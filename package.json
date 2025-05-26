@@ -1,0 +1,56 @@
+{
+  "name": "mastersfit-server",
+  "version": "1.0.0",
+  "description": "RESTful API server for Masters Fit fitness tracking application",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "node --loader ts-node/esm/transpile-only -r tsconfig-paths/register dist/index.js",
+    "dev": "concurrently \"tsoa spec-and-routes\" \"tsx watch --require tsconfig-paths/register src/index.ts\"",
+    "build": "tsoa spec-and-routes && tsc",
+    "lint": "eslint . --ext .ts",
+    "test": "jest",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "drizzle-kit push:pg",
+    "db:studio": "drizzle-kit studio",
+    "tsoa": "tsoa spec-and-routes",
+    "tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.51.0",
+    "@tsoa/runtime": "^5.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^20.11.24",
+    "@types/swagger-ui-express": "^4.1.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.29.3",
+    "drizzle-zod": "^0.5.1",
+    "express": "^4.18.2",
+    "morgan": "^1.10.0",
+    "pg": "^8.11.3",
+    "swagger-ui-express": "^5.0.0",
+    "tsoa": "^5.0.0",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.2",
+    "concurrently": "^8.2.2",
+    "drizzle-kit": "^0.20.14",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "tsconfig-paths": "^4.2.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "overrides": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  }
+}

@@ -1,0 +1,40 @@
+import { ApiResponse } from "@/types/common/responses";
+
+// Define the user response type inline to avoid circular dependencies
+export interface AuthUserResponse {
+  id: number;
+  email: string;
+  name: string;
+}
+
+/**
+ * @description Response type for auth verification endpoints
+ */
+export interface AuthVerifyResponse {
+  success: boolean;
+  error?: string;
+  needsOnboarding?: boolean;
+  user?: AuthUserResponse;
+  email?: string;
+  token?: string;
+}
+
+/**
+ * @description Response type for auth login endpoints
+ */
+export interface AuthLoginResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+  authCode?: string;
+  userExists?: boolean;
+  needsOnboarding?: boolean;
+}
+
+export interface AuthSignupResponse {
+  success: boolean;
+  error?: string;
+  message?: string;
+  user?: AuthUserResponse;
+  needsOnboarding?: boolean;
+}
