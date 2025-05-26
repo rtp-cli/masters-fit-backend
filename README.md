@@ -1,187 +1,136 @@
-# FitTrack API Server
+# MastersFit API Server
 
-A RESTful API server for the FitTrack fitness tracking application. This server provides endpoints for user authentication, workout management, exercise data, progress tracking, and more.
-
-## Running Modes
-
-This server can be run in two modes:
-
-1. **Integrated Mode**: Used when running with the client application (default)
-   - The server is initialized through `server/index.ts`
-   - Vite handles serving both API and client from the same port
-   - This is the mode used when running the full application with `npm run dev` from the project root
-
-2. **Standalone Mode**: Used when running the server independently
-   - The server is initialized through `server/standalone-index.ts`
-   - Only the API endpoints are available; no client is served
-   - Run with `cd server && npm run dev` or `cd server && npm start`
-   - Use this mode when you want to:
-     - Run the server with a different client (mobile app, custom frontend)
-     - Develop the API separately from the client
-     - Deploy the API as a standalone service
+A modern, TypeScript-based RESTful API server for the MastersFit fitness tracking application. This server provides a robust backend infrastructure for managing workouts, user data, and fitness tracking functionality.
 
 ## Features
 
-- **Authentication**: Passwordless authentication using email magic links
-- **User Management**: User profiles and preferences
-- **Workout Management**: Create, update, and track workouts
-- **Exercise Database**: Access to a comprehensive exercise database
-- **Progress Tracking**: Log workout completions and track fitness metrics
-- **Achievement System**: Recognize user milestones and achievements
+- **User Management**: Secure user authentication and profile management
+- **Workout Management**: Create, retrieve, and manage workout routines
+- **Exercise Database**: Access to a comprehensive exercise library
+- **Progress Tracking**: Track workout history and performance metrics
+- **Type Safety**: Built with TypeScript for enhanced reliability and developer experience
+- **API Documentation**: Auto-generated Swagger/OpenAPI documentation
 
 ## Tech Stack
 
-- **Node.js** with **Express**: Fast, unopinionated web framework
-- **TypeScript**: Type-safe JavaScript
-- **PostgreSQL**: Relational database (via Drizzle ORM)
-- **Drizzle ORM**: TypeScript-first ORM with Zod validation
-- **Zod**: TypeScript-first schema validation
+- **Runtime**: Node.js (v16 or later)
+- **Framework**: Express.js with TypeScript
+- **Database**: PostgreSQL with Drizzle ORM
+- **API Documentation**: TSOA (OpenAPI/Swagger)
+- **Validation**: Zod schema validation
+- **Development Tools**: ESLint, Jest, Concurrently
 
-## Getting Started
-
-### Prerequisites
+## Prerequisites
 
 - Node.js (v16 or later)
 - PostgreSQL database
-- npm or yarn
+- npm or yarn package manager
+
+## Getting Started
 
 ### Installation
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/your-username/fittrack.git
-   cd fittrack/server
+1. Clone the repository and navigate to the server directory:
+   ```bash
+   git clone https://github.com/areejfnaqvi/masters-fit-backend.git
+   cd server
    ```
 
 2. Install dependencies:
-   ```
+   ```bash
    npm install
    ```
 
-3. Create a `.env` file based on `.env.example`:
-   ```
-   cp .env.example .env
-   ```
-
-4. Update the `.env` file with your database connection and other configuration values
+3. Create a `.env` file in the root directory with the variables defined in `.env.example`
 
 ### Database Setup
 
-1. Set up your PostgreSQL database and update the `DATABASE_URL` in your `.env` file
-
+1. Ensure your PostgreSQL database is running
 2. Run database migrations:
-   ```
+   ```bash
    npm run db:migrate
+   ```
+
+3. (Optional) Launch Drizzle Studio to view/manage database:
+   ```bash
+   npm run db:studio
    ```
 
 ### Running the Server
 
-#### Development mode:
-```
+#### Development Mode
+```bash
 npm run dev
 ```
+This will:
+- Start the development server with hot-reload
+- Generate API routes and specifications
+- Watch for file changes
 
-#### Production mode:
-```
+#### Production Mode
+```bash
 npm run build
 npm start
 ```
 
-## API Endpoints
+## API Documentation
 
-### Authentication
+When the server is running, access the Swagger UI documentation at:
+- Development: `http://localhost:3000/docs`
+- Production: `http://localhost:5000/docs`
 
-- `POST /api/auth/login`: Send a magic link login email
-- `POST /api/auth/verify`: Verify an authentication code
+## Available Scripts
 
-### Onboarding
+- `npm run dev`: Start development server
+- `npm run build`: Build for production
+- `npm start`: Run production server
+- `npm run lint`: Run ESLint
+- `npm run test`: Run tests
+- `npm run db:migrate`: Run database migrations
+- `npm run db:studio`: Launch Drizzle Studio
+- `npm run tsoa`: Generate API specifications
 
-- `POST /api/onboarding`: Complete user onboarding with profile data
-
-### User Profile
-
-- `GET /api/user/profile`: Get current user's profile
-- `PUT /api/user/profile`: Update user's profile
-
-### Exercises
-
-- `GET /api/exercises`: Get all exercises
-- `GET /api/exercises/:id`: Get a specific exercise
-
-### Workouts
-
-- `GET /api/workouts`: Get all user workouts
-- `GET /api/workouts/:id`: Get a specific workout with its exercises
-- `POST /api/workouts`: Create a new workout
-- `PUT /api/workouts/:id`: Update an existing workout
-- `POST /api/workouts/:id/log`: Log a completed workout
-
-### Progress
-
-- `GET /api/progress`: Get user's progress metrics
-- `POST /api/progress`: Add a new progress metric entry
-
-### Achievements
-
-- `GET /api/achievements`: Get user's achievements
-
-## Development
-
-### Project Structure
+## Project Structure
 
 ```
 server/
-├── .env.example       # Example environment configuration
-├── package.json       # Project dependencies and scripts
-├── tsconfig.json      # TypeScript configuration
-├── standalone-index.ts # Entry point for standalone server
-├── index.ts           # Original entry point (when used with client)
-├── routes.ts          # API route definitions
-├── storage.ts         # Data storage and persistence logic
-└── vite.ts            # Vite integration (for development with client)
+├── src/
+│   ├── controllers/    # API route controllers
+│   ├── models/        # Data models and types
+│   ├── services/      # Business logic
+│   ├── db/           # Database configuration and schemas
+│   └── index.ts      # Application entry point
+├── dist/             # Compiled JavaScript output
+├── generated/        # Auto-generated API routes
+├── tsoa.json        # TSOA configuration
+├── drizzle.config.ts # Drizzle ORM configuration
+└── tsconfig.json    # TypeScript configuration
 ```
 
-### Common Development Tasks
+## Development Guidelines
 
-#### Adding a new API endpoint
+1. **Type Safety**: Always use TypeScript types/interfaces for data structures
+2. **API Documentation**: Document API endpoints using TSOA decorators
+3. **Database Changes**: Use Drizzle migrations for database schema changes
+4. **Testing**: Write tests for new features using Jest
 
-1. Add the endpoint to `routes.ts`
-2. Implement any required storage methods in `storage.ts`
-3. Update any related TypeScript types in `shared/schema.ts`
+## Error Handling
 
-#### Working with the database
+The API uses standard HTTP status codes:
+- 200: Success
+- 400: Bad Request
+- 401: Unauthorized
+- 403: Forbidden
+- 404: Not Found
+- 500: Internal Server Error
 
-- View database schema: `npm run db:studio`
-- Push schema changes: `npm run db:migrate`
+## Security
 
-## Deployment
+- CORS enabled for specified origins
+- Request validation using Zod schemas
+- TypeScript for type safety
+- Environment variables for sensitive data
 
-The server can be deployed to any Node.js hosting platform:
+## Support
 
-1. Build the TypeScript code:
-   ```
-   npm run build
-   ```
-
-2. Start the production server:
-   ```
-   npm start
-   ```
-
-## Integration with Client Applications
-
-This server is designed to work with:
-
-- Web client (React)
-- Mobile client (React Native)
-
-The API uses standard REST endpoints with JSON responses, making it compatible with any client that can make HTTP requests.
-
-## License
-
-[MIT License](../LICENSE)
-
-## Acknowledgements
-
-- Exercise data sourced from various fitness resources
-- Built with open source technologies
+For support, please open an issue in the repository or contact the development team.
