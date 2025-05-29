@@ -153,6 +153,26 @@ router.post("/:userId/regenerate", async (req, res) => {
   }
 });
 
+// Regenerate daily workout
+router.post("/:userId/days/:planDayId/regenerate", async (req, res) => {
+  try {
+    const response = await controller.regenerateDailyWorkout(
+      Number(req.params.userId),
+      Number(req.params.planDayId),
+      req.body
+    );
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
 // Fetch active workout
 router.get("/:userId/active", async (req, res) => {
   try {

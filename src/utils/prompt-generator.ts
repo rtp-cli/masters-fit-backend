@@ -109,3 +109,82 @@ export const buildClaudePrompt = (
 
   return prompt;
 };
+
+export const buildClaudeDailyPrompt = (
+  profile: Profile,
+  exerciseNames: string[],
+  dayNumber: number,
+  previousWorkout: any,
+  regenerationReason: string
+) => {
+  const prompt = `
+    You are an experienced fitness trainer. Based on the following user profile, regenerate a single day's workout session by addressing the user's feedback.
+
+    **User Profile:**
+    - Age: ${profile.age}
+    - Gender: ${profile.gender}
+    - Height: ${profile.height} cm
+    - Weight: ${profile.weight} kg
+    - Goals: ${profile.goals}
+    - Physical Limitations: ${profile.limitations}
+    - Fitness Level: ${profile.fitnessLevel}
+    - Workout Environment: ${profile.environment}
+    - Available Equipment: ${profile.equipment}
+    - Preferred Styles: ${profile.preferredStyles}
+    - Preferred Workout Duration: ${profile.workoutDuration || 30} minutes
+    - Desired Intensity Level: ${profile.intensityLevel}
+    - Medical Notes: ${profile.medicalNotes}
+
+    **Previously Generated Workout (Day ${dayNumber}):**
+    ${JSON.stringify(previousWorkout, null, 2)}
+
+    **User Feedback / Reason for Regeneration:**
+    "${regenerationReason}"
+
+    **Instructions:**
+
+    1. Regenerate a single workout session that fits within approximately ${
+      profile.workoutDuration || 30
+    } minutes.
+      - Consider rest, exercise time, transitions.
+      - Adjust exercises, sets, or reps based on user feedback.
+      - Be compliant with all physical and medical limitations.
+
+    2. You may use exercises from this list: ${exerciseNames}
+      - Add new ones only if necessary.
+      - New exercises must use one or more of: ["dumbbells", "resistance_bands", "machines", "bodyweight", "kettlebells", "medicine_ball", "foam_roller", "treadmill", "bike", "yoga_mat"]
+      - Include them in "exercisesToAdd" with all required metadata.
+
+    **Return a JSON object in the following format:**
+
+    {
+      "day": ${dayNumber},
+      "exercises": [
+        {
+          "exerciseName": "string",
+          "sets": number,
+          "reps": number,
+          "weight": number,
+          "duration": number,
+          "restTime": number,
+          "notes": "string"
+        }
+      ],
+      "exercisesToAdd": [
+        {
+          "name": "string",
+          "description": "string",
+          "equipment": ["string"],
+          "muscleGroups": ["string"],
+          "difficulty": "low" | "moderate" | "high",
+          "instructions": "string"
+        }
+      ]
+    }
+
+    - Ensure strict JSON compliance (no markdown, no explanations).
+    - Always include all required fields, even if values are 0 or "".
+    `;
+
+  return prompt;
+};

@@ -407,4 +407,29 @@ export class WorkoutController extends Controller {
       workout,
     };
   }
+
+  /**
+   * Regenerate a single day's workout
+   * @param userId User ID
+   * @param planDayId Plan day ID
+   * @param requestBody Regeneration reason
+   */
+  @Post("/{userId}/days/{planDayId}/regenerate")
+  @Response<PlanDayResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async regenerateDailyWorkout(
+    @Path() userId: number,
+    @Path() planDayId: number,
+    @Body() requestBody: { regenerationReason: string }
+  ): Promise<PlanDayResponse> {
+    const planDay = await workoutService.regenerateDailyWorkout(
+      userId,
+      planDayId,
+      requestBody.regenerationReason
+    );
+    return {
+      success: true,
+      planDay,
+    };
+  }
 }

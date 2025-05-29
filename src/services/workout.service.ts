@@ -711,6 +711,103 @@ export class WorkoutService extends BaseService {
     const workout = await this.generateWorkoutPlan(userId, customFeedback);
     return workout;
   }
+
+  async regenerateDailyWorkout(
+    userId: number,
+    planDayId: number,
+    regenerationReason: string
+  ): Promise<PlanDayWithExercises> {
+    // Get the existing plan day with its exercises
+    const existingPlanDay = await this.db.query.planDays.findFirst({
+      where: eq(planDays.id, planDayId),
+      with: {
+        exercises: {
+          with: {
+            exercise: true,
+          },
+        },
+      },
+    });
+
+    if (!existingPlanDay) {
+      throw new Error("Plan day not found");
+    }
+
+    // Format the previous workout for the AI prompt
+    const previousWorkout = {
+      day: (existingPlanDay as any).dayNumber || 1,
+      exercises: existingPlanDay.exercises.map((ex) => ({
+        exerciseName: ex.exercise.name,
+        sets: ex.sets || 0,
+        reps: ex.reps || 0,
+        weight: ex.weight || 0,
+        duration: ex.duration || 0,
+        restTime: ex.restTime || 0,
+        notes: ex.notes || "",
+      })),
+    };
+
+    // Generate new workout for this day
+    const { response } = await promptsService.generateDailyRegenerationPrompt(
+      userId,
+      (existingPlanDay as any).dayNumber || 1,
+      previousWorkout,
+      regenerationReason
+    );
+
+    // Add any new exercises to the database
+    if (response.exercisesToAdd) {
+      for (const exercise of response.exercisesToAdd) {
+        await exerciseService.createExercise({
+          name: exercise.name,
+          description: exercise.description,
+          equipment: exercise.equipment as AvailableEquipment[],
+          muscleGroups: exercise.muscleGroups,
+          difficulty: exercise.difficulty as IntensityLevel,
+          instructions: exercise.instructions,
+        });
+      }
+    }
+
+    // Delete all existing exercises for this plan day
+    await this.db
+      .delete(planDayExercises)
+      .where(eq(planDayExercises.planDayId, planDayId));
+
+    // Create new exercises for this plan day
+    const newExercises = [];
+    for (const exercise of response.exercises) {
+      const exerciseDetails = await exerciseService.getExerciseByName(
+        exercise.exerciseName
+      );
+      if (exerciseDetails) {
+        const newExercise = await this.createPlanDayExercise({
+          planDayId: planDayId,
+          exerciseId: exerciseDetails.id,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          weight: exercise.weight,
+          duration: exercise.duration,
+          restTime: exercise.restTime,
+          notes: exercise.notes,
+        });
+        newExercises.push(newExercise);
+      }
+    }
+
+    // Return the updated plan day with new exercises
+    return {
+      id: existingPlanDay.id,
+      workoutId: existingPlanDay.workoutId,
+      date: new Date(existingPlanDay.date),
+      name: (existingPlanDay as any).name || "",
+      description: (existingPlanDay as any).description ?? undefined,
+      dayNumber: (existingPlanDay as any).dayNumber || 1,
+      created_at: new Date(existingPlanDay.createdAt ?? Date.now()),
+      updated_at: new Date(),
+      exercises: newExercises,
+    };
+  }
 }
 
 export const workoutService = new WorkoutService();
