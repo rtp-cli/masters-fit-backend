@@ -36,7 +36,71 @@ export class PromptsService extends BaseService {
       max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     });
-    const data = response.content[0].text;
+    const data = (response.content[0] as any).text;
+    const createdPrompt = await this.createPrompt({
+      userId,
+      prompt,
+      response: data,
+    });
+    return { response: JSON.parse(data), promptId: createdPrompt.id };
+  }
+
+  public async generateRegenerationPrompt(
+    userId: number,
+    regenerationData: {
+      goals?: string[];
+      limitations?: string[];
+      fitnessLevel?: string;
+      environment?: string;
+      equipment?: string[];
+      preferredStyles?: string[];
+      availableDays?: string[];
+      workoutDuration?: number;
+      intensityLevel?: string;
+      customFeedback?: string;
+    }
+  ) {
+    const profile = await profileService.getProfileByUserId(userId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    // Merge current profile with regeneration data
+    const updatedProfile = {
+      ...profile,
+      goals: regenerationData.goals || profile.goals,
+      limitations: regenerationData.limitations || profile.limitations,
+      fitnessLevel: regenerationData.fitnessLevel || profile.fitnessLevel,
+      environment: regenerationData.environment || profile.environment,
+      equipment: regenerationData.equipment || profile.equipment,
+      preferredStyles:
+        regenerationData.preferredStyles || profile.preferredStyles,
+      availableDays: regenerationData.availableDays || profile.availableDays,
+      workoutDuration:
+        regenerationData.workoutDuration || profile.workoutDuration,
+      intensityLevel: regenerationData.intensityLevel || profile.intensityLevel,
+    } as any;
+
+    const exercises = await exerciseService.getExercises();
+    const exerciseNames = exercises.map((exercise) => exercise.name);
+
+    // Build prompt with custom feedback
+    const basePrompt = buildClaudePrompt(updatedProfile, exerciseNames);
+    const customFeedbackSection = regenerationData.customFeedback
+      ? `\n\n**IMPORTANT CUSTOM FEEDBACK FROM USER:**\n${regenerationData.customFeedback}\n\nPlease incorporate this feedback into the workout plan generation.`
+      : "";
+
+    const prompt = basePrompt + customFeedbackSection;
+
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+    const response = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 2000,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const data = (response.content[0] as any).text;
     const createdPrompt = await this.createPrompt({
       userId,
       prompt,

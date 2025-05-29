@@ -371,6 +371,40 @@ export class WorkoutController extends Controller {
   }
 
   /**
+   * Regenerate workout plan with custom preferences and feedback
+   * @param userId User ID
+   * @param requestBody Regeneration data
+   */
+  @Post("/{userId}/regenerate")
+  @Response<WorkoutResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async regenerateWorkoutPlan(
+    @Path() userId: number,
+    @Body()
+    requestBody: {
+      goals?: string[];
+      limitations?: string[];
+      fitnessLevel?: string;
+      environment?: string;
+      equipment?: string[];
+      preferredStyles?: string[];
+      availableDays?: string[];
+      workoutDuration?: number;
+      intensityLevel?: string;
+      customFeedback?: string;
+    }
+  ): Promise<WorkoutResponse> {
+    const workout = await workoutService.regenerateWorkoutPlan(
+      userId,
+      requestBody
+    );
+    return {
+      success: true,
+      workout,
+    };
+  }
+
+  /**
    * Fetch active workout
    * @param userId User ID
    */

@@ -691,6 +691,163 @@ export class WorkoutService extends BaseService {
     });
     return this.transformWorkout(workout as unknown as DBWorkoutResult);
   }
+
+  async regenerateWorkoutPlan(
+    userId: number,
+    regenerationData: {
+      goals?: string[];
+      limitations?: string[];
+      fitnessLevel?: string;
+      environment?: string;
+      equipment?: string[];
+      preferredStyles?: string[];
+      availableDays?: string[];
+      workoutDuration?: number;
+      intensityLevel?: string;
+      customFeedback?: string;
+    }
+  ): Promise<WorkoutWithDetails> {
+    // First, deactivate the current active workout
+    await this.db
+      .update(workouts)
+      .set({ isActive: false })
+      .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
+
+    // Generate new workout with custom preferences and feedback
+    const { response, promptId } =
+      await promptsService.generateRegenerationPrompt(userId, regenerationData);
+
+    // Calculate startDate and endDate as YYYY-MM-DD strings (local date, no timezone shift)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = today.toLocaleDateString("en-CA");
+
+    const end = new Date(today);
+    end.setDate(end.getDate() + 6);
+    end.setHours(0, 0, 0, 0);
+    const endDate = end.toLocaleDateString("en-CA");
+
+    const workout = await this.createWorkout({
+      userId,
+      promptId,
+      startDate,
+      endDate,
+      name: response.name,
+      description: response.description,
+    });
+
+    if (response.exercisesToAdd) {
+      for (const exercise of response.exercisesToAdd) {
+        await exerciseService.createExercise({
+          name: exercise.name,
+          description: exercise.description,
+          equipment: exercise.equipment as AvailableEquipment[],
+          muscleGroups: exercise.muscleGroups,
+          difficulty: exercise.difficulty as IntensityLevel,
+          instructions: exercise.instructions,
+        });
+      }
+    }
+
+    const workoutPlan = response.workoutPlan;
+    const profile = await profileService.getProfileByUserId(userId);
+    const availableDays =
+      regenerationData.availableDays &&
+      regenerationData.availableDays.length > 0
+        ? regenerationData.availableDays
+        : profile?.availableDays && profile.availableDays.length > 0
+        ? profile.availableDays
+        : ["monday", "wednesday", "friday"]; // Default fallback
+    const currentDay = new Date();
+    currentDay.setHours(0, 0, 0, 0);
+    const todayDay = currentDay
+      .toLocaleDateString("en-US", { weekday: "long" })
+      .toLowerCase();
+
+    // New logic for rotating available days
+    const daysOfWeek = [
+      "sunday",
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+    ];
+    const todayIndex = daysOfWeek.indexOf(todayDay);
+    const sortedAvailable = availableDays
+      .map((day) => ({ day, index: daysOfWeek.indexOf(day) }))
+      .sort(
+        (a, b) =>
+          ((a.index - todayIndex + 7) % 7) - ((b.index - todayIndex + 7) % 7)
+      )
+      .map((obj) => obj.day);
+    const rotatedDays = sortedAvailable;
+
+    const getNextDateForDay = (targetDay: string, afterDate: Date): Date => {
+      const daysOfWeek = [
+        "sunday",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+      ];
+      const targetIndex = daysOfWeek.indexOf(targetDay.toLowerCase());
+
+      const result = new Date(afterDate);
+      result.setHours(0, 0, 0, 0);
+
+      while (result.getDay() !== targetIndex) {
+        result.setDate(result.getDate() + 1);
+      }
+
+      return result;
+    };
+
+    let referenceDate = new Date(currentDay);
+    referenceDate.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < workoutPlan.length; i++) {
+      const availableDay = rotatedDays[i % rotatedDays.length];
+      const scheduledDate = getNextDateForDay(availableDay, referenceDate);
+
+      // Move reference date to the day *after* the scheduledDate to prevent same day reuse
+      referenceDate = new Date(scheduledDate.getTime());
+      referenceDate.setDate(referenceDate.getDate() + 1);
+
+      const planDay = await this.createPlanDay({
+        workoutId: workout.id,
+        date: scheduledDate.toLocaleDateString("en-CA"),
+      });
+
+      for (const exercise of workoutPlan[i].exercises) {
+        const exerciseDetails = await exerciseService.getExerciseByName(
+          exercise.exerciseName
+        );
+        if (exerciseDetails) {
+          await this.createPlanDayExercise({
+            planDayId: planDay.id,
+            exerciseId: exerciseDetails.id,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            weight: exercise.weight,
+            duration: exercise.duration,
+            restTime: exercise.restTime,
+            notes: exercise.notes,
+          });
+        }
+      }
+    }
+
+    // Fetch and return the new workout
+    const generatedWorkout = await this.getWorkoutById(workout.id);
+    if (!generatedWorkout) throw new Error("Workout not found");
+    return this.transformWorkout(
+      generatedWorkout as unknown as DBWorkoutResult
+    );
+  }
 }
 
 export const workoutService = new WorkoutService();
