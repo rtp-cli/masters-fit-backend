@@ -9,7 +9,19 @@ export interface ExerciseLog {
   setsCompleted: number;
   repsCompleted: number;
   weightUsed: number;
-  status: string;
+  isComplete: boolean;
+  timeTaken: number | null;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WorkoutLog {
+  id: number;
+  workoutId: number;
+  isComplete: boolean;
+  totalTimeTaken: number | null;
+  completedExercises: number[] | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -21,4 +33,21 @@ export interface ExerciseLogsResponse extends ApiResponse {
 
 export interface ExerciseLogResponse extends ApiResponse {
   log: ExerciseLog;
+}
+
+export interface WorkoutLogResponse extends ApiResponse {
+  log: WorkoutLog;
+}
+
+export interface WorkoutLogOrNullResponse extends ApiResponse {
+  log: WorkoutLog | null;
+}
+
+export interface WorkoutLogsResponse extends ApiResponse {
+  logs: WorkoutLog[];
+}
+
+export interface CompletedExercisesResponse extends ApiResponse {
+  completedExercises: number[];
+  count: number;
 }

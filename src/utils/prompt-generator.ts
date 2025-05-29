@@ -22,6 +22,9 @@ export const buildClaudePrompt = (
     - Available Days per Week: ${
       profile.availableDays ? profile.availableDays.length : 7
     }
+    - Preferred Workout Duration: ${
+      profile.workoutDuration || 30
+    } minutes per session
     - Desired Intensity Level: ${profile.intensityLevel}
     - Medical Notes: ${profile.medicalNotes}
 
@@ -35,24 +38,31 @@ export const buildClaudePrompt = (
         profile.availableDays ? profile.availableDays.length : 7
       }.
 
-    2. Be **strictly compliant** with the user's limitations, environment, equipment, fitness level, intensity level, and medical notes.
+    2. **IMPORTANT**: Each workout session should be designed to fit within approximately ${
+      profile.workoutDuration || 30
+    } minutes.
+      - Consider rest times, exercise duration, and transitions between exercises.
+      - Adjust the number of exercises, sets, and reps to fit this time constraint.
+      - The duration you provide for each exercise must be in seconds.
+
+    3. Be **strictly compliant** with the user's limitations, environment, equipment, fitness level, intensity level, and medical notes.
       - These constraints **MUST NOT** be violated.
 
-    3. You may use exercises from the provided list: ${exerciseNames}
+    4. You may use exercises from the provided list: ${exerciseNames}
     - If this list is insufficient to meet the user's goals, **you MAY add new exercises**.
     - Any new exercise MUST be included in 'exercisesToAdd' (structure defined below).
     - New exercises MUST only use the user's available equipment.
 
-    4. You must ONLY choose values for "equipment" in "exercisesToAdd" from the following: ["dumbbells", "resistance_bands", "machines", "bodyweight", "kettlebells", "medicine_ball", "foam_roller", "treadmill", "bike", "yoga_mat"]
+    5. You must ONLY choose values for "equipment" in "exercisesToAdd" from the following: ["dumbbells", "resistance_bands", "machines", "bodyweight", "kettlebells", "medicine_ball", "foam_roller", "treadmill", "bike", "yoga_mat"]
 
-    5. Workout plan name should be a very short name for the plan.
+    6. Workout plan name should be a very short name for the plan.
 
-    6. Workout plan description should be a very short description for the plan. (10-15 words)
+    7. Workout plan description should be a very short description for the plan. (10-15 words)
 
-    7. EVERY exercise you add to the workout plan MUST be a valid exercise with actual movements that can be performed and not a general suggestion. 
+    8. EVERY exercise you add to the workout plan MUST be a valid exercise with actual movements that can be performed and not a general suggestion. 
     - For example, "Warmup" or "Stretching" are not valid exercises, but "Pushups" or "Squats" are valid exercises.
 
-    7. Your entire response MUST be a **valid JSON object** with **exactly** the following structure and keys:
+    9. Your entire response MUST be a **valid JSON object** with **exactly** the following structure and keys:
 
     {
     "name": "string (workout plan name)",

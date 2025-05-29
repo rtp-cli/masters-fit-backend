@@ -28,7 +28,14 @@ export {
 export * from "@/types/profile/types";
 
 // Logs
-export { ExerciseLogsResponse } from "@/types/logs/responses";
+export {
+  ExerciseLogsResponse,
+  ExerciseLogResponse,
+  WorkoutLogResponse,
+  WorkoutLogOrNullResponse,
+  WorkoutLogsResponse,
+  CompletedExercisesResponse,
+} from "@/types/logs/responses";
 
 // Prompts
 export * from "@/types/prompts/requests";

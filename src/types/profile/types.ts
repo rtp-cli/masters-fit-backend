@@ -42,6 +42,7 @@ export interface Profile {
   equipment?: AvailableEquipment[];
   preferredStyles?: PreferredStyles[];
   availableDays?: PreferredDay[];
+  workoutDuration?: number;
   intensityLevel?: IntensityLevel;
   created_at: Date;
   updated_at: Date;

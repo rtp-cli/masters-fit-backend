@@ -42,6 +42,7 @@ export const profiles = pgTable("profiles", {
   equipment: text("equipment").array().$type<AvailableEquipment[]>(),
   preferredStyles: text("preferred_styles").array().$type<PreferredStyles[]>(),
   availableDays: text("available_days").array().$type<PreferredDay[]>(),
+  workoutDuration: integer("workout_duration"),
   intensityLevel: text("intensity_level").$type<IntensityLevel>(),
   medicalNotes: text("medical_notes"),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -78,6 +79,7 @@ export const onboardingSchema = z.object({
   availableDays: z
     .array(z.nativeEnum(PreferredDayEnum))
     .min(1, "Select at least one day"),
+  workoutDuration: z.number().min(10).max(120),
   intensityLevel: z.nativeEnum(IntensityLevelsEnum),
   medicalNotes: z.string().optional(),
 });
