@@ -20,14 +20,14 @@ export class PromptsService extends BaseService {
     return result[0];
   }
 
-  public async generatePrompt(userId: number) {
+  public async generatePrompt(userId: number, customFeedback?: string) {
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
       throw new Error("Profile not found");
     }
     const exercises = await exerciseService.getExercises();
     const exerciseNames = exercises.map((exercise) => exercise.name);
-    const prompt = buildClaudePrompt(profile, exerciseNames);
+    const prompt = buildClaudePrompt(profile, exerciseNames, customFeedback);
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });

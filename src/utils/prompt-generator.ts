@@ -2,7 +2,8 @@ import { Profile } from "@/models";
 
 export const buildClaudePrompt = (
   profile: Profile,
-  exerciseNames: string[]
+  exerciseNames: string[],
+  customFeedback?: string
 ) => {
   const prompt = `
     You are an experienced fitness trainer. Based on the following user profile, generate a personalized fitness plan:
@@ -27,6 +28,7 @@ export const buildClaudePrompt = (
     } minutes per session
     - Desired Intensity Level: ${profile.intensityLevel}
     - Medical Notes: ${profile.medicalNotes}
+    - Custom Feedback: ${customFeedback}
 
     **Instructions:**
 
@@ -63,6 +65,8 @@ export const buildClaudePrompt = (
     - For example, "Warmup" or "Stretching" are not valid exercises, but "Pushups" or "Squats" are valid exercises.
 
     9. Your entire response MUST be a **valid JSON object** with **exactly** the following structure and keys:
+
+    10. If the user has provided custom feedback, you MUST incorporate it into the workout plan.
 
     {
     "name": "string (workout plan name)",

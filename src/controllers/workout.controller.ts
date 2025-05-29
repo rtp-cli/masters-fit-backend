@@ -380,23 +380,11 @@ export class WorkoutController extends Controller {
   @SuccessResponse(200, "Success")
   public async regenerateWorkoutPlan(
     @Path() userId: number,
-    @Body()
-    requestBody: {
-      goals?: string[];
-      limitations?: string[];
-      fitnessLevel?: string;
-      environment?: string;
-      equipment?: string[];
-      preferredStyles?: string[];
-      availableDays?: string[];
-      workoutDuration?: number;
-      intensityLevel?: string;
-      customFeedback?: string;
-    }
+    @Body() requestBody: { customFeedback?: string }
   ): Promise<WorkoutResponse> {
     const workout = await workoutService.regenerateWorkoutPlan(
       userId,
-      requestBody
+      requestBody.customFeedback
     );
     return {
       success: true,
