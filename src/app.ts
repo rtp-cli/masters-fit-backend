@@ -8,6 +8,7 @@ import { workoutRouter } from "@/routes/workout.routes";
 import { exerciseRouter } from "@/routes/exercise.routes";
 import { logsRouter } from "@/routes/logs.routes";
 import { promptsRouter } from "@/routes/prompts.routes";
+import dashboardRouter from "@/routes/dashboard.routes";
 import { errorHandler } from "@/middleware/error.middleware";
 // Import the auto-generated swagger spec
 import swaggerJson from "../generated/swagger.json";
@@ -75,6 +76,7 @@ app.use("/api/workouts", workoutRouter);
 app.use("/api/exercises", exerciseRouter);
 app.use("/api/prompts", promptsRouter);
 app.use("/api/logs", logsRouter);
+app.use("/api/dashboard", dashboardRouter);
 
 // API Info route
 app.get("/api", (req, res) => {

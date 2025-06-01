@@ -40,3 +40,8 @@ export {
 // Prompts
 export * from "@/types/prompts/requests";
 export * from "@/types/prompts/responses";
+
+// Dashboard
+export * from "@/types/dashboard/types";
+export * from "@/types/dashboard/requests";
+export * from "@/types/dashboard/responses";
