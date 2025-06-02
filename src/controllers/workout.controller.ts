@@ -396,7 +396,7 @@ export class WorkoutController extends Controller {
    * Fetch active workout
    * @param userId User ID
    */
-  @Get("/{userId}/active")
+  @Get("/{userId}/current")
   @SuccessResponse(200, "Success")
   public async fetchActiveWorkout(
     @Path() userId: number

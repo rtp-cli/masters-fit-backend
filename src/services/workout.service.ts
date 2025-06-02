@@ -231,8 +231,12 @@ export class WorkoutService extends BaseService {
         name: workout.name,
         description: workout.description,
         userId: workout.userId,
-        startDate: workout.startDate.toLocaleDateString("en-CA"),
-        endDate: workout.endDate.toLocaleDateString("en-CA"),
+        startDate: workout.startDate
+          ? new Date(workout.startDate).toLocaleDateString("en-CA")
+          : new Date().toLocaleDateString("en-CA"),
+        endDate: workout.endDate
+          ? new Date(workout.endDate).toLocaleDateString("en-CA")
+          : new Date().toLocaleDateString("en-CA"),
         promptId: workout.promptId,
         isActive: workout.isActive,
         completed: workout.completed,
@@ -241,7 +245,9 @@ export class WorkoutService extends BaseService {
         planDays: workout.planDays.map((pd) => ({
           id: pd.id,
           workoutId: pd.workoutId,
-          date: pd.date.toLocaleDateString("en-CA"),
+          date: pd.date
+            ? new Date(pd.date).toLocaleDateString("en-CA")
+            : new Date().toLocaleDateString("en-CA"),
           name: pd.name,
           description: pd.description,
           dayNumber: pd.dayNumber,
@@ -265,7 +271,7 @@ export class WorkoutService extends BaseService {
               name: ex.exercise.name,
               description: ex.exercise.description,
               muscleGroups: ex.exercise.muscleGroups,
-              difficulty: ex.exercise.difficulty,
+              difficulty: ex.exercise.difficulty || "beginner",
               equipment: ex.exercise.equipment,
               createdAt: ex.exercise.createdAt,
               updatedAt: ex.exercise.updatedAt,
@@ -303,8 +309,12 @@ export class WorkoutService extends BaseService {
         name: workout.name,
         description: workout.description,
         userId: workout.userId,
-        startDate: workout.startDate.toLocaleDateString("en-CA"),
-        endDate: workout.endDate.toLocaleDateString("en-CA"),
+        startDate: workout.startDate
+          ? new Date(workout.startDate).toLocaleDateString("en-CA")
+          : new Date().toLocaleDateString("en-CA"),
+        endDate: workout.endDate
+          ? new Date(workout.endDate).toLocaleDateString("en-CA")
+          : new Date().toLocaleDateString("en-CA"),
         promptId: workout.promptId,
         isActive: workout.isActive,
         completed: workout.completed,
@@ -313,7 +323,9 @@ export class WorkoutService extends BaseService {
         planDays: workout.planDays.map((pd) => ({
           id: pd.id,
           workoutId: pd.workoutId,
-          date: pd.date.toLocaleDateString("en-CA"),
+          date: pd.date
+            ? new Date(pd.date).toLocaleDateString("en-CA")
+            : new Date().toLocaleDateString("en-CA"),
           name: pd.name,
           description: pd.description,
           dayNumber: pd.dayNumber,
@@ -337,7 +349,7 @@ export class WorkoutService extends BaseService {
               name: ex.exercise.name,
               description: ex.exercise.description,
               muscleGroups: ex.exercise.muscleGroups,
-              difficulty: ex.exercise.difficulty,
+              difficulty: ex.exercise.difficulty || "beginner",
               equipment: ex.exercise.equipment,
               createdAt: ex.exercise.createdAt,
               updatedAt: ex.exercise.updatedAt,
@@ -700,8 +712,45 @@ export class WorkoutService extends BaseService {
 
   async regenerateWorkoutPlan(
     userId: number,
-    customFeedback?: string
+    customFeedback?: string,
+    profileData?: {
+      age?: number;
+      height?: number;
+      weight?: number;
+      gender?: string;
+      goals?: string[];
+      limitations?: string[];
+      fitnessLevel?: string;
+      environment?: string[];
+      equipment?: string[];
+      workoutStyles?: string[];
+      availableDays?: string[];
+      workoutDuration?: number;
+      intensityLevel?: number;
+      medicalNotes?: string;
+    }
   ): Promise<WorkoutWithDetails> {
+    // If profile data is provided, update the user's profile first
+    if (profileData) {
+      await profileService.createOrUpdateProfile({
+        userId,
+        age: profileData.age ?? null,
+        height: profileData.height ?? null,
+        weight: profileData.weight ?? null,
+        gender: profileData.gender ?? null,
+        goals: profileData.goals ?? null,
+        limitations: profileData.limitations ?? null,
+        fitnessLevel: profileData.fitnessLevel ?? null,
+        environment: profileData.environment?.[0] ?? null,
+        equipment: profileData.equipment ?? null,
+        preferredStyles: profileData.workoutStyles ?? null,
+        availableDays: profileData.availableDays ?? null,
+        workoutDuration: profileData.workoutDuration ?? null,
+        intensityLevel: profileData.intensityLevel?.toString() ?? null,
+        medicalNotes: profileData.medicalNotes ?? null,
+      });
+    }
+
     // First, deactivate the current active workout
     await this.db
       .update(workouts)

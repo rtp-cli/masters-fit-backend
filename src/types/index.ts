@@ -24,6 +24,19 @@ export {
   ExerciseResponse,
 } from "@/types/exercise/responses";
 
+// Search
+export {
+  DateSearchResponse,
+  ExerciseSearchResponse,
+  ExerciseUserStats,
+  DateSearchWorkout,
+  DateSearchPlanDay,
+  DateSearchExercise,
+  ExerciseDetails,
+  SearchExerciseDetails,
+  PersonalRecord,
+} from "@/types/search/responses";
+
 // Profile
 export * from "@/types/profile/types";
 

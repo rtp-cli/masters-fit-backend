@@ -6,3 +6,4 @@ export * from "@/services/workout.service";
 export * from "@/services/auth.service";
 export * from "@/services/logs.service";
 export * from "@/services/dashboard.service";
+export * from "@/services/search.service";
