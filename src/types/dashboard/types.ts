@@ -57,6 +57,12 @@ export interface TotalVolumeMetrics {
   label: string; // e.g., "Jun 1" or "Week 1"
 }
 
+export interface DailyWorkoutProgress {
+  date: string;
+  completionRate: number;
+  hasPlannedWorkout: boolean;
+}
+
 export interface DashboardMetrics {
   weeklySummary: WeeklySummary;
   workoutConsistency: WorkoutConsistency[];
@@ -64,6 +70,7 @@ export interface DashboardMetrics {
   weightAccuracy: WeightAccuracyMetrics;
   goalProgress: GoalProgress[];
   totalVolumeMetrics: TotalVolumeMetrics[];
+  dailyWorkoutProgress: DailyWorkoutProgress[];
 }
 
 export type MuscleGroupGoalMapping = {

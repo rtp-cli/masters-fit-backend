@@ -142,9 +142,15 @@ export class ProfileController extends Controller {
       email: user?.email,
       needsOnboarding: false,
     });
+
+    // Get the updated user with needsOnboarding: false
+    const updatedUser = await userService.getUser(requestBody.userId!);
+
     return {
       success: true,
       profile,
+      user: updatedUser,
+      needsOnboarding: false,
     };
   }
 
@@ -264,17 +270,24 @@ export class ProfileController extends Controller {
       weight: requestBody.weight ?? null,
       age: requestBody.age ?? null,
       gender: requestBody.gender ?? null,
-      goals: requestBody.goals ?? null,
+      goals: requestBody.goals ? JSON.stringify(requestBody.goals) : null,
       fitnessLevel: requestBody.fitnessLevel ?? null,
-      limitations: requestBody.limitations ?? null,
+      limitations: requestBody.limitations
+        ? JSON.stringify(requestBody.limitations)
+        : null,
       medicalNotes: requestBody.medicalNotes ?? null,
-      environment: requestBody.environment?.[0] ?? null,
-      equipment: requestBody.equipment ?? null,
-      preferredStyles: requestBody.workoutStyles ?? null,
-      availableDays: requestBody.availableDays ?? null,
+      environment: requestBody.environment ?? null,
+      equipment: requestBody.equipment
+        ? JSON.stringify(requestBody.equipment)
+        : null,
+      preferredStyles: requestBody.workoutStyles
+        ? JSON.stringify(requestBody.workoutStyles)
+        : null,
+      availableDays: requestBody.availableDays
+        ? JSON.stringify(requestBody.availableDays)
+        : null,
       workoutDuration: requestBody.workoutDuration ?? null,
-      intensityLevel: requestBody.intensityLevel?.toString() ?? null,
-      updatedAt: new Date(),
+      intensityLevel: requestBody.intensityLevel ?? null,
     });
 
     const profile: Profile = {

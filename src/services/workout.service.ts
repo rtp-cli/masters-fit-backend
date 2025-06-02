@@ -4,6 +4,7 @@ import {
   planDays,
   planDayExercises,
   exercises,
+  exerciseLogs,
   type PlanDay,
   type PlanDayExercise,
   type Exercise,
@@ -66,6 +67,7 @@ type DBWorkoutResult = {
         muscleGroups: string[];
         difficulty: string;
         equipment: string[] | null;
+        link: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
       };
@@ -114,6 +116,7 @@ type DBWorkoutQueryResult = {
         muscleGroups: string[];
         difficulty: string;
         equipment: string[] | null;
+        link: string | null;
         createdAt: Date | null;
         updatedAt: Date | null;
       };
@@ -162,8 +165,9 @@ export class WorkoutService extends BaseService {
             name: exercise.exercise.name,
             description: exercise.exercise.description ?? undefined,
             category: exercise.exercise.muscleGroups[0],
-            difficulty: exercise.exercise.difficulty,
+            difficulty: exercise.exercise.difficulty || "beginner",
             equipment: exercise.exercise.equipment?.join(", ") ?? undefined,
+            link: exercise.exercise.link || undefined,
             muscles_targeted: exercise.exercise.muscleGroups,
             created_at: new Date(exercise.exercise.createdAt ?? Date.now()),
             updated_at: new Date(exercise.exercise.updatedAt ?? Date.now()),
@@ -273,6 +277,7 @@ export class WorkoutService extends BaseService {
               muscleGroups: ex.exercise.muscleGroups,
               difficulty: ex.exercise.difficulty || "beginner",
               equipment: ex.exercise.equipment,
+              link: ex.exercise.link || null,
               createdAt: ex.exercise.createdAt,
               updatedAt: ex.exercise.updatedAt,
             },
@@ -351,6 +356,7 @@ export class WorkoutService extends BaseService {
               muscleGroups: ex.exercise.muscleGroups,
               difficulty: ex.exercise.difficulty || "beginner",
               equipment: ex.exercise.equipment,
+              link: ex.exercise.link || null,
               createdAt: ex.exercise.createdAt,
               updatedAt: ex.exercise.updatedAt,
             },
@@ -472,6 +478,7 @@ export class WorkoutService extends BaseService {
         category: exerciseDetails.muscleGroups[0],
         difficulty: exerciseDetails.difficulty,
         equipment: exerciseDetails.equipment?.join(", ") ?? undefined,
+        link: exerciseDetails.link ?? undefined,
         muscles_targeted: exerciseDetails.muscleGroups,
         created_at: exerciseDetails.createdAt ?? now,
         updated_at: exerciseDetails.updatedAt ?? now,
@@ -527,6 +534,7 @@ export class WorkoutService extends BaseService {
         category: exerciseDetails.muscleGroups[0],
         difficulty: exerciseDetails.difficulty,
         equipment: exerciseDetails.equipment?.join(", ") ?? undefined,
+        link: exerciseDetails.link ?? undefined,
         muscles_targeted: exerciseDetails.muscleGroups,
         created_at: new Date(),
         updated_at: new Date(),
@@ -738,13 +746,13 @@ export class WorkoutService extends BaseService {
         height: profileData.height ?? null,
         weight: profileData.weight ?? null,
         gender: profileData.gender ?? null,
-        goals: profileData.goals ?? null,
-        limitations: profileData.limitations ?? null,
+        goals: profileData.goals?.join(",") ?? null,
+        limitations: profileData.limitations?.join(",") ?? null,
         fitnessLevel: profileData.fitnessLevel ?? null,
         environment: profileData.environment?.[0] ?? null,
-        equipment: profileData.equipment ?? null,
-        preferredStyles: profileData.workoutStyles ?? null,
-        availableDays: profileData.availableDays ?? null,
+        equipment: profileData.equipment?.join(",") ?? null,
+        preferredStyles: profileData.workoutStyles?.join(",") ?? null,
+        availableDays: profileData.availableDays?.join(",") ?? null,
         workoutDuration: profileData.workoutDuration ?? null,
         intensityLevel: profileData.intensityLevel?.toString() ?? null,
         medicalNotes: profileData.medicalNotes ?? null,
@@ -818,7 +826,20 @@ export class WorkoutService extends BaseService {
       }
     }
 
-    // Delete all existing exercises for this plan day
+    // First, delete all exercise logs that reference these plan day exercises
+    const planDayExerciseIds = existingPlanDay.exercises.map((ex) => ex.id);
+    if (planDayExerciseIds.length > 0) {
+      await this.db
+        .delete(exerciseLogs)
+        .where(
+          sql`plan_day_exercise_id IN (${sql.join(
+            planDayExerciseIds,
+            sql`, `
+          )})`
+        );
+    }
+
+    // Then delete all existing exercises for this plan day
     await this.db
       .delete(planDayExercises)
       .where(eq(planDayExercises.planDayId, planDayId));

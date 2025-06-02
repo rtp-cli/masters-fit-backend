@@ -17,6 +17,7 @@ export const exercises = pgTable("exercises", {
   muscleGroups: text("muscle_groups").array().notNull(),
   difficulty: text("difficulty").$type<IntensityLevel>(),
   instructions: text("instructions").notNull(),
+  link: text("link"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -29,6 +30,7 @@ export const insertExerciseSchema = createInsertSchema(exercises, {
   muscleGroups: z.array(z.string()),
   difficulty: z.nativeEnum(IntensityLevelsEnum),
   instructions: z.array(z.string()),
+  link: z.string(),
 }).omit({
   id: true,
   createdAt: true,

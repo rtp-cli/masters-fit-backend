@@ -9,6 +9,7 @@ export interface SearchExerciseDetails {
   equipment: string[];
   difficulty: string;
   instructions: string;
+  link?: string;
 }
 
 export interface DateSearchExercise {
@@ -51,6 +52,7 @@ export interface ExerciseDetails {
   equipment: string[];
   difficulty: string;
   instructions: string;
+  link?: string;
   created_at: Date;
   updated_at: Date;
 }

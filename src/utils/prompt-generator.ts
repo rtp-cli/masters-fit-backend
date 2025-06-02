@@ -54,6 +54,7 @@ export const buildClaudePrompt = (
     - If this list is insufficient to meet the user's goals, **you MAY add new exercises**.
     - Any new exercise MUST be included in 'exercisesToAdd' (structure defined below).
     - New exercises MUST only use the user's available equipment.
+    - The link in an 'exercisesToAdd' object must be a youtube link that shows how to do the exercise. If the exercise is something like walking or cycling (does not have a required form/method of being performed), then a link to a public image for the exercise must be added instead.
 
     5. You must ONLY choose values for "equipment" in "exercisesToAdd" from the following: ["dumbbells", "resistance_bands", "machines", "bodyweight", "kettlebells", "medicine_ball", "foam_roller", "treadmill", "bike", "yoga_mat"]
 
@@ -95,6 +96,7 @@ export const buildClaudePrompt = (
       "muscleGroups": ["string"],
       "difficulty": "low" | "moderate" | "high",
       "instructions": "string"
+      "link": string
     }
     ]
     }
@@ -154,6 +156,7 @@ export const buildClaudeDailyPrompt = (
       - Add new ones only if necessary.
       - New exercises must use one or more of: ["dumbbells", "resistance_bands", "machines", "bodyweight", "kettlebells", "medicine_ball", "foam_roller", "treadmill", "bike", "yoga_mat"]
       - Include them in "exercisesToAdd" with all required metadata.
+      - The link in an 'exercisesToAdd' object must be a youtube link that shows how to do the exercise. If the exercise is something like walking or cycling (does not have a required form/method of being performed), then a link to a public image for the exercise must be added instead.
 
     **Return a JSON object in the following format:**
 
@@ -177,7 +180,8 @@ export const buildClaudeDailyPrompt = (
           "equipment": ["string"],
           "muscleGroups": ["string"],
           "difficulty": "low" | "moderate" | "high",
-          "instructions": "string"
+          "instructions": "string",
+          "link": "string"
         }
       ]
     }

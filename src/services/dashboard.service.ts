@@ -106,6 +106,7 @@ export class DashboardService {
       weightAccuracy,
       goalProgress,
       totalVolumeMetrics,
+      dailyWorkoutProgress,
     ] = await Promise.all([
       this.getWeeklySummary(userId),
       this.getWorkoutConsistency(userId, startDate, endDate),
@@ -113,6 +114,7 @@ export class DashboardService {
       this.getWeightAccuracyMetrics(userId, startDate, endDate),
       this.getGoalProgress(userId, startDate, endDate),
       this.getTotalVolumeMetrics(userId, startDate, endDate),
+      this.getDailyWorkoutProgress(userId),
     ]);
 
     return {
@@ -122,6 +124,7 @@ export class DashboardService {
       weightAccuracy,
       goalProgress,
       totalVolumeMetrics,
+      dailyWorkoutProgress,
     };
   }
 
@@ -145,18 +148,73 @@ export class DashboardService {
 
     const workoutId = activeWorkout[0].id;
 
-    // Get all planned days for the active workout
-    const plannedDays = await db
+    // Calculate current week bounds (Monday to Sunday)
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust for Sunday
+
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - daysFromMonday);
+    weekStart.setHours(0, 0, 0, 0);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const weekStartStr = weekStart.toISOString().split("T")[0];
+    const weekEndStr = weekEnd.toISOString().split("T")[0];
+
+    // Get all planned days for the active workout in the current week
+    const plannedDaysThisWeek = await db
       .select({
         planDayId: planDays.id,
         date: planDays.date,
       })
       .from(planDays)
-      .where(eq(planDays.workoutId, workoutId))
+      .where(
+        and(
+          eq(planDays.workoutId, workoutId),
+          gte(planDays.date, weekStartStr),
+          lte(planDays.date, weekEndStr)
+        )
+      )
       .orderBy(asc(planDays.date));
 
-    // Check which plan days have been completed by checking if exercises were logged
-    const planDayCompletionData = await db
+    // Check which plan days have been completed by checking if exercises were logged (current week only)
+    const planDayCompletionDataThisWeek = await db
+      .select({
+        planDayId: planDays.id,
+        date: planDays.date,
+        hasExerciseLogs: sql<boolean>`COUNT(${exerciseLogs.id}) > 0`,
+      })
+      .from(planDays)
+      .leftJoin(planDayExercises, eq(planDays.id, planDayExercises.planDayId))
+      .leftJoin(
+        exerciseLogs,
+        eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
+      )
+      .where(
+        and(
+          eq(planDays.workoutId, workoutId),
+          gte(planDays.date, weekStartStr),
+          lte(planDays.date, weekEndStr)
+        )
+      )
+      .groupBy(planDays.id, planDays.date)
+      .orderBy(asc(planDays.date));
+
+    // Calculate workout completion rate for THIS WEEK only
+    const totalPlannedDaysThisWeek = plannedDaysThisWeek.length;
+    const completedDaysThisWeek = planDayCompletionDataThisWeek.filter(
+      (day) => day.hasExerciseLogs
+    ).length;
+    const workoutCompletionRate =
+      totalPlannedDaysThisWeek > 0
+        ? (completedDaysThisWeek / totalPlannedDaysThisWeek) * 100
+        : 0;
+
+    // Get all plan day completion data for streak calculation (entire workout plan)
+    const allPlanDayCompletionData = await db
       .select({
         planDayId: planDays.id,
         date: planDays.date,
@@ -172,32 +230,7 @@ export class DashboardService {
       .groupBy(planDays.id, planDays.date)
       .orderBy(asc(planDays.date));
 
-    // Calculate workout completion rate for the active workout plan
-    const totalPlannedDays = plannedDays.length;
-    const completedDays = planDayCompletionData.filter(
-      (day) => day.hasExerciseLogs
-    ).length;
-    const workoutCompletionRate =
-      totalPlannedDays > 0 ? (completedDays / totalPlannedDays) * 100 : 0;
-
-    // Calculate exercise completion rate based on actual sets/reps vs planned sets/reps
-    // Only include exercises from plan days that should have occurred by now OR have been completed
-    const today = new Date().toISOString().split("T")[0];
-    const workoutStartDate =
-      plannedDays.length > 0 ? plannedDays[0].date : today;
-
-    // Find the latest date that either should have occurred or has completed exercises
-    const latestCompletedDate = planDayCompletionData
-      .filter((day) => day.hasExerciseLogs)
-      .sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      )[0]?.date;
-
-    const cutoffDate =
-      latestCompletedDate && latestCompletedDate > today
-        ? latestCompletedDate
-        : today;
-
+    // Calculate exercise completion rate based on actual sets/reps vs planned sets/reps (current week only)
     const exerciseCompletionData = await db
       .select({
         planDayExerciseId: planDayExercises.id,
@@ -216,12 +249,12 @@ export class DashboardService {
       .where(
         and(
           eq(planDays.workoutId, workoutId),
-          gte(planDays.date, workoutStartDate),
-          lte(planDays.date, cutoffDate)
+          gte(planDays.date, weekStartStr),
+          lte(planDays.date, weekEndStr)
         )
       );
 
-    // Calculate completion percentage for each exercise that should have occurred by now
+    // Calculate completion percentage for each exercise in the current week
     let totalExerciseCompletionScore = 0;
     let totalExercises = 0;
 
@@ -245,17 +278,17 @@ export class DashboardService {
     const exerciseCompletionRate =
       totalExercises > 0 ? totalExerciseCompletionScore / totalExercises : 0;
 
-    // Calculate streak for the active workout plan based on plan day completion
+    // Calculate streak for the active workout plan based on plan day completion (entire workout plan)
     const streak = await this.calculateActiveWorkoutStreak(
       workoutId,
-      planDayCompletionData
+      allPlanDayCompletionData
     );
 
     return {
       workoutCompletionRate,
       exerciseCompletionRate,
-      totalWorkoutsThisWeek: totalPlannedDays,
-      completedWorkoutsThisWeek: completedDays,
+      totalWorkoutsThisWeek: totalPlannedDaysThisWeek,
+      completedWorkoutsThisWeek: completedDaysThisWeek,
       streak,
     };
   }
@@ -581,13 +614,13 @@ export class DashboardService {
         count: data.exactMatches,
       },
       {
-        label: "🔺 Increased Weight",
+        label: "Increased Weight",
         value: Math.round(higherPercentage * 100) / 100,
         color: "#f59e0b", // amber
         count: data.higherWeight,
       },
       {
-        label: "⚠️ Reduced Weight",
+        label: "Reduced Weight",
         value: Math.round(lowerPercentage * 100) / 100,
         color: "#ef4444", // red
         count: data.lowerWeight,
@@ -830,6 +863,119 @@ export class DashboardService {
     }
 
     return streak;
+  }
+
+  async getDailyWorkoutProgress(
+    userId: number
+  ): Promise<
+    { date: string; completionRate: number; hasPlannedWorkout: boolean }[]
+  > {
+    // Get the currently active workout plan
+    const activeWorkout = await db
+      .select()
+      .from(workouts)
+      .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)))
+      .limit(1);
+
+    if (!activeWorkout[0]) {
+      return [];
+    }
+
+    const workoutId = activeWorkout[0].id;
+
+    // Calculate current week bounds (Monday to Sunday)
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust for Sunday
+
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - daysFromMonday);
+    weekStart.setHours(0, 0, 0, 0);
+
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const weekStartStr = weekStart.toISOString().split("T")[0];
+    const weekEndStr = weekEnd.toISOString().split("T")[0];
+
+    // Get all plan days for the current week
+    const planDaysThisWeek = await db
+      .select({
+        planDayId: planDays.id,
+        date: planDays.date,
+      })
+      .from(planDays)
+      .where(
+        and(
+          eq(planDays.workoutId, workoutId),
+          gte(planDays.date, weekStartStr),
+          lte(planDays.date, weekEndStr)
+        )
+      )
+      .orderBy(asc(planDays.date));
+
+    // Get completion data for each plan day in this week
+    const planDayCompletionData = await db
+      .select({
+        planDayId: planDays.id,
+        date: planDays.date,
+        totalExercises: sql<number>`COUNT(${planDayExercises.id})`,
+        completedExercises: sql<number>`COUNT(CASE WHEN ${exerciseLogs.isComplete} = true THEN 1 END)`,
+      })
+      .from(planDays)
+      .leftJoin(planDayExercises, eq(planDays.id, planDayExercises.planDayId))
+      .leftJoin(
+        exerciseLogs,
+        eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
+      )
+      .where(
+        and(
+          eq(planDays.workoutId, workoutId),
+          gte(planDays.date, weekStartStr),
+          lte(planDays.date, weekEndStr)
+        )
+      )
+      .groupBy(planDays.id, planDays.date)
+      .orderBy(asc(planDays.date));
+
+    // Create a map of all days in the current week
+    const dailyProgress: {
+      date: string;
+      completionRate: number;
+      hasPlannedWorkout: boolean;
+    }[] = [];
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + i);
+      const dateStr = date.toISOString().split("T")[0];
+
+      // Check if there's a planned workout for this day
+      const planDay = planDaysThisWeek.find((day) => day.date === dateStr);
+      const hasPlannedWorkout = !!planDay;
+
+      // Get completion data for this day
+      const completionData = planDayCompletionData.find(
+        (day) => day.date === dateStr
+      );
+      let completionRate = 0;
+
+      if (completionData && completionData.totalExercises > 0) {
+        completionRate = Math.round(
+          (completionData.completedExercises / completionData.totalExercises) *
+            100
+        );
+      }
+
+      dailyProgress.push({
+        date: dateStr,
+        completionRate,
+        hasPlannedWorkout,
+      });
+    }
+
+    return dailyProgress;
   }
 }
 

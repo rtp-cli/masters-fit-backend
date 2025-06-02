@@ -10,6 +10,7 @@ import {
   IntensityLevels,
 } from "@/constants/profile";
 import { ApiResponse } from "../common/responses";
+import { User } from "@/models/user.schema";
 
 export type FitnessGoal = (typeof FitnessGoals)[keyof typeof FitnessGoals];
 export type FitnessLevel = (typeof FitnessLevels)[keyof typeof FitnessLevels];
@@ -50,6 +51,8 @@ export interface Profile {
 
 export interface ProfileResponse extends ApiResponse {
   profile: Profile;
+  user?: User;
+  needsOnboarding?: boolean;
 }
 
 export interface ProfilesResponse extends ApiResponse {
