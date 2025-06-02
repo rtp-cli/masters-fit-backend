@@ -11,7 +11,7 @@ export const buildClaudePrompt = (
     - Age: ${profile.age}
     - Gender: ${profile.gender}
     - Height: ${profile.height} cm
-    - Weight: ${profile.weight} kg
+    - Weight: ${profile.weight} lbs
 
     **User Profile:**
     - Goals: ${profile.goals}
@@ -126,7 +126,7 @@ export const buildClaudeDailyPrompt = (
     - Age: ${profile.age}
     - Gender: ${profile.gender}
     - Height: ${profile.height} cm
-    - Weight: ${profile.weight} kg
+    - Weight: ${profile.weight} lbs
     - Goals: ${profile.goals}
     - Physical Limitations: ${profile.limitations}
     - Fitness Level: ${profile.fitnessLevel}

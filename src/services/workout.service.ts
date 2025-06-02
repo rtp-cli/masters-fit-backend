@@ -597,6 +597,7 @@ export class WorkoutService extends BaseService {
           muscleGroups: exercise.muscleGroups,
           difficulty: exercise.difficulty as IntensityLevel,
           instructions: exercise.instructions,
+          link: exercise.link,
         });
       }
     }
@@ -822,6 +823,7 @@ export class WorkoutService extends BaseService {
           muscleGroups: exercise.muscleGroups,
           difficulty: exercise.difficulty as IntensityLevel,
           instructions: exercise.instructions,
+          link: exercise.link,
         });
       }
     }
