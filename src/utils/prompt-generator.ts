@@ -93,6 +93,7 @@ export const buildClaudePrompt = (
     } minutes.
     - **NO LIMIT on new exercises** if required to meet duration goals - add as many as needed.
     - Any new exercise MUST be included in 'exercisesToAdd' (structure defined below).
+    - The "tag" field in each new exercise should be a string from the following array, which best describes the exercise: ["hiit", "strength", "cardio", "rehab", "crossfit", "functional", "pilates", "yoga", "balance", "mobility"]
     - New exercises MUST only use the user's available equipment.
     - **Duration goal takes priority** - if you need 10+ new exercises to reach ${
       profile.workoutDuration || 30
@@ -175,7 +176,8 @@ export const buildClaudePrompt = (
       "muscleGroups": ["string"],
       "difficulty": "low" | "moderate" | "high",
       "instructions": "string",
-      "link": "string"
+      "link": "string",
+      "tag": "string"
     }
     ]
     }
@@ -259,6 +261,7 @@ export const buildClaudeDailyPrompt = (
       - **NO LIMIT on new exercises** if required to meet duration goals.
       - New exercises must use one or more of: ["dumbbells", "resistance_bands", "machines", "bodyweight", "kettlebells", "medicine_ball", "foam_roller", "treadmill", "bike", "yoga_mat"]
       - Include them in "exercisesToAdd" with all required metadata.
+      - The "tag" field in each new exercise should be a string from the following array, which best describes the exercise: ["hiit", "strength", "cardio", "rehab", "crossfit", "functional", "pilates", "yoga", "balance", "mobility"]
       - **Duration goal takes priority** - add as many exercises as needed to reach the target time.
       - The link in an 'exercisesToAdd' object must be a youtube link that shows how to do the exercise. If the exercise is something like walking or cycling (does not have a required form/method of being performed), then a link to a public image for the exercise must be added instead.
 
@@ -300,7 +303,8 @@ export const buildClaudeDailyPrompt = (
           "muscleGroups": ["string"],
           "difficulty": "low" | "moderate" | "high",
           "instructions": "string",
-          "link": "string"
+          "link": "string",
+          "tag": "string"
         }
       ]
     }

@@ -18,6 +18,7 @@ import {
   WeightAccuracyResponse,
   GoalProgressResponse,
   TotalVolumeMetricsResponse,
+  WorkoutTypeMetricsResponse,
 } from "@/types/dashboard/responses";
 import {
   GetDashboardMetricsRequest,
@@ -95,6 +96,41 @@ export class DashboardController extends Controller {
           totalVolume: 2400,
           exerciseCount: 4,
           label: "Jan 1",
+        },
+      ],
+      workoutTypeMetrics: {
+        distribution: [
+          {
+            tag: "strength",
+            label: "Strength",
+            totalSets: 45,
+            totalReps: 540,
+            exerciseCount: 8,
+            completedWorkouts: 6,
+            percentage: 62.5,
+            color: "#ef4444",
+          },
+        ],
+        totalExercises: 13,
+        totalSets: 72,
+        dominantType: "Strength",
+        hasData: true,
+      },
+      dailyWorkoutProgress: [
+        {
+          date: "2024-01-01",
+          completionRate: 100,
+          hasPlannedWorkout: true,
+        },
+        {
+          date: "2024-01-02",
+          completionRate: 75,
+          hasPlannedWorkout: true,
+        },
+        {
+          date: "2024-01-03",
+          completionRate: 0,
+          hasPlannedWorkout: false,
         },
       ],
     },
@@ -381,6 +417,77 @@ export class DashboardController extends Controller {
     );
 
     const data = await dashboardService.getTotalVolumeMetrics(
+      userId,
+      start,
+      end
+    );
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  /**
+   * Get workout type distribution metrics for a user
+   */
+  @Get("/{userId}/workout-type-metrics")
+  @Response<WorkoutTypeMetricsResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  @Example<WorkoutTypeMetricsResponse>({
+    success: true,
+    data: {
+      distribution: [
+        {
+          tag: "strength",
+          label: "Strength",
+          totalSets: 45,
+          totalReps: 540,
+          exerciseCount: 8,
+          completedWorkouts: 6,
+          percentage: 62.5,
+          color: "#ef4444",
+        },
+        {
+          tag: "cardio",
+          label: "Cardio",
+          totalSets: 18,
+          totalReps: 360,
+          exerciseCount: 3,
+          completedWorkouts: 4,
+          percentage: 25.0,
+          color: "#3b82f6",
+        },
+        {
+          tag: "flexibility",
+          label: "Flexibility",
+          totalSets: 9,
+          totalReps: 180,
+          exerciseCount: 2,
+          completedWorkouts: 3,
+          percentage: 12.5,
+          color: "#10b981",
+        },
+      ],
+      totalExercises: 13,
+      totalSets: 72,
+      dominantType: "Strength",
+      hasData: true,
+    },
+  })
+  public async getWorkoutTypeMetrics(
+    @Path() userId: number,
+    @Query() startDate?: string,
+    @Query() endDate?: string,
+    @Query() timeRange?: "1w" | "1m" | "3m" | "6m" | "1y"
+  ): Promise<WorkoutTypeMetricsResponse> {
+    const { startDate: start, endDate: end } = this.parseTimeRange(
+      timeRange,
+      startDate,
+      endDate
+    );
+
+    const data = await dashboardService.getWorkoutTypeMetrics(
       userId,
       start,
       end

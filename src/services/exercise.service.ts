@@ -10,10 +10,13 @@ export class ExerciseService extends BaseService {
         {
           name: data.name,
           muscleGroups: data.muscleGroups,
-          instructions: data.instructions,
+          instructions: Array.isArray(data.instructions)
+            ? data.instructions.join("\n")
+            : data.instructions,
           equipment: data.equipment,
           description: data.description,
           difficulty: data.difficulty,
+          tag: data.tag,
         },
       ])
       .returning();
@@ -34,9 +37,17 @@ export class ExerciseService extends BaseService {
   }
 
   async updateExercise(id: number, data: InsertExercise) {
+    // Convert instructions array to string if needed
+    const updateData = {
+      ...data,
+      instructions: Array.isArray(data.instructions)
+        ? data.instructions.join("\n")
+        : data.instructions,
+    };
+
     const result = await this.db
       .update(exercises)
-      .set(data)
+      .set(updateData)
       .where(eq(exercises.id, id))
       .returning();
 

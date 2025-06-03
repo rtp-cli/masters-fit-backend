@@ -57,6 +57,25 @@ export interface TotalVolumeMetrics {
   label: string; // e.g., "Jun 1" or "Week 1"
 }
 
+export interface WorkoutTypeDistribution {
+  tag: string;
+  label: string;
+  totalSets: number;
+  totalReps: number;
+  exerciseCount: number;
+  completedWorkouts: number;
+  percentage: number;
+  color: string;
+}
+
+export interface WorkoutTypeMetrics {
+  distribution: WorkoutTypeDistribution[];
+  totalExercises: number;
+  totalSets: number;
+  dominantType: string;
+  hasData: boolean;
+}
+
 export interface DailyWorkoutProgress {
   date: string;
   completionRate: number;
@@ -70,6 +89,7 @@ export interface DashboardMetrics {
   weightAccuracy: WeightAccuracyMetrics;
   goalProgress: GoalProgress[];
   totalVolumeMetrics: TotalVolumeMetrics[];
+  workoutTypeMetrics: WorkoutTypeMetrics;
   dailyWorkoutProgress: DailyWorkoutProgress[];
 }
 

@@ -19,6 +19,8 @@ import {
   DashboardMetrics,
   MuscleGroupGoalMapping,
   TotalVolumeMetrics,
+  WorkoutTypeMetrics,
+  WorkoutTypeDistribution,
 } from "@/types/dashboard/types";
 import { BaseService } from "@/services/base.service";
 import {
@@ -99,12 +101,41 @@ export class DashboardService {
     [FitnessGoals.RECOVERY]: ["full_body", "full body", "core", "respiratory"],
   };
 
+  // Color mapping for workout types
+  private static readonly workoutTypeColors: Record<string, string> = {
+    strength: "#ef4444",
+    cardio: "#3b82f6",
+    flexibility: "#10b981",
+    mobility: "#8b5cf6",
+    balance: "#f59e0b",
+    endurance: "#06b6d4",
+    power: "#ec4899",
+    recovery: "#6b7280",
+    functional: "#84cc16",
+    default: "#94a3b8",
+  };
+
+  // Label mapping for workout types
+  private static readonly workoutTypeLabels: Record<string, string> = {
+    strength: "Strength",
+    cardio: "Cardio",
+    flexibility: "Flexibility",
+    mobility: "Mobility",
+    balance: "Balance",
+    endurance: "Endurance",
+    power: "Power",
+    recovery: "Recovery",
+    functional: "Functional",
+  };
+
   async getDashboardMetrics(
     userId: number,
     startDate?: string,
     endDate?: string,
     groupBy?: "exercise" | "day" | "muscle_group"
   ): Promise<DashboardMetrics> {
+    console.log(`🚀 getDashboardMetrics called for user ${userId}`);
+
     const [
       weeklySummary,
       workoutConsistency,
@@ -112,6 +143,7 @@ export class DashboardService {
       weightAccuracy,
       goalProgress,
       totalVolumeMetrics,
+      workoutTypeMetrics,
       dailyWorkoutProgress,
     ] = await Promise.all([
       this.getWeeklySummary(userId),
@@ -120,6 +152,16 @@ export class DashboardService {
       this.getWeightAccuracyMetrics(userId, startDate, endDate),
       this.getGoalProgress(userId, startDate, endDate),
       this.getTotalVolumeMetrics(userId, startDate, endDate),
+      this.getWorkoutTypeMetrics(userId, startDate, endDate).catch((error) => {
+        console.error("Error fetching workout type metrics:", error);
+        return {
+          distribution: [],
+          totalExercises: 0,
+          totalSets: 0,
+          dominantType: "",
+          hasData: false,
+        };
+      }),
       this.getDailyWorkoutProgress(userId),
     ]);
 
@@ -130,6 +172,7 @@ export class DashboardService {
       weightAccuracy,
       goalProgress,
       totalVolumeMetrics,
+      workoutTypeMetrics,
       dailyWorkoutProgress,
     };
   }
@@ -534,7 +577,6 @@ export class DashboardService {
       .where(
         and(
           eq(workouts.userId, userId),
-          eq(workouts.isActive, true),
           sql`${exerciseLogs.setsCompleted} > 0`,
           sql`${exerciseLogs.repsCompleted} > 0`,
           gte(exerciseLogs.createdAt, start),
@@ -609,7 +651,7 @@ export class DashboardService {
 
     if (exactMatches > 0) {
       chartData.push({
-        label: "✅ As Planned",
+        label: "As Planned",
         value: Math.round((exactMatches / totalSets) * 100 * 100) / 100,
         color: "#10b981",
         count: exactMatches,
@@ -618,7 +660,7 @@ export class DashboardService {
 
     if (higherWeight > 0) {
       chartData.push({
-        label: "💪 Progressed",
+        label: "Progressed",
         value: Math.round((higherWeight / totalSets) * 100 * 100) / 100,
         color: "#f59e0b",
         count: higherWeight,
@@ -627,7 +669,7 @@ export class DashboardService {
 
     if (lowerWeight > 0) {
       chartData.push({
-        label: "⚡ Adapted",
+        label: "Adapted",
         value: Math.round((lowerWeight / totalSets) * 100 * 100) / 100,
         color: "#ef4444",
         count: lowerWeight,
@@ -664,10 +706,53 @@ export class DashboardService {
       return [];
     }
 
+    // Get active workout plan to understand the timeline
+    const activeWorkout = await db
+      .select({
+        id: workouts.id,
+        startDate: workouts.startDate,
+        endDate: workouts.endDate,
+        name: workouts.name,
+      })
+      .from(workouts)
+      .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)))
+      .limit(1);
+
+    if (!activeWorkout[0]) {
+      return [];
+    }
+
+    const workoutPlan = activeWorkout[0];
+    const planStartDate = new Date(workoutPlan.startDate);
+    const planEndDate = workoutPlan.endDate
+      ? new Date(workoutPlan.endDate)
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days if no end date
+    const today = new Date();
+
+    // Calculate plan progress (how far into the plan we are)
+    const totalPlanDays = Math.ceil(
+      (planEndDate.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const daysCompleted = Math.max(
+      0,
+      Math.ceil(
+        (today.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24)
+      )
+    );
+    const planProgressRatio = Math.min(daysCompleted / totalPlanDays, 1.0);
+
+    // Get total planned workouts in the plan
+    const totalPlannedWorkouts = await db
+      .select({
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(planDays)
+      .where(eq(planDays.workoutId, workoutPlan.id));
+
+    const plannedWorkoutCount = totalPlannedWorkouts[0]?.count || 1;
+
     const end = endDate ? new Date(endDate) : new Date();
-    const start = startDate
-      ? new Date(startDate)
-      : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const start = startDate ? new Date(startDate) : planStartDate;
 
     // Extend end date to include the full day
     end.setHours(23, 59, 59, 999);
@@ -700,6 +785,8 @@ export class DashboardService {
               totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
               totalWeight: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}), 0)::INTEGER`,
               completedWorkouts: sql<number>`COUNT(DISTINCT ${planDays.id})::INTEGER`,
+              avgWeightPerSet: sql<number>`CASE WHEN COUNT(*) > 0 THEN COALESCE(AVG(${exerciseLogs.weightUsed}), 0) ELSE 0 END::NUMERIC(10,2)`,
+              uniqueExercisesDone: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
             })
             .from(exerciseLogs)
             .innerJoin(
@@ -712,7 +799,7 @@ export class DashboardService {
             .where(
               and(
                 eq(workouts.userId, userId),
-                eq(workouts.isActive, true), // Only include active workouts
+                eq(workouts.isActive, true),
                 gte(exerciseLogs.createdAt, start),
                 lte(exerciseLogs.createdAt, end),
                 eq(exerciseLogs.isComplete, true),
@@ -722,23 +809,69 @@ export class DashboardService {
 
           const data = exerciseData[0];
 
+          // Calculate progress score based on multiple factors
           let progressScore = 0;
+          const completedWorkouts = data.completedWorkouts || 0;
+          const workoutCompletionRatio = Math.min(
+            completedWorkouts / plannedWorkoutCount,
+            1.0
+          );
+
           if (
             goal === FitnessGoals.WEIGHT_LOSS ||
             goal === FitnessGoals.ENDURANCE
           ) {
-            progressScore = Math.min((data.completedWorkouts || 0) * 10, 100);
+            // For weight loss/endurance: Focus on consistency and workout completion
+            const consistencyScore = workoutCompletionRatio * 70; // 70% for workout completion
+            const volumeScore =
+              Math.min(
+                (data.totalReps || 0) / (plannedWorkoutCount * 50),
+                1.0
+              ) * 30; // 30% for volume (target ~50 reps per workout)
+            progressScore = consistencyScore + volumeScore;
           } else if (
             goal === FitnessGoals.STRENGTH ||
             goal === FitnessGoals.MUSCLE_GAIN
           ) {
-            progressScore = Math.min(
-              ((data.totalWeight || 0) / 1000) * 10,
-              100
-            );
+            // For strength/muscle gain: Balance between consistency, volume, and progressive overload
+            const consistencyScore = workoutCompletionRatio * 50; // 50% for workout completion
+            const volumeScore =
+              Math.min(
+                (data.totalWeight || 0) / (plannedWorkoutCount * 2000),
+                1.0
+              ) * 30; // 30% for volume (target ~2000 lbs per workout)
+            const intensityScore =
+              Math.min((data.avgWeightPerSet || 0) / 50, 1.0) * 20; // 20% for intensity (target ~50 lbs average per set)
+            progressScore = consistencyScore + volumeScore + intensityScore;
+          } else if (goal === FitnessGoals.GENERAL_FITNESS) {
+            // For general fitness: Balance of consistency and variety
+            const consistencyScore = workoutCompletionRatio * 60; // 60% for workout completion
+            const varietyScore =
+              Math.min((data.uniqueExercisesDone || 0) / 10, 1.0) * 25; // 25% for exercise variety (target 10+ unique exercises)
+            const volumeScore =
+              Math.min(
+                (data.totalSets || 0) / (plannedWorkoutCount * 12),
+                1.0
+              ) * 15; // 15% for volume (target ~12 sets per workout)
+            progressScore = consistencyScore + varietyScore + volumeScore;
           } else {
-            progressScore = Math.min((data.completedWorkouts || 0) * 15, 100);
+            // For flexibility, mobility, balance, recovery: Focus on consistency and frequency
+            const consistencyScore = workoutCompletionRatio * 80; // 80% for workout completion
+            const frequencyScore =
+              Math.min((data.totalSets || 0) / (plannedWorkoutCount * 8), 1.0) *
+              20; // 20% for frequency (target ~8 sets per workout)
+            progressScore = consistencyScore + frequencyScore;
           }
+
+          // Apply time-based adjustment - don't penalize early in the plan
+          const timeAdjustment = Math.max(0.3, planProgressRatio); // Minimum 30% adjustment factor
+          progressScore = progressScore * timeAdjustment;
+
+          // Cap at 100% and ensure minimum progress if user has done anything
+          progressScore = Math.min(
+            Math.max(progressScore, completedWorkouts > 0 ? 5 : 0),
+            100
+          );
 
           return {
             goal,
@@ -782,7 +915,6 @@ export class DashboardService {
       .where(
         and(
           eq(workouts.userId, userId),
-          eq(workouts.isActive, true),
           sql`${exerciseLogs.weightUsed} > 0`, // Only weighted exercises for strength progress
           sql`${exerciseLogs.setsCompleted} > 0`,
           sql`${exerciseLogs.repsCompleted} > 0`,
@@ -814,7 +946,6 @@ export class DashboardService {
         .where(
           and(
             eq(workouts.userId, userId),
-            eq(workouts.isActive, true),
             sql`${exerciseLogs.setsCompleted} > 0`,
             sql`${exerciseLogs.repsCompleted} > 0`,
             gte(exerciseLogs.createdAt, start),
@@ -1003,6 +1134,103 @@ export class DashboardService {
     });
 
     return dailyProgress;
+  }
+
+  async getWorkoutTypeMetrics(
+    userId: number,
+    startDate?: string,
+    endDate?: string
+  ): Promise<WorkoutTypeMetrics> {
+    const { start, end } = getDateRangeUTC(startDate, endDate);
+
+    // Get workout type distribution based on exercise tags
+    const workoutTypeData = await db
+      .select({
+        tag: exercises.tag,
+        totalSets: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted}), 0)::INTEGER`,
+        totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
+        exerciseCount: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
+        completedWorkouts: sql<number>`COUNT(DISTINCT ${planDays.id})::INTEGER`,
+      })
+      .from(exerciseLogs)
+      .innerJoin(
+        planDayExercises,
+        eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
+      )
+      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+      .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
+      .where(
+        and(
+          eq(workouts.userId, userId),
+          eq(exerciseLogs.isComplete, true),
+          sql`${exercises.tag} IS NOT NULL`,
+          sql`${exercises.tag} != ''`,
+          gte(exerciseLogs.createdAt, start),
+          lte(exerciseLogs.createdAt, end)
+        )
+      )
+      .groupBy(exercises.tag)
+      .orderBy(desc(sql`SUM(${exerciseLogs.setsCompleted})`));
+
+    if (workoutTypeData.length === 0) {
+      return {
+        distribution: [],
+        totalExercises: 0,
+        totalSets: 0,
+        dominantType: "",
+        hasData: false,
+      };
+    }
+
+    // Calculate totals
+    const totalSets = workoutTypeData.reduce(
+      (sum, item) => sum + (item.totalSets || 0),
+      0
+    );
+    const totalExercises = workoutTypeData.reduce(
+      (sum, item) => sum + (item.exerciseCount || 0),
+      0
+    );
+
+    // Create distribution with percentages and colors
+    const distribution: WorkoutTypeDistribution[] = workoutTypeData.map(
+      (item) => {
+        const tag = item.tag || "default";
+        const label =
+          DashboardService.workoutTypeLabels[tag] ||
+          tag.charAt(0).toUpperCase() + tag.slice(1);
+        const color =
+          DashboardService.workoutTypeColors[tag] ||
+          DashboardService.workoutTypeColors.default;
+        const percentage =
+          totalSets > 0
+            ? Math.round((item.totalSets / totalSets) * 100 * 10) / 10
+            : 0;
+
+        return {
+          tag,
+          label,
+          totalSets: item.totalSets || 0,
+          totalReps: item.totalReps || 0,
+          exerciseCount: item.exerciseCount || 0,
+          completedWorkouts: item.completedWorkouts || 0,
+          percentage,
+          color,
+        };
+      }
+    );
+
+    // Find dominant type (highest percentage)
+    const dominantType = distribution.length > 0 ? distribution[0].label : "";
+
+    return {
+      distribution,
+      totalExercises,
+      totalSets,
+      dominantType,
+      hasData: true,
+    };
   }
 }
 

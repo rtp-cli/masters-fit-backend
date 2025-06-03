@@ -763,17 +763,17 @@ export class WorkoutService extends BaseService {
         height: profileData.height ?? null,
         weight: profileData.weight ?? null,
         gender: profileData.gender ?? null,
-        goals: profileData.goals?.join(",") ?? null,
-        limitations: profileData.limitations?.join(",") ?? null,
+        goals: profileData.goals ?? null,
+        limitations: profileData.limitations ?? null,
         fitnessLevel: profileData.fitnessLevel ?? null,
         environment: profileData.environment?.[0] ?? null,
-        equipment: profileData.equipment?.join(",") ?? null,
-        preferredStyles: profileData.workoutStyles?.join(",") ?? null,
-        availableDays: profileData.availableDays?.join(",") ?? null,
+        equipment: profileData.equipment ?? null,
+        preferredStyles: profileData.workoutStyles ?? null,
+        availableDays: profileData.availableDays ?? null,
         workoutDuration: profileData.workoutDuration ?? null,
         intensityLevel: profileData.intensityLevel?.toString() ?? null,
         medicalNotes: profileData.medicalNotes ?? null,
-      });
+      } as any);
     }
 
     // First, deactivate the current active workout

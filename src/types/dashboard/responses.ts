@@ -7,6 +7,7 @@ import {
   WeightAccuracyMetrics,
   GoalProgress,
   TotalVolumeMetrics,
+  WorkoutTypeMetrics,
 } from "./types";
 
 export interface DashboardMetricsResponse
@@ -41,6 +42,12 @@ export interface TotalVolumeMetricsResponse
   extends ApiResponse<TotalVolumeMetrics[]> {
   success: true;
   data: TotalVolumeMetrics[];
+}
+
+export interface WorkoutTypeMetricsResponse
+  extends ApiResponse<WorkoutTypeMetrics> {
+  success: true;
+  data: WorkoutTypeMetrics;
 }
 
 export interface GoalProgressResponse extends ApiResponse<GoalProgress[]> {

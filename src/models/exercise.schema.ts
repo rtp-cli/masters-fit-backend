@@ -18,6 +18,7 @@ export const exercises = pgTable("exercises", {
   difficulty: text("difficulty").$type<IntensityLevel>(),
   instructions: text("instructions").notNull(),
   link: text("link"),
+  tag: text("tag"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -31,6 +32,7 @@ export const insertExerciseSchema = createInsertSchema(exercises, {
   difficulty: z.nativeEnum(IntensityLevelsEnum),
   instructions: z.array(z.string()),
   link: z.string(),
+  tag: z.string(),
 }).omit({
   id: true,
   createdAt: true,
