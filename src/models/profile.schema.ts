@@ -45,7 +45,7 @@ export const profiles = pgTable("profiles", {
   workoutDuration: integer("workout_duration"),
   intensityLevel: text("intensity_level").$type<IntensityLevel>(),
   medicalNotes: text("medical_notes"),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 // Schema for insert operations

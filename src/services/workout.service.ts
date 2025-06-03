@@ -25,6 +25,12 @@ import { AvailableEquipment, IntensityLevel } from "@/types/profile/types";
 import { profileService } from "./profile.service";
 import { PreferredDays } from "@/constants";
 import { PreferredDay } from "@/types/profile/types";
+import {
+  formatDateAsLocalString,
+  createTimestamp,
+  toUTCDate,
+  formatTimestampForAPI,
+} from "@/utils/date.utils";
 
 type DBWorkoutResult = {
   id: number;
@@ -210,7 +216,12 @@ export class WorkoutService extends BaseService {
       throw new Error("Failed to create workout");
     }
 
-    return completeWorkout;
+    // Transform to match the expected return type
+    return {
+      ...completeWorkout,
+      createdAt: completeWorkout.createdAt || now,
+      updatedAt: completeWorkout.updatedAt || now,
+    } as Workout;
   }
 
   async getUserWorkouts(userId: number): Promise<WorkoutWithDetails[]> {
@@ -236,11 +247,11 @@ export class WorkoutService extends BaseService {
         description: workout.description,
         userId: workout.userId,
         startDate: workout.startDate
-          ? new Date(workout.startDate).toLocaleDateString("en-CA")
-          : new Date().toLocaleDateString("en-CA"),
+          ? formatDateAsLocalString(workout.startDate)
+          : formatDateAsLocalString(new Date()),
         endDate: workout.endDate
-          ? new Date(workout.endDate).toLocaleDateString("en-CA")
-          : new Date().toLocaleDateString("en-CA"),
+          ? formatDateAsLocalString(workout.endDate)
+          : formatDateAsLocalString(new Date()),
         promptId: workout.promptId,
         isActive: workout.isActive,
         completed: workout.completed,
@@ -250,11 +261,11 @@ export class WorkoutService extends BaseService {
           id: pd.id,
           workoutId: pd.workoutId,
           date: pd.date
-            ? new Date(pd.date).toLocaleDateString("en-CA")
-            : new Date().toLocaleDateString("en-CA"),
-          name: pd.name,
+            ? formatDateAsLocalString(pd.date)
+            : formatDateAsLocalString(new Date()),
+          name: pd.name || "",
           description: pd.description,
-          dayNumber: pd.dayNumber,
+          dayNumber: pd.dayNumber || 1,
           createdAt: pd.createdAt,
           updatedAt: pd.updatedAt,
           exercises: pd.exercises.map((ex) => ({
@@ -315,11 +326,11 @@ export class WorkoutService extends BaseService {
         description: workout.description,
         userId: workout.userId,
         startDate: workout.startDate
-          ? new Date(workout.startDate).toLocaleDateString("en-CA")
-          : new Date().toLocaleDateString("en-CA"),
+          ? formatDateAsLocalString(workout.startDate)
+          : formatDateAsLocalString(new Date()),
         endDate: workout.endDate
-          ? new Date(workout.endDate).toLocaleDateString("en-CA")
-          : new Date().toLocaleDateString("en-CA"),
+          ? formatDateAsLocalString(workout.endDate)
+          : formatDateAsLocalString(new Date()),
         promptId: workout.promptId,
         isActive: workout.isActive,
         completed: workout.completed,
@@ -329,11 +340,11 @@ export class WorkoutService extends BaseService {
           id: pd.id,
           workoutId: pd.workoutId,
           date: pd.date
-            ? new Date(pd.date).toLocaleDateString("en-CA")
-            : new Date().toLocaleDateString("en-CA"),
-          name: pd.name,
+            ? formatDateAsLocalString(pd.date)
+            : formatDateAsLocalString(new Date()),
+          name: pd.name || "",
           description: pd.description,
-          dayNumber: pd.dayNumber,
+          dayNumber: pd.dayNumber || 1,
           createdAt: pd.createdAt,
           updatedAt: pd.updatedAt,
           exercises: pd.exercises.map((ex) => ({
@@ -413,7 +424,7 @@ export class WorkoutService extends BaseService {
   }
 
   async createPlanDay(data: InsertPlanDay): Promise<PlanDayWithExercises> {
-    const now = new Date();
+    const now = createTimestamp();
     const [planDay] = await this.db
       .insert(planDays)
       .values({
@@ -476,7 +487,7 @@ export class WorkoutService extends BaseService {
         name: exerciseDetails.name,
         description: exerciseDetails.description ?? undefined,
         category: exerciseDetails.muscleGroups[0],
-        difficulty: exerciseDetails.difficulty,
+        difficulty: exerciseDetails.difficulty || "beginner",
         equipment: exerciseDetails.equipment?.join(", ") ?? undefined,
         link: exerciseDetails.link ?? undefined,
         muscles_targeted: exerciseDetails.muscleGroups,
@@ -532,7 +543,7 @@ export class WorkoutService extends BaseService {
         name: exerciseDetails.name,
         description: exerciseDetails.description ?? undefined,
         category: exerciseDetails.muscleGroups[0],
-        difficulty: exerciseDetails.difficulty,
+        difficulty: exerciseDetails.difficulty || "beginner",
         equipment: exerciseDetails.equipment?.join(", ") ?? undefined,
         link: exerciseDetails.link ?? undefined,
         muscles_targeted: exerciseDetails.muscleGroups,
@@ -716,6 +727,11 @@ export class WorkoutService extends BaseService {
         },
       },
     });
+
+    if (!workout) {
+      throw new Error("No active workout found");
+    }
+
     return this.transformWorkout(workout as unknown as DBWorkoutResult);
   }
 

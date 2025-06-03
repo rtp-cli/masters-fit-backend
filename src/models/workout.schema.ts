@@ -29,8 +29,12 @@ export const workouts = pgTable("workouts", {
   name: text("name").notNull(),
   description: text("description"),
   completed: boolean("completed").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 });
 
 export const workoutRelations = relations(workouts, ({ many }) => ({
@@ -44,8 +48,12 @@ export const planDays = pgTable("plan_days", {
     .notNull()
     .references(() => workouts.id),
   date: date("date").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 });
 
 export const planDayRelations = relations(planDays, ({ one, many }) => ({
@@ -72,8 +80,12 @@ export const planDayExercises = pgTable("plan_day_exercises", {
   restTime: integer("rest_time"), // in seconds
   notes: text("notes"),
   completed: boolean("completed").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 });
 
 export const planDayExerciseRelations = relations(

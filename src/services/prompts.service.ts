@@ -36,16 +36,52 @@ export class PromptsService extends BaseService {
     });
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
-      max_tokens: 2000,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     });
     const data = (response.content[0] as any).text;
+
+    // Check if response was truncated or approaching limit
+    if (response.stop_reason === "max_tokens") {
+      console.error(
+        "❌ AI response was truncated due to token limit. This will likely cause JSON parsing errors."
+      );
+      console.error("Response length:", data.length);
+      console.error("Last 200 characters:", data.slice(-200));
+      throw new Error(
+        "AI response was truncated. Please try regenerating with a shorter request."
+      );
+    }
+
+    // Warn if approaching token limit (>90% of response length suggests near-limit)
+    if (data.length > 7000) {
+      console.warn(
+        "⚠️ AI response is quite long. Consider optimizing prompt for efficiency."
+      );
+      console.warn("Response length:", data.length);
+    }
+
+    // Log response for debugging
+    console.log("AI Response length:", data.length);
+    console.log("Stop reason:", response.stop_reason);
+
     const createdPrompt = await this.createPrompt({
       userId,
       prompt,
       response: data,
     });
-    return { response: JSON.parse(data), promptId: createdPrompt.id };
+
+    try {
+      const parsedResponse = JSON.parse(data);
+      return { response: parsedResponse, promptId: createdPrompt.id };
+    } catch (parseError: any) {
+      console.error("JSON Parse Error:", parseError.message);
+      console.error("Raw response length:", data.length);
+      console.error("Response ends with:", data.slice(-100));
+      throw new Error(
+        `Failed to parse AI response as JSON: ${parseError.message}`
+      );
+    }
   }
 
   public async generateRegenerationPrompt(
@@ -100,16 +136,50 @@ export class PromptsService extends BaseService {
     });
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
-      max_tokens: 2000,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     });
     const data = (response.content[0] as any).text;
+
+    // Check if response was truncated or approaching limit
+    if (response.stop_reason === "max_tokens") {
+      console.error(
+        "❌ AI regeneration response was truncated due to token limit."
+      );
+      console.error("Response length:", data.length);
+      console.error("Last 200 characters:", data.slice(-200));
+      throw new Error(
+        "AI response was truncated. Please try regenerating with shorter feedback."
+      );
+    }
+
+    // Warn if approaching token limit
+    if (data.length > 7000) {
+      console.warn("⚠️ AI regeneration response is quite long.");
+      console.warn("Response length:", data.length);
+    }
+
+    // Log response for debugging
+    console.log("AI Regeneration Response length:", data.length);
+    console.log("Stop reason:", response.stop_reason);
+
     const createdPrompt = await this.createPrompt({
       userId,
       prompt,
       response: data,
     });
-    return { response: JSON.parse(data), promptId: createdPrompt.id };
+
+    try {
+      const parsedResponse = JSON.parse(data);
+      return { response: parsedResponse, promptId: createdPrompt.id };
+    } catch (parseError: any) {
+      console.error("JSON Parse Error in regeneration:", parseError.message);
+      console.error("Raw response length:", data.length);
+      console.error("Response ends with:", data.slice(-100));
+      throw new Error(
+        `Failed to parse AI response as JSON: ${parseError.message}`
+      );
+    }
   }
 
   public async generateDailyRegenerationPrompt(
@@ -139,16 +209,53 @@ export class PromptsService extends BaseService {
     });
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
-      max_tokens: 2000,
+      max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     });
     const data = (response.content[0] as any).text;
+
+    // Check if response was truncated or approaching limit
+    if (response.stop_reason === "max_tokens") {
+      console.error(
+        "❌ AI daily regeneration response was truncated due to token limit."
+      );
+      console.error("Response length:", data.length);
+      console.error("Last 200 characters:", data.slice(-200));
+      throw new Error(
+        "AI response was truncated. Please try regenerating with shorter feedback."
+      );
+    }
+
+    // Warn if approaching token limit
+    if (data.length > 7000) {
+      console.warn("⚠️ AI daily regeneration response is quite long.");
+      console.warn("Response length:", data.length);
+    }
+
+    // Log response for debugging
+    console.log("AI Daily Regeneration Response length:", data.length);
+    console.log("Stop reason:", response.stop_reason);
+
     const createdPrompt = await this.createPrompt({
       userId,
       prompt,
       response: data,
     });
-    return { response: JSON.parse(data), promptId: createdPrompt.id };
+
+    try {
+      const parsedResponse = JSON.parse(data);
+      return { response: parsedResponse, promptId: createdPrompt.id };
+    } catch (parseError: any) {
+      console.error(
+        "JSON Parse Error in daily regeneration:",
+        parseError.message
+      );
+      console.error("Raw response length:", data.length);
+      console.error("Response ends with:", data.slice(-100));
+      throw new Error(
+        `Failed to parse AI response as JSON: ${parseError.message}`
+      );
+    }
   }
 }
 

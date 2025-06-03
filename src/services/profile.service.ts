@@ -1,5 +1,6 @@
 import { BaseService } from "@/services/base.service";
 import { profiles, Profile, InsertProfile } from "@/models";
+import { createTimestamp } from "@/utils/date.utils";
 
 export class ProfileService extends BaseService {
   async getProfileByUserId(userId: number): Promise<Profile | undefined> {
@@ -16,7 +17,7 @@ export class ProfileService extends BaseService {
     if (existingProfile) {
       const result = await this.db
         .update(profiles)
-        .set({ ...profileData, updatedAt: new Date() })
+        .set({ ...profileData, updatedAt: createTimestamp() })
         .where(this.eq(profiles.userId, profileData.userId))
         .returning();
       return result[0];

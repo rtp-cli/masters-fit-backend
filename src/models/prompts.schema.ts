@@ -10,8 +10,12 @@ export const prompts = pgTable("prompts", {
     .references(() => users.id),
   prompt: text("prompt").notNull(),
   response: text("response").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 });
 
 export const insertPromptSchema = createInsertSchema(prompts).pick({
