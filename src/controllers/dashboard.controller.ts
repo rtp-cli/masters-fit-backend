@@ -27,12 +27,14 @@ import {
   GetGoalProgressRequest,
   GetWeightAccuracyRequest,
 } from "@/types/dashboard/requests";
-import { dashboardService } from "@/services";
+import { DashboardService } from "@/services";
 
 @Route("dashboard")
 @Tags("Dashboard")
 @Security("bearerAuth")
 export class DashboardController extends Controller {
+  private dashboardService = new DashboardService();
+
   /**
    * Get comprehensive dashboard metrics for a user
    */
@@ -148,7 +150,7 @@ export class DashboardController extends Controller {
       endDate
     );
 
-    const data = await dashboardService.getDashboardMetrics(
+    const data = await this.dashboardService.getDashboardMetrics(
       userId,
       start,
       end,
@@ -180,7 +182,7 @@ export class DashboardController extends Controller {
   public async getWeeklySummary(
     @Path() userId: number
   ): Promise<WeeklySummaryResponse> {
-    const data = await dashboardService.getWeeklySummary(userId);
+    const data = await this.dashboardService.getWeeklySummary(userId);
 
     return {
       success: true,
@@ -229,7 +231,7 @@ export class DashboardController extends Controller {
       endDate
     );
 
-    const data = await dashboardService.getWorkoutConsistency(
+    const data = await this.dashboardService.getWorkoutConsistency(
       userId,
       start,
       end
@@ -275,7 +277,7 @@ export class DashboardController extends Controller {
       endDate
     );
 
-    const data = await dashboardService.getWeightMetrics(
+    const data = await this.dashboardService.getWeightMetrics(
       userId,
       start,
       end,
@@ -322,7 +324,7 @@ export class DashboardController extends Controller {
       endDate
     );
 
-    const data = await dashboardService.getWeightAccuracyMetrics(
+    const data = await this.dashboardService.getWeightAccuracyMetrics(
       userId,
       start,
       end
@@ -373,7 +375,11 @@ export class DashboardController extends Controller {
       endDate
     );
 
-    const data = await dashboardService.getGoalProgress(userId, start, end);
+    const data = await this.dashboardService.getGoalProgress(
+      userId,
+      start,
+      end
+    );
 
     return {
       success: true,
@@ -416,7 +422,7 @@ export class DashboardController extends Controller {
       endDate
     );
 
-    const data = await dashboardService.getTotalVolumeMetrics(
+    const data = await this.dashboardService.getTotalVolumeMetrics(
       userId,
       start,
       end
@@ -487,7 +493,45 @@ export class DashboardController extends Controller {
       endDate
     );
 
-    const data = await dashboardService.getWorkoutTypeMetrics(
+    const data = await this.dashboardService.getWorkoutTypeMetrics(
+      userId,
+      start,
+      end
+    );
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  /**
+   * Get weight progression metrics for strength chart (line chart)
+   */
+  @Get("/{userId}/weight-progression")
+  @Response("400", "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async getWeightProgressionMetrics(
+    @Path() userId: number,
+    @Query() startDate?: string,
+    @Query() endDate?: string,
+    @Query() timeRange?: "1w" | "1m" | "3m" | "6m" | "1y"
+  ): Promise<{
+    success: boolean;
+    data: {
+      date: string;
+      avgWeight: number;
+      maxWeight: number;
+      label: string;
+    }[];
+  }> {
+    const { startDate: start, endDate: end } = this.parseTimeRange(
+      timeRange,
+      startDate,
+      endDate
+    );
+
+    const data = await this.dashboardService.getWeightProgressionMetrics(
       userId,
       start,
       end

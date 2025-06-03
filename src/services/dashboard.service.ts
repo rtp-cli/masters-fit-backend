@@ -103,16 +103,29 @@ export class DashboardService {
 
   // Color mapping for workout types
   private static readonly workoutTypeColors: Record<string, string> = {
-    strength: "#ef4444",
-    cardio: "#3b82f6",
-    flexibility: "#10b981",
-    mobility: "#8b5cf6",
-    balance: "#f59e0b",
-    endurance: "#06b6d4",
-    power: "#ec4899",
-    recovery: "#6b7280",
-    functional: "#84cc16",
-    default: "#94a3b8",
+    strength: "#E53E3E", // Vibrant Red
+    cardio: "#3182CE", // Rich Blue
+    flexibility: "#38A169", // Forest Green
+    mobility: "#805AD5", // Royal Purple
+    balance: "#D69E2E", // Golden Yellow
+    endurance: "#319795", // Teal
+    power: "#E53E3E", // Vibrant Red (same as strength for consistency)
+    recovery: "#718096", // Soft Gray
+    functional: "#48BB78", // Fresh Green
+    core: "#ED8936", // Warm Orange
+    plyometric: "#00B5D8", // Bright Cyan
+    hiit: "#F56565", // Coral Red
+    yoga: "#9F7AEA", // Soft Purple
+    pilates: "#4FD1C7", // Mint Green
+    crossfit: "#F687B3", // Pink
+    rehabilitation: "#4299E1", // Sky Blue
+    stretching: "#68D391", // Light Green
+    warmup: "#F6E05E", // Sunny Yellow
+    cooldown: "#63B3ED", // Light Blue
+    compound: "#B794F6", // Lavender
+    isolation: "#FC8181", // Light Coral
+    bodyweight: "#81C784", // Sage Green
+    default: "#A0AEC0", // Neutral Gray
   };
 
   // Label mapping for workout types
@@ -126,6 +139,19 @@ export class DashboardService {
     power: "Power",
     recovery: "Recovery",
     functional: "Functional",
+    core: "Core",
+    plyometric: "Plyometric",
+    hiit: "HIIT",
+    yoga: "Yoga",
+    pilates: "Pilates",
+    crossfit: "CrossFit",
+    rehabilitation: "Rehab",
+    stretching: "Stretching",
+    warmup: "Warm-up",
+    cooldown: "Cool-down",
+    compound: "Compound",
+    isolation: "Isolation",
+    bodyweight: "Bodyweight",
   };
 
   async getDashboardMetrics(
@@ -152,16 +178,18 @@ export class DashboardService {
       this.getWeightAccuracyMetrics(userId, startDate, endDate),
       this.getGoalProgress(userId, startDate, endDate),
       this.getTotalVolumeMetrics(userId, startDate, endDate),
-      this.getWorkoutTypeMetrics(userId, startDate, endDate).catch((error) => {
-        console.error("Error fetching workout type metrics:", error);
-        return {
-          distribution: [],
-          totalExercises: 0,
-          totalSets: 0,
-          dominantType: "",
-          hasData: false,
-        };
-      }),
+      this.getWorkoutTypeMetrics(userId, startDate, endDate).catch(
+        (error: any) => {
+          console.error("Error fetching workout type metrics:", error);
+          return {
+            distribution: [],
+            totalExercises: 0,
+            totalSets: 0,
+            dominantType: "",
+            hasData: false,
+          };
+        }
+      ),
       this.getDailyWorkoutProgress(userId),
     ]);
 
@@ -197,23 +225,37 @@ export class DashboardService {
 
     const workoutId = activeWorkout[0].id;
 
-    // Calculate current week bounds (Monday to Sunday)
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Adjust for Sunday
+    // Get the actual workout date range instead of forcing current week
+    const workoutDateRange = await db
+      .select({
+        minDate: sql<string>`MIN(${planDays.date})`,
+        maxDate: sql<string>`MAX(${planDays.date})`,
+      })
+      .from(planDays)
+      .where(eq(planDays.workoutId, workoutId));
 
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - daysFromMonday);
-    weekStart.setHours(0, 0, 0, 0);
+    const dateRange = workoutDateRange[0];
+    if (!dateRange?.minDate || !dateRange?.maxDate) {
+      return {
+        workoutCompletionRate: 0,
+        exerciseCompletionRate: 0,
+        totalWorkoutsThisWeek: 0,
+        completedWorkoutsThisWeek: 0,
+        streak: 0,
+      };
+    }
 
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
+    // Use the actual workout week instead of calendar week
+    // Get the first week of the workout plan
+    const workoutStartDate = new Date(dateRange.minDate);
+    const weekStart = new Date(workoutStartDate);
+    const weekEnd = new Date(workoutStartDate);
+    weekEnd.setDate(weekStart.getDate() + 6); // 7-day week
 
     const weekStartStr = weekStart.toISOString().split("T")[0];
     const weekEndStr = weekEnd.toISOString().split("T")[0];
 
-    // Get all planned days for the active workout in the current week
+    // Get all planned days for the active workout in the first workout week
     const plannedDaysThisWeek = await db
       .select({
         planDayId: planDays.id,
@@ -262,19 +304,18 @@ export class DashboardService {
       .where(
         and(
           eq(planDays.workoutId, workoutId),
-          eq(exerciseLogs.isComplete, true),
           gte(planDays.date, weekStartStr),
           lte(planDays.date, weekEndStr)
         )
       );
 
-    // Check which plan days have been completed by checking if exercises were logged (current week only)
+    // Check which plan days have been completed by checking if exercises were logged (first week only)
     const planDayCompletionDataThisWeek = await db
       .select({
         planDayId: planDays.id,
         date: planDays.date,
         totalExercises: sql<number>`COUNT(${planDayExercises.id})`,
-        completedExercises: sql<number>`COUNT(CASE WHEN ${exerciseLogs.isComplete} = true THEN 1 END)`,
+        completedExercises: sql<number>`COUNT(CASE WHEN ${exerciseLogs.id} IS NOT NULL THEN 1 END)`,
         hasExerciseLogs: sql<boolean>`COUNT(${exerciseLogs.id}) > 0`,
       })
       .from(planDays)
@@ -312,12 +353,32 @@ export class DashboardService {
         ? Math.round((completedExercisesCount / totalExercisesThisWeek) * 100)
         : 0;
 
-    // Calculate streak
-    const streak = await this.calculateActiveWorkoutStreak(
-      workoutId,
-      planDayCompletionDataThisWeek.map((day) => ({
+    // Calculate streak - get ALL plan day completion data across ALL workout plans, not just active one
+    const allPlanDayCompletionData = await db
+      .select({
+        planDayId: planDays.id,
+        date: planDays.date,
+        workoutId: planDays.workoutId,
+        totalExercises: sql<number>`COUNT(${planDayExercises.id})`,
+        completedExercises: sql<number>`COUNT(CASE WHEN ${exerciseLogs.id} IS NOT NULL THEN 1 END)`,
+        hasExerciseLogs: sql<boolean>`COUNT(${exerciseLogs.id}) > 0`,
+      })
+      .from(planDays)
+      .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+      .leftJoin(planDayExercises, eq(planDays.id, planDayExercises.planDayId))
+      .leftJoin(
+        exerciseLogs,
+        eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
+      )
+      .where(eq(workouts.userId, userId)) // Get all workouts for user, not just active
+      .groupBy(planDays.id, planDays.date, planDays.workoutId)
+      .orderBy(asc(planDays.date));
+
+    const streak = await this.calculateGlobalWorkoutStreak(
+      allPlanDayCompletionData.map((day) => ({
         planDayId: day.planDayId,
         date: day.date,
+        workoutId: day.workoutId,
         hasExerciseLogs: day.hasExerciseLogs,
       }))
     );
@@ -485,7 +546,18 @@ export class DashboardService {
     endDate?: string,
     groupBy?: "exercise" | "day" | "muscle_group"
   ): Promise<WeightMetrics[]> {
-    const { start, end } = getDateRangeUTC(startDate, endDate);
+    // Build basic conditions
+    const whereConditions = [
+      eq(workouts.userId, userId),
+      sql`${exerciseLogs.weightUsed} > 0`,
+    ];
+
+    // Add date filters only if dates are provided
+    if (startDate || endDate) {
+      const { start, end } = getDateRangeUTC(startDate, endDate);
+      whereConditions.push(gte(exerciseLogs.createdAt, start));
+      whereConditions.push(lte(exerciseLogs.createdAt, end));
+    }
 
     let selectFields;
     let groupByClause;
@@ -526,14 +598,7 @@ export class DashboardService {
       .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
-      .where(
-        and(
-          eq(workouts.userId, userId),
-          sql`${exerciseLogs.weightUsed} > 0`,
-          gte(exerciseLogs.createdAt, start),
-          lte(exerciseLogs.createdAt, end)
-        )
-      )
+      .where(and(...whereConditions))
       .groupBy(...groupByClause)
       .orderBy(
         desc(
@@ -554,7 +619,28 @@ export class DashboardService {
     startDate?: string,
     endDate?: string
   ): Promise<WeightAccuracyMetrics> {
-    const { start, end } = getDateRangeUTC(startDate, endDate);
+    // Build basic conditions
+    const whereConditions = [
+      eq(workouts.userId, userId),
+      sql`${exerciseLogs.setsCompleted} > 0`,
+      sql`${exerciseLogs.repsCompleted} > 0`,
+    ];
+
+    // Add date filters only if dates are provided
+    if (startDate || endDate) {
+      const { start, end } = getDateRangeUTC(startDate, endDate);
+
+      // Filter by plan day date to get workouts planned within the date range
+      const startDateStr = start.toISOString().split("T")[0];
+      const endDateStr = end.toISOString().split("T")[0];
+
+      if (startDate) {
+        whereConditions.push(gte(planDays.date, startDateStr));
+      }
+      if (endDate) {
+        whereConditions.push(lte(planDays.date, endDateStr));
+      }
+    }
 
     // Get all exercise logs with their planned weights
     const allExerciseData = await db
@@ -574,15 +660,7 @@ export class DashboardService {
       .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
-      .where(
-        and(
-          eq(workouts.userId, userId),
-          sql`${exerciseLogs.setsCompleted} > 0`,
-          sql`${exerciseLogs.repsCompleted} > 0`,
-          gte(exerciseLogs.createdAt, start),
-          lte(exerciseLogs.createdAt, end)
-        )
-      );
+      .where(and(...whereConditions));
 
     if (allExerciseData.length === 0) {
       return {
@@ -887,22 +965,43 @@ export class DashboardService {
     return goalProgress;
   }
 
-  async getTotalVolumeMetrics(
+  async getWorkoutTypeMetrics(
     userId: number,
     startDate?: string,
     endDate?: string
-  ): Promise<TotalVolumeMetrics[]> {
-    const { start, end } = getDateRangeUTC(startDate, endDate);
+  ): Promise<WorkoutTypeMetrics> {
+    // Only apply date filtering if dates are provided
+    const whereConditions = [
+      eq(workouts.userId, userId),
+      sql`${exerciseLogs.setsCompleted} > 0`,
+      sql`${exerciseLogs.repsCompleted} > 0`,
+    ];
 
-    // Get daily data for weighted exercises only (makes more sense for strength progress)
-    const weightedExerciseData = await db
+    // Add date filters only if dates are provided
+    if (startDate || endDate) {
+      const { start, end } = getDateRangeUTC(startDate, endDate);
+
+      // Filter by plan day date to get workouts planned within the date range
+      const startDateStr = start.toISOString().split("T")[0];
+      const endDateStr = end.toISOString().split("T")[0];
+
+      if (startDate) {
+        whereConditions.push(gte(planDays.date, startDateStr));
+      }
+      if (endDate) {
+        whereConditions.push(lte(planDays.date, endDateStr));
+      }
+    } else {
+      console.log(`🔍 No date filtering applied`);
+    }
+
+    const workoutTypeData = await db
       .select({
-        date: sql<string>`DATE(${exerciseLogs.createdAt})`,
-        totalWeight: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}), 0)::INTEGER`,
-        exerciseCount: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
+        tag: exercises.tag,
         totalSets: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted}), 0)::INTEGER`,
         totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
-        avgWeight: sql<number>`COALESCE(AVG(${exerciseLogs.weightUsed}), 0)::NUMERIC(10,2)`,
+        exerciseCount: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
+        completedWorkouts: sql<number>`COUNT(DISTINCT ${workouts.id})::INTEGER`,
       })
       .from(exerciseLogs)
       .innerJoin(
@@ -912,75 +1011,117 @@ export class DashboardService {
       .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
-      .where(
-        and(
-          eq(workouts.userId, userId),
-          sql`${exerciseLogs.weightUsed} > 0`, // Only weighted exercises for strength progress
-          sql`${exerciseLogs.setsCompleted} > 0`,
-          sql`${exerciseLogs.repsCompleted} > 0`,
-          gte(exerciseLogs.createdAt, start),
-          lte(exerciseLogs.createdAt, end)
-        )
-      )
-      .groupBy(sql`DATE(${exerciseLogs.createdAt})`)
-      .orderBy(asc(sql`DATE(${exerciseLogs.createdAt})`));
+      .where(and(...whereConditions))
+      .groupBy(exercises.tag)
+      .orderBy(desc(sql`SUM(${exerciseLogs.setsCompleted})`));
 
-    // If no weighted exercises, get bodyweight exercise data
-    if (weightedExerciseData.length === 0) {
-      const bodyweightData = await db
-        .select({
-          date: sql<string>`DATE(${exerciseLogs.createdAt})`,
-          totalVolume: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted}), 0)::INTEGER`,
-          exerciseCount: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
-          totalSets: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted}), 0)::INTEGER`,
-          totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
-        })
-        .from(exerciseLogs)
-        .innerJoin(
-          planDayExercises,
-          eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
-        )
-        .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
-        .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
-        .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
-        .where(
-          and(
-            eq(workouts.userId, userId),
-            sql`${exerciseLogs.setsCompleted} > 0`,
-            sql`${exerciseLogs.repsCompleted} > 0`,
-            gte(exerciseLogs.createdAt, start),
-            lte(exerciseLogs.createdAt, end)
-          )
-        )
-        .groupBy(sql`DATE(${exerciseLogs.createdAt})`)
-        .orderBy(asc(sql`DATE(${exerciseLogs.createdAt})`));
+    const totalSets = workoutTypeData.reduce(
+      (sum, item) => sum + item.totalSets,
+      0
+    );
+    const totalExercises = workoutTypeData.reduce(
+      (sum, item) => sum + item.exerciseCount,
+      0
+    );
 
-      return bodyweightData.map((data) => {
-        const date = new Date(data.date);
-        const label = formatDateForDisplay(date, {
-          month: "short",
-          day: "numeric",
-        });
+    const distribution: WorkoutTypeDistribution[] = workoutTypeData
+      .filter((item) => item.tag !== null)
+      .map((item) => ({
+        tag: item.tag!,
+        label: DashboardService.workoutTypeLabels[item.tag!] || item.tag!,
+        totalSets: item.totalSets,
+        totalReps: item.totalReps,
+        exerciseCount: item.exerciseCount,
+        completedWorkouts: item.completedWorkouts,
+        percentage:
+          totalSets > 0
+            ? Math.round((item.totalSets / totalSets) * 100 * 10) / 10
+            : 0,
+        color: DashboardService.workoutTypeColors[item.tag!] || "#6b7280",
+      }));
 
-        return {
-          date: data.date,
-          totalVolume: data.totalVolume || 0,
-          exerciseCount: data.exerciseCount || 0,
-          label,
-        };
-      });
+    const dominantType =
+      distribution.length > 0 ? distribution[0].label : "None";
+    const hasData = distribution.length > 0 && totalSets > 0;
+
+    return {
+      distribution,
+      totalExercises,
+      totalSets,
+      dominantType,
+      hasData,
+    };
+  }
+
+  async getTotalVolumeMetrics(
+    userId: number,
+    startDate?: string,
+    endDate?: string
+  ): Promise<TotalVolumeMetrics[]> {
+    // Build simple conditions - just user ID and any exercise log activity
+    const whereConditions = [
+      eq(workouts.userId, userId),
+      // Removed strict filters - now includes any logged exercise activity
+      sql`${exerciseLogs.id} IS NOT NULL`,
+    ];
+
+    // Add date filters only if dates are provided
+    if (startDate || endDate) {
+      const { start, end } = getDateRangeUTC(startDate, endDate);
+
+      // Filter by plan day date to get workouts planned within the date range
+      const startDateStr = start.toISOString().split("T")[0];
+      const endDateStr = end.toISOString().split("T")[0];
+
+      if (startDate) {
+        whereConditions.push(gte(planDays.date, startDateStr));
+      }
+      if (endDate) {
+        whereConditions.push(lte(planDays.date, endDateStr));
+      }
     }
 
-    return weightedExerciseData.map((data) => {
+    // Get daily data for ALL exercises with any logged activity
+    const allExerciseData = await db
+      .select({
+        date: planDays.date,
+        totalWeight: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}), 0)::INTEGER`,
+        totalVolume: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted}), 0)::INTEGER`,
+        exerciseCount: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
+        totalSets: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted}), 0)::INTEGER`,
+        totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
+        logCount: sql<number>`COUNT(${exerciseLogs.id})::INTEGER`,
+      })
+      .from(exerciseLogs)
+      .innerJoin(
+        planDayExercises,
+        eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
+      )
+      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+      .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
+      .where(and(...whereConditions))
+      .groupBy(planDays.date)
+      .orderBy(asc(planDays.date));
+
+    return allExerciseData.map((data) => {
       const date = new Date(data.date);
       const label = formatDateForDisplay(date, {
         month: "short",
         day: "numeric",
       });
 
+      // Use weight-based volume if available, otherwise use rep-based volume, otherwise use log count
+      const totalVolume =
+        data.totalWeight > 0
+          ? data.totalWeight
+          : data.totalVolume > 0
+          ? data.totalVolume
+          : data.logCount;
+
       return {
         date: data.date,
-        totalVolume: data.totalWeight || 0,
+        totalVolume,
         exerciseCount: data.exerciseCount || 0,
         label,
       };
@@ -1026,30 +1167,63 @@ export class DashboardService {
       hasExerciseLogs: boolean;
     }[]
   ): Promise<number> {
-    // Sort by date (most recent first)
-    const sortedDays = planDayCompletionData.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-
-    let streak = 0;
-
-    // Start from the most recent completed day and count consecutive completions backwards
-    let foundFirstCompleted = false;
-
-    for (const day of sortedDays) {
-      if (day.hasExerciseLogs) {
-        if (!foundFirstCompleted) {
-          foundFirstCompleted = true;
-        }
-        streak++;
-      } else if (foundFirstCompleted) {
-        // Found an incomplete day after starting the streak count, break
-        break;
-      }
-      // If we haven't found the first completed day yet, keep looking
+    if (planDayCompletionData.length === 0) {
+      return 0;
     }
 
-    return streak;
+    // Sort plan days by date (oldest to newest)
+    const sortedDays = planDayCompletionData.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    // Find the longest streak of following the plan (completing workouts + rest days)
+    // A streak continues as long as planned workouts are completed
+    // Rest days (gaps between planned workout days) don't break the streak
+
+    let longestStreak = 0;
+    let currentStreak = 0;
+
+    // Go through each planned workout day
+    for (let i = 0; i < sortedDays.length; i++) {
+      const day = sortedDays[i];
+
+      if (day.hasExerciseLogs) {
+        // Workout completed - extend current streak
+        currentStreak++;
+
+        // Add any rest days between this workout and the previous one
+        if (i > 0) {
+          const prevDay = new Date(sortedDays[i - 1].date);
+          const thisDay = new Date(day.date);
+          const daysBetween =
+            Math.floor(
+              (thisDay.getTime() - prevDay.getTime()) / (1000 * 60 * 60 * 24)
+            ) - 1;
+          currentStreak += daysBetween; // Add rest days to streak
+        }
+
+        longestStreak = Math.max(longestStreak, currentStreak);
+      } else {
+        // Planned workout was missed - reset current streak
+        currentStreak = 0;
+      }
+    }
+
+    // If the last planned workout was completed, add any days since then to the current streak
+    const lastDay = sortedDays[sortedDays.length - 1];
+    if (lastDay.hasExerciseLogs && currentStreak > 0) {
+      const lastWorkoutDate = new Date(lastDay.date);
+      const today = new Date();
+      const daysSince = Math.floor(
+        (today.getTime() - lastWorkoutDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysSince >= 0) {
+        currentStreak += daysSince;
+        longestStreak = Math.max(longestStreak, currentStreak);
+      }
+    }
+
+    return longestStreak;
   }
 
   async getDailyWorkoutProgress(
@@ -1097,10 +1271,15 @@ export class DashboardService {
         planDayId: planDays.id,
         date: planDays.date,
         totalExercises: sql<number>`COUNT(${planDayExercises.id})`,
-        completedExercises: sql<number>`COUNT(CASE WHEN ${exerciseLogs.isComplete} = true THEN 1 END)`,
+        completedExercises: sql<number>`
+          COUNT(CASE WHEN ${exerciseLogs.id} IS NOT NULL THEN 1 END)
+        `,
+        hasExerciseLogs: sql<boolean>`
+          COUNT(${exerciseLogs.id}) > 0
+        `,
       })
       .from(planDays)
-      .leftJoin(planDayExercises, eq(planDays.id, planDayExercises.planDayId))
+      .innerJoin(planDayExercises, eq(planDays.id, planDayExercises.planDayId))
       .leftJoin(
         exerciseLogs,
         eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
@@ -1109,48 +1288,69 @@ export class DashboardService {
       .groupBy(planDays.id, planDays.date)
       .orderBy(asc(planDays.date));
 
-    // Create daily progress for our 7-day period
-    const dailyProgress = dates.map((dateStr) => {
-      const planDay = allPlanDays.find((day) => day.date === dateStr);
-      const hasPlannedWorkout = !!planDay;
+    // Create a map for quick lookup
+    const planDayMap = new Map(
+      planDayCompletionData.map((day) => [
+        day.date,
+        {
+          completionRate:
+            day.totalExercises > 0
+              ? Math.round((day.completedExercises / day.totalExercises) * 100)
+              : 0,
+          hasPlannedWorkout: true,
+        },
+      ])
+    );
 
-      const completionData = planDayCompletionData.find(
-        (day) => day.date === dateStr
-      );
-      let completionRate = 0;
-
-      if (completionData && completionData.totalExercises > 0) {
-        completionRate = Math.round(
-          (completionData.completedExercises / completionData.totalExercises) *
-            100
-        );
-      }
-
+    // Map over the 7 dates and return progress data
+    return dates.map((date) => {
+      const dayData = planDayMap.get(date);
       return {
-        date: dateStr,
-        completionRate,
-        hasPlannedWorkout,
+        date,
+        completionRate: dayData?.completionRate || 0,
+        hasPlannedWorkout: dayData?.hasPlannedWorkout || false,
       };
     });
-
-    return dailyProgress;
   }
 
-  async getWorkoutTypeMetrics(
+  async getWeightProgressionMetrics(
     userId: number,
     startDate?: string,
     endDate?: string
-  ): Promise<WorkoutTypeMetrics> {
-    const { start, end } = getDateRangeUTC(startDate, endDate);
+  ): Promise<
+    { date: string; avgWeight: number; maxWeight: number; label: string }[]
+  > {
+    // Build conditions for weight progression
+    const whereConditions = [
+      eq(workouts.userId, userId),
+      sql`${exerciseLogs.weightUsed} > 0`, // Only exercises with weight
+      sql`${exerciseLogs.setsCompleted} > 0`,
+      sql`${exerciseLogs.repsCompleted} > 0`,
+    ];
 
-    // Get workout type distribution based on exercise tags
-    const workoutTypeData = await db
+    // Add date filters only if dates are provided
+    if (startDate || endDate) {
+      const { start, end } = getDateRangeUTC(startDate, endDate);
+
+      // Filter by plan day date to get workouts planned within the date range
+      const startDateStr = start.toISOString().split("T")[0];
+      const endDateStr = end.toISOString().split("T")[0];
+
+      if (startDate) {
+        whereConditions.push(gte(planDays.date, startDateStr));
+      }
+      if (endDate) {
+        whereConditions.push(lte(planDays.date, endDateStr));
+      }
+    }
+
+    // Get daily weight progression data
+    const weightProgressionData = await db
       .select({
-        tag: exercises.tag,
-        totalSets: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted}), 0)::INTEGER`,
-        totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
-        exerciseCount: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
-        completedWorkouts: sql<number>`COUNT(DISTINCT ${planDays.id})::INTEGER`,
+        date: planDays.date,
+        avgWeight: sql<number>`ROUND(AVG(${exerciseLogs.weightUsed})::numeric, 1)`,
+        maxWeight: sql<number>`MAX(${exerciseLogs.weightUsed})`,
+        totalSets: sql<number>`COUNT(${exerciseLogs.id})`,
       })
       .from(exerciseLogs)
       .innerJoin(
@@ -1160,78 +1360,90 @@ export class DashboardService {
       .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
-      .where(
-        and(
-          eq(workouts.userId, userId),
-          eq(exerciseLogs.isComplete, true),
-          sql`${exercises.tag} IS NOT NULL`,
-          sql`${exercises.tag} != ''`,
-          gte(exerciseLogs.createdAt, start),
-          lte(exerciseLogs.createdAt, end)
-        )
-      )
-      .groupBy(exercises.tag)
-      .orderBy(desc(sql`SUM(${exerciseLogs.setsCompleted})`));
+      .where(and(...whereConditions))
+      .groupBy(planDays.date)
+      .orderBy(asc(planDays.date));
 
-    if (workoutTypeData.length === 0) {
+    return weightProgressionData.map((data) => {
+      const date = new Date(data.date);
+      const label = formatDateForDisplay(date, {
+        month: "short",
+        day: "numeric",
+      });
+
       return {
-        distribution: [],
-        totalExercises: 0,
-        totalSets: 0,
-        dominantType: "",
-        hasData: false,
+        date: data.date,
+        avgWeight: Number(data.avgWeight) || 0,
+        maxWeight: data.maxWeight || 0,
+        label,
       };
+    });
+  }
+
+  private async calculateGlobalWorkoutStreak(
+    planDayCompletionData: {
+      planDayId: number;
+      date: string;
+      workoutId: number;
+      hasExerciseLogs: boolean;
+    }[]
+  ): Promise<number> {
+    if (planDayCompletionData.length === 0) {
+      return 0;
     }
 
-    // Calculate totals
-    const totalSets = workoutTypeData.reduce(
-      (sum, item) => sum + (item.totalSets || 0),
-      0
-    );
-    const totalExercises = workoutTypeData.reduce(
-      (sum, item) => sum + (item.exerciseCount || 0),
-      0
+    // Sort plan days by date (oldest to newest)
+    const sortedDays = planDayCompletionData.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
-    // Create distribution with percentages and colors
-    const distribution: WorkoutTypeDistribution[] = workoutTypeData.map(
-      (item) => {
-        const tag = item.tag || "default";
-        const label =
-          DashboardService.workoutTypeLabels[tag] ||
-          tag.charAt(0).toUpperCase() + tag.slice(1);
-        const color =
-          DashboardService.workoutTypeColors[tag] ||
-          DashboardService.workoutTypeColors.default;
-        const percentage =
-          totalSets > 0
-            ? Math.round((item.totalSets / totalSets) * 100 * 10) / 10
-            : 0;
+    // Find the longest streak of following the plan (completing workouts + rest days)
+    // A streak continues as long as planned workouts are completed
+    // Rest days (gaps between planned workout days) don't break the streak
 
-        return {
-          tag,
-          label,
-          totalSets: item.totalSets || 0,
-          totalReps: item.totalReps || 0,
-          exerciseCount: item.exerciseCount || 0,
-          completedWorkouts: item.completedWorkouts || 0,
-          percentage,
-          color,
-        };
+    let longestStreak = 0;
+    let currentStreak = 0;
+
+    // Go through each planned workout day
+    for (let i = 0; i < sortedDays.length; i++) {
+      const day = sortedDays[i];
+
+      if (day.hasExerciseLogs) {
+        // Workout completed - extend current streak
+        currentStreak++;
+
+        // Add any rest days between this workout and the previous one
+        if (i > 0) {
+          const prevDay = new Date(sortedDays[i - 1].date);
+          const thisDay = new Date(day.date);
+          const daysBetween =
+            Math.floor(
+              (thisDay.getTime() - prevDay.getTime()) / (1000 * 60 * 60 * 24)
+            ) - 1;
+          currentStreak += daysBetween; // Add rest days to streak
+        }
+
+        longestStreak = Math.max(longestStreak, currentStreak);
+      } else {
+        // Planned workout was missed - reset current streak
+        currentStreak = 0;
       }
-    );
+    }
 
-    // Find dominant type (highest percentage)
-    const dominantType = distribution.length > 0 ? distribution[0].label : "";
+    // If the last planned workout was completed, add any days since then to the current streak
+    const lastDay = sortedDays[sortedDays.length - 1];
+    if (lastDay.hasExerciseLogs && currentStreak > 0) {
+      const lastWorkoutDate = new Date(lastDay.date);
+      const today = new Date();
+      const daysSince = Math.floor(
+        (today.getTime() - lastWorkoutDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysSince >= 0) {
+        currentStreak += daysSince;
+        longestStreak = Math.max(longestStreak, currentStreak);
+      }
+    }
 
-    return {
-      distribution,
-      totalExercises,
-      totalSets,
-      dominantType,
-      hasData: true,
-    };
+    return longestStreak;
   }
 }
-
-export const dashboardService = new DashboardService();
