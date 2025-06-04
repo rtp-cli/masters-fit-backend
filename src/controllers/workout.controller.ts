@@ -452,4 +452,27 @@ export class WorkoutController extends Controller {
       planDay,
     };
   }
+
+  // Test endpoint to check active workouts (for debugging)
+  @Get("/:userId/debug/active")
+  async getActiveWorkoutsDebug(@Path() userId: string) {
+    try {
+      const activeWorkouts = await workoutService.getActiveWorkouts(
+        parseInt(userId)
+      );
+      return {
+        userId: parseInt(userId),
+        activeWorkoutsCount: activeWorkouts.length,
+        activeWorkouts: activeWorkouts.map((w) => ({
+          id: w.id,
+          name: w.name,
+          isActive: w.isActive,
+          createdAt: w.created_at,
+        })),
+      };
+    } catch (error) {
+      console.error("Error getting active workouts:", error);
+      throw new Error("Failed to fetch active workouts");
+    }
+  }
 }

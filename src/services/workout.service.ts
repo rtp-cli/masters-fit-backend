@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import {
   workouts,
   planDays,
@@ -31,6 +31,7 @@ import {
   toUTCDate,
   formatTimestampForAPI,
 } from "@/utils/date.utils";
+import { workoutLogs } from "../models/logs.schema";
 
 type DBWorkoutResult = {
   id: number;
@@ -776,13 +777,37 @@ export class WorkoutService extends BaseService {
       } as any);
     }
 
-    // First, deactivate the current active workout
-    await this.db
-      .update(workouts)
-      .set({ isActive: false })
+    // First, find and deactivate the current active workout(s)
+    const activeWorkouts = await this.db
+      .select({ id: workouts.id, name: workouts.name })
+      .from(workouts)
       .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
 
+    if (activeWorkouts.length > 0) {
+      console.log(
+        `Found ${activeWorkouts.length} active workout(s) for user ${userId}:`,
+        activeWorkouts.map((w) => `ID: ${w.id}, Name: ${w.name}`)
+      );
+
+      // Deactivate all current active workouts
+      const updateResult = await this.db
+        .update(workouts)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
+
+      console.log(
+        `Successfully deactivated active workouts for user ${userId}`
+      );
+    } else {
+      console.log(`No active workouts found for user ${userId}`);
+    }
+
+    // Generate the new workout plan
     const workout = await this.generateWorkoutPlan(userId, customFeedback);
+    console.log(
+      `Generated new workout plan with ID ${workout.id} for user ${userId}`
+    );
+
     return workout;
   }
 
