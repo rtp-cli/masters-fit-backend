@@ -200,4 +200,48 @@ router.get("/:userId/weight-progression", async (req, res) => {
   }
 });
 
+// Get raw weight accuracy data by date (for frontend filtering)
+router.get("/:userId/weight-accuracy-by-date", async (req, res) => {
+  try {
+    const { startDate, endDate, timeRange } = req.query;
+    const response = await controller.getWeightAccuracyByDate(
+      Number(req.params.userId),
+      startDate as string,
+      endDate as string,
+      timeRange as "1w" | "1m" | "3m" | "6m" | "1y"
+    );
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Get raw workout type data by date (for frontend filtering)
+router.get("/:userId/workout-type-by-date", async (req, res) => {
+  try {
+    const { startDate, endDate, timeRange } = req.query;
+    const response = await controller.getWorkoutTypeByDate(
+      Number(req.params.userId),
+      startDate as string,
+      endDate as string,
+      timeRange as "1w" | "1m" | "3m" | "6m" | "1y"
+    );
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
 export default router;

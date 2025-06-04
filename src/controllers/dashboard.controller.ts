@@ -506,10 +506,18 @@ export class DashboardController extends Controller {
   }
 
   /**
-   * Get weight progression metrics for strength chart (line chart)
+   * Get weight progression metrics for a user
    */
   @Get("/{userId}/weight-progression")
-  @Response("400", "Bad Request")
+  @Response<{
+    success: boolean;
+    data: {
+      date: string;
+      avgWeight: number;
+      maxWeight: number;
+      label: string;
+    }[];
+  }>(400, "Bad Request")
   @SuccessResponse(200, "Success")
   public async getWeightProgressionMetrics(
     @Path() userId: number,
@@ -532,6 +540,112 @@ export class DashboardController extends Controller {
     );
 
     const data = await this.dashboardService.getWeightProgressionMetrics(
+      userId,
+      start,
+      end
+    );
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  /**
+   * Get raw weight accuracy data by date for frontend filtering
+   */
+  @Get("/{userId}/weight-accuracy-by-date")
+  @Response<{
+    success: boolean;
+    data: {
+      date: string;
+      totalSets: number;
+      exactMatches: number;
+      higherWeight: number;
+      lowerWeight: number;
+      label: string;
+    }[];
+  }>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async getWeightAccuracyByDate(
+    @Path() userId: number,
+    @Query() startDate?: string,
+    @Query() endDate?: string,
+    @Query() timeRange?: "1w" | "1m" | "3m" | "6m" | "1y"
+  ): Promise<{
+    success: boolean;
+    data: {
+      date: string;
+      totalSets: number;
+      exactMatches: number;
+      higherWeight: number;
+      lowerWeight: number;
+      label: string;
+    }[];
+  }> {
+    const { startDate: start, endDate: end } = this.parseTimeRange(
+      timeRange,
+      startDate,
+      endDate
+    );
+
+    const data = await this.dashboardService.getWeightAccuracyByDate(
+      userId,
+      start,
+      end
+    );
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  /**
+   * Get raw workout type data by date for frontend filtering
+   */
+  @Get("/{userId}/workout-type-by-date")
+  @Response<{
+    success: boolean;
+    data: {
+      date: string;
+      workoutTypes: {
+        tag: string;
+        label: string;
+        totalSets: number;
+        totalReps: number;
+        exerciseCount: number;
+      }[];
+      label: string;
+    }[];
+  }>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async getWorkoutTypeByDate(
+    @Path() userId: number,
+    @Query() startDate?: string,
+    @Query() endDate?: string,
+    @Query() timeRange?: "1w" | "1m" | "3m" | "6m" | "1y"
+  ): Promise<{
+    success: boolean;
+    data: {
+      date: string;
+      workoutTypes: {
+        tag: string;
+        label: string;
+        totalSets: number;
+        totalReps: number;
+        exerciseCount: number;
+      }[];
+      label: string;
+    }[];
+  }> {
+    const { startDate: start, endDate: end } = this.parseTimeRange(
+      timeRange,
+      startDate,
+      endDate
+    );
+
+    const data = await this.dashboardService.getWorkoutTypeByDate(
       userId,
       start,
       end

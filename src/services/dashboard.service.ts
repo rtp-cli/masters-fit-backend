@@ -146,6 +146,7 @@ export class DashboardService {
     pilates: "Pilates",
     crossfit: "CrossFit",
     rehabilitation: "Rehab",
+    rehab: "Rehab",
     stretching: "Stretching",
     warmup: "Warm-up",
     cooldown: "Cool-down",
@@ -1320,10 +1321,82 @@ export class DashboardService {
   ): Promise<
     { date: string; avgWeight: number; maxWeight: number; label: string }[]
   > {
-    // Build conditions for weight progression
+    // Build basic conditions
     const whereConditions = [
       eq(workouts.userId, userId),
-      sql`${exerciseLogs.weightUsed} > 0`, // Only exercises with weight
+      sql`${exerciseLogs.setsCompleted} > 0`,
+      sql`${exerciseLogs.repsCompleted} > 0`,
+      sql`${exerciseLogs.weightUsed} > 0`, // Only include exercises with weight
+    ];
+
+    // Add date filters only if dates are provided
+    if (startDate || endDate) {
+      const { start, end } = getDateRangeUTC(startDate, endDate);
+
+      // Filter by plan day date to get workouts planned within the date range
+      const startDateStr = start.toISOString().split("T")[0];
+      const endDateStr = end.toISOString().split("T")[0];
+
+      if (startDate) {
+        whereConditions.push(gte(planDays.date, startDateStr));
+      }
+      if (endDate) {
+        whereConditions.push(lte(planDays.date, endDateStr));
+      }
+    }
+
+    // Get weight progression data grouped by date
+    const progressionData = await db
+      .select({
+        date: planDays.date,
+        avgWeight: sql<number>`ROUND(AVG(CAST(${exerciseLogs.weightUsed} AS DECIMAL)), 2)`,
+        maxWeight: sql<number>`MAX(${exerciseLogs.weightUsed})`,
+      })
+      .from(exerciseLogs)
+      .innerJoin(
+        planDayExercises,
+        eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
+      )
+      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+      .where(and(...whereConditions))
+      .groupBy(planDays.date)
+      .orderBy(asc(planDays.date));
+
+    return progressionData.map((data) => {
+      const date = new Date(data.date);
+      const label = formatDateForDisplay(date, {
+        month: "short",
+        day: "numeric",
+      });
+
+      return {
+        date: data.date,
+        avgWeight: Number(data.avgWeight) || 0,
+        maxWeight: Number(data.maxWeight) || 0,
+        label,
+      };
+    });
+  }
+
+  // New method: Get raw weight accuracy data by date for frontend filtering
+  async getWeightAccuracyByDate(
+    userId: number,
+    startDate?: string,
+    endDate?: string
+  ): Promise<
+    {
+      date: string;
+      totalSets: number;
+      exactMatches: number;
+      higherWeight: number;
+      lowerWeight: number;
+      label: string;
+    }[]
+  > {
+    // Build basic conditions
+    const whereConditions = [
+      eq(workouts.userId, userId),
       sql`${exerciseLogs.setsCompleted} > 0`,
       sql`${exerciseLogs.repsCompleted} > 0`,
     ];
@@ -1344,13 +1417,16 @@ export class DashboardService {
       }
     }
 
-    // Get daily weight progression data
-    const weightProgressionData = await db
+    // Get all exercise logs with their planned weights, grouped by date
+    const dailyExerciseData = await db
       .select({
         date: planDays.date,
-        avgWeight: sql<number>`ROUND(AVG(${exerciseLogs.weightUsed})::numeric, 1)`,
-        maxWeight: sql<number>`MAX(${exerciseLogs.weightUsed})`,
-        totalSets: sql<number>`COUNT(${exerciseLogs.id})`,
+        exerciseLogId: exerciseLogs.id,
+        weightUsed: exerciseLogs.weightUsed,
+        plannedWeight: planDayExercises.weight,
+        exerciseName: exercises.name,
+        setsCompleted: exerciseLogs.setsCompleted,
+        repsCompleted: exerciseLogs.repsCompleted,
       })
       .from(exerciseLogs)
       .innerJoin(
@@ -1361,10 +1437,62 @@ export class DashboardService {
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
       .where(and(...whereConditions))
-      .groupBy(planDays.date)
       .orderBy(asc(planDays.date));
 
-    return weightProgressionData.map((data) => {
+    // Group by date and calculate metrics for each day
+    const dailyMetrics = new Map<
+      string,
+      {
+        date: string;
+        totalSets: number;
+        exactMatches: number;
+        higherWeight: number;
+        lowerWeight: number;
+      }
+    >();
+
+    dailyExerciseData.forEach((exercise) => {
+      const date = exercise.date;
+
+      if (!dailyMetrics.has(date)) {
+        dailyMetrics.set(date, {
+          date,
+          totalSets: 0,
+          exactMatches: 0,
+          higherWeight: 0,
+          lowerWeight: 0,
+        });
+      }
+
+      const dayMetric = dailyMetrics.get(date)!;
+
+      // Process exercises with planned weights
+      const plannedWeight = exercise.plannedWeight || 0;
+      const weightUsed = exercise.weightUsed || 0;
+
+      // Count this set
+      dayMetric.totalSets++;
+
+      if (plannedWeight > 0) {
+        // Exercise had planned weight
+        if (weightUsed === plannedWeight) {
+          dayMetric.exactMatches++;
+        } else if (weightUsed > plannedWeight) {
+          dayMetric.higherWeight++;
+        } else {
+          dayMetric.lowerWeight++;
+        }
+      } else if (weightUsed > 0) {
+        // Bodyweight exercise where user added weight
+        dayMetric.higherWeight++;
+      } else {
+        // Pure bodyweight - count as exact match
+        dayMetric.exactMatches++;
+      }
+    });
+
+    // Convert to array and add labels
+    return Array.from(dailyMetrics.values()).map((data) => {
       const date = new Date(data.date);
       const label = formatDateForDisplay(date, {
         month: "short",
@@ -1372,9 +1500,125 @@ export class DashboardService {
       });
 
       return {
-        date: data.date,
-        avgWeight: Number(data.avgWeight) || 0,
-        maxWeight: data.maxWeight || 0,
+        ...data,
+        label,
+      };
+    });
+  }
+
+  // New method: Get raw workout type data by date for frontend filtering
+  async getWorkoutTypeByDate(
+    userId: number,
+    startDate?: string,
+    endDate?: string
+  ): Promise<
+    {
+      date: string;
+      workoutTypes: {
+        tag: string;
+        label: string;
+        totalSets: number;
+        totalReps: number;
+        exerciseCount: number;
+      }[];
+      label: string;
+    }[]
+  > {
+    // Build basic conditions
+    const whereConditions = [
+      eq(workouts.userId, userId),
+      sql`${exerciseLogs.setsCompleted} > 0`,
+      sql`${exerciseLogs.repsCompleted} > 0`,
+    ];
+
+    // Add date filters only if dates are provided
+    if (startDate || endDate) {
+      const { start, end } = getDateRangeUTC(startDate, endDate);
+
+      // Filter by plan day date to get workouts planned within the date range
+      const startDateStr = start.toISOString().split("T")[0];
+      const endDateStr = end.toISOString().split("T")[0];
+
+      if (startDate) {
+        whereConditions.push(gte(planDays.date, startDateStr));
+      }
+      if (endDate) {
+        whereConditions.push(lte(planDays.date, endDateStr));
+      }
+    }
+
+    // Get workout type data grouped by date and exercise tag
+    const dailyWorkoutTypeData = await db
+      .select({
+        date: planDays.date,
+        tag: exercises.tag,
+        totalSets: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted}), 0)::INTEGER`,
+        totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
+        exerciseCount: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
+      })
+      .from(exerciseLogs)
+      .innerJoin(
+        planDayExercises,
+        eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
+      )
+      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+      .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
+      .where(and(...whereConditions))
+      .groupBy(planDays.date, exercises.tag)
+      .orderBy(
+        asc(planDays.date),
+        desc(sql`SUM(${exerciseLogs.setsCompleted})`)
+      );
+
+    // Group by date
+    const dailyMetrics = new Map<
+      string,
+      {
+        date: string;
+        workoutTypes: {
+          tag: string;
+          label: string;
+          totalSets: number;
+          totalReps: number;
+          exerciseCount: number;
+        }[];
+      }
+    >();
+
+    dailyWorkoutTypeData.forEach((data) => {
+      const date = data.date;
+
+      if (!dailyMetrics.has(date)) {
+        dailyMetrics.set(date, {
+          date,
+          workoutTypes: [],
+        });
+      }
+
+      const dayMetric = dailyMetrics.get(date)!;
+
+      if (data.tag) {
+        dayMetric.workoutTypes.push({
+          tag: data.tag,
+          label: DashboardService.workoutTypeLabels[data.tag] || data.tag,
+          totalSets: data.totalSets,
+          totalReps: data.totalReps,
+          exerciseCount: data.exerciseCount,
+        });
+      }
+    });
+
+    // Convert to array and add labels
+    return Array.from(dailyMetrics.values()).map((data) => {
+      const date = new Date(data.date);
+      const label = formatDateForDisplay(date, {
+        month: "short",
+        day: "numeric",
+      });
+
+      return {
+        ...data,
         label,
       };
     });
