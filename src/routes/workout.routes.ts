@@ -174,7 +174,7 @@ router.post("/:userId/days/:planDayId/regenerate", async (req, res) => {
 });
 
 // Fetch active workout
-router.get("/:userId/active", async (req, res) => {
+router.get("/:userId/active-workout", async (req, res) => {
   try {
     const response = await controller.fetchActiveWorkout(
       Number(req.params.userId)

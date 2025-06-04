@@ -54,8 +54,27 @@ export const insertProfileSchema = createInsertSchema(profiles).omit({
   updatedAt: true,
 });
 
-// Types
-export type Profile = typeof profiles.$inferSelect;
+// Types - Explicit interface for TSOA compatibility
+export interface Profile {
+  id: number;
+  userId: number;
+  age: number | null;
+  height: number | null;
+  weight: number | null;
+  gender: Gender | null;
+  goals: FitnessGoal[] | null;
+  limitations: PhysicalLimitation[] | null;
+  fitnessLevel: FitnessLevel | null;
+  environment: WorkoutEnvironment | null;
+  equipment: AvailableEquipment[] | null;
+  preferredStyles: PreferredStyles[] | null;
+  availableDays: PreferredDay[] | null;
+  workoutDuration: number | null;
+  intensityLevel: IntensityLevel | null;
+  medicalNotes: string | null;
+  updatedAt: Date | null;
+}
+
 export type InsertProfile = z.infer<typeof insertProfileSchema>;
 
 // Onboarding schema

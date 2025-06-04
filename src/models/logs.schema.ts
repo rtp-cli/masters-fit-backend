@@ -71,8 +71,31 @@ export const updateWorkoutLogSchema = z.object({
   notes: z.string().optional(),
 });
 
-export type ExerciseLog = typeof exerciseLogs.$inferSelect;
+// Types - Explicit interfaces for TSOA compatibility
+export interface ExerciseLog {
+  id: number;
+  planDayExerciseId: number;
+  setsCompleted: number;
+  repsCompleted: number;
+  weightUsed: number;
+  timeTaken: number | null;
+  notes: string | null;
+  isComplete: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WorkoutLog {
+  id: number;
+  workoutId: number;
+  totalTimeTaken: number | null;
+  notes: string | null;
+  completedExercises: number[] | null;
+  isComplete: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export type InsertExerciseLog = z.infer<typeof insertExerciseLogSchema>;
-export type WorkoutLog = typeof workoutLogs.$inferSelect;
 export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
 export type UpdateWorkoutLog = z.infer<typeof updateWorkoutLogSchema>;

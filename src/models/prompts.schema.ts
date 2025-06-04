@@ -24,5 +24,14 @@ export const insertPromptSchema = createInsertSchema(prompts).pick({
   response: true,
 });
 
-export type Prompt = typeof prompts.$inferSelect;
+// Types - Explicit interface for TSOA compatibility
+export interface Prompt {
+  id: number;
+  userId: number;
+  prompt: string;
+  response: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export type InsertPrompt = z.infer<typeof insertPromptSchema>;

@@ -118,10 +118,43 @@ export const insertPlanDayExerciseSchema = createInsertSchema(
   id: true,
 });
 
-// Types
-export type Workout = typeof workouts.$inferSelect;
-export type PlanDay = typeof planDays.$inferSelect;
-export type PlanDayExercise = typeof planDayExercises.$inferSelect;
+// Types - Explicit interfaces for TSOA compatibility
+export interface Workout {
+  id: number;
+  userId: number;
+  startDate: string;
+  endDate: string;
+  promptId: number;
+  isActive: boolean | null;
+  name: string;
+  description: string | null;
+  completed: boolean | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PlanDay {
+  id: number;
+  workoutId: number;
+  date: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PlanDayExercise {
+  id: number;
+  planDayId: number;
+  exerciseId: number;
+  sets: number | null;
+  reps: number | null;
+  weight: number | null;
+  duration: number | null;
+  restTime: number | null;
+  notes: string | null;
+  completed: boolean | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export type InsertWorkout = z.infer<typeof insertWorkoutSchema>;
 export type InsertPlanDay = z.infer<typeof insertPlanDaySchema>;

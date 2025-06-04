@@ -21,6 +21,14 @@ export const insertAuthCodeSchema = createInsertSchema(authCodes).pick({
   expires_at: true,
 });
 
-// Types
-export type AuthCode = typeof authCodes.$inferSelect;
+// Types - Explicit interface for TSOA compatibility
+export interface AuthCode {
+  id: number;
+  email: string;
+  code: string;
+  expires_at: Date;
+  used: boolean;
+  created_at: Date;
+}
+
 export type InsertAuthCode = z.infer<typeof insertAuthCodeSchema>;

@@ -39,5 +39,19 @@ export const insertExerciseSchema = createInsertSchema(exercises, {
   updatedAt: true,
 });
 
-export type Exercise = typeof exercises.$inferSelect;
+// Types - Explicit interface for TSOA compatibility
+export interface Exercise {
+  id: number;
+  name: string;
+  description: string | null;
+  equipment: AvailableEquipment[] | null;
+  muscleGroups: string[];
+  difficulty: IntensityLevel | null;
+  instructions: string;
+  link: string | null;
+  tag: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export type InsertExercise = z.infer<typeof insertExerciseSchema>;

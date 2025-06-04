@@ -25,8 +25,16 @@ export const updateUserSchema = createInsertSchema(users).pick({
   needsOnboarding: true,
 });
 
-// Types
-export type User = typeof users.$inferSelect;
+// Types - Explicit interface for TSOA compatibility
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  emailVerified: boolean | null;
+  createdAt: Date | null;
+  needsOnboarding: boolean | null;
+}
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpdateUser = z.infer<typeof updateUserSchema>;
 
