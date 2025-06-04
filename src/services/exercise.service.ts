@@ -65,6 +65,16 @@ export class ExerciseService extends BaseService {
 
     return result;
   }
+
+  async updateExerciseLink(id: number, link: string | null) {
+    const result = await this.db
+      .update(exercises)
+      .set({ link })
+      .where(eq(exercises.id, id))
+      .returning();
+
+    return result[0];
+  }
 }
 
 export const exerciseService = new ExerciseService();

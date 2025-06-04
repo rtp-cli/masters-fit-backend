@@ -21,6 +21,7 @@ import {
 } from "@/types/exercise/responses";
 import { exerciseService } from "@/services";
 import { insertExerciseSchema } from "@/models";
+import { validateExerciseLink } from "@/utils/linkUtils";
 
 @Route("exercises")
 @Tags("Exercises")
@@ -188,6 +189,54 @@ export class ExerciseController extends Controller {
   @SuccessResponse(200, "Success")
   public async deleteExercise(@Path() id: number): Promise<ApiResponse> {
     await exerciseService.deleteExercise(id);
+    return {
+      success: true,
+    };
+  }
+
+  /**
+   * Update exercise link (YouTube video or image URL)
+   * @param id Exercise ID
+   * @param requestBody Link update data
+   */
+  @Put("/{id}/link")
+  @Response<ApiResponse>(400, "Bad Request")
+  @Response<ApiResponse>(404, "Exercise not found")
+  @SuccessResponse(200, "Link updated successfully")
+  @Example<ApiResponse>({
+    success: true,
+  })
+  public async updateExerciseLink(
+    @Path() id: number,
+    @Body() requestBody: { link: string | null }
+  ): Promise<ApiResponse> {
+    const { link } = requestBody;
+
+    // Validate link if provided
+    if (link) {
+      const isValidLink = validateExerciseLink(link);
+      if (!isValidLink.isValid) {
+        this.setStatus(400);
+        return {
+          success: false,
+          error: isValidLink.error || "Invalid link format",
+        };
+      }
+    }
+
+    // Check if exercise exists
+    const existingExercise = await exerciseService.getExerciseById(id);
+    if (!existingExercise) {
+      this.setStatus(404);
+      return {
+        success: false,
+        error: "Exercise not found",
+      };
+    }
+
+    // Update the exercise link
+    await exerciseService.updateExerciseLink(id, link);
+
     return {
       success: true,
     };
