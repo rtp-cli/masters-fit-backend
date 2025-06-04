@@ -1,0 +1,6570 @@
+{
+	"components": {
+		"examples": {},
+		"headers": {},
+		"parameters": {},
+		"requestBodies": {},
+		"responses": {},
+		"schemas": {
+			"AuthUserResponse": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"email": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"email",
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AuthVerifyResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"needsOnboarding": {
+						"type": "boolean"
+					},
+					"user": {
+						"$ref": "#/components/schemas/AuthUserResponse"
+					},
+					"email": {
+						"type": "string"
+					},
+					"token": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"EmailAuthRequest": {
+				"properties": {
+					"email": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"email"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AuthLoginResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"message": {
+						"type": "string"
+					},
+					"authCode": {
+						"type": "string"
+					},
+					"userExists": {
+						"type": "boolean"
+					},
+					"needsOnboarding": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AuthSignupResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"message": {
+						"type": "string"
+					},
+					"user": {
+						"$ref": "#/components/schemas/AuthUserResponse"
+					},
+					"needsOnboarding": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SignUpRequest": {
+				"properties": {
+					"email": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"email",
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {}
+				},
+				"required": [
+					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AuthCodeRequest": {
+				"properties": {
+					"authCode": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"authCode"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WeeklySummary": {
+				"properties": {
+					"workoutCompletionRate": {
+						"type": "number",
+						"format": "double"
+					},
+					"exerciseCompletionRate": {
+						"type": "number",
+						"format": "double"
+					},
+					"streak": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalWorkoutsThisWeek": {
+						"type": "number",
+						"format": "double"
+					},
+					"completedWorkoutsThisWeek": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"workoutCompletionRate",
+					"exerciseCompletionRate",
+					"streak",
+					"totalWorkoutsThisWeek",
+					"completedWorkoutsThisWeek"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutConsistency": {
+				"properties": {
+					"week": {
+						"type": "string"
+					},
+					"weekLabel": {
+						"type": "string"
+					},
+					"totalWorkouts": {
+						"type": "number",
+						"format": "double"
+					},
+					"completedWorkouts": {
+						"type": "number",
+						"format": "double"
+					},
+					"completionRate": {
+						"type": "number",
+						"format": "double"
+					},
+					"isInProgress": {
+						"type": "boolean"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"completed",
+							"in-progress",
+							"upcoming"
+						]
+					}
+				},
+				"required": [
+					"week",
+					"weekLabel",
+					"totalWorkouts",
+					"completedWorkouts",
+					"completionRate",
+					"isInProgress",
+					"status"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WeightMetrics": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"totalWeight": {
+						"type": "number",
+						"format": "double"
+					},
+					"muscleGroups": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"name",
+					"totalWeight",
+					"muscleGroups"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WeightAccuracyMetrics": {
+				"properties": {
+					"accuracyRate": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalSets": {
+						"type": "number",
+						"format": "double"
+					},
+					"exactMatches": {
+						"type": "number",
+						"format": "double"
+					},
+					"higherWeight": {
+						"type": "number",
+						"format": "double"
+					},
+					"lowerWeight": {
+						"type": "number",
+						"format": "double"
+					},
+					"avgWeightDifference": {
+						"type": "number",
+						"format": "double"
+					},
+					"chartData": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"color": {
+									"type": "string"
+								},
+								"value": {
+									"type": "number",
+									"format": "double"
+								},
+								"label": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"color",
+								"value",
+								"label"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"hasPlannedWeights": {
+						"type": "boolean"
+					},
+					"hasExerciseData": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"accuracyRate",
+					"totalSets",
+					"exactMatches",
+					"higherWeight",
+					"lowerWeight",
+					"avgWeightDifference",
+					"chartData"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"GoalProgress": {
+				"properties": {
+					"goal": {
+						"type": "string"
+					},
+					"progressScore": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalSets": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalReps": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalWeight": {
+						"type": "number",
+						"format": "double"
+					},
+					"completedWorkouts": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"goal",
+					"progressScore",
+					"totalSets",
+					"totalReps",
+					"totalWeight",
+					"completedWorkouts"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"TotalVolumeMetrics": {
+				"properties": {
+					"date": {
+						"type": "string"
+					},
+					"totalVolume": {
+						"type": "number",
+						"format": "double"
+					},
+					"exerciseCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"label": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"date",
+					"totalVolume",
+					"exerciseCount",
+					"label"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutTypeDistribution": {
+				"properties": {
+					"tag": {
+						"type": "string"
+					},
+					"label": {
+						"type": "string"
+					},
+					"totalSets": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalReps": {
+						"type": "number",
+						"format": "double"
+					},
+					"exerciseCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"completedWorkouts": {
+						"type": "number",
+						"format": "double"
+					},
+					"percentage": {
+						"type": "number",
+						"format": "double"
+					},
+					"color": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"tag",
+					"label",
+					"totalSets",
+					"totalReps",
+					"exerciseCount",
+					"completedWorkouts",
+					"percentage",
+					"color"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutTypeMetrics": {
+				"properties": {
+					"distribution": {
+						"items": {
+							"$ref": "#/components/schemas/WorkoutTypeDistribution"
+						},
+						"type": "array"
+					},
+					"totalExercises": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalSets": {
+						"type": "number",
+						"format": "double"
+					},
+					"dominantType": {
+						"type": "string"
+					},
+					"hasData": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"distribution",
+					"totalExercises",
+					"totalSets",
+					"dominantType",
+					"hasData"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DailyWorkoutProgress": {
+				"properties": {
+					"date": {
+						"type": "string"
+					},
+					"completionRate": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasPlannedWorkout": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"date",
+					"completionRate",
+					"hasPlannedWorkout"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DashboardMetrics": {
+				"properties": {
+					"weeklySummary": {
+						"$ref": "#/components/schemas/WeeklySummary"
+					},
+					"workoutConsistency": {
+						"items": {
+							"$ref": "#/components/schemas/WorkoutConsistency"
+						},
+						"type": "array"
+					},
+					"weightMetrics": {
+						"items": {
+							"$ref": "#/components/schemas/WeightMetrics"
+						},
+						"type": "array"
+					},
+					"weightAccuracy": {
+						"$ref": "#/components/schemas/WeightAccuracyMetrics"
+					},
+					"goalProgress": {
+						"items": {
+							"$ref": "#/components/schemas/GoalProgress"
+						},
+						"type": "array"
+					},
+					"totalVolumeMetrics": {
+						"items": {
+							"$ref": "#/components/schemas/TotalVolumeMetrics"
+						},
+						"type": "array"
+					},
+					"workoutTypeMetrics": {
+						"$ref": "#/components/schemas/WorkoutTypeMetrics"
+					},
+					"dailyWorkoutProgress": {
+						"items": {
+							"$ref": "#/components/schemas/DailyWorkoutProgress"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"weeklySummary",
+					"workoutConsistency",
+					"weightMetrics",
+					"weightAccuracy",
+					"goalProgress",
+					"totalVolumeMetrics",
+					"workoutTypeMetrics",
+					"dailyWorkoutProgress"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DashboardMetricsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/DashboardMetrics"
+					}
+				},
+				"required": [
+					"success",
+					"data"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WeeklySummaryResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/WeeklySummary"
+					}
+				},
+				"required": [
+					"success",
+					"data"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutConsistencyResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/WorkoutConsistency"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"data"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WeightMetricsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/WeightMetrics"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"data"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WeightAccuracyResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/WeightAccuracyMetrics"
+					}
+				},
+				"required": [
+					"success",
+					"data"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"GoalProgressResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/GoalProgress"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"data"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"TotalVolumeMetricsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/TotalVolumeMetrics"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"data"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutTypeMetricsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/WorkoutTypeMetrics"
+					}
+				},
+				"required": [
+					"success",
+					"data"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Exercise": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"category": {
+						"type": "string"
+					},
+					"difficulty": {
+						"type": "string"
+					},
+					"equipment": {
+						"type": "string"
+					},
+					"instructions": {
+						"type": "string"
+					},
+					"link": {
+						"type": "string"
+					},
+					"muscles_targeted": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"category",
+					"difficulty",
+					"created_at",
+					"updated_at"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExercisesResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"exercises": {
+						"items": {
+							"$ref": "#/components/schemas/Exercise"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"exercises"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExerciseResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"exercise": {
+						"$ref": "#/components/schemas/Exercise"
+					}
+				},
+				"required": [
+					"success",
+					"exercise"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExerciseLog": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"planDayExerciseId": {
+						"type": "number",
+						"format": "double"
+					},
+					"setsCompleted": {
+						"type": "number",
+						"format": "double"
+					},
+					"repsCompleted": {
+						"type": "number",
+						"format": "double"
+					},
+					"weightUsed": {
+						"type": "number",
+						"format": "double"
+					},
+					"isComplete": {
+						"type": "boolean"
+					},
+					"timeTaken": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"notes": {
+						"type": "string",
+						"nullable": true
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"planDayExerciseId",
+					"setsCompleted",
+					"repsCompleted",
+					"weightUsed",
+					"isComplete",
+					"timeTaken",
+					"notes",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExerciseLogResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"log": {
+						"$ref": "#/components/schemas/ExerciseLog"
+					}
+				},
+				"required": [
+					"success",
+					"log"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExerciseLogsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"logs": {
+						"items": {
+							"$ref": "#/components/schemas/ExerciseLog"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"logs"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutLog": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"workoutId": {
+						"type": "number",
+						"format": "double"
+					},
+					"isComplete": {
+						"type": "boolean"
+					},
+					"totalTimeTaken": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"completedExercises": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"notes": {
+						"type": "string",
+						"nullable": true
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"workoutId",
+					"isComplete",
+					"totalTimeTaken",
+					"completedExercises",
+					"notes",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutLogResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"log": {
+						"$ref": "#/components/schemas/WorkoutLog"
+					}
+				},
+				"required": [
+					"success",
+					"log"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutLogOrNullResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"log": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/WorkoutLog"
+							}
+						],
+						"nullable": true
+					}
+				},
+				"required": [
+					"success",
+					"log"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutLogsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"logs": {
+						"items": {
+							"$ref": "#/components/schemas/WorkoutLog"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"logs"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CompletedExercisesResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"completedExercises": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array"
+					},
+					"count": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"success",
+					"completedExercises",
+					"count"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Gender": {
+				"type": "string",
+				"enum": [
+					"male",
+					"female",
+					"other"
+				]
+			},
+			"FitnessGoal": {
+				"type": "string",
+				"enum": [
+					"weight_loss",
+					"muscle_gain",
+					"strength",
+					"endurance",
+					"flexibility",
+					"general_fitness",
+					"mobility",
+					"balance",
+					"recovery"
+				]
+			},
+			"FitnessLevel": {
+				"type": "string",
+				"enum": [
+					"beginner",
+					"intermediate",
+					"advanced"
+				]
+			},
+			"PhysicalLimitation": {
+				"type": "string",
+				"enum": [
+					"knee_pain",
+					"shoulder_pain",
+					"lower_back_pain",
+					"neck_pain",
+					"hip_pain",
+					"ankle_instability",
+					"wrist_pain",
+					"elbow_pain",
+					"arthritis",
+					"osteoporosis",
+					"sciatica",
+					"limited_range_of_motion",
+					"post_surgery_recovery",
+					"balance_issues",
+					"chronic_fatigue",
+					"breathing_issues"
+				]
+			},
+			"WorkoutEnvironment": {
+				"type": "string",
+				"enum": [
+					"home",
+					"gym",
+					"hybrid"
+				]
+			},
+			"AvailableEquipment": {
+				"type": "string",
+				"enum": [
+					"dumbbells",
+					"resistance_bands",
+					"machines",
+					"bodyweight",
+					"kettlebells",
+					"medicine_ball",
+					"foam_roller",
+					"treadmill",
+					"bike",
+					"yoga_mat"
+				]
+			},
+			"PreferredStyles": {
+				"type": "string",
+				"enum": [
+					"strength",
+					"mobility",
+					"balance",
+					"hiit",
+					"cardio",
+					"rehab",
+					"crossfit",
+					"functional",
+					"pilates",
+					"yoga"
+				]
+			},
+			"PreferredDay": {
+				"type": "string",
+				"enum": [
+					"monday",
+					"tuesday",
+					"wednesday",
+					"thursday",
+					"friday",
+					"saturday",
+					"sunday"
+				]
+			},
+			"IntensityLevel": {
+				"type": "string",
+				"enum": [
+					"low",
+					"moderate",
+					"high"
+				]
+			},
+			"Profile": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"userId": {
+						"type": "number",
+						"format": "double"
+					},
+					"email": {
+						"type": "string"
+					},
+					"height": {
+						"type": "number",
+						"format": "double"
+					},
+					"weight": {
+						"type": "number",
+						"format": "double"
+					},
+					"age": {
+						"type": "number",
+						"format": "double"
+					},
+					"gender": {
+						"$ref": "#/components/schemas/Gender"
+					},
+					"goals": {
+						"items": {
+							"$ref": "#/components/schemas/FitnessGoal"
+						},
+						"type": "array"
+					},
+					"fitnessLevel": {
+						"$ref": "#/components/schemas/FitnessLevel"
+					},
+					"limitations": {
+						"items": {
+							"$ref": "#/components/schemas/PhysicalLimitation"
+						},
+						"type": "array"
+					},
+					"medicalNotes": {
+						"type": "string"
+					},
+					"environment": {
+						"$ref": "#/components/schemas/WorkoutEnvironment"
+					},
+					"equipment": {
+						"items": {
+							"$ref": "#/components/schemas/AvailableEquipment"
+						},
+						"type": "array"
+					},
+					"preferredStyles": {
+						"items": {
+							"$ref": "#/components/schemas/PreferredStyles"
+						},
+						"type": "array"
+					},
+					"availableDays": {
+						"items": {
+							"$ref": "#/components/schemas/PreferredDay"
+						},
+						"type": "array"
+					},
+					"workoutDuration": {
+						"type": "number",
+						"format": "double"
+					},
+					"intensityLevel": {
+						"$ref": "#/components/schemas/IntensityLevel"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"created_at",
+					"updated_at"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"User": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"email": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"emailVerified": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"needsOnboarding": {
+						"type": "boolean",
+						"nullable": true
+					}
+				},
+				"required": [
+					"id",
+					"email",
+					"name",
+					"emailVerified",
+					"createdAt",
+					"needsOnboarding"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ProfileResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"profile": {
+						"$ref": "#/components/schemas/Profile"
+					},
+					"user": {
+						"$ref": "#/components/schemas/User"
+					},
+					"needsOnboarding": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"success",
+					"profile"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Partial_Profile_": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"userId": {
+						"type": "number",
+						"format": "double"
+					},
+					"email": {
+						"type": "string"
+					},
+					"height": {
+						"type": "number",
+						"format": "double"
+					},
+					"weight": {
+						"type": "number",
+						"format": "double"
+					},
+					"age": {
+						"type": "number",
+						"format": "double"
+					},
+					"gender": {
+						"$ref": "#/components/schemas/Gender"
+					},
+					"goals": {
+						"items": {
+							"$ref": "#/components/schemas/FitnessGoal"
+						},
+						"type": "array"
+					},
+					"fitnessLevel": {
+						"$ref": "#/components/schemas/FitnessLevel"
+					},
+					"limitations": {
+						"items": {
+							"$ref": "#/components/schemas/PhysicalLimitation"
+						},
+						"type": "array"
+					},
+					"medicalNotes": {
+						"type": "string"
+					},
+					"environment": {
+						"$ref": "#/components/schemas/WorkoutEnvironment"
+					},
+					"equipment": {
+						"items": {
+							"$ref": "#/components/schemas/AvailableEquipment"
+						},
+						"type": "array"
+					},
+					"preferredStyles": {
+						"items": {
+							"$ref": "#/components/schemas/PreferredStyles"
+						},
+						"type": "array"
+					},
+					"availableDays": {
+						"items": {
+							"$ref": "#/components/schemas/PreferredDay"
+						},
+						"type": "array"
+					},
+					"workoutDuration": {
+						"type": "number",
+						"format": "double"
+					},
+					"intensityLevel": {
+						"$ref": "#/components/schemas/IntensityLevel"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"type": "object",
+				"description": "Make all properties in T optional"
+			},
+			"Prompt": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"userId": {
+						"type": "number",
+						"format": "double"
+					},
+					"prompt": {
+						"type": "string"
+					},
+					"response": {
+						"type": "string"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"prompt",
+					"response",
+					"created_at",
+					"updated_at"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UserPromptsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"prompts": {
+						"items": {
+							"$ref": "#/components/schemas/Prompt"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"prompts"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreatePromptResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"prompt": {
+						"$ref": "#/components/schemas/Prompt"
+					}
+				},
+				"required": [
+					"success",
+					"prompt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreatePromptRequest": {
+				"properties": {
+					"userId": {
+						"type": "number",
+						"format": "double"
+					},
+					"prompt": {
+						"type": "string"
+					},
+					"response": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"userId",
+					"prompt",
+					"response"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SearchExerciseDetails": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"muscleGroups": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"equipment": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"difficulty": {
+						"type": "string"
+					},
+					"instructions": {
+						"type": "string"
+					},
+					"link": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"description",
+					"muscleGroups",
+					"equipment",
+					"difficulty",
+					"instructions"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DateSearchExercise": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"exercise": {
+						"$ref": "#/components/schemas/SearchExerciseDetails"
+					},
+					"sets": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"reps": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"weight": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"duration": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"completed": {
+						"type": "boolean"
+					},
+					"completionRate": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"id",
+					"exercise",
+					"sets",
+					"reps",
+					"weight",
+					"duration",
+					"completed",
+					"completionRate"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DateSearchPlanDay": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"date": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"exercises": {
+						"items": {
+							"$ref": "#/components/schemas/DateSearchExercise"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"date",
+					"exercises"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DateSearchWorkout": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"completed": {
+						"type": "boolean"
+					},
+					"planDay": {
+						"$ref": "#/components/schemas/DateSearchPlanDay"
+					},
+					"overallCompletionRate": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"description",
+					"completed",
+					"planDay",
+					"overallCompletionRate"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DateSearchResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"date": {
+						"type": "string"
+					},
+					"workout": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/DateSearchWorkout"
+							}
+						],
+						"nullable": true
+					}
+				},
+				"required": [
+					"success",
+					"date",
+					"workout"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExerciseDetails": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"muscleGroups": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"equipment": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"difficulty": {
+						"type": "string"
+					},
+					"instructions": {
+						"type": "string"
+					},
+					"link": {
+						"type": "string"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"description",
+					"muscleGroups",
+					"equipment",
+					"difficulty",
+					"instructions",
+					"created_at",
+					"updated_at"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PersonalRecord": {
+				"properties": {
+					"maxWeight": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"maxReps": {
+						"type": "number",
+						"format": "double"
+					},
+					"maxSets": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"maxWeight",
+					"maxReps",
+					"maxSets"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExerciseUserStats": {
+				"properties": {
+					"totalAssignments": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalCompletions": {
+						"type": "number",
+						"format": "double"
+					},
+					"completionRate": {
+						"type": "number",
+						"format": "double"
+					},
+					"averageSets": {
+						"type": "number",
+						"format": "double"
+					},
+					"averageReps": {
+						"type": "number",
+						"format": "double"
+					},
+					"averageWeight": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"lastPerformed": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"personalRecord": {
+						"$ref": "#/components/schemas/PersonalRecord"
+					}
+				},
+				"required": [
+					"totalAssignments",
+					"totalCompletions",
+					"completionRate",
+					"averageSets",
+					"averageReps",
+					"averageWeight",
+					"lastPerformed",
+					"personalRecord"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExerciseSearchResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"exercise": {
+						"$ref": "#/components/schemas/ExerciseDetails"
+					},
+					"userStats": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ExerciseUserStats"
+							}
+						],
+						"nullable": true
+					}
+				},
+				"required": [
+					"success",
+					"exercise",
+					"userStats"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PlanDayWithExercise": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"planDayId": {
+						"type": "number",
+						"format": "double"
+					},
+					"exerciseId": {
+						"type": "number",
+						"format": "double"
+					},
+					"sets": {
+						"type": "number",
+						"format": "double"
+					},
+					"reps": {
+						"type": "number",
+						"format": "double"
+					},
+					"weight": {
+						"type": "number",
+						"format": "double"
+					},
+					"duration": {
+						"type": "number",
+						"format": "double"
+					},
+					"restTime": {
+						"type": "number",
+						"format": "double"
+					},
+					"completed": {
+						"type": "boolean"
+					},
+					"notes": {
+						"type": "string"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"exercise": {
+						"$ref": "#/components/schemas/Exercise"
+					}
+				},
+				"required": [
+					"id",
+					"planDayId",
+					"exerciseId",
+					"completed",
+					"created_at",
+					"updated_at",
+					"exercise"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PlanDayWithExercises": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"workoutId": {
+						"type": "number",
+						"format": "double"
+					},
+					"date": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"dayNumber": {
+						"type": "number",
+						"format": "double"
+					},
+					"exercises": {
+						"items": {
+							"$ref": "#/components/schemas/PlanDayWithExercise"
+						},
+						"type": "array"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"workoutId",
+					"date",
+					"name",
+					"dayNumber",
+					"exercises",
+					"created_at",
+					"updated_at"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutWithDetails": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"userId": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"startDate": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"endDate": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"promptId": {
+						"type": "number",
+						"format": "double"
+					},
+					"isActive": {
+						"type": "boolean"
+					},
+					"completed": {
+						"type": "boolean"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"planDays": {
+						"items": {
+							"$ref": "#/components/schemas/PlanDayWithExercises"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"name",
+					"startDate",
+					"endDate",
+					"promptId",
+					"isActive",
+					"completed",
+					"created_at",
+					"updated_at",
+					"planDays"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"workouts": {
+						"items": {
+							"$ref": "#/components/schemas/WorkoutWithDetails"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"workouts"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"workout": {
+						"$ref": "#/components/schemas/WorkoutWithDetails"
+					}
+				},
+				"required": [
+					"success",
+					"workout"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateWorkoutRequest": {
+				"properties": {
+					"userId": {
+						"type": "number",
+						"format": "double"
+					},
+					"startDate": {
+						"type": "string"
+					},
+					"endDate": {
+						"type": "string"
+					},
+					"promptId": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"completed": {
+						"type": "boolean"
+					},
+					"isActive": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"userId",
+					"startDate",
+					"endDate",
+					"promptId",
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Partial_InsertWorkout_": {
+				"properties": {
+					"userId": {},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"startDate": {},
+					"endDate": {},
+					"updatedAt": {},
+					"promptId": {},
+					"isActive": {},
+					"completed": {}
+				},
+				"type": "object",
+				"description": "Make all properties in T optional"
+			},
+			"PlanDayResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"planDay": {
+						"$ref": "#/components/schemas/PlanDayWithExercises"
+					}
+				},
+				"required": [
+					"success",
+					"planDay"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreatePlanDayRequest": {
+				"properties": {
+					"workoutId": {
+						"type": "number",
+						"format": "double"
+					},
+					"date": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"workoutId",
+					"date"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PlanDayExerciseResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"planDayExercise": {
+						"$ref": "#/components/schemas/PlanDayWithExercise"
+					}
+				},
+				"required": [
+					"success",
+					"planDayExercise"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreatePlanDayExerciseRequest": {
+				"properties": {
+					"planDayId": {
+						"type": "number",
+						"format": "double"
+					},
+					"exerciseId": {
+						"type": "number",
+						"format": "double"
+					},
+					"sets": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"reps": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"weight": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"duration": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"restTime": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"completed": {
+						"type": "boolean",
+						"nullable": true
+					}
+				},
+				"required": [
+					"planDayId",
+					"exerciseId",
+					"sets",
+					"reps",
+					"weight",
+					"duration",
+					"restTime",
+					"completed"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Partial_InsertPlanDayExercise_": {
+				"properties": {
+					"weight": {},
+					"createdAt": {},
+					"updatedAt": {},
+					"completed": {},
+					"planDayId": {},
+					"exerciseId": {},
+					"sets": {},
+					"reps": {},
+					"duration": {},
+					"restTime": {},
+					"notes": {
+						"type": "string"
+					}
+				},
+				"type": "object",
+				"description": "Make all properties in T optional"
+			}
+		},
+		"securitySchemes": {
+			"bearerAuth": {
+				"type": "http",
+				"scheme": "bearer",
+				"bearerFormat": "JWT"
+			}
+		}
+	},
+	"info": {
+		"title": "mastersfit-server",
+		"version": "1.0.0",
+		"description": "RESTful API server for Masters Fit fitness tracking application",
+		"contact": {}
+	},
+	"openapi": "3.0.0",
+	"paths": {
+		"/auth/check-email": {
+			"post": {
+				"operationId": "CheckEmail",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthVerifyResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"needsOnboarding": false,
+											"user": {
+												"id": 1,
+												"email": "user@example.com",
+												"name": "John Doe"
+											},
+											"token": "jwt.token.here"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthVerifyResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Check if a user exists in the system",
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"description": "Email to check",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/EmailAuthRequest",
+								"description": "Email to check"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/login": {
+			"post": {
+				"operationId": "Login",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthLoginResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"message": "Authorization code generated successfully",
+											"userExists": true,
+											"needsOnboarding": false
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthLoginResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Initiate passwordless login with email",
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"description": "Email for login",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/EmailAuthRequest",
+								"description": "Email for login"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/signup": {
+			"post": {
+				"operationId": "Signup",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthSignupResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"message": "User created successfully"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthSignupResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SignUpRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/generate-auth-code": {
+			"post": {
+				"operationId": "GenerateAuthCode",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/EmailAuthRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/verify": {
+			"post": {
+				"operationId": "Verify",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthVerifyResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"needsOnboarding": false,
+											"user": {
+												"id": 1,
+												"email": "user@example.com",
+												"name": "John Doe"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthVerifyResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Verify authentication code",
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"description": "Auth code to verify",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AuthCodeRequest",
+								"description": "Auth code to verify"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/dashboard/{userId}/metrics": {
+			"get": {
+				"operationId": "GetDashboardMetrics",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DashboardMetricsResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"data": {
+												"weeklySummary": {
+													"workoutCompletionRate": 85,
+													"exerciseCompletionRate": 92,
+													"streak": 5,
+													"totalWorkoutsThisWeek": 4,
+													"completedWorkoutsThisWeek": 3
+												},
+												"workoutConsistency": [
+													{
+														"week": "2024-01-01",
+														"weekLabel": "Week 1 (Jan 1-7)",
+														"totalWorkouts": 4,
+														"completedWorkouts": 3,
+														"completionRate": 75,
+														"isInProgress": false,
+														"status": "completed"
+													}
+												],
+												"weightMetrics": [
+													{
+														"name": "Bench Press",
+														"totalWeight": 2400,
+														"muscleGroups": [
+															"chest",
+															"shoulders",
+															"triceps"
+														]
+													}
+												],
+												"weightAccuracy": {
+													"accuracyRate": 78,
+													"totalSets": 50,
+													"exactMatches": 39,
+													"higherWeight": 8,
+													"lowerWeight": 3,
+													"avgWeightDifference": 2.5,
+													"chartData": [
+														{
+															"label": "Exact Weight",
+															"value": 39,
+															"color": "#10b981"
+														},
+														{
+															"label": "Higher Weight",
+															"value": 8,
+															"color": "#f59e0b"
+														},
+														{
+															"label": "Lower Weight",
+															"value": 3,
+															"color": "#ef4444"
+														}
+													]
+												},
+												"goalProgress": [
+													{
+														"goal": "muscle_gain",
+														"progressScore": 65,
+														"totalSets": 120,
+														"totalReps": 1440,
+														"totalWeight": 14400,
+														"completedWorkouts": 12
+													}
+												],
+												"totalVolumeMetrics": [
+													{
+														"date": "2024-01-01",
+														"totalVolume": 2400,
+														"exerciseCount": 4,
+														"label": "Jan 1"
+													}
+												],
+												"workoutTypeMetrics": {
+													"distribution": [
+														{
+															"tag": "strength",
+															"label": "Strength",
+															"totalSets": 45,
+															"totalReps": 540,
+															"exerciseCount": 8,
+															"completedWorkouts": 6,
+															"percentage": 62.5,
+															"color": "#ef4444"
+														}
+													],
+													"totalExercises": 13,
+													"totalSets": 72,
+													"dominantType": "Strength",
+													"hasData": true
+												},
+												"dailyWorkoutProgress": [
+													{
+														"date": "2024-01-01",
+														"completionRate": 100,
+														"hasPlannedWorkout": true
+													},
+													{
+														"date": "2024-01-02",
+														"completionRate": 75,
+														"hasPlannedWorkout": true
+													},
+													{
+														"date": "2024-01-03",
+														"completionRate": 0,
+														"hasPlannedWorkout": false
+													}
+												]
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DashboardMetricsResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get comprehensive dashboard metrics for a user",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "groupBy",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"exercise",
+								"day",
+								"muscle_group"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/weekly-summary": {
+			"get": {
+				"operationId": "GetWeeklySummary",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WeeklySummaryResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"data": {
+												"workoutCompletionRate": 85,
+												"exerciseCompletionRate": 92,
+												"streak": 5,
+												"totalWorkoutsThisWeek": 4,
+												"completedWorkoutsThisWeek": 3
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WeeklySummaryResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get weekly summary for a user",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/workout-consistency": {
+			"get": {
+				"operationId": "GetWorkoutConsistency",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutConsistencyResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"data": [
+												{
+													"week": "2024-01-01",
+													"weekLabel": "Week 1 (Jan 1-7)",
+													"totalWorkouts": 4,
+													"completedWorkouts": 3,
+													"completionRate": 75,
+													"isInProgress": false,
+													"status": "completed"
+												},
+												{
+													"week": "2024-01-08",
+													"weekLabel": "Week 2 (Jan 8-14)",
+													"totalWorkouts": 4,
+													"completedWorkouts": 4,
+													"completionRate": 100,
+													"isInProgress": false,
+													"status": "completed"
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutConsistencyResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get workout consistency data for a user",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/weight-metrics": {
+			"get": {
+				"operationId": "GetWeightMetrics",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WeightMetricsResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"data": [
+												{
+													"name": "Bench Press",
+													"totalWeight": 2400,
+													"muscleGroups": [
+														"chest",
+														"shoulders",
+														"triceps"
+													]
+												},
+												{
+													"name": "Squat",
+													"totalWeight": 3200,
+													"muscleGroups": [
+														"legs",
+														"glutes",
+														"core"
+													]
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WeightMetricsResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get weight metrics for a user",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "groupBy",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"exercise",
+								"day",
+								"muscle_group"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/weight-accuracy": {
+			"get": {
+				"operationId": "GetWeightAccuracy",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WeightAccuracyResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"data": {
+												"accuracyRate": 78,
+												"totalSets": 50,
+												"exactMatches": 39,
+												"higherWeight": 8,
+												"lowerWeight": 3,
+												"avgWeightDifference": 2.5,
+												"chartData": [
+													{
+														"label": "Exact Weight",
+														"value": 39,
+														"color": "#10b981"
+													},
+													{
+														"label": "Higher Weight",
+														"value": 8,
+														"color": "#f59e0b"
+													},
+													{
+														"label": "Lower Weight",
+														"value": 3,
+														"color": "#ef4444"
+													}
+												]
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WeightAccuracyResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get weight accuracy metrics for a user",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/goal-progress": {
+			"get": {
+				"operationId": "GetGoalProgress",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GoalProgressResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"data": [
+												{
+													"goal": "muscle_gain",
+													"progressScore": 65,
+													"totalSets": 120,
+													"totalReps": 1440,
+													"totalWeight": 14400,
+													"completedWorkouts": 12
+												},
+												{
+													"goal": "strength",
+													"progressScore": 72,
+													"totalSets": 95,
+													"totalReps": 760,
+													"totalWeight": 18200,
+													"completedWorkouts": 10
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GoalProgressResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get goal progress for a user",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/total-volume": {
+			"get": {
+				"operationId": "GetTotalVolumeMetrics",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TotalVolumeMetricsResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"data": [
+												{
+													"date": "2024-01-01",
+													"totalVolume": 2400,
+													"exerciseCount": 4,
+													"label": "Jan 1"
+												},
+												{
+													"date": "2024-01-02",
+													"totalVolume": 2800,
+													"exerciseCount": 5,
+													"label": "Jan 2"
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TotalVolumeMetricsResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get total volume metrics for a user (strength progress over time)",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/workout-type-metrics": {
+			"get": {
+				"operationId": "GetWorkoutTypeMetrics",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutTypeMetricsResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"data": {
+												"distribution": [
+													{
+														"tag": "strength",
+														"label": "Strength",
+														"totalSets": 45,
+														"totalReps": 540,
+														"exerciseCount": 8,
+														"completedWorkouts": 6,
+														"percentage": 62.5,
+														"color": "#ef4444"
+													},
+													{
+														"tag": "cardio",
+														"label": "Cardio",
+														"totalSets": 18,
+														"totalReps": 360,
+														"exerciseCount": 3,
+														"completedWorkouts": 4,
+														"percentage": 25,
+														"color": "#3b82f6"
+													},
+													{
+														"tag": "flexibility",
+														"label": "Flexibility",
+														"totalSets": 9,
+														"totalReps": 180,
+														"exerciseCount": 2,
+														"completedWorkouts": 3,
+														"percentage": 12.5,
+														"color": "#10b981"
+													}
+												],
+												"totalExercises": 13,
+												"totalSets": 72,
+												"dominantType": "Strength",
+												"hasData": true
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutTypeMetricsResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get workout type distribution metrics for a user",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/weight-progression": {
+			"get": {
+				"operationId": "GetWeightProgressionMetrics",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"items": {
+												"properties": {
+													"label": {
+														"type": "string"
+													},
+													"maxWeight": {
+														"type": "number",
+														"format": "double"
+													},
+													"avgWeight": {
+														"type": "number",
+														"format": "double"
+													},
+													"date": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"label",
+													"maxWeight",
+													"avgWeight",
+													"date"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"data",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"items": {
+												"properties": {
+													"label": {
+														"type": "string"
+													},
+													"maxWeight": {
+														"type": "number",
+														"format": "double"
+													},
+													"avgWeight": {
+														"type": "number",
+														"format": "double"
+													},
+													"date": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"label",
+													"maxWeight",
+													"avgWeight",
+													"date"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"data",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get weight progression metrics for a user",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/weight-accuracy-by-date": {
+			"get": {
+				"operationId": "GetWeightAccuracyByDate",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"items": {
+												"properties": {
+													"label": {
+														"type": "string"
+													},
+													"lowerWeight": {
+														"type": "number",
+														"format": "double"
+													},
+													"higherWeight": {
+														"type": "number",
+														"format": "double"
+													},
+													"exactMatches": {
+														"type": "number",
+														"format": "double"
+													},
+													"totalSets": {
+														"type": "number",
+														"format": "double"
+													},
+													"date": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"label",
+													"lowerWeight",
+													"higherWeight",
+													"exactMatches",
+													"totalSets",
+													"date"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"data",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"items": {
+												"properties": {
+													"label": {
+														"type": "string"
+													},
+													"lowerWeight": {
+														"type": "number",
+														"format": "double"
+													},
+													"higherWeight": {
+														"type": "number",
+														"format": "double"
+													},
+													"exactMatches": {
+														"type": "number",
+														"format": "double"
+													},
+													"totalSets": {
+														"type": "number",
+														"format": "double"
+													},
+													"date": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"label",
+													"lowerWeight",
+													"higherWeight",
+													"exactMatches",
+													"totalSets",
+													"date"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"data",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get raw weight accuracy data by date for frontend filtering",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/dashboard/{userId}/workout-type-by-date": {
+			"get": {
+				"operationId": "GetWorkoutTypeByDate",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"items": {
+												"properties": {
+													"label": {
+														"type": "string"
+													},
+													"workoutTypes": {
+														"items": {
+															"properties": {
+																"exerciseCount": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"totalReps": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"totalSets": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"label": {
+																	"type": "string"
+																},
+																"tag": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"exerciseCount",
+																"totalReps",
+																"totalSets",
+																"label",
+																"tag"
+															],
+															"type": "object"
+														},
+														"type": "array"
+													},
+													"date": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"label",
+													"workoutTypes",
+													"date"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"data",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"items": {
+												"properties": {
+													"label": {
+														"type": "string"
+													},
+													"workoutTypes": {
+														"items": {
+															"properties": {
+																"exerciseCount": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"totalReps": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"totalSets": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"label": {
+																	"type": "string"
+																},
+																"tag": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"exerciseCount",
+																"totalReps",
+																"totalSets",
+																"label",
+																"tag"
+															],
+															"type": "object"
+														},
+														"type": "array"
+													},
+													"date": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"label",
+													"workoutTypes",
+													"date"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"data",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get raw workout type data by date for frontend filtering",
+				"tags": [
+					"Dashboard"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timeRange",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"1w",
+								"1m",
+								"3m",
+								"6m",
+								"1y"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/exercises": {
+			"get": {
+				"operationId": "GetExercises",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExercisesResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"exercises": [
+												{
+													"id": 1,
+													"name": "Push-up",
+													"description": "A classic bodyweight exercise",
+													"category": "strength",
+													"difficulty": "beginner",
+													"equipment": "none",
+													"muscles_targeted": [
+														"chest",
+														"shoulders",
+														"triceps"
+													],
+													"created_at": "2025-06-04T13:15:14.486Z",
+													"updated_at": "2025-06-04T13:15:14.486Z"
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExercisesResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get all exercises",
+				"tags": [
+					"Exercises"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "CreateExercise",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create new exercise",
+				"tags": [
+					"Exercises"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"description": "Exercise data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Exercise data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/exercises/{id}": {
+			"get": {
+				"operationId": "GetExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"exercise": {
+												"id": 1,
+												"name": "Push-up",
+												"description": "A classic bodyweight exercise",
+												"category": "strength",
+												"difficulty": "beginner",
+												"equipment": "none",
+												"muscles_targeted": [
+													"chest",
+													"shoulders",
+													"triceps"
+												],
+												"created_at": "2025-06-04T13:15:14.486Z",
+												"updated_at": "2025-06-04T13:15:14.486Z"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get exercise by ID",
+				"tags": [
+					"Exercises"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Exercise ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"put": {
+				"operationId": "UpdateExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update exercise",
+				"tags": [
+					"Exercises"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Exercise ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Updated exercise data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Updated exercise data"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "DeleteExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Delete exercise",
+				"tags": [
+					"Exercises"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Exercise ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/exercises/{id}/link": {
+			"put": {
+				"operationId": "UpdateExerciseLink",
+				"responses": {
+					"200": {
+						"description": "Link updated successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Exercise not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update exercise link (YouTube video or image URL)",
+				"tags": [
+					"Exercises"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Exercise ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Link update data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"link": {
+										"type": "string",
+										"nullable": true
+									}
+								},
+								"required": [
+									"link"
+								],
+								"type": "object",
+								"description": "Link update data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/logs/exercise": {
+			"post": {
+				"operationId": "CreateExerciseLog",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create exercise log",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"description": "Exercise log data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Exercise log data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/logs/exercise/{planDayId}": {
+			"get": {
+				"operationId": "GetExerciseLogsForPlanDay",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseLogsResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get exercise logs for a plan day",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/workout": {
+			"post": {
+				"operationId": "CreateWorkoutLog",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create workout log",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"description": "Workout log data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Workout log data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/logs/workout/{workoutId}": {
+			"get": {
+				"operationId": "GetOrCreateWorkoutLog",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get or create workout log for a workout",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"put": {
+				"operationId": "UpdateWorkoutLog",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update workout log",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Update data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Update data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/logs/workout/{workoutId}/existing": {
+			"get": {
+				"operationId": "GetExistingWorkoutLog",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogOrNullResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get existing workout log for a workout (without creating)",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/workout/{workoutId}/all": {
+			"get": {
+				"operationId": "GetWorkoutLogsForWorkout",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogsResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get all workout logs for a workout",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/workout/{workoutId}/completed": {
+			"get": {
+				"operationId": "GetCompletedExercisesForWorkout",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CompletedExercisesResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get completed exercises for a workout",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/workout/{workoutId}/exercise/{planDayExerciseId}": {
+			"post": {
+				"operationId": "AddCompletedExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Add completed exercise to workout",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Plan day exercise ID",
+						"in": "path",
+						"name": "planDayExerciseId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/workout/{workoutId}/complete": {
+			"post": {
+				"operationId": "MarkWorkoutComplete",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Mark workout as complete based on all exercises being completed",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Array of all exercise IDs for the workout",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"totalExerciseIds": {
+										"items": {
+											"type": "number",
+											"format": "double"
+										},
+										"type": "array"
+									}
+								},
+								"required": [
+									"totalExerciseIds"
+								],
+								"type": "object",
+								"description": "Array of all exercise IDs for the workout"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/profile/{userId}": {
+			"get": {
+				"operationId": "GetProfile",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProfileResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"profile": {
+												"id": 1,
+												"userId": 1,
+												"height": 180,
+												"weight": 75,
+												"age": 30,
+												"gender": "male",
+												"goals": [
+													"weight_loss",
+													"muscle_gain"
+												],
+												"fitnessLevel": "beginner",
+												"limitations": [
+													"knee_pain"
+												],
+												"medicalNotes": "I have a knee pain",
+												"created_at": "2025-06-04T13:15:14.495Z",
+												"updated_at": "2025-06-04T13:15:14.495Z"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get the user's profile",
+				"tags": [
+					"Profile"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/profile": {
+			"post": {
+				"operationId": "CreateProfile",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProfileResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"profile": {
+												"id": 1,
+												"userId": 1,
+												"height": 180,
+												"weight": 75,
+												"age": 30,
+												"gender": "male",
+												"goals": [
+													"weight_loss",
+													"muscle_gain"
+												],
+												"fitnessLevel": "beginner",
+												"limitations": [
+													"knee_pain"
+												],
+												"medicalNotes": "I have a knee pain",
+												"created_at": "2025-06-04T13:15:14.496Z",
+												"updated_at": "2025-06-04T13:15:14.496Z"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create or update the user's profile",
+				"tags": [
+					"Profile"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/Partial_Profile_"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/profile/{id}": {
+			"put": {
+				"operationId": "UpdateProfile",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProfileResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"profile": {
+												"id": 1,
+												"userId": 1,
+												"height": 180,
+												"weight": 75,
+												"age": 30,
+												"gender": "male",
+												"goals": [
+													"weight_loss",
+													"muscle_gain"
+												],
+												"fitnessLevel": "beginner",
+												"limitations": [
+													"knee_pain"
+												],
+												"medicalNotes": "I have a knee pain",
+												"created_at": "2025-06-04T13:15:14.498Z",
+												"updated_at": "2025-06-04T13:15:14.498Z"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update the user's profile",
+				"tags": [
+					"Profile"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/Partial_Profile_"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/profile/user/{userId}": {
+			"put": {
+				"operationId": "UpdateProfileByUserId",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProfileResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"profile": {
+												"id": 1,
+												"userId": 1,
+												"height": 180,
+												"weight": 75,
+												"age": 30,
+												"gender": "male",
+												"goals": [
+													"weight_loss",
+													"muscle_gain"
+												],
+												"fitnessLevel": "beginner",
+												"limitations": [
+													"knee_pain"
+												],
+												"medicalNotes": "I have a knee pain",
+												"created_at": "2025-06-04T13:15:14.498Z",
+												"updated_at": "2025-06-04T13:15:14.498Z"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update the user's profile by userId",
+				"tags": [
+					"Profile"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/Partial_Profile_"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/prompts/{userId}": {
+			"get": {
+				"operationId": "GetUserPrompts",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/UserPromptsResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"prompts": [
+												{
+													"id": 1,
+													"userId": 1,
+													"prompt": "What's a good workout for beginners?",
+													"response": "Here's a beginner-friendly workout...",
+													"created_at": "2025-06-04T13:15:14.498Z",
+													"updated_at": "2025-06-04T13:15:14.498Z"
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/UserPromptsResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get all prompts for a user",
+				"tags": [
+					"Prompts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "The ID of the user to get prompts for",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/prompts": {
+			"post": {
+				"operationId": "CreatePrompt",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreatePromptResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"prompt": {
+												"id": 1,
+												"userId": 1,
+												"prompt": "What's a good workout for beginners?",
+												"response": "Here's a beginner-friendly workout...",
+												"created_at": "2025-06-04T13:15:14.498Z",
+												"updated_at": "2025-06-04T13:15:14.498Z"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreatePromptResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create a new prompt",
+				"tags": [
+					"Prompts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"description": "The prompt to create",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreatePromptRequest",
+								"description": "The prompt to create"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/search/date/{userId}": {
+			"get": {
+				"operationId": "SearchByDate",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DateSearchResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"date": "2024-01-15",
+											"workout": {
+												"id": 1,
+												"name": "Upper Body Strength",
+												"description": "Focus on upper body muscles",
+												"completed": false,
+												"planDay": {
+													"id": 1,
+													"date": "2024-01-15T00:00:00.000Z",
+													"exercises": [
+														{
+															"id": 1,
+															"exercise": {
+																"id": 1,
+																"name": "Push-ups",
+																"description": "Classic bodyweight exercise",
+																"muscleGroups": [
+																	"Chest",
+																	"Shoulders"
+																],
+																"equipment": [
+																	"None"
+																],
+																"difficulty": "beginner",
+																"instructions": "Lower your body to the ground and push back up"
+															},
+															"sets": 3,
+															"reps": 12,
+															"weight": null,
+															"duration": null,
+															"completed": false,
+															"completionRate": 0
+														}
+													]
+												},
+												"overallCompletionRate": 0
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Search for workout by date",
+				"tags": [
+					"Search"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Date in YYYY-MM-DD format",
+						"in": "query",
+						"name": "date",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/search/exercise/{userId}/{exerciseId}": {
+			"get": {
+				"operationId": "SearchExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseSearchResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"exercise": {
+												"id": 1,
+												"name": "Push-ups",
+												"description": "Classic bodyweight exercise",
+												"muscleGroups": [
+													"Chest",
+													"Shoulders",
+													"Triceps"
+												],
+												"equipment": [
+													"None"
+												],
+												"difficulty": "beginner",
+												"instructions": "Lower your body to the ground and push back up",
+												"created_at": "2025-06-04T13:15:14.499Z",
+												"updated_at": "2025-06-04T13:15:14.499Z"
+											},
+											"userStats": {
+												"totalAssignments": 15,
+												"totalCompletions": 12,
+												"completionRate": 80,
+												"averageSets": 3.2,
+												"averageReps": 11.5,
+												"averageWeight": null,
+												"lastPerformed": "2024-01-10T00:00:00.000Z",
+												"personalRecord": {
+													"maxWeight": null,
+													"maxReps": 15,
+													"maxSets": 4
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Search for exercise details and user stats",
+				"tags": [
+					"Search"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Exercise ID",
+						"in": "path",
+						"name": "exerciseId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/search/exercises": {
+			"get": {
+				"operationId": "SearchExercises",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"exercises": {
+											"items": {},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"exercises",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Search exercises by name or muscle group",
+				"tags": [
+					"Search"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Search query",
+						"in": "query",
+						"name": "query",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/workouts/{userId}": {
+			"get": {
+				"operationId": "GetUserWorkouts",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutsResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"workouts": [
+												{
+													"id": 1,
+													"userId": 1,
+													"name": "Full Body Workout",
+													"description": "A complete full body workout",
+													"startDate": "2025-06-04T13:15:14.502Z",
+													"endDate": "2025-06-04T13:15:14.502Z",
+													"promptId": 1,
+													"isActive": true,
+													"completed": false,
+													"created_at": "2025-06-04T13:15:14.502Z",
+													"updated_at": "2025-06-04T13:15:14.502Z",
+													"planDays": [
+														{
+															"id": 1,
+															"workoutId": 1,
+															"date": "2025-06-04T13:15:14.502Z",
+															"name": "Day 1",
+															"description": "Upper body focus",
+															"dayNumber": 1,
+															"created_at": "2025-06-04T13:15:14.502Z",
+															"updated_at": "2025-06-04T13:15:14.502Z",
+															"exercises": [
+																{
+																	"id": 1,
+																	"planDayId": 1,
+																	"exerciseId": 1,
+																	"sets": 3,
+																	"reps": 12,
+																	"weight": 50,
+																	"restTime": 60,
+																	"completed": false,
+																	"notes": "Keep proper form",
+																	"created_at": "2025-06-04T13:15:14.502Z",
+																	"updated_at": "2025-06-04T13:15:14.502Z",
+																	"exercise": {
+																		"id": 1,
+																		"name": "Push-up",
+																		"description": "A classic bodyweight exercise",
+																		"category": "strength",
+																		"difficulty": "beginner",
+																		"equipment": "none",
+																		"muscles_targeted": [
+																			"chest",
+																			"shoulders",
+																			"triceps"
+																		],
+																		"created_at": "2025-06-04T13:15:14.502Z",
+																		"updated_at": "2025-06-04T13:15:14.502Z"
+																	}
+																}
+															]
+														}
+													]
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutsResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get all workouts for a user",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "CreateWorkout",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"workout": {
+												"id": 1,
+												"userId": 1,
+												"name": "Full Body Workout",
+												"description": "A complete full body workout",
+												"startDate": "2025-06-04T13:15:14.502Z",
+												"endDate": "2025-06-04T13:15:14.502Z",
+												"promptId": 1,
+												"isActive": true,
+												"completed": false,
+												"created_at": "2025-06-04T13:15:14.502Z",
+												"updated_at": "2025-06-04T13:15:14.502Z",
+												"planDays": []
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create new workout",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Workout data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateWorkoutRequest",
+								"description": "Workout data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/{userId}/active": {
+			"get": {
+				"operationId": "GetActiveWorkouts",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutsResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"workouts": [
+												{
+													"id": 1,
+													"userId": 1,
+													"name": "Full Body Workout",
+													"description": "A complete full body workout",
+													"startDate": "2025-06-04T13:15:14.502Z",
+													"endDate": "2025-06-04T13:15:14.502Z",
+													"promptId": 1,
+													"isActive": true,
+													"completed": false,
+													"created_at": "2025-06-04T13:15:14.502Z",
+													"updated_at": "2025-06-04T13:15:14.502Z",
+													"planDays": []
+												}
+											]
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutsResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get active workouts for a user",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/workouts/{id}": {
+			"put": {
+				"operationId": "UpdateWorkout",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"workout": {
+												"id": 1,
+												"userId": 1,
+												"name": "Full Body Workout",
+												"description": "A complete full body workout",
+												"startDate": "2025-06-04T13:15:14.502Z",
+												"endDate": "2025-06-04T13:15:14.502Z",
+												"promptId": 1,
+												"isActive": true,
+												"completed": false,
+												"created_at": "2025-06-04T13:15:14.502Z",
+												"updated_at": "2025-06-04T13:15:14.502Z",
+												"planDays": []
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update workout",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Updated workout data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/Partial_InsertWorkout_",
+								"description": "Updated workout data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/{workoutId}/days": {
+			"post": {
+				"operationId": "CreatePlanDay",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"planDay": {
+												"id": 1,
+												"workoutId": 1,
+												"date": "2025-06-04T13:15:14.654Z",
+												"name": "Day 1",
+												"description": "Upper body focus",
+												"dayNumber": 1,
+												"created_at": "2025-06-04T13:15:14.654Z",
+												"updated_at": "2025-06-04T13:15:14.654Z",
+												"exercises": []
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create new plan day",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Plan day data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreatePlanDayRequest",
+								"description": "Plan day data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/days/{planDayId}/exercises": {
+			"post": {
+				"operationId": "CreatePlanDayExercise",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayExerciseResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"planDayExercise": {
+												"id": 1,
+												"planDayId": 1,
+												"exerciseId": 1,
+												"sets": 3,
+												"reps": 12,
+												"weight": 50,
+												"restTime": 60,
+												"completed": false,
+												"notes": "Keep proper form",
+												"created_at": "2025-06-04T13:15:14.654Z",
+												"updated_at": "2025-06-04T13:15:14.654Z",
+												"exercise": {
+													"id": 1,
+													"name": "Push-up",
+													"description": "A classic bodyweight exercise",
+													"category": "strength",
+													"difficulty": "beginner",
+													"equipment": "none",
+													"muscles_targeted": [
+														"chest",
+														"shoulders",
+														"triceps"
+													],
+													"created_at": "2025-06-04T13:15:14.654Z",
+													"updated_at": "2025-06-04T13:15:14.654Z"
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayExerciseResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create new plan day exercise",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Plan day exercise data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreatePlanDayExerciseRequest",
+								"description": "Plan day exercise data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/exercises/{id}": {
+			"put": {
+				"operationId": "UpdatePlanDayExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayExerciseResponse"
+								},
+								"examples": {
+									"Example 1": {
+										"value": {
+											"success": true,
+											"planDayExercise": {
+												"id": 1,
+												"planDayId": 1,
+												"exerciseId": 1,
+												"sets": 3,
+												"reps": 12,
+												"weight": 50,
+												"restTime": 60,
+												"completed": false,
+												"notes": "Keep proper form",
+												"created_at": "2025-06-04T13:15:14.654Z",
+												"updated_at": "2025-06-04T13:15:14.654Z",
+												"exercise": {
+													"id": 1,
+													"name": "Push-up",
+													"description": "A classic bodyweight exercise",
+													"category": "strength",
+													"difficulty": "beginner",
+													"equipment": "none",
+													"muscles_targeted": [
+														"chest",
+														"shoulders",
+														"triceps"
+													],
+													"created_at": "2025-06-04T13:15:14.654Z",
+													"updated_at": "2025-06-04T13:15:14.654Z"
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayExerciseResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update plan day exercise",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day exercise ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Updated plan day exercise data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/Partial_InsertPlanDayExercise_",
+								"description": "Updated plan day exercise data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/{userId}/generate": {
+			"post": {
+				"operationId": "GenerateWorkoutPlan",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Generate workout plan",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/workouts/{userId}/regenerate": {
+			"post": {
+				"operationId": "RegenerateWorkoutPlan",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Regenerate workout plan with custom preferences and feedback",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Regeneration data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"profileData": {
+										"properties": {
+											"medicalNotes": {
+												"type": "string"
+											},
+											"intensityLevel": {
+												"type": "number",
+												"format": "double"
+											},
+											"workoutDuration": {
+												"type": "number",
+												"format": "double"
+											},
+											"availableDays": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"workoutStyles": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"equipment": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"environment": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"fitnessLevel": {
+												"type": "string"
+											},
+											"limitations": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"goals": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"gender": {
+												"type": "string"
+											},
+											"weight": {
+												"type": "number",
+												"format": "double"
+											},
+											"height": {
+												"type": "number",
+												"format": "double"
+											},
+											"age": {
+												"type": "number",
+												"format": "double"
+											}
+										},
+										"type": "object"
+									},
+									"customFeedback": {
+										"type": "string"
+									}
+								},
+								"type": "object",
+								"description": "Regeneration data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/{userId}/active-workout": {
+			"get": {
+				"operationId": "FetchActiveWorkout",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Fetch active workout",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/workouts/{userId}/days/{planDayId}/regenerate": {
+			"post": {
+				"operationId": "RegenerateDailyWorkout",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Regenerate a single day's workout",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Regeneration reason",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"regenerationReason": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"regenerationReason"
+								],
+								"type": "object",
+								"description": "Regeneration reason"
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"servers": [
+		{
+			"url": "/"
+		}
+	]
+}
