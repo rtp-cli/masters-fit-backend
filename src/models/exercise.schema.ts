@@ -31,7 +31,7 @@ export const insertExerciseSchema = createInsertSchema(exercises, {
   muscleGroups: z.array(z.string()),
   difficulty: z.nativeEnum(IntensityLevelsEnum),
   instructions: z.array(z.string()),
-  link: z.string(),
+  link: z.string().optional(),
   tag: z.string(),
 }).omit({
   id: true,

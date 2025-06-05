@@ -17,6 +17,7 @@ export class ExerciseService extends BaseService {
           description: data.description,
           difficulty: data.difficulty,
           tag: data.tag,
+          link: data.link,
         },
       ])
       .returning();
