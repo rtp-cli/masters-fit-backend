@@ -48,7 +48,7 @@ export interface WorkoutBlock {
 export interface PlanDay {
   id: number;
   workoutId: number;
-  date: Date;
+  date: string;
   instructions?: string;
   name: string;
   description?: string;

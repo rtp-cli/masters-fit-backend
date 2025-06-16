@@ -28,42 +28,143 @@ export class PromptsService extends BaseService {
     if (!profile) {
       throw new Error("Profile not found");
     }
+
+    // Validate profile has required fields
+    if (
+      !profile.availableDays ||
+      !profile.preferredStyles ||
+      !profile.workoutDuration ||
+      !profile.environment
+    ) {
+      throw new Error(
+        "Profile is missing required fields: availableDays, preferredStyles, workoutDuration, or environment"
+      );
+    }
+
     const exercises = await exerciseService.getExercises();
     const exerciseNames = exercises.map((exercise) => exercise.name);
     const prompt = buildClaudePrompt(profile, exerciseNames, customFeedback);
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
-    const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 8192,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const data = (response.content[0] as any).text;
 
-    // Check if response was truncated or approaching limit
-    if (response.stop_reason === "max_tokens") {
-      console.error(
-        "❌ AI response was truncated due to token limit. This will likely cause JSON parsing errors."
-      );
-      console.error("Response length:", data.length);
-      console.error("Last 200 characters:", data.slice(-200));
-      throw new Error(
-        "AI response was truncated. Please try regenerating with a shorter request."
-      );
+    let attempts = 0;
+    const maxAttempts = 3;
+    let data;
+    let parsedResponse;
+
+    while (attempts < maxAttempts) {
+      console.log(`Attempt ${attempts + 1} to generate workout plan`);
+
+      try {
+        const response = await anthropic.messages.create({
+          model: "claude-3-5-sonnet-20241022",
+          max_tokens: 8192,
+          messages: [
+            { role: "user" as const, content: prompt },
+            ...(attempts > 0
+              ? [
+                  {
+                    role: "user" as const,
+                    content: `You have only generated the workout plan for ${parsedResponse?.workoutPlan?.length || 1} days. You MUST generate it for all ${profile.availableDays?.length || 7} days. Please regenerate the COMPLETE weekly workout plan.`,
+                  },
+                ]
+              : []),
+          ],
+        });
+        data = (response.content[0] as any).text;
+
+        // Check if response was truncated or approaching limit
+        if (response.stop_reason === "max_tokens") {
+          console.error(
+            "❌ AI response was truncated due to token limit. This will likely cause JSON parsing errors."
+          );
+          console.error("Response length:", data.length);
+          console.error("Last 200 characters:", data.slice(-200));
+          throw new Error(
+            "AI response was truncated. Please try regenerating with a shorter request."
+          );
+        }
+
+        // Warn if approaching token limit (>90% of response length suggests near-limit)
+        if (data.length > 7000) {
+          console.warn(
+            "⚠️ AI response is quite long. Consider optimizing prompt for efficiency."
+          );
+          console.warn("Response length:", data.length);
+        }
+
+        try {
+          parsedResponse = JSON.parse(data);
+
+          // Log the parsed response structure
+          console.log("Parsed response structure:", {
+            hasWorkoutPlan: !!parsedResponse.workoutPlan,
+            workoutPlanLength: parsedResponse.workoutPlan?.length,
+            expectedDays: profile.availableDays?.length || 7,
+            firstDayBlocks: parsedResponse.workoutPlan?.[0]?.blocks?.length,
+          });
+
+          // Validate number of days
+          if (
+            parsedResponse.workoutPlan?.length ===
+            (profile.availableDays?.length || 7)
+          ) {
+            console.log(
+              "✅ Successfully generated workout plan with correct number of days"
+            );
+            break; // Valid response, exit loop
+          }
+
+          console.warn(
+            `AI generated ${parsedResponse.workoutPlan?.length} days instead of ${profile.availableDays?.length || 7} days. Attempt ${attempts + 1}/${maxAttempts}`
+          );
+
+          // Log the first day's structure if available
+          if (parsedResponse.workoutPlan?.[0]) {
+            console.log("First day structure:", {
+              name: parsedResponse.workoutPlan[0].name,
+              blockCount: parsedResponse.workoutPlan[0].blocks?.length,
+              exerciseCount: parsedResponse.workoutPlan[0].blocks?.reduce(
+                (total: number, block: any) =>
+                  total + (block.exercises?.length || 0),
+                0
+              ),
+            });
+          }
+        } catch (parseError: any) {
+          console.error("JSON Parse Error:", parseError.message);
+          console.error("Raw response length:", data.length);
+          console.error("Response ends with:", data.slice(-100));
+
+          // Try to find where the JSON structure breaks
+          const lastBracketIndex = data.lastIndexOf("}");
+          const lastSquareBracketIndex = data.lastIndexOf("]");
+          console.error("Last closing brackets at:", {
+            curly: lastBracketIndex,
+            square: lastSquareBracketIndex,
+          });
+
+          throw new Error(
+            `Failed to parse AI response as JSON: ${parseError.message}`
+          );
+        }
+      } catch (apiError: any) {
+        console.error("API Error:", apiError.message);
+        throw new Error(`Failed to generate workout plan: ${apiError.message}`);
+      }
+
+      attempts++;
     }
 
-    // Warn if approaching token limit (>90% of response length suggests near-limit)
-    if (data.length > 7000) {
-      console.warn(
-        "⚠️ AI response is quite long. Consider optimizing prompt for efficiency."
+    if (attempts === maxAttempts) {
+      throw new Error(
+        `Failed to generate correct number of days after ${maxAttempts} attempts`
       );
-      console.warn("Response length:", data.length);
     }
 
     // Log response for debugging
     console.log("AI Response length:", data.length);
-    console.log("Stop reason:", response.stop_reason);
 
     const createdPrompt = await this.createPrompt({
       userId,
@@ -71,17 +172,7 @@ export class PromptsService extends BaseService {
       response: data,
     });
 
-    try {
-      const parsedResponse = JSON.parse(data);
-      return { response: parsedResponse, promptId: createdPrompt.id };
-    } catch (parseError: any) {
-      console.error("JSON Parse Error:", parseError.message);
-      console.error("Raw response length:", data.length);
-      console.error("Response ends with:", data.slice(-100));
-      throw new Error(
-        `Failed to parse AI response as JSON: ${parseError.message}`
-      );
-    }
+    return { response: parsedResponse, promptId: createdPrompt.id };
   }
 
   public async generateRegenerationPrompt(
@@ -136,34 +227,80 @@ export class PromptsService extends BaseService {
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
-    const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 8192,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const data = (response.content[0] as any).text;
 
-    // Check if response was truncated or approaching limit
-    if (response.stop_reason === "max_tokens") {
-      console.error(
-        "❌ AI regeneration response was truncated due to token limit."
-      );
-      console.error("Response length:", data.length);
-      console.error("Last 200 characters:", data.slice(-200));
-      throw new Error(
-        "AI response was truncated. Please try regenerating with shorter feedback."
-      );
+    let attempts = 0;
+    const maxAttempts = 3;
+    let data;
+    let parsedResponse;
+
+    while (attempts < maxAttempts) {
+      const response = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 8192,
+        messages: [
+          { role: "user" as const, content: prompt },
+          ...(attempts > 0
+            ? [
+                {
+                  role: "user" as const,
+                  content: `You have only generated the workout plan for ${parsedResponse?.workoutPlan?.length || 1} days. You MUST generate it for all ${updatedProfile.availableDays?.length || 7} days. Please regenerate the COMPLETE weekly workout plan.`,
+                },
+              ]
+            : []),
+        ],
+      });
+      data = (response.content[0] as any).text;
+
+      // Check if response was truncated or approaching limit
+      if (response.stop_reason === "max_tokens") {
+        console.error(
+          "❌ AI regeneration response was truncated due to token limit."
+        );
+        console.error("Response length:", data.length);
+        console.error("Last 200 characters:", data.slice(-200));
+        throw new Error(
+          "AI response was truncated. Please try regenerating with shorter feedback."
+        );
+      }
+
+      // Warn if approaching token limit
+      if (data.length > 7000) {
+        console.warn("⚠️ AI regeneration response is quite long.");
+        console.warn("Response length:", data.length);
+      }
+
+      try {
+        parsedResponse = JSON.parse(data);
+        // Validate number of days
+        if (
+          parsedResponse.workoutPlan?.length ===
+          (updatedProfile.availableDays?.length || 7)
+        ) {
+          break; // Valid response, exit loop
+        }
+        console.warn(
+          `AI generated ${parsedResponse.workoutPlan?.length} days instead of ${updatedProfile.availableDays?.length || 7} days. Attempt ${attempts + 1}/${maxAttempts}`
+        );
+      } catch (parseError: any) {
+        console.error("JSON Parse Error in regeneration:", parseError.message);
+        console.error("Raw response length:", data.length);
+        console.error("Response ends with:", data.slice(-100));
+        throw new Error(
+          `Failed to parse AI response as JSON: ${parseError.message}`
+        );
+      }
+
+      attempts++;
     }
 
-    // Warn if approaching token limit
-    if (data.length > 7000) {
-      console.warn("⚠️ AI regeneration response is quite long.");
-      console.warn("Response length:", data.length);
+    if (attempts === maxAttempts) {
+      throw new Error(
+        `Failed to generate correct number of days after ${maxAttempts} attempts`
+      );
     }
 
     // Log response for debugging
     console.log("AI Regeneration Response length:", data.length);
-    console.log("Stop reason:", response.stop_reason);
 
     const createdPrompt = await this.createPrompt({
       userId,
@@ -171,17 +308,7 @@ export class PromptsService extends BaseService {
       response: data,
     });
 
-    try {
-      const parsedResponse = JSON.parse(data);
-      return { response: parsedResponse, promptId: createdPrompt.id };
-    } catch (parseError: any) {
-      console.error("JSON Parse Error in regeneration:", parseError.message);
-      console.error("Raw response length:", data.length);
-      console.error("Response ends with:", data.slice(-100));
-      throw new Error(
-        `Failed to parse AI response as JSON: ${parseError.message}`
-      );
-    }
+    return { response: parsedResponse, promptId: createdPrompt.id };
   }
 
   public async generateDailyRegenerationPrompt(
@@ -212,7 +339,7 @@ export class PromptsService extends BaseService {
     const response = await anthropic.messages.create({
       model: "claude-3-5-sonnet-20241022",
       max_tokens: 8192,
-      messages: [{ role: "user", content: prompt }],
+      messages: [{ role: "user" as const, content: prompt }],
     });
     const data = (response.content[0] as any).text;
 

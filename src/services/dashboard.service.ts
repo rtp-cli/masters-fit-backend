@@ -1355,7 +1355,7 @@ export class DashboardService {
       eq(workouts.userId, userId),
       sql`${exerciseLogs.setsCompleted} > 0`,
       sql`${exerciseLogs.repsCompleted} > 0`,
-      sql`${exerciseLogs.weightUsed} > 0`, // Only include exercises with weight
+      // Remove the weight > 0 filter to include bodyweight exercises
     ];
 
     // Add date filters only if dates are provided
@@ -1375,11 +1375,31 @@ export class DashboardService {
     }
 
     // Get weight progression data grouped by date
+    // Include bodyweight exercises by treating them as having a base weight
     const progressionData = await db
       .select({
         date: planDays.date,
-        avgWeight: sql<number>`ROUND(AVG(CAST(${exerciseLogs.weightUsed} AS DECIMAL)), 2)`,
-        maxWeight: sql<number>`MAX(${exerciseLogs.weightUsed})`,
+        // For bodyweight exercises, use a base weight of 1 to represent training load
+        // For weighted exercises, use actual weight
+        avgWeight: sql<number>`
+          ROUND(
+            AVG(
+              CASE 
+                WHEN ${exerciseLogs.weightUsed} > 0 THEN CAST(${exerciseLogs.weightUsed} AS DECIMAL)
+                ELSE 1.0
+              END
+            ), 2
+          )
+        `,
+        maxWeight: sql<number>`
+          CASE 
+            WHEN MAX(${exerciseLogs.weightUsed}) > 0 THEN MAX(${exerciseLogs.weightUsed})
+            ELSE 1
+          END
+        `,
+        // Also track total training volume (sets * reps) for better progression tracking
+        totalVolume: sql<number>`SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted})`,
+        exerciseCount: sql<number>`COUNT(DISTINCT ${exercises.id})`,
       })
       .from(exerciseLogs)
       .innerJoin(
@@ -1392,6 +1412,7 @@ export class DashboardService {
       )
       .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+      .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
       .where(and(...whereConditions))
       .groupBy(planDays.date)
       .orderBy(asc(planDays.date));
@@ -1403,10 +1424,18 @@ export class DashboardService {
         day: "numeric",
       });
 
+      // If there are weighted exercises, show weight progression
+      // Otherwise, show volume progression (normalized to a weight-like scale)
+      const hasWeightedExercises = Number(data.maxWeight) > 1;
+
       return {
         date: data.date,
-        avgWeight: Number(data.avgWeight) || 0,
-        maxWeight: Number(data.maxWeight) || 0,
+        avgWeight: hasWeightedExercises
+          ? Number(data.avgWeight) || 0
+          : Math.min(Number(data.totalVolume) / 10, 50), // Scale volume to weight-like numbers
+        maxWeight: hasWeightedExercises
+          ? Number(data.maxWeight) || 0
+          : Math.min(Number(data.totalVolume) / 5, 100), // Scale volume to weight-like numbers
         label,
       };
     });

@@ -34,6 +34,10 @@ import {
   createTimestamp,
   toUTCDate,
   formatTimestampForAPI,
+  getCurrentDateString,
+  getDateForWeekday,
+  addDays,
+  formatDateAsString,
 } from "@/utils/date.utils";
 import { workoutLogs } from "../models/logs.schema";
 
@@ -267,7 +271,7 @@ export class WorkoutService extends BaseService {
       planDays: workout.planDays.map((planDay, index) => ({
         id: planDay.id,
         workoutId: planDay.workoutId,
-        date: new Date(planDay.date), // Convert string to Date as expected by interface
+        date: planDay.date, // Keep as string to avoid timezone conversion
         instructions: planDay.instructions ?? undefined,
         name: planDay.name || `Day ${index + 1}`,
         description: planDay.description ?? undefined,
@@ -597,7 +601,7 @@ export class WorkoutService extends BaseService {
     return {
       id: planDay.id,
       workoutId: planDay.workoutId,
-      date: new Date(planDay.date), // Convert string to Date
+      date: planDay.date, // Keep as string to avoid timezone conversion
       instructions: planDay.instructions ?? undefined,
       name: planDay.name || "",
       description: planDay.description ?? undefined,
@@ -791,15 +795,9 @@ export class WorkoutService extends BaseService {
       customFeedback
     );
     const profile = await profileService.getProfileByUserId(userId);
-    // Calculate startDate and endDate as YYYY-MM-DD strings (local date, no timezone shift)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const startDate = today.toLocaleDateString("en-CA");
-
-    const end = new Date(today);
-    end.setDate(end.getDate() + 6);
-    end.setHours(0, 0, 0, 0);
-    const endDate = end.toLocaleDateString("en-CA");
+    // Calculate startDate and endDate as YYYY-MM-DD strings (timezone-independent)
+    const startDate = getCurrentDateString();
+    const endDate = addDays(startDate, 6);
 
     const workout = await this.createWorkout({
       userId,
@@ -826,9 +824,9 @@ export class WorkoutService extends BaseService {
 
     const workoutPlan = response.workoutPlan;
     const availableDays = profile?.availableDays || []; // e.g. ["tuesday", "wednesday", "saturday"]
-    const currentDay = new Date();
-    currentDay.setHours(0, 0, 0, 0);
-    const todayDay = currentDay
+    const today = getCurrentDateString();
+    const todayDate = new Date();
+    const todayDay = todayDate
       .toLocaleDateString("en-US", { weekday: "long" })
       .toLowerCase();
 
@@ -852,42 +850,18 @@ export class WorkoutService extends BaseService {
       .map((obj) => obj.day);
     const rotatedDays = sortedAvailable;
 
-    const getNextDateForDay = (targetDay: string, afterDate: Date): Date => {
-      const daysOfWeek = [
-        "sunday",
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-      ];
-      const targetIndex = daysOfWeek.indexOf(targetDay?.toLowerCase());
-
-      const result = new Date(afterDate);
-      result.setHours(0, 0, 0, 0); // ✅ add this to avoid time-based mismatch
-
-      while (result.getDay() !== targetIndex) {
-        result.setDate(result.getDate() + 1);
-      }
-
-      return result;
-    };
-
-    let referenceDate = new Date(currentDay);
-    referenceDate.setHours(0, 0, 0, 0);
+    let referenceDate = today;
 
     for (let i = 0; i < workoutPlan.length; i++) {
       const availableDay = rotatedDays[i % rotatedDays.length];
-      const scheduledDate = getNextDateForDay(availableDay, referenceDate);
+      const scheduledDate = getDateForWeekday(availableDay, referenceDate);
 
-      // Move reference date to the day *after* the scheduledDate to prevent same day reuse
-      referenceDate = new Date(scheduledDate.getTime());
-      referenceDate.setDate(referenceDate.getDate() + 1);
+      // Move reference date to the day after the scheduledDate to prevent same day reuse
+      referenceDate = addDays(scheduledDate, 1);
 
       const planDay = await this.createPlanDay({
         workoutId: workout.id,
-        date: scheduledDate.toLocaleDateString("en-CA"),
+        date: scheduledDate,
         instructions: workoutPlan[i].instructions,
         name: workoutPlan[i].name,
         description: workoutPlan[i].description,
@@ -1205,7 +1179,7 @@ export class WorkoutService extends BaseService {
     return {
       id: existingPlanDay.id,
       workoutId: existingPlanDay.workoutId,
-      date: new Date(existingPlanDay.date),
+      date: existingPlanDay.date, // Keep as string to avoid timezone conversion
       instructions: response.instructions ?? undefined,
       name: existingPlanDay.name || "",
       description: existingPlanDay.description ?? undefined,

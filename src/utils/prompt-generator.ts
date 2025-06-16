@@ -246,27 +246,67 @@ const getDurationRequirements = (
   return `
 ## DURATION REQUIREMENTS
 
-### Critical Duration Requirement
-${sessionReference} MUST be approximately ${workoutDuration} minutes.
+⚠️ **CRITICAL DURATION REQUIREMENT - NON-NEGOTIABLE** ⚠️
+${sessionReference} MUST be ${workoutDuration} minutes (±5 minutes). This is NOT a suggestion - it is a HARD REQUIREMENT.
 
-### Duration Calculation
-**BEFORE FINALIZING ${dayReference.toUpperCase()} - MANDATORY CHECK:**
-1. Calculate total time for all exercises in ${dayReference}
-2. Add warm-up + cool-down + transitions (10 minutes)
-3. If total < ${workoutDuration} minutes, ADD MORE EXERCISES to ${dayReference}
-4. Repeat until ${dayReference} reaches ${workoutDuration} ± 3 minutes
+### Style-Specific Duration Guidelines
+**ALL workout styles MUST meet the full duration requirement:**
+- **Cardio:** Do NOT assign short cardio sessions. Scale duration appropriately:
+  * Use intervals, circuits, or progressive intensity to reach full duration
+  * Break longer cardio into meaningful segments with varying intensity
+  * Include active recovery periods that count toward total time
+- **HIIT:** Structure intervals to fill the complete duration:
+  * Multiple rounds of work/rest cycles
+  * Progressive intensity phases
+  * Active recovery between high-intensity blocks
+- **Strength:** Include adequate volume:
+  * Full sets and rest periods
+  * Proper exercise progression
+  * Accessory work to reach duration
+- **CrossFit:** Already good at meeting duration, maintain this standard
+- **Other Styles:** Must be programmed to full duration:
+  * Yoga: Full flows with proper transitions
+  * Pilates: Complete sequences
+  * Mobility: Progressive movement patterns
 
-### Duration Validation Step
-Before finalizing ${dayReference}'s workout, calculate the total time:
-- Sum up: (exercise_duration × sets) + (rest_time × (sets-1)) for each exercise in ${dayReference}
-    - Add 5 minutes warm-up + 3 minutes cool-down + 2 minutes transitions
-- If total is less than ${workoutDuration} minutes, ADD MORE EXERCISES to ${dayReference}
-- If total exceeds ${workoutDuration} minutes by more than 5 minutes, adjust sets or rest time for ${dayReference}
-    - **${dayReference.toUpperCase()} MUST BE WITHIN ±5 MINUTES OF THE TARGET DURATION**
+### Mandatory Duration Calculation
+**BEFORE FINALIZING ${dayReference.toUpperCase()} - REQUIRED CHECK:**
+1. Calculate EXACT time for all exercises:
+   * (exercise_duration × sets) + (rest_time × (sets-1)) for each exercise
+   * Add 5 minutes warm-up + 3 minutes cool-down + 2 minutes transitions
+2. Total MUST be ${workoutDuration} ±5 minutes
+3. If total < ${workoutDuration - 5} minutes:
+   * First try increasing sets/duration of existing exercises
+   * If still short, ADD MORE EXERCISES
+   * Repeat until reaching minimum duration
+4. If total > ${workoutDuration + 5} minutes:
+   * Adjust rest periods first
+   * Then modify set/rep schemes
+   * Maintain workout quality while meeting duration
 
-### Final Duration Enforcement
-You are FORBIDDEN from returning a workout where ${finalReference} has less than ${workoutDuration - 3} minutes total duration. If your calculation shows ${dayReference} is too short, you MUST add more exercises to ${dayReference} until it reaches the target. This is a hard requirement - violating it is considered a failed response.
-`;
+### Duration Enforcement Rules
+1. **FORBIDDEN:** Returning workouts shorter than ${workoutDuration - 5} minutes
+2. **FORBIDDEN:** Using unrealistic durations (e.g., 1-2 minute exercises for what should be longer)
+3. **FORBIDDEN:** Relying on "warm-up" or "cool-down" to pad duration
+4. **REQUIRED:** Realistic exercise durations for each modality:
+   * Cardio segments: Minimum 10-15 minutes per block
+   * HIIT intervals: Proper work/rest ratios
+   * Strength sets: Full sets with proper rest
+   * Skill work: Adequate practice time
+5. **REQUIRED:** Duration must be met through proper exercise programming, not artificial time inflation
+
+### Final Validation
+You MUST verify ${dayReference}'s total duration meets these requirements:
+1. Sum all exercise durations: (duration × sets) + (rest × (sets-1))
+2. Add standard time blocks: Warm-up (5min) + Cool-down (3min) + Transitions (2min)
+3. TOTAL MUST BE: ${workoutDuration} ±5 minutes
+4. If duration is outside this range, you MUST fix it before returning
+
+⚠️ **CRITICAL: This is a HARD REQUIREMENT** ⚠️
+- You are FORBIDDEN from returning a workout where ${finalReference} has less than ${workoutDuration - 5} minutes total duration
+- If your calculation shows ${dayReference} is too short, you MUST add more exercises or increase durations
+- This is a hard requirement - violating it is considered a failed response
+- Every style MUST meet the duration requirement through proper programming`;
 };
 
 const getProfessionalProgrammingPriorities = (
@@ -310,7 +350,7 @@ Prioritize coaching quality over token efficiency:
 `;
 };
 
-const getJsonOutputFormat = (): string => {
+const getJsonOutputFormat = (profile: Profile): string => {
   return `
 ## OUTPUT FORMAT - CRITICAL JSON REQUIREMENTS
 
@@ -446,7 +486,19 @@ export const buildClaudePrompt = (
   exerciseNames: string[],
   customFeedback?: string
 ) => {
-  const workoutDuration = profile.workoutDuration || 30;
+  // Validate required profile fields
+  if (
+    !profile.availableDays ||
+    !profile.preferredStyles ||
+    !profile.workoutDuration ||
+    !profile.environment
+  ) {
+    throw new Error(
+      "Profile is missing required fields: availableDays, preferredStyles, workoutDuration, or environment"
+    );
+  }
+
+  const workoutDuration = profile.workoutDuration;
 
   const prompt = `
 # PROFESSIONAL FITNESS PROGRAMMING ASSISTANT
@@ -526,7 +578,7 @@ ${getExerciseSelectionProcess(workoutDuration, exerciseNames, "weekly")}
 
 ${getProfessionalProgrammingPriorities("weekly")}
 
-${getJsonOutputFormat()}
+${getJsonOutputFormat(profile)}
 
 ${getBlockTypeGuide()}
 
