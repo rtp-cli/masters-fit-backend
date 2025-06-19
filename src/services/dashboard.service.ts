@@ -32,12 +32,30 @@ import {
 export class DashboardService {
   // Muscle group mappings for each fitness goal
   private static readonly muscleGroupMappings: MuscleGroupGoalMapping = {
-    [FitnessGoals.WEIGHT_LOSS]: [
+    [FitnessGoals.GENERAL_FITNESS]: [
+      "full_body",
+      "full body",
+      "cardiovascular",
+      "core",
+      "legs",
+      "chest",
+      "back",
+      "shoulders",
+    ],
+    [FitnessGoals.FAT_LOSS]: [
       "core",
       "legs",
       "full_body",
       "full body",
       "cardiovascular",
+      "cardio",
+    ],
+    [FitnessGoals.ENDURANCE]: [
+      "cardiovascular",
+      "legs",
+      "core",
+      "full_body",
+      "full body",
       "cardio",
     ],
     [FitnessGoals.MUSCLE_GAIN]: [
@@ -63,33 +81,7 @@ export class DashboardService {
       "biceps",
       "triceps",
     ],
-    [FitnessGoals.ENDURANCE]: [
-      "cardiovascular",
-      "legs",
-      "core",
-      "full_body",
-      "full body",
-      "cardio",
-    ],
-    [FitnessGoals.FLEXIBILITY]: [
-      "full_body",
-      "full body",
-      "core",
-      "back",
-      "shoulders",
-      "hips",
-    ],
-    [FitnessGoals.GENERAL_FITNESS]: [
-      "full_body",
-      "full body",
-      "cardiovascular",
-      "core",
-      "legs",
-      "chest",
-      "back",
-      "shoulders",
-    ],
-    [FitnessGoals.MOBILITY]: [
+    [FitnessGoals.MOBILITY_FLEXIBILITY]: [
       "full_body",
       "full body",
       "core",
@@ -837,130 +829,122 @@ export class DashboardService {
     end.setHours(23, 59, 59, 999);
 
     const goalProgress = await Promise.all(
-      userProfile[0].goals
-        .filter((goal) => goal !== (FitnessGoals.WEIGHT_LOSS as any))
-        .map(async (goal) => {
-          const relevantMuscleGroups =
-            DashboardService.muscleGroupMappings[goal];
+      userProfile[0].goals.map(async (goal) => {
+        const relevantMuscleGroups = DashboardService.muscleGroupMappings[goal];
 
-          let muscleGroupFilter;
-          if (goal === "muscle_gain") {
-            muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['chest', 'back', 'shoulders', 'biceps', 'triceps', 'legs', 'quadriceps', 'glutes', 'hamstrings']::text[]`;
-          } else if (goal === "strength") {
-            muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['chest', 'back', 'legs', 'core', 'shoulders', 'quadriceps', 'glutes', 'hamstrings', 'biceps', 'triceps']::text[]`;
-          } else if (goal === "endurance") {
-            muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['cardiovascular', 'legs', 'core', 'full_body', 'full body', 'cardio']::text[]`;
-          } else if (goal === "general_fitness") {
-            muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['full_body', 'full body', 'cardiovascular', 'core', 'legs', 'chest', 'back', 'shoulders']::text[]`;
-          } else if (goal === "flexibility") {
-            muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['full_body', 'full body', 'core', 'back', 'shoulders', 'hips']::text[]`;
-          } else {
-            muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['full_body', 'full body', 'core']::text[]`;
-          }
+        let muscleGroupFilter;
+        if (goal === "muscle_gain") {
+          muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['chest', 'back', 'shoulders', 'biceps', 'triceps', 'legs', 'quadriceps', 'glutes', 'hamstrings']::text[]`;
+        } else if (goal === "strength") {
+          muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['chest', 'back', 'legs', 'core', 'shoulders', 'quadriceps', 'glutes', 'hamstrings', 'biceps', 'triceps']::text[]`;
+        } else if (goal === "endurance") {
+          muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['cardiovascular', 'legs', 'core', 'full_body', 'full body', 'cardio']::text[]`;
+        } else if (goal === "general_fitness") {
+          muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['full_body', 'full body', 'cardiovascular', 'core', 'legs', 'chest', 'back', 'shoulders']::text[]`;
+        } else if (goal === "fat_loss") {
+          muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['core', 'legs', 'full_body', 'full body', 'cardiovascular', 'cardio']::text[]`;
+        } else if (goal === "mobility_flexibility") {
+          muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['full_body', 'full body', 'core', 'back', 'shoulders', 'hips']::text[]`;
+        } else {
+          muscleGroupFilter = sql`${exercises.muscleGroups} && ARRAY['full_body', 'full body', 'core']::text[]`;
+        }
 
-          const exerciseData = await db
-            .select({
-              totalSets: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted}), 0)::INTEGER`,
-              totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
-              totalWeight: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}), 0)::INTEGER`,
-              completedWorkouts: sql<number>`COUNT(DISTINCT ${planDays.id})::INTEGER`,
-              avgWeightPerSet: sql<number>`CASE WHEN COUNT(*) > 0 THEN COALESCE(AVG(${exerciseLogs.weightUsed}), 0) ELSE 0 END::NUMERIC(10,2)`,
-              uniqueExercisesDone: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
-            })
-            .from(exerciseLogs)
-            .innerJoin(
-              planDayExercises,
-              eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
+        const exerciseData = await db
+          .select({
+            totalSets: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted}), 0)::INTEGER`,
+            totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
+            totalWeight: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}), 0)::INTEGER`,
+            completedWorkouts: sql<number>`COUNT(DISTINCT ${planDays.id})::INTEGER`,
+            avgWeightPerSet: sql<number>`CASE WHEN COUNT(*) > 0 THEN COALESCE(AVG(${exerciseLogs.weightUsed}), 0) ELSE 0 END::NUMERIC(10,2)`,
+            uniqueExercisesDone: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
+          })
+          .from(exerciseLogs)
+          .innerJoin(
+            planDayExercises,
+            eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
+          )
+          .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+          .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+          .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
+          .where(
+            and(
+              eq(workouts.userId, userId),
+              eq(workouts.isActive, true),
+              gte(exerciseLogs.createdAt, start),
+              lte(exerciseLogs.createdAt, end),
+              eq(exerciseLogs.isComplete, true),
+              muscleGroupFilter
             )
-            .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
-            .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
-            .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
-            .where(
-              and(
-                eq(workouts.userId, userId),
-                eq(workouts.isActive, true),
-                gte(exerciseLogs.createdAt, start),
-                lte(exerciseLogs.createdAt, end),
-                eq(exerciseLogs.isComplete, true),
-                muscleGroupFilter
-              )
-            );
-
-          const data = exerciseData[0];
-
-          // Calculate progress score based on multiple factors
-          let progressScore = 0;
-          const completedWorkouts = data.completedWorkouts || 0;
-          const workoutCompletionRatio = Math.min(
-            completedWorkouts / plannedWorkoutCount,
-            1.0
           );
 
-          if (
-            goal === FitnessGoals.WEIGHT_LOSS ||
-            goal === FitnessGoals.ENDURANCE
-          ) {
-            // For weight loss/endurance: Focus on consistency and workout completion
-            const consistencyScore = workoutCompletionRatio * 70; // 70% for workout completion
-            const volumeScore =
-              Math.min(
-                (data.totalReps || 0) / (plannedWorkoutCount * 50),
-                1.0
-              ) * 30; // 30% for volume (target ~50 reps per workout)
-            progressScore = consistencyScore + volumeScore;
-          } else if (
-            goal === FitnessGoals.STRENGTH ||
-            goal === FitnessGoals.MUSCLE_GAIN
-          ) {
-            // For strength/muscle gain: Balance between consistency, volume, and progressive overload
-            const consistencyScore = workoutCompletionRatio * 50; // 50% for workout completion
-            const volumeScore =
-              Math.min(
-                (data.totalWeight || 0) / (plannedWorkoutCount * 2000),
-                1.0
-              ) * 30; // 30% for volume (target ~2000 lbs per workout)
-            const intensityScore =
-              Math.min((data.avgWeightPerSet || 0) / 50, 1.0) * 20; // 20% for intensity (target ~50 lbs average per set)
-            progressScore = consistencyScore + volumeScore + intensityScore;
-          } else if (goal === FitnessGoals.GENERAL_FITNESS) {
-            // For general fitness: Balance of consistency and variety
-            const consistencyScore = workoutCompletionRatio * 60; // 60% for workout completion
-            const varietyScore =
-              Math.min((data.uniqueExercisesDone || 0) / 10, 1.0) * 25; // 25% for exercise variety (target 10+ unique exercises)
-            const volumeScore =
-              Math.min(
-                (data.totalSets || 0) / (plannedWorkoutCount * 12),
-                1.0
-              ) * 15; // 15% for volume (target ~12 sets per workout)
-            progressScore = consistencyScore + varietyScore + volumeScore;
-          } else {
-            // For flexibility, mobility, balance, recovery: Focus on consistency and frequency
-            const consistencyScore = workoutCompletionRatio * 80; // 80% for workout completion
-            const frequencyScore =
-              Math.min((data.totalSets || 0) / (plannedWorkoutCount * 8), 1.0) *
-              20; // 20% for frequency (target ~8 sets per workout)
-            progressScore = consistencyScore + frequencyScore;
-          }
+        const data = exerciseData[0];
 
-          // Apply time-based adjustment - don't penalize early in the plan
-          const timeAdjustment = Math.max(0.3, planProgressRatio); // Minimum 30% adjustment factor
-          progressScore = progressScore * timeAdjustment;
+        // Calculate progress score based on multiple factors
+        let progressScore = 0;
+        const completedWorkouts = data.completedWorkouts || 0;
+        const workoutCompletionRatio = Math.min(
+          completedWorkouts / plannedWorkoutCount,
+          1.0
+        );
 
-          // Cap at 100% and ensure minimum progress if user has done anything
-          progressScore = Math.min(
-            Math.max(progressScore, completedWorkouts > 0 ? 5 : 0),
-            100
-          );
+        if (goal === FitnessGoals.FAT_LOSS || goal === FitnessGoals.ENDURANCE) {
+          // For weight loss/endurance: Focus on consistency and workout completion
+          const consistencyScore = workoutCompletionRatio * 70; // 70% for workout completion
+          const volumeScore =
+            Math.min((data.totalReps || 0) / (plannedWorkoutCount * 50), 1.0) *
+            30; // 30% for volume (target ~50 reps per workout)
+          progressScore = consistencyScore + volumeScore;
+        } else if (
+          goal === FitnessGoals.STRENGTH ||
+          goal === FitnessGoals.MUSCLE_GAIN
+        ) {
+          // For strength/muscle gain: Balance between consistency, volume, and progressive overload
+          const consistencyScore = workoutCompletionRatio * 50; // 50% for workout completion
+          const volumeScore =
+            Math.min(
+              (data.totalWeight || 0) / (plannedWorkoutCount * 2000),
+              1.0
+            ) * 30; // 30% for volume (target ~2000 lbs per workout)
+          const intensityScore =
+            Math.min((data.avgWeightPerSet || 0) / 50, 1.0) * 20; // 20% for intensity (target ~50 lbs average per set)
+          progressScore = consistencyScore + volumeScore + intensityScore;
+        } else if (goal === FitnessGoals.GENERAL_FITNESS) {
+          // For general fitness: Balance of consistency and variety
+          const consistencyScore = workoutCompletionRatio * 60; // 60% for workout completion
+          const varietyScore =
+            Math.min((data.uniqueExercisesDone || 0) / 10, 1.0) * 25; // 25% for exercise variety (target 10+ unique exercises)
+          const volumeScore =
+            Math.min((data.totalSets || 0) / (plannedWorkoutCount * 12), 1.0) *
+            15; // 15% for volume (target ~12 sets per workout)
+          progressScore = consistencyScore + varietyScore + volumeScore;
+        } else {
+          // For flexibility, mobility, balance, recovery: Focus on consistency and frequency
+          const consistencyScore = workoutCompletionRatio * 80; // 80% for workout completion
+          const frequencyScore =
+            Math.min((data.totalSets || 0) / (plannedWorkoutCount * 8), 1.0) *
+            20; // 20% for frequency (target ~8 sets per workout)
+          progressScore = consistencyScore + frequencyScore;
+        }
 
-          return {
-            goal,
-            progressScore: Math.round(progressScore),
-            totalSets: data.totalSets || 0,
-            totalReps: data.totalReps || 0,
-            totalWeight: data.totalWeight || 0,
-            completedWorkouts: data.completedWorkouts || 0,
-          };
-        })
+        // Apply time-based adjustment - don't penalize early in the plan
+        const timeAdjustment = Math.max(0.3, planProgressRatio); // Minimum 30% adjustment factor
+        progressScore = progressScore * timeAdjustment;
+
+        // Cap at 100% and ensure minimum progress if user has done anything
+        progressScore = Math.min(
+          Math.max(progressScore, completedWorkouts > 0 ? 5 : 0),
+          100
+        );
+
+        return {
+          goal,
+          progressScore: Math.round(progressScore),
+          totalSets: data.totalSets || 0,
+          totalReps: data.totalReps || 0,
+          totalWeight: data.totalWeight || 0,
+          completedWorkouts: data.completedWorkouts || 0,
+        };
+      })
     );
 
     return goalProgress;

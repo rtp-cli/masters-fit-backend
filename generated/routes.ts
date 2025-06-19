@@ -463,7 +463,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "FitnessGoal": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["weight_loss"]},{"dataType":"enum","enums":["muscle_gain"]},{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["endurance"]},{"dataType":"enum","enums":["flexibility"]},{"dataType":"enum","enums":["general_fitness"]},{"dataType":"enum","enums":["mobility"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["recovery"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["general_fitness"]},{"dataType":"enum","enums":["fat_loss"]},{"dataType":"enum","enums":["endurance"]},{"dataType":"enum","enums":["muscle_gain"]},{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["mobility_flexibility"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["recovery"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "FitnessLevel": {
@@ -488,7 +488,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreferredStyles": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["mobility"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["hiit"]},{"dataType":"enum","enums":["cardio"]},{"dataType":"enum","enums":["rehab"]},{"dataType":"enum","enums":["crossfit"]},{"dataType":"enum","enums":["functional"]},{"dataType":"enum","enums":["pilates"]},{"dataType":"enum","enums":["yoga"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["hiit"]},{"dataType":"enum","enums":["cardio"]},{"dataType":"enum","enums":["rehab"]},{"dataType":"enum","enums":["crossfit"]},{"dataType":"enum","enums":["functional"]},{"dataType":"enum","enums":["pilates"]},{"dataType":"enum","enums":["yoga"]},{"dataType":"enum","enums":["mobility"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreferredDay": {
@@ -2270,6 +2270,32 @@ export function RegisterRoutes(app: Router) {
 
               const promise = controller.regenerateDailyWorkout.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/workouts/:userId/debug/active',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.getActiveWorkoutsDebug)),
+
+            function WorkoutController_getActiveWorkoutsDebug(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"string"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.getActiveWorkoutsDebug.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, undefined, next);
             } catch (err) {
                 return next(err);
             }

@@ -5,13 +5,12 @@ export const Gender = {
 } as const;
 
 export const FitnessGoals = {
-  WEIGHT_LOSS: "weight_loss",
+  GENERAL_FITNESS: "general_fitness",
+  FAT_LOSS: "fat_loss",
+  ENDURANCE: "endurance",
   MUSCLE_GAIN: "muscle_gain",
   STRENGTH: "strength",
-  ENDURANCE: "endurance",
-  FLEXIBILITY: "flexibility",
-  GENERAL_FITNESS: "general_fitness",
-  MOBILITY: "mobility",
+  MOBILITY_FLEXIBILITY: "mobility_flexibility",
   BALANCE: "balance",
   RECOVERY: "recovery",
 } as const;

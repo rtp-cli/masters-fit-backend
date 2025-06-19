@@ -1104,13 +1104,12 @@
 			"FitnessGoal": {
 				"type": "string",
 				"enum": [
-					"weight_loss",
+					"general_fitness",
+					"fat_loss",
+					"endurance",
 					"muscle_gain",
 					"strength",
-					"endurance",
-					"flexibility",
-					"general_fitness",
-					"mobility",
+					"mobility_flexibility",
 					"balance",
 					"recovery"
 				]
@@ -1171,7 +1170,6 @@
 				"type": "string",
 				"enum": [
 					"strength",
-					"mobility",
 					"balance",
 					"hiit",
 					"cardio",
@@ -1179,7 +1177,8 @@
 					"crossfit",
 					"functional",
 					"pilates",
-					"yoga"
+					"yoga",
+					"mobility"
 				]
 			},
 			"PreferredDay": {
@@ -4055,8 +4054,8 @@
 														"shoulders",
 														"triceps"
 													],
-													"created_at": "2025-06-04T13:15:14.486Z",
-													"updated_at": "2025-06-04T13:15:14.486Z"
+													"created_at": "2025-06-19T18:42:29.891Z",
+													"updated_at": "2025-06-19T18:42:29.891Z"
 												}
 											]
 										}
@@ -4161,8 +4160,8 @@
 													"shoulders",
 													"triceps"
 												],
-												"created_at": "2025-06-04T13:15:14.486Z",
-												"updated_at": "2025-06-04T13:15:14.486Z"
+												"created_at": "2025-06-19T18:42:29.891Z",
+												"updated_at": "2025-06-19T18:42:29.891Z"
 											}
 										}
 									}
@@ -4959,7 +4958,7 @@
 												"age": 30,
 												"gender": "male",
 												"goals": [
-													"weight_loss",
+													"fat_loss",
 													"muscle_gain"
 												],
 												"fitnessLevel": "beginner",
@@ -4967,8 +4966,8 @@
 													"knee_pain"
 												],
 												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-04T13:15:14.495Z",
-												"updated_at": "2025-06-04T13:15:14.495Z"
+												"created_at": "2025-06-19T18:42:29.902Z",
+												"updated_at": "2025-06-19T18:42:29.902Z"
 											}
 										}
 									}
@@ -5032,7 +5031,7 @@
 												"age": 30,
 												"gender": "male",
 												"goals": [
-													"weight_loss",
+													"fat_loss",
 													"muscle_gain"
 												],
 												"fitnessLevel": "beginner",
@@ -5040,8 +5039,8 @@
 													"knee_pain"
 												],
 												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-04T13:15:14.496Z",
-												"updated_at": "2025-06-04T13:15:14.496Z"
+												"created_at": "2025-06-19T18:42:29.902Z",
+												"updated_at": "2025-06-19T18:42:29.902Z"
 											}
 										}
 									}
@@ -5105,7 +5104,7 @@
 												"age": 30,
 												"gender": "male",
 												"goals": [
-													"weight_loss",
+													"fat_loss",
 													"muscle_gain"
 												],
 												"fitnessLevel": "beginner",
@@ -5113,8 +5112,8 @@
 													"knee_pain"
 												],
 												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-04T13:15:14.498Z",
-												"updated_at": "2025-06-04T13:15:14.498Z"
+												"created_at": "2025-06-19T18:42:29.904Z",
+												"updated_at": "2025-06-19T18:42:29.904Z"
 											}
 										}
 									}
@@ -5188,7 +5187,7 @@
 												"age": 30,
 												"gender": "male",
 												"goals": [
-													"weight_loss",
+													"fat_loss",
 													"muscle_gain"
 												],
 												"fitnessLevel": "beginner",
@@ -5196,8 +5195,8 @@
 													"knee_pain"
 												],
 												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-04T13:15:14.498Z",
-												"updated_at": "2025-06-04T13:15:14.498Z"
+												"created_at": "2025-06-19T18:42:29.904Z",
+												"updated_at": "2025-06-19T18:42:29.904Z"
 											}
 										}
 									}
@@ -5269,8 +5268,8 @@
 													"userId": 1,
 													"prompt": "What's a good workout for beginners?",
 													"response": "Here's a beginner-friendly workout...",
-													"created_at": "2025-06-04T13:15:14.498Z",
-													"updated_at": "2025-06-04T13:15:14.498Z"
+													"created_at": "2025-06-19T18:42:29.905Z",
+													"updated_at": "2025-06-19T18:42:29.905Z"
 												}
 											]
 										}
@@ -5333,8 +5332,8 @@
 												"userId": 1,
 												"prompt": "What's a good workout for beginners?",
 												"response": "Here's a beginner-friendly workout...",
-												"created_at": "2025-06-04T13:15:14.498Z",
-												"updated_at": "2025-06-04T13:15:14.498Z"
+												"created_at": "2025-06-19T18:42:29.905Z",
+												"updated_at": "2025-06-19T18:42:29.905Z"
 											}
 										}
 									}
@@ -5517,8 +5516,8 @@
 												],
 												"difficulty": "beginner",
 												"instructions": "Lower your body to the ground and push back up",
-												"created_at": "2025-06-04T13:15:14.499Z",
-												"updated_at": "2025-06-04T13:15:14.499Z"
+												"created_at": "2025-06-19T18:42:29.906Z",
+												"updated_at": "2025-06-19T18:42:29.906Z"
 											},
 											"userStats": {
 												"totalAssignments": 15,
@@ -5675,23 +5674,23 @@
 													"userId": 1,
 													"name": "Full Body Workout",
 													"description": "A complete full body workout",
-													"startDate": "2025-06-04T13:15:14.502Z",
-													"endDate": "2025-06-04T13:15:14.502Z",
+													"startDate": "2025-06-19T18:42:29.908Z",
+													"endDate": "2025-06-19T18:42:29.908Z",
 													"promptId": 1,
 													"isActive": true,
 													"completed": false,
-													"created_at": "2025-06-04T13:15:14.502Z",
-													"updated_at": "2025-06-04T13:15:14.502Z",
+													"created_at": "2025-06-19T18:42:29.908Z",
+													"updated_at": "2025-06-19T18:42:29.908Z",
 													"planDays": [
 														{
 															"id": 1,
 															"workoutId": 1,
-															"date": "2025-06-04T13:15:14.502Z",
+															"date": "2025-06-19T18:42:29.908Z",
 															"name": "Day 1",
 															"description": "Upper body focus",
 															"dayNumber": 1,
-															"created_at": "2025-06-04T13:15:14.502Z",
-															"updated_at": "2025-06-04T13:15:14.502Z",
+															"created_at": "2025-06-19T18:42:29.908Z",
+															"updated_at": "2025-06-19T18:42:29.908Z",
 															"exercises": [
 																{
 																	"id": 1,
@@ -5703,8 +5702,8 @@
 																	"restTime": 60,
 																	"completed": false,
 																	"notes": "Keep proper form",
-																	"created_at": "2025-06-04T13:15:14.502Z",
-																	"updated_at": "2025-06-04T13:15:14.502Z",
+																	"created_at": "2025-06-19T18:42:29.908Z",
+																	"updated_at": "2025-06-19T18:42:29.908Z",
 																	"exercise": {
 																		"id": 1,
 																		"name": "Push-up",
@@ -5717,8 +5716,8 @@
 																			"shoulders",
 																			"triceps"
 																		],
-																		"created_at": "2025-06-04T13:15:14.502Z",
-																		"updated_at": "2025-06-04T13:15:14.502Z"
+																		"created_at": "2025-06-19T18:42:29.908Z",
+																		"updated_at": "2025-06-19T18:42:29.908Z"
 																	}
 																}
 															]
@@ -5783,13 +5782,13 @@
 												"userId": 1,
 												"name": "Full Body Workout",
 												"description": "A complete full body workout",
-												"startDate": "2025-06-04T13:15:14.502Z",
-												"endDate": "2025-06-04T13:15:14.502Z",
+												"startDate": "2025-06-19T18:42:29.909Z",
+												"endDate": "2025-06-19T18:42:29.909Z",
 												"promptId": 1,
 												"isActive": true,
 												"completed": false,
-												"created_at": "2025-06-04T13:15:14.502Z",
-												"updated_at": "2025-06-04T13:15:14.502Z",
+												"created_at": "2025-06-19T18:42:29.909Z",
+												"updated_at": "2025-06-19T18:42:29.909Z",
 												"planDays": []
 											}
 										}
@@ -5864,13 +5863,13 @@
 													"userId": 1,
 													"name": "Full Body Workout",
 													"description": "A complete full body workout",
-													"startDate": "2025-06-04T13:15:14.502Z",
-													"endDate": "2025-06-04T13:15:14.502Z",
+													"startDate": "2025-06-19T18:42:29.909Z",
+													"endDate": "2025-06-19T18:42:29.909Z",
 													"promptId": 1,
 													"isActive": true,
 													"completed": false,
-													"created_at": "2025-06-04T13:15:14.502Z",
-													"updated_at": "2025-06-04T13:15:14.502Z",
+													"created_at": "2025-06-19T18:42:29.909Z",
+													"updated_at": "2025-06-19T18:42:29.909Z",
 													"planDays": []
 												}
 											]
@@ -5933,13 +5932,13 @@
 												"userId": 1,
 												"name": "Full Body Workout",
 												"description": "A complete full body workout",
-												"startDate": "2025-06-04T13:15:14.502Z",
-												"endDate": "2025-06-04T13:15:14.502Z",
+												"startDate": "2025-06-19T18:42:29.909Z",
+												"endDate": "2025-06-19T18:42:29.909Z",
 												"promptId": 1,
 												"isActive": true,
 												"completed": false,
-												"created_at": "2025-06-04T13:15:14.502Z",
-												"updated_at": "2025-06-04T13:15:14.502Z",
+												"created_at": "2025-06-19T18:42:29.909Z",
+												"updated_at": "2025-06-19T18:42:29.909Z",
 												"planDays": []
 											}
 										}
@@ -6012,12 +6011,12 @@
 											"planDay": {
 												"id": 1,
 												"workoutId": 1,
-												"date": "2025-06-04T13:15:14.654Z",
+												"date": "2025-06-19T18:42:30.073Z",
 												"name": "Day 1",
 												"description": "Upper body focus",
 												"dayNumber": 1,
-												"created_at": "2025-06-04T13:15:14.654Z",
-												"updated_at": "2025-06-04T13:15:14.654Z",
+												"created_at": "2025-06-19T18:42:30.073Z",
+												"updated_at": "2025-06-19T18:42:30.073Z",
 												"exercises": []
 											}
 										}
@@ -6097,8 +6096,8 @@
 												"restTime": 60,
 												"completed": false,
 												"notes": "Keep proper form",
-												"created_at": "2025-06-04T13:15:14.654Z",
-												"updated_at": "2025-06-04T13:15:14.654Z",
+												"created_at": "2025-06-19T18:42:30.073Z",
+												"updated_at": "2025-06-19T18:42:30.073Z",
 												"exercise": {
 													"id": 1,
 													"name": "Push-up",
@@ -6111,8 +6110,8 @@
 														"shoulders",
 														"triceps"
 													],
-													"created_at": "2025-06-04T13:15:14.654Z",
-													"updated_at": "2025-06-04T13:15:14.654Z"
+													"created_at": "2025-06-19T18:42:30.073Z",
+													"updated_at": "2025-06-19T18:42:30.073Z"
 												}
 											}
 										}
@@ -6192,8 +6191,8 @@
 												"restTime": 60,
 												"completed": false,
 												"notes": "Keep proper form",
-												"created_at": "2025-06-04T13:15:14.654Z",
-												"updated_at": "2025-06-04T13:15:14.654Z",
+												"created_at": "2025-06-19T18:42:30.073Z",
+												"updated_at": "2025-06-19T18:42:30.073Z",
 												"exercise": {
 													"id": 1,
 													"name": "Push-up",
@@ -6206,8 +6205,8 @@
 														"shoulders",
 														"triceps"
 													],
-													"created_at": "2025-06-04T13:15:14.654Z",
-													"updated_at": "2025-06-04T13:15:14.654Z"
+													"created_at": "2025-06-19T18:42:30.073Z",
+													"updated_at": "2025-06-19T18:42:30.073Z"
 												}
 											}
 										}
@@ -6559,6 +6558,84 @@
 						}
 					}
 				}
+			}
+		},
+		"/workouts/{userId}/debug/active": {
+			"get": {
+				"operationId": "GetActiveWorkoutsDebug",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"activeWorkouts": {
+											"items": {
+												"properties": {
+													"createdAt": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"isActive": {
+														"type": "boolean"
+													},
+													"name": {
+														"type": "string"
+													},
+													"id": {
+														"type": "number",
+														"format": "double"
+													}
+												},
+												"required": [
+													"createdAt",
+													"isActive",
+													"name",
+													"id"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"activeWorkoutsCount": {
+											"type": "number",
+											"format": "double"
+										},
+										"userId": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"activeWorkouts",
+										"activeWorkoutsCount",
+										"userId"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		}
 	},
