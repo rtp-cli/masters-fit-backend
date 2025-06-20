@@ -478,12 +478,12 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "WorkoutEnvironment": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["home"]},{"dataType":"enum","enums":["gym"]},{"dataType":"enum","enums":["hybrid"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["home_gym"]},{"dataType":"enum","enums":["commercial_gym"]},{"dataType":"enum","enums":["bodyweight_only"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AvailableEquipment": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["dumbbells"]},{"dataType":"enum","enums":["resistance_bands"]},{"dataType":"enum","enums":["machines"]},{"dataType":"enum","enums":["bodyweight"]},{"dataType":"enum","enums":["kettlebells"]},{"dataType":"enum","enums":["medicine_ball"]},{"dataType":"enum","enums":["foam_roller"]},{"dataType":"enum","enums":["treadmill"]},{"dataType":"enum","enums":["bike"]},{"dataType":"enum","enums":["yoga_mat"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["barbells"]},{"dataType":"enum","enums":["bench"]},{"dataType":"enum","enums":["incline_decline_bench"]},{"dataType":"enum","enums":["pull_up_bar"]},{"dataType":"enum","enums":["bike"]},{"dataType":"enum","enums":["medicine_balls"]},{"dataType":"enum","enums":["plyo_box"]},{"dataType":"enum","enums":["rings"]},{"dataType":"enum","enums":["resistance_bands"]},{"dataType":"enum","enums":["stability_ball"]},{"dataType":"enum","enums":["dumbbells"]},{"dataType":"enum","enums":["kettlebells"]},{"dataType":"enum","enums":["squat_rack"]},{"dataType":"enum","enums":["dip_bar"]},{"dataType":"enum","enums":["rowing_machine"]},{"dataType":"enum","enums":["slam_balls"]},{"dataType":"enum","enums":["cable_machine"]},{"dataType":"enum","enums":["jump_rope"]},{"dataType":"enum","enums":["foam_roller"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreferredStyles": {
@@ -517,6 +517,7 @@ const models: TsoaRoute.Models = {
             "medicalNotes": {"dataType":"string"},
             "environment": {"ref":"WorkoutEnvironment"},
             "equipment": {"dataType":"array","array":{"dataType":"refAlias","ref":"AvailableEquipment"}},
+            "otherEquipment": {"dataType":"string"},
             "preferredStyles": {"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredStyles"}},
             "availableDays": {"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredDay"}},
             "workoutDuration": {"dataType":"double"},
@@ -555,7 +556,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_Profile_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"id":{"dataType":"double"},"userId":{"dataType":"double"},"email":{"dataType":"string"},"height":{"dataType":"double"},"weight":{"dataType":"double"},"age":{"dataType":"double"},"gender":{"ref":"Gender"},"goals":{"dataType":"array","array":{"dataType":"refAlias","ref":"FitnessGoal"}},"fitnessLevel":{"ref":"FitnessLevel"},"limitations":{"dataType":"array","array":{"dataType":"refAlias","ref":"PhysicalLimitation"}},"medicalNotes":{"dataType":"string"},"environment":{"ref":"WorkoutEnvironment"},"equipment":{"dataType":"array","array":{"dataType":"refAlias","ref":"AvailableEquipment"}},"preferredStyles":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredStyles"}},"availableDays":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredDay"}},"workoutDuration":{"dataType":"double"},"intensityLevel":{"ref":"IntensityLevel"},"created_at":{"dataType":"datetime"},"updated_at":{"dataType":"datetime"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"id":{"dataType":"double"},"userId":{"dataType":"double"},"email":{"dataType":"string"},"height":{"dataType":"double"},"weight":{"dataType":"double"},"age":{"dataType":"double"},"gender":{"ref":"Gender"},"goals":{"dataType":"array","array":{"dataType":"refAlias","ref":"FitnessGoal"}},"fitnessLevel":{"ref":"FitnessLevel"},"limitations":{"dataType":"array","array":{"dataType":"refAlias","ref":"PhysicalLimitation"}},"medicalNotes":{"dataType":"string"},"environment":{"ref":"WorkoutEnvironment"},"equipment":{"dataType":"array","array":{"dataType":"refAlias","ref":"AvailableEquipment"}},"otherEquipment":{"dataType":"string"},"preferredStyles":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredStyles"}},"availableDays":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredDay"}},"workoutDuration":{"dataType":"double"},"intensityLevel":{"ref":"IntensityLevel"},"created_at":{"dataType":"datetime"},"updated_at":{"dataType":"datetime"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Prompt": {

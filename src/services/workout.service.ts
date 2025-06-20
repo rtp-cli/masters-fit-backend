@@ -602,7 +602,7 @@ export class WorkoutService extends BaseService {
 
     if (response.exercisesToAdd) {
       for (const exercise of response.exercisesToAdd) {
-        await exerciseService.createExercise({
+        await exerciseService.createExerciseIfNotExists({
           name: exercise.name,
           description: exercise.description,
           equipment: exercise.equipment as AvailableEquipment[],
@@ -769,6 +769,7 @@ export class WorkoutService extends BaseService {
         fitnessLevel: profileData.fitnessLevel ?? null,
         environment: profileData.environment?.[0] ?? null,
         equipment: profileData.equipment ?? null,
+        otherEquipment: (profileData as any).otherEquipment ?? null,
         preferredStyles: profileData.workoutStyles ?? null,
         availableDays: profileData.availableDays ?? null,
         workoutDuration: profileData.workoutDuration ?? null,
@@ -854,10 +855,10 @@ export class WorkoutService extends BaseService {
       regenerationReason
     );
 
-    // Add any new exercises to the database
+    // Add any new exercises to the database (with duplicate checking)
     if (response.exercisesToAdd) {
       for (const exercise of response.exercisesToAdd) {
-        await exerciseService.createExercise({
+        await exerciseService.createExerciseIfNotExists({
           name: exercise.name,
           description: exercise.description,
           equipment: exercise.equipment as AvailableEquipment[],

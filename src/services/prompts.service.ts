@@ -112,6 +112,8 @@ export class PromptsService extends BaseService {
       fitnessLevel: regenerationData.fitnessLevel || profile.fitnessLevel,
       environment: regenerationData.environment || profile.environment,
       equipment: regenerationData.equipment || profile.equipment,
+      otherEquipment:
+        (regenerationData as any).otherEquipment || profile.otherEquipment,
       preferredStyles:
         regenerationData.preferredStyles || profile.preferredStyles,
       availableDays: regenerationData.availableDays || profile.availableDays,

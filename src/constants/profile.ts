@@ -28,9 +28,9 @@ export const IntensityLevels = {
 } as const;
 
 export const WorkoutEnvironments = {
-  HOME: "home",
-  GYM: "gym",
-  HYBRID: "hybrid",
+  HOME_GYM: "home_gym",
+  COMMERCIAL_GYM: "commercial_gym",
+  BODYWEIGHT_ONLY: "bodyweight_only",
 } as const;
 
 export const PreferredDays = {
@@ -63,16 +63,25 @@ export const PhysicalLimitations = {
 } as const;
 
 export const AvailableEquipment = {
-  DUMBBELLS: "dumbbells",
-  RESISTANCE_BANDS: "resistance_bands",
-  MACHINES: "machines",
-  BODYWEIGHT: "bodyweight",
-  KETTLEBELLS: "kettlebells",
-  MEDICINE_BALL: "medicine_ball",
-  FOAM_ROLLER: "foam_roller",
-  TREADMILL: "treadmill",
+  BARBELLS: "barbells",
+  BENCH: "bench",
+  INCLINE_DECLINE_BENCH: "incline_decline_bench",
+  PULL_UP_BAR: "pull_up_bar",
   BIKE: "bike",
-  YOGA_MAT: "yoga_mat",
+  MEDICINE_BALLS: "medicine_balls",
+  PLYO_BOX: "plyo_box",
+  RINGS: "rings",
+  RESISTANCE_BANDS: "resistance_bands",
+  STABILITY_BALL: "stability_ball",
+  DUMBBELLS: "dumbbells",
+  KETTLEBELLS: "kettlebells",
+  SQUAT_RACK: "squat_rack",
+  DIP_BAR: "dip_bar",
+  ROWING_MACHINE: "rowing_machine",
+  SLAM_BALLS: "slam_balls",
+  CABLE_MACHINE: "cable_machine",
+  JUMP_ROPE: "jump_rope",
+  FOAM_ROLLER: "foam_roller",
 } as const;
 
 export const PreferredStyles = {
@@ -87,3 +96,43 @@ export const PreferredStyles = {
   BALANCE: "balance",
   MOBILITY: "mobility",
 } as const;
+
+// Helper functions for automatic equipment assignment
+export const getEquipmentForEnvironment = (environment: string): string[] => {
+  switch (environment) {
+    case WorkoutEnvironments.COMMERCIAL_GYM:
+      // Commercial gym has comprehensive equipment available
+      return [
+        AvailableEquipment.BARBELLS,
+        AvailableEquipment.BENCH,
+        AvailableEquipment.INCLINE_DECLINE_BENCH,
+        AvailableEquipment.PULL_UP_BAR,
+        AvailableEquipment.BIKE,
+        AvailableEquipment.MEDICINE_BALLS,
+        AvailableEquipment.PLYO_BOX,
+        AvailableEquipment.RINGS,
+        AvailableEquipment.RESISTANCE_BANDS,
+        AvailableEquipment.STABILITY_BALL,
+        AvailableEquipment.DUMBBELLS,
+        AvailableEquipment.KETTLEBELLS,
+        AvailableEquipment.SQUAT_RACK,
+        AvailableEquipment.DIP_BAR,
+        AvailableEquipment.ROWING_MACHINE,
+        AvailableEquipment.SLAM_BALLS,
+        AvailableEquipment.CABLE_MACHINE,
+        AvailableEquipment.JUMP_ROPE,
+        AvailableEquipment.FOAM_ROLLER,
+      ];
+    case WorkoutEnvironments.BODYWEIGHT_ONLY:
+      // Bodyweight only - no equipment needed
+      return [];
+    case WorkoutEnvironments.HOME_GYM:
+    default:
+      // Home gym: user must select manually, return empty array as default
+      return [];
+  }
+};
+
+export const shouldShowEquipmentSelection = (environment: string): boolean => {
+  return environment === WorkoutEnvironments.HOME_GYM;
+};

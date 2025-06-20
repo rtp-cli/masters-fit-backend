@@ -24,6 +24,20 @@ export class ExerciseService extends BaseService {
     return result[0];
   }
 
+  async createExerciseIfNotExists(data: InsertExercise) {
+    // First check if exercise with this name already exists
+    const existing = await this.getExerciseByName(data.name);
+    if (existing) {
+      console.log(
+        `Exercise "${data.name}" already exists with ID ${existing.id}, skipping creation`
+      );
+      return existing;
+    }
+
+    // If not found, create new exercise
+    return await this.createExercise(data);
+  }
+
   async getExerciseById(id: number) {
     const result = await this.db.query.exercises.findFirst({
       where: eq(exercises.id, id),

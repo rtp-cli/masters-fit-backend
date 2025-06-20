@@ -41,6 +41,7 @@ export interface Profile {
   medicalNotes?: string;
   environment?: WorkoutEnvironment;
   equipment?: AvailableEquipment[];
+  otherEquipment?: string;
   preferredStyles?: PreferredStyles[];
   availableDays?: PreferredDay[];
   workoutDuration?: number;

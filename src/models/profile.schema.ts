@@ -40,6 +40,7 @@ export const profiles = pgTable("profiles", {
   fitnessLevel: text("fitness_level").$type<FitnessLevel>(),
   environment: text("environment").$type<WorkoutEnvironment>(),
   equipment: text("equipment").array().$type<AvailableEquipment[]>(),
+  otherEquipment: text("other_equipment"),
   preferredStyles: text("preferred_styles").array().$type<PreferredStyles[]>(),
   availableDays: text("available_days").array().$type<PreferredDay[]>(),
   workoutDuration: integer("workout_duration"),
@@ -67,6 +68,7 @@ export interface Profile {
   fitnessLevel: FitnessLevel | null;
   environment: WorkoutEnvironment | null;
   equipment: AvailableEquipment[] | null;
+  otherEquipment: string | null;
   preferredStyles: PreferredStyles[] | null;
   availableDays: PreferredDay[] | null;
   workoutDuration: number | null;
@@ -92,6 +94,7 @@ export const onboardingSchema = z.object({
   fitnessLevel: z.nativeEnum(FitnessLevelsEnum),
   environment: z.nativeEnum(WorkoutEnvironmentsEnum),
   equipment: z.array(z.nativeEnum(AvailableEquipmentEnum)).optional(),
+  otherEquipment: z.string().optional(),
   preferredStyles: z
     .array(z.nativeEnum(PreferredStylesEnum))
     .min(1, "Select at least one workout style"),

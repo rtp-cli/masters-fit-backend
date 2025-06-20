@@ -153,8 +153,6 @@ export class DashboardService {
     endDate?: string,
     groupBy?: "exercise" | "day" | "muscle_group"
   ): Promise<DashboardMetrics> {
-    console.log(`🚀 getDashboardMetrics called for user ${userId}`);
-
     const [
       weeklySummary,
       workoutConsistency,
@@ -976,8 +974,6 @@ export class DashboardService {
       if (endDate) {
         whereConditions.push(lte(planDays.date, endDateStr));
       }
-    } else {
-      console.log(`🔍 No date filtering applied`);
     }
 
     const workoutTypeData = await db

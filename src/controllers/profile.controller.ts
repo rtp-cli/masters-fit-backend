@@ -61,6 +61,7 @@ export class ProfileController extends Controller {
       medicalNotes: dbProfile.medicalNotes ?? undefined,
       environment: dbProfile.environment ?? undefined,
       equipment: dbProfile.equipment ?? undefined,
+      otherEquipment: dbProfile.otherEquipment ?? undefined,
       preferredStyles: dbProfile.preferredStyles ?? undefined,
       availableDays: dbProfile.availableDays ?? undefined,
       workoutDuration: dbProfile.workoutDuration ?? undefined,
@@ -115,6 +116,7 @@ export class ProfileController extends Controller {
       environment: requestBody.environment ?? null,
       // @ts-ignore - TypeScript types mismatch with Drizzle schema
       equipment: requestBody.equipment ?? null,
+      otherEquipment: requestBody.otherEquipment ?? null,
       // @ts-ignore - TypeScript types mismatch with Drizzle schema
       preferredStyles: requestBody.preferredStyles ?? null,
       // @ts-ignore - TypeScript types mismatch with Drizzle schema
@@ -135,6 +137,7 @@ export class ProfileController extends Controller {
       medicalNotes: dbProfile.medicalNotes ?? undefined,
       environment: dbProfile.environment ?? undefined,
       equipment: dbProfile.equipment ?? undefined,
+      otherEquipment: dbProfile.otherEquipment ?? undefined,
       preferredStyles: dbProfile.preferredStyles ?? undefined,
       availableDays: dbProfile.availableDays ?? undefined,
       workoutDuration: dbProfile.workoutDuration ?? undefined,
@@ -202,6 +205,7 @@ export class ProfileController extends Controller {
       environment: requestBody.environment ?? null,
       // @ts-ignore - TypeScript types mismatch with Drizzle schema
       equipment: requestBody.equipment ?? null,
+      otherEquipment: requestBody.otherEquipment ?? null,
       // @ts-ignore - TypeScript types mismatch with Drizzle schema
       preferredStyles: requestBody.preferredStyles ?? null,
       // @ts-ignore - TypeScript types mismatch with Drizzle schema
@@ -223,6 +227,7 @@ export class ProfileController extends Controller {
       medicalNotes: dbProfile.medicalNotes ?? undefined,
       environment: dbProfile.environment ?? undefined,
       equipment: dbProfile.equipment ?? undefined,
+      otherEquipment: dbProfile.otherEquipment ?? undefined,
       preferredStyles: dbProfile.preferredStyles ?? undefined,
       availableDays: dbProfile.availableDays ?? undefined,
       workoutDuration: dbProfile.workoutDuration ?? undefined,
@@ -278,6 +283,7 @@ export class ProfileController extends Controller {
       environment: requestBody.environment ?? null,
       // @ts-ignore - TypeScript types mismatch with Drizzle schema
       equipment: requestBody.equipment ?? null,
+      otherEquipment: requestBody.otherEquipment ?? null,
       // @ts-ignore - TypeScript types mismatch with Drizzle schema
       preferredStyles: requestBody.preferredStyles ?? null,
       // @ts-ignore - TypeScript types mismatch with Drizzle schema
@@ -298,6 +304,7 @@ export class ProfileController extends Controller {
       medicalNotes: dbProfile.medicalNotes ?? undefined,
       environment: dbProfile.environment ?? undefined,
       equipment: dbProfile.equipment ?? undefined,
+      otherEquipment: dbProfile.otherEquipment ?? undefined,
       preferredStyles: dbProfile.preferredStyles ?? undefined,
       availableDays: dbProfile.availableDays ?? undefined,
       workoutDuration: dbProfile.workoutDuration ?? undefined,
