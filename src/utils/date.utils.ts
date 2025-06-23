@@ -93,11 +93,11 @@ export function formatDateAsLocalString(
   dateInput: Date | string | null | undefined
 ): string {
   if (!dateInput) {
-    return new Date().toLocaleDateString("en-CA");
+    return formatDateToString(new Date());
   }
 
   const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
-  return date.toLocaleDateString("en-CA");
+  return formatDateToString(date);
 }
 
 /**
@@ -145,14 +145,27 @@ export function isSameDay(date1: Date | string, date2: Date | string): boolean {
   const d1 = typeof date1 === "string" ? new Date(date1) : date1;
   const d2 = typeof date2 === "string" ? new Date(date2) : date2;
 
-  return d1.toLocaleDateString("en-CA") === d2.toLocaleDateString("en-CA");
+  return formatDateToString(d1) === formatDateToString(d2);
 }
 
 /**
- * Get today's date as YYYY-MM-DD in local timezone
+ * Helper function to format Date to YYYY-MM-DD string without timezone issues
+ */
+export function formatDateToString(date: Date): string {
+  return (
+    date.getFullYear() +
+    "-" +
+    String(date.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(date.getDate()).padStart(2, "0")
+  );
+}
+
+/**
+ * Get today's date as YYYY-MM-DD in local timezone (avoiding timezone conversion issues)
  */
 export function getTodayString(): string {
-  return new Date().toLocaleDateString("en-CA");
+  return formatDateToString(new Date());
 }
 
 /**

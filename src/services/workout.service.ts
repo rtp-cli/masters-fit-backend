@@ -26,7 +26,7 @@ import { profileService } from "./profile.service";
 import { PreferredDays } from "@/constants";
 import { PreferredDay } from "@/types/profile/types";
 import {
-  formatDateAsLocalString,
+  getTodayString,
   createTimestamp,
   toUTCDate,
   formatTimestampForAPI,
@@ -87,8 +87,8 @@ type DBWorkoutQueryResult = {
   name: string;
   description: string | null;
   userId: number;
-  startDate: Date;
-  endDate: Date;
+  startDate: string;
+  endDate: string;
   promptId: number;
   isActive: boolean | null;
   completed: boolean | null;
@@ -97,7 +97,7 @@ type DBWorkoutQueryResult = {
   planDays: Array<{
     id: number;
     workoutId: number;
-    date: Date;
+    date: string;
     name: string;
     description: string | null;
     dayNumber: number;
@@ -138,8 +138,8 @@ export class WorkoutService extends BaseService {
       userId: workout.userId,
       name: workout.name,
       description: workout.description ?? undefined,
-      startDate: new Date(workout.startDate),
-      endDate: new Date(workout.endDate),
+      startDate: workout.startDate,
+      endDate: workout.endDate,
       promptId: workout.promptId,
       isActive: workout.isActive ?? false,
       completed: workout.completed ?? false,
@@ -148,7 +148,7 @@ export class WorkoutService extends BaseService {
       planDays: workout.planDays.map((planDay) => ({
         id: planDay.id,
         workoutId: planDay.workoutId,
-        date: new Date(planDay.date),
+        date: planDay.date,
         name: planDay.name,
         description: planDay.description ?? undefined,
         dayNumber: planDay.dayNumber,
@@ -247,12 +247,8 @@ export class WorkoutService extends BaseService {
         name: workout.name,
         description: workout.description,
         userId: workout.userId,
-        startDate: workout.startDate
-          ? formatDateAsLocalString(workout.startDate)
-          : formatDateAsLocalString(new Date()),
-        endDate: workout.endDate
-          ? formatDateAsLocalString(workout.endDate)
-          : formatDateAsLocalString(new Date()),
+        startDate: workout.startDate || getTodayString(),
+        endDate: workout.endDate || getTodayString(),
         promptId: workout.promptId,
         isActive: workout.isActive,
         completed: workout.completed,
@@ -261,9 +257,7 @@ export class WorkoutService extends BaseService {
         planDays: workout.planDays.map((pd) => ({
           id: pd.id,
           workoutId: pd.workoutId,
-          date: pd.date
-            ? formatDateAsLocalString(pd.date)
-            : formatDateAsLocalString(new Date()),
+          date: pd.date || getTodayString(),
           name: pd.name || "",
           description: pd.description,
           dayNumber: pd.dayNumber || 1,
@@ -326,12 +320,8 @@ export class WorkoutService extends BaseService {
         name: workout.name,
         description: workout.description,
         userId: workout.userId,
-        startDate: workout.startDate
-          ? formatDateAsLocalString(workout.startDate)
-          : formatDateAsLocalString(new Date()),
-        endDate: workout.endDate
-          ? formatDateAsLocalString(workout.endDate)
-          : formatDateAsLocalString(new Date()),
+        startDate: workout.startDate || getTodayString(),
+        endDate: workout.endDate || getTodayString(),
         promptId: workout.promptId,
         isActive: workout.isActive,
         completed: workout.completed,
@@ -340,9 +330,7 @@ export class WorkoutService extends BaseService {
         planDays: workout.planDays.map((pd) => ({
           id: pd.id,
           workoutId: pd.workoutId,
-          date: pd.date
-            ? formatDateAsLocalString(pd.date)
-            : formatDateAsLocalString(new Date()),
+          date: pd.date || getTodayString(),
           name: pd.name || "",
           description: pd.description,
           dayNumber: pd.dayNumber || 1,

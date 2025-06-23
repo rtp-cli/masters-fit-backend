@@ -4,7 +4,6 @@ import {
   serial,
   integer,
   boolean,
-  date,
   timestamp,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -20,8 +19,8 @@ export const workouts = pgTable("workouts", {
   userId: integer("user_id")
     .notNull()
     .references(() => users.id),
-  startDate: date("start_date").notNull(),
-  endDate: date("end_date").notNull(),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
   promptId: integer("prompt_id")
     .notNull()
     .references(() => prompts.id),
@@ -47,7 +46,7 @@ export const planDays = pgTable("plan_days", {
   workoutId: integer("workout_id")
     .notNull()
     .references(() => workouts.id),
-  date: date("date").notNull(),
+  date: text("date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

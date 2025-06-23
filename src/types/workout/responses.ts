@@ -35,7 +35,7 @@ export interface PlanDayExercise {
 export interface PlanDay {
   id: number;
   workoutId: number;
-  date: Date;
+  date: string;
   name: string;
   description?: string;
   dayNumber: number;
@@ -48,8 +48,8 @@ export interface Workout {
   userId: number;
   name: string;
   description?: string;
-  startDate: Date;
-  endDate: Date;
+  startDate: string;
+  endDate: string;
   promptId: number;
   isActive: boolean;
   completed: boolean;
