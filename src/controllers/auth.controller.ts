@@ -19,6 +19,7 @@ import {
   SignUpRequest,
 } from "@/types";
 import { userService, authService } from "@/services";
+import { emailService } from "@/services/email.service";
 import { emailAuthSchema, InsertUser, insertUserSchema } from "@/models";
 import jwt from "jsonwebtoken";
 
@@ -103,10 +104,24 @@ export class AuthController extends Controller {
     const { email } = validatedData;
     const user = await userService.getUserByEmail(email);
 
-    const authCode = await authService.generateAuthCode(email);
+    try {
+      const authCode = await authService.generateAuthCode(email);
+      await emailService.sendOtpEmail(
+        email,
+        authCode,
+        user?.name ?? email.split("@")[0]
+      );
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`[DEV] Magic login code for ${email}: ${authCode}`);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[DEV] Magic login code for ${email}: ${authCode}`);
+      }
+    } catch (error) {
+      console.error(
+        "[AuthController] Failed to send OTP email during login:",
+        error
+      );
+      // Depending on desired behavior, you might want to stop the process here
+      // For now, we'll just log it and let the user continue without an email
     }
 
     return {
@@ -134,10 +149,18 @@ export class AuthController extends Controller {
       name,
     });
 
-    const authCode = await authService.generateAuthCode(email);
+    try {
+      const authCode = await authService.generateAuthCode(email);
+      await emailService.sendOtpEmail(email, authCode, name);
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`[DEV] Magic login code for ${email}: ${authCode}`);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[DEV] Magic login code for ${email}: ${authCode}`);
+      }
+    } catch (error) {
+      console.error(
+        "[AuthController] Failed to send OTP email during signup:",
+        error
+      );
     }
 
     return {
@@ -168,10 +191,18 @@ export class AuthController extends Controller {
       };
     }
 
-    const authCode = await authService.generateAuthCode(email);
+    try {
+      const authCode = await authService.generateAuthCode(email);
+      await emailService.sendOtpEmail(email, authCode, user.name);
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`[DEV] Magic login code for ${email}: ${authCode}`);
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[DEV] Magic login code for ${email}: ${authCode}`);
+      }
+    } catch (error) {
+      console.error(
+        "[AuthController] Failed to send OTP email during generation:",
+        error
+      );
     }
 
     return {

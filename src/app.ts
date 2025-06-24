@@ -13,6 +13,11 @@ import dashboardRouter from "@/routes/dashboard.routes";
 import { errorHandler } from "@/middleware/error.middleware";
 // Import the auto-generated swagger spec
 import swaggerJson from "../generated/swagger.json";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 function extractRoutes(app: express.Application) {
   const routes: Record<string, string[]> = {};
@@ -46,6 +51,7 @@ function extractRoutes(app: express.Application) {
 const app = express();
 
 // Middleware
+app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(

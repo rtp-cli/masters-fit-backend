@@ -1974,8 +1974,7 @@
 						"format": "double"
 					},
 					"date": {
-						"type": "string",
-						"format": "date-time"
+						"type": "string"
 					},
 					"name": {
 						"type": "string"
@@ -2032,12 +2031,10 @@
 						"type": "string"
 					},
 					"startDate": {
-						"type": "string",
-						"format": "date-time"
+						"type": "string"
 					},
 					"endDate": {
-						"type": "string",
-						"format": "date-time"
+						"type": "string"
 					},
 					"promptId": {
 						"type": "number",
@@ -2171,8 +2168,12 @@
 					"description": {
 						"type": "string"
 					},
-					"startDate": {},
-					"endDate": {},
+					"startDate": {
+						"type": "string"
+					},
+					"endDate": {
+						"type": "string"
+					},
 					"updatedAt": {},
 					"promptId": {},
 					"isActive": {},
@@ -4069,8 +4070,8 @@
 														"shoulders",
 														"triceps"
 													],
-													"created_at": "2025-06-23T06:42:32.015Z",
-													"updated_at": "2025-06-23T06:42:32.015Z"
+													"created_at": "2025-06-24T10:55:36.240Z",
+													"updated_at": "2025-06-24T10:55:36.240Z"
 												}
 											]
 										}
@@ -4175,8 +4176,8 @@
 													"shoulders",
 													"triceps"
 												],
-												"created_at": "2025-06-23T06:42:32.015Z",
-												"updated_at": "2025-06-23T06:42:32.015Z"
+												"created_at": "2025-06-24T10:55:36.240Z",
+												"updated_at": "2025-06-24T10:55:36.240Z"
 											}
 										}
 									}
@@ -4981,8 +4982,8 @@
 													"knee_pain"
 												],
 												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-23T06:42:32.025Z",
-												"updated_at": "2025-06-23T06:42:32.025Z"
+												"created_at": "2025-06-24T10:55:36.253Z",
+												"updated_at": "2025-06-24T10:55:36.253Z"
 											}
 										}
 									}
@@ -5054,8 +5055,8 @@
 													"knee_pain"
 												],
 												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-23T06:42:32.025Z",
-												"updated_at": "2025-06-23T06:42:32.025Z"
+												"created_at": "2025-06-24T10:55:36.253Z",
+												"updated_at": "2025-06-24T10:55:36.253Z"
 											}
 										}
 									}
@@ -5127,8 +5128,8 @@
 													"knee_pain"
 												],
 												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-23T06:42:32.027Z",
-												"updated_at": "2025-06-23T06:42:32.027Z"
+												"created_at": "2025-06-24T10:55:36.255Z",
+												"updated_at": "2025-06-24T10:55:36.255Z"
 											}
 										}
 									}
@@ -5210,8 +5211,8 @@
 													"knee_pain"
 												],
 												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-23T06:42:32.027Z",
-												"updated_at": "2025-06-23T06:42:32.027Z"
+												"created_at": "2025-06-24T10:55:36.256Z",
+												"updated_at": "2025-06-24T10:55:36.256Z"
 											}
 										}
 									}
@@ -5283,8 +5284,8 @@
 													"userId": 1,
 													"prompt": "What's a good workout for beginners?",
 													"response": "Here's a beginner-friendly workout...",
-													"created_at": "2025-06-23T06:42:32.027Z",
-													"updated_at": "2025-06-23T06:42:32.027Z"
+													"created_at": "2025-06-24T10:55:36.256Z",
+													"updated_at": "2025-06-24T10:55:36.256Z"
 												}
 											]
 										}
@@ -5347,8 +5348,8 @@
 												"userId": 1,
 												"prompt": "What's a good workout for beginners?",
 												"response": "Here's a beginner-friendly workout...",
-												"created_at": "2025-06-23T06:42:32.028Z",
-												"updated_at": "2025-06-23T06:42:32.028Z"
+												"created_at": "2025-06-24T10:55:36.256Z",
+												"updated_at": "2025-06-24T10:55:36.256Z"
 											}
 										}
 									}
@@ -5531,8 +5532,8 @@
 												],
 												"difficulty": "beginner",
 												"instructions": "Lower your body to the ground and push back up",
-												"created_at": "2025-06-23T06:42:32.029Z",
-												"updated_at": "2025-06-23T06:42:32.029Z"
+												"created_at": "2025-06-24T10:55:36.257Z",
+												"updated_at": "2025-06-24T10:55:36.257Z"
 											},
 											"userStats": {
 												"totalAssignments": 15,
@@ -5689,23 +5690,23 @@
 													"userId": 1,
 													"name": "Full Body Workout",
 													"description": "A complete full body workout",
-													"startDate": "2025-06-23T06:42:32.031Z",
-													"endDate": "2025-06-23T06:42:32.031Z",
+													"startDate": "2025-06-24T10:55:36.260Z",
+													"endDate": "2025-06-24T10:55:36.260Z",
 													"promptId": 1,
 													"isActive": true,
 													"completed": false,
-													"created_at": "2025-06-23T06:42:32.031Z",
-													"updated_at": "2025-06-23T06:42:32.031Z",
+													"created_at": "2025-06-24T10:55:36.260Z",
+													"updated_at": "2025-06-24T10:55:36.260Z",
 													"planDays": [
 														{
 															"id": 1,
 															"workoutId": 1,
-															"date": "2025-06-23T06:42:32.031Z",
+															"date": "2025-06-24T10:55:36.260Z",
 															"name": "Day 1",
 															"description": "Upper body focus",
 															"dayNumber": 1,
-															"created_at": "2025-06-23T06:42:32.031Z",
-															"updated_at": "2025-06-23T06:42:32.031Z",
+															"created_at": "2025-06-24T10:55:36.260Z",
+															"updated_at": "2025-06-24T10:55:36.260Z",
 															"exercises": [
 																{
 																	"id": 1,
@@ -5717,8 +5718,8 @@
 																	"restTime": 60,
 																	"completed": false,
 																	"notes": "Keep proper form",
-																	"created_at": "2025-06-23T06:42:32.031Z",
-																	"updated_at": "2025-06-23T06:42:32.031Z",
+																	"created_at": "2025-06-24T10:55:36.260Z",
+																	"updated_at": "2025-06-24T10:55:36.260Z",
 																	"exercise": {
 																		"id": 1,
 																		"name": "Push-up",
@@ -5731,8 +5732,8 @@
 																			"shoulders",
 																			"triceps"
 																		],
-																		"created_at": "2025-06-23T06:42:32.031Z",
-																		"updated_at": "2025-06-23T06:42:32.031Z"
+																		"created_at": "2025-06-24T10:55:36.260Z",
+																		"updated_at": "2025-06-24T10:55:36.260Z"
 																	}
 																}
 															]
@@ -5797,13 +5798,13 @@
 												"userId": 1,
 												"name": "Full Body Workout",
 												"description": "A complete full body workout",
-												"startDate": "2025-06-23T06:42:32.031Z",
-												"endDate": "2025-06-23T06:42:32.031Z",
+												"startDate": "2025-06-24T10:55:36.260Z",
+												"endDate": "2025-06-24T10:55:36.260Z",
 												"promptId": 1,
 												"isActive": true,
 												"completed": false,
-												"created_at": "2025-06-23T06:42:32.031Z",
-												"updated_at": "2025-06-23T06:42:32.031Z",
+												"created_at": "2025-06-24T10:55:36.260Z",
+												"updated_at": "2025-06-24T10:55:36.260Z",
 												"planDays": []
 											}
 										}
@@ -5878,13 +5879,13 @@
 													"userId": 1,
 													"name": "Full Body Workout",
 													"description": "A complete full body workout",
-													"startDate": "2025-06-23T06:42:32.031Z",
-													"endDate": "2025-06-23T06:42:32.031Z",
+													"startDate": "2025-06-24T10:55:36.260Z",
+													"endDate": "2025-06-24T10:55:36.260Z",
 													"promptId": 1,
 													"isActive": true,
 													"completed": false,
-													"created_at": "2025-06-23T06:42:32.031Z",
-													"updated_at": "2025-06-23T06:42:32.031Z",
+													"created_at": "2025-06-24T10:55:36.260Z",
+													"updated_at": "2025-06-24T10:55:36.260Z",
 													"planDays": []
 												}
 											]
@@ -5947,13 +5948,13 @@
 												"userId": 1,
 												"name": "Full Body Workout",
 												"description": "A complete full body workout",
-												"startDate": "2025-06-23T06:42:32.034Z",
-												"endDate": "2025-06-23T06:42:32.034Z",
+												"startDate": "2025-06-24T10:55:36.260Z",
+												"endDate": "2025-06-24T10:55:36.260Z",
 												"promptId": 1,
 												"isActive": true,
 												"completed": false,
-												"created_at": "2025-06-23T06:42:32.034Z",
-												"updated_at": "2025-06-23T06:42:32.034Z",
+												"created_at": "2025-06-24T10:55:36.260Z",
+												"updated_at": "2025-06-24T10:55:36.260Z",
 												"planDays": []
 											}
 										}
@@ -6026,12 +6027,12 @@
 											"planDay": {
 												"id": 1,
 												"workoutId": 1,
-												"date": "2025-06-23T06:42:32.193Z",
+												"date": "2025-06-24T10:55:36.421Z",
 												"name": "Day 1",
 												"description": "Upper body focus",
 												"dayNumber": 1,
-												"created_at": "2025-06-23T06:42:32.193Z",
-												"updated_at": "2025-06-23T06:42:32.193Z",
+												"created_at": "2025-06-24T10:55:36.421Z",
+												"updated_at": "2025-06-24T10:55:36.421Z",
 												"exercises": []
 											}
 										}
@@ -6111,8 +6112,8 @@
 												"restTime": 60,
 												"completed": false,
 												"notes": "Keep proper form",
-												"created_at": "2025-06-23T06:42:32.193Z",
-												"updated_at": "2025-06-23T06:42:32.193Z",
+												"created_at": "2025-06-24T10:55:36.421Z",
+												"updated_at": "2025-06-24T10:55:36.421Z",
 												"exercise": {
 													"id": 1,
 													"name": "Push-up",
@@ -6125,8 +6126,8 @@
 														"shoulders",
 														"triceps"
 													],
-													"created_at": "2025-06-23T06:42:32.193Z",
-													"updated_at": "2025-06-23T06:42:32.193Z"
+													"created_at": "2025-06-24T10:55:36.421Z",
+													"updated_at": "2025-06-24T10:55:36.421Z"
 												}
 											}
 										}
@@ -6206,8 +6207,8 @@
 												"restTime": 60,
 												"completed": false,
 												"notes": "Keep proper form",
-												"created_at": "2025-06-23T06:42:32.193Z",
-												"updated_at": "2025-06-23T06:42:32.193Z",
+												"created_at": "2025-06-24T10:55:36.421Z",
+												"updated_at": "2025-06-24T10:55:36.421Z",
 												"exercise": {
 													"id": 1,
 													"name": "Push-up",
@@ -6220,8 +6221,8 @@
 														"shoulders",
 														"triceps"
 													],
-													"created_at": "2025-06-23T06:42:32.193Z",
-													"updated_at": "2025-06-23T06:42:32.193Z"
+													"created_at": "2025-06-24T10:55:36.422Z",
+													"updated_at": "2025-06-24T10:55:36.422Z"
 												}
 											}
 										}

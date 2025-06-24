@@ -1,7 +1,6 @@
 import { BaseService } from "./base.service";
 import { authCodes } from "@/models";
 import type { AuthCode, InsertAuthCode } from "@/models";
-import { randomBytes } from "crypto";
 import { and, eq, gt } from "drizzle-orm";
 
 export class AuthService extends BaseService {
@@ -37,11 +36,42 @@ export class AuthService extends BaseService {
       .where(eq(authCodes.code, code));
   }
 
-  async generateAuthCode(email: string) {
-    const authCode = randomBytes(3).toString("hex");
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    await this.createAuthCode({ email, code: authCode, expires_at: expiresAt });
-    return authCode;
+  async generateAuthCode(email: string): Promise<string> {
+    let authCode: string;
+    let attempts = 0;
+    const maxAttempts = 10; // Prevent an infinite loop in an edge case
+
+    while (attempts < maxAttempts) {
+      authCode = Math.floor(1000 + Math.random() * 9000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      try {
+        await this.createAuthCode({
+          email,
+          code: authCode,
+          expires_at: expiresAt,
+        });
+        // If we get here, the code was unique and inserted successfully.
+        return authCode;
+      } catch (error: any) {
+        // Check for PostgreSQL's unique violation error code
+        if (error.code === "23505") {
+          console.log(
+            `[AuthService] Collision detected for auth code ${authCode}. Retrying...`
+          );
+          attempts++;
+        } else {
+          // It's a different error, so we should not retry.
+          console.error("[AuthService] Failed to create auth code:", error);
+          throw error;
+        }
+      }
+    }
+
+    // If we've exhausted all attempts, throw an error.
+    throw new Error(
+      "Failed to generate a unique authentication code after multiple attempts."
+    );
   }
 }
 

@@ -748,7 +748,7 @@ const models: TsoaRoute.Models = {
         "properties": {
             "id": {"dataType":"double","required":true},
             "workoutId": {"dataType":"double","required":true},
-            "date": {"dataType":"datetime","required":true},
+            "date": {"dataType":"string","required":true},
             "name": {"dataType":"string","required":true},
             "description": {"dataType":"string"},
             "dayNumber": {"dataType":"double","required":true},
@@ -766,8 +766,8 @@ const models: TsoaRoute.Models = {
             "userId": {"dataType":"double","required":true},
             "name": {"dataType":"string","required":true},
             "description": {"dataType":"string"},
-            "startDate": {"dataType":"datetime","required":true},
-            "endDate": {"dataType":"datetime","required":true},
+            "startDate": {"dataType":"string","required":true},
+            "endDate": {"dataType":"string","required":true},
             "promptId": {"dataType":"double","required":true},
             "isActive": {"dataType":"boolean","required":true},
             "completed": {"dataType":"boolean","required":true},
@@ -817,7 +817,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_InsertWorkout_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"startDate":{"dataType":"any"},"endDate":{"dataType":"any"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"isActive":{"dataType":"any"},"completed":{"dataType":"any"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"startDate":{"dataType":"string"},"endDate":{"dataType":"string"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"isActive":{"dataType":"any"},"completed":{"dataType":"any"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PlanDayResponse": {
