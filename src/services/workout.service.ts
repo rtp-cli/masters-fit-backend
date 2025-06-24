@@ -49,6 +49,7 @@ type DBWorkoutResult = {
     id: number;
     workoutId: number;
     date: string;
+    instructions: string | null;
     name: string;
     description: string | null;
     dayNumber: number;
@@ -98,9 +99,7 @@ type DBWorkoutQueryResult = {
     id: number;
     workoutId: number;
     date: string;
-    name: string;
-    description: string | null;
-    dayNumber: number;
+    instructions: string | null;
     createdAt: Date | null;
     updatedAt: Date | null;
     exercises: Array<{
@@ -145,13 +144,14 @@ export class WorkoutService extends BaseService {
       completed: workout.completed ?? false,
       created_at: new Date(workout.createdAt ?? Date.now()),
       updated_at: new Date(workout.updatedAt ?? Date.now()),
-      planDays: workout.planDays.map((planDay) => ({
+      planDays: workout.planDays.map((planDay, index) => ({
         id: planDay.id,
         workoutId: planDay.workoutId,
         date: planDay.date,
-        name: planDay.name,
+        instructions: planDay.instructions ?? undefined,
+        name: planDay.name || `Day ${index + 1}`,
         description: planDay.description ?? undefined,
-        dayNumber: planDay.dayNumber,
+        dayNumber: planDay.dayNumber || index + 1,
         created_at: new Date(planDay.createdAt ?? Date.now()),
         updated_at: new Date(planDay.updatedAt ?? Date.now()),
         exercises: planDay.exercises.map((exercise) => ({
@@ -428,6 +428,7 @@ export class WorkoutService extends BaseService {
       id: planDay.id,
       workoutId: planDay.workoutId,
       date: new Date(planDay.date),
+      instructions: planDay.instructions ?? undefined,
       name: "",
       description: undefined,
       dayNumber: 1,
@@ -666,6 +667,7 @@ export class WorkoutService extends BaseService {
       const planDay = await this.createPlanDay({
         workoutId: workout.id,
         date: scheduledDate.toLocaleDateString("en-CA"),
+        instructions: workoutPlan[i].instructions,
       });
 
       for (const exercise of workoutPlan[i].exercises) {
@@ -897,11 +899,21 @@ export class WorkoutService extends BaseService {
       }
     }
 
+    // Update the plan day with new instructions
+    await this.db
+      .update(planDays)
+      .set({
+        instructions: response.instructions,
+        updatedAt: new Date(),
+      })
+      .where(eq(planDays.id, planDayId));
+
     // Return the updated plan day with new exercises
     return {
       id: existingPlanDay.id,
       workoutId: existingPlanDay.workoutId,
       date: new Date(existingPlanDay.date),
+      instructions: response.instructions ?? undefined,
       name: (existingPlanDay as any).name || "",
       description: (existingPlanDay as any).description ?? undefined,
       dayNumber: (existingPlanDay as any).dayNumber || 1,

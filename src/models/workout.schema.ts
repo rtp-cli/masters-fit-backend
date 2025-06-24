@@ -47,6 +47,7 @@ export const planDays = pgTable("plan_days", {
     .notNull()
     .references(() => workouts.id),
   date: text("date").notNull(),
+  instructions: text("instructions"), // Day-level coaching instructions
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -136,6 +137,7 @@ export interface PlanDay {
   id: number;
   workoutId: number;
   date: string;
+  instructions: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
