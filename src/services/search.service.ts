@@ -2,12 +2,14 @@ import { eq, sql, and, ilike } from "drizzle-orm";
 import {
   workouts,
   planDays,
+  workoutBlocks,
   planDayExercises,
   exercises,
   exerciseLogs,
   workoutLogs,
   type Exercise,
   type PlanDay,
+  type WorkoutBlock,
   type PlanDayExercise,
   type ExerciseLog,
 } from "@/models";
@@ -61,12 +63,17 @@ export class SearchService extends BaseService {
         ),
         with: {
           workout: true,
-          exercises: {
+          blocks: {
             with: {
-              exercise: true,
+              exercises: {
+                with: {
+                  exercise: true,
+                },
+              },
             },
           },
         },
+        orderBy: (planDays, { desc }) => [desc(planDays.workoutId)],
       });
 
       if (!planDay) {
@@ -78,7 +85,9 @@ export class SearchService extends BaseService {
       }
 
       // Get exercise logs for completion tracking
-      const exerciseIds = planDay.exercises.map((e) => e.id);
+      const exerciseIds = planDay.blocks.flatMap((block) =>
+        block.exercises.map((ex) => ex.id)
+      );
       const logs =
         exerciseIds.length > 0
           ? await this.db.query.exerciseLogs.findMany({
@@ -90,45 +99,56 @@ export class SearchService extends BaseService {
           : [];
 
       // Calculate completion rates for each exercise
-      const exercisesWithCompletion = planDay.exercises.map((planExercise) => {
-        const exerciseLog = logs.find(
-          (log) => log.planDayExerciseId === planExercise.id
-        );
+      const blocksWithExercises = planDay.blocks.map((block) => ({
+        ...block,
+        exercises: block.exercises.map((planExercise) => {
+          const exerciseLog = logs.find(
+            (log) => log.planDayExerciseId === planExercise.id
+          );
 
-        let completionRate = 0;
-        if (exerciseLog && planExercise.sets && planExercise.reps) {
-          const plannedVolume = planExercise.sets * planExercise.reps;
-          const completedVolume =
-            exerciseLog.setsCompleted * exerciseLog.repsCompleted;
-          completionRate = Math.round((completedVolume / plannedVolume) * 100);
-        }
+          let completionRate = 0;
+          if (exerciseLog && planExercise.sets && planExercise.reps) {
+            const plannedVolume = planExercise.sets * planExercise.reps;
+            const completedVolume =
+              (exerciseLog.setsCompleted || 0) *
+              (exerciseLog.repsCompleted || 0);
+            completionRate = Math.round(
+              (completedVolume / plannedVolume) * 100
+            );
+          }
 
-        return {
-          id: planExercise.id,
-          exercise: {
-            id: planExercise.exercise.id,
-            name: planExercise.exercise.name,
-            description: planExercise.exercise.description || "",
-            muscleGroups: planExercise.exercise.muscleGroups,
-            equipment: planExercise.exercise.equipment || [],
-            difficulty: planExercise.exercise.difficulty || "beginner",
-            instructions: planExercise.exercise.instructions,
-            link: planExercise.exercise.link || undefined,
-          },
-          sets: planExercise.sets,
-          reps: planExercise.reps,
-          weight: planExercise.weight,
-          duration: planExercise.duration,
-          completed: exerciseLog?.isComplete || false,
-          completionRate,
-        };
-      });
+          return {
+            id: planExercise.id,
+            exercise: {
+              id: planExercise.exercise.id,
+              name: planExercise.exercise.name,
+              description: planExercise.exercise.description || "",
+              muscleGroups: planExercise.exercise.muscleGroups,
+              equipment: planExercise.exercise.equipment || [],
+              difficulty: planExercise.exercise.difficulty || "beginner",
+              instructions: planExercise.exercise.instructions,
+              link: planExercise.exercise.link || undefined,
+            },
+            sets: planExercise.sets,
+            reps: planExercise.reps,
+            weight: planExercise.weight,
+            duration: planExercise.duration,
+            completed: exerciseLog?.isComplete || false,
+            completionRate,
+          };
+        }),
+      }));
 
       // Calculate overall completion rate
-      const totalPlannedExercises = planDay.exercises.length;
-      const completedExercises = exercisesWithCompletion.filter(
-        (e) => e.completed
-      ).length;
+      const totalPlannedExercises = blocksWithExercises.reduce(
+        (total, block) => total + block.exercises.length,
+        0
+      );
+      const completedExercises = blocksWithExercises.reduce(
+        (total, block) =>
+          total + block.exercises.filter((e) => e.completed).length,
+        0
+      );
       const overallCompletionRate =
         totalPlannedExercises > 0
           ? Math.round((completedExercises / totalPlannedExercises) * 100)
@@ -142,7 +162,11 @@ export class SearchService extends BaseService {
         planDay: {
           id: planDay.id,
           date: searchDate,
-          exercises: exercisesWithCompletion,
+          name: planDay.name,
+          description: planDay.description,
+          dayNumber: planDay.dayNumber,
+          instructions: planDay.instructions,
+          blocks: blocksWithExercises,
         },
         overallCompletionRate,
       };
@@ -180,6 +204,7 @@ export class SearchService extends BaseService {
         .select({
           planDayExercise: planDayExercises,
           exerciseLog: exerciseLogs,
+          workoutBlock: workoutBlocks,
           planDay: planDays,
           workout: workouts,
         })
@@ -188,7 +213,11 @@ export class SearchService extends BaseService {
           exerciseLogs,
           eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
         )
-        .leftJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+        .leftJoin(
+          workoutBlocks,
+          eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+        )
+        .leftJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
         .leftJoin(workouts, eq(planDays.workoutId, workouts.id))
         .where(
           and(
@@ -230,7 +259,7 @@ export class SearchService extends BaseService {
         const averageWeight =
           completedLogs.length > 0
             ? completedLogs.reduce(
-                (sum, log) => sum + (log!.weightUsed || 0),
+                (sum, log) => sum + (Number(log!.weightUsed) || 0),
                 0
               ) / completedLogs.length
             : null;
@@ -238,8 +267,9 @@ export class SearchService extends BaseService {
         // Find personal records
         const maxWeight =
           completedLogs.length > 0
-            ? Math.max(...completedLogs.map((log) => log!.weightUsed || 0)) ||
-              null
+            ? Math.max(
+                ...completedLogs.map((log) => Number(log!.weightUsed) || 0)
+              ) || null
             : null;
         const maxReps =
           completedLogs.length > 0

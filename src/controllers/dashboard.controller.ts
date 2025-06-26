@@ -41,102 +41,6 @@ export class DashboardController extends Controller {
   @Get("/{userId}/metrics")
   @Response<DashboardMetricsResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<DashboardMetricsResponse>({
-    success: true,
-    data: {
-      weeklySummary: {
-        workoutCompletionRate: 85,
-        exerciseCompletionRate: 92,
-        streak: 5,
-        totalWorkoutsThisWeek: 4,
-        completedWorkoutsThisWeek: 3,
-      },
-      workoutConsistency: [
-        {
-          week: "2024-01-01",
-          weekLabel: "Week 1 (Jan 1-7)",
-          totalWorkouts: 4,
-          completedWorkouts: 3,
-          completionRate: 75,
-          isInProgress: false,
-          status: "completed",
-        },
-      ],
-      weightMetrics: [
-        {
-          name: "Bench Press",
-          totalWeight: 2400,
-          muscleGroups: ["chest", "shoulders", "triceps"],
-        },
-      ],
-      weightAccuracy: {
-        accuracyRate: 78,
-        totalSets: 50,
-        exactMatches: 39,
-        higherWeight: 8,
-        lowerWeight: 3,
-        avgWeightDifference: 2.5,
-        chartData: [
-          { label: "Exact Weight", value: 39, color: "#10b981" },
-          { label: "Higher Weight", value: 8, color: "#f59e0b" },
-          { label: "Lower Weight", value: 3, color: "#ef4444" },
-        ],
-      },
-      goalProgress: [
-        {
-          goal: "muscle_gain",
-          progressScore: 65,
-          totalSets: 120,
-          totalReps: 1440,
-          totalWeight: 14400,
-          completedWorkouts: 12,
-        },
-      ],
-      totalVolumeMetrics: [
-        {
-          date: "2024-01-01",
-          totalVolume: 2400,
-          exerciseCount: 4,
-          label: "Jan 1",
-        },
-      ],
-      workoutTypeMetrics: {
-        distribution: [
-          {
-            tag: "strength",
-            label: "Strength",
-            totalSets: 45,
-            totalReps: 540,
-            exerciseCount: 8,
-            completedWorkouts: 6,
-            percentage: 62.5,
-            color: "#ef4444",
-          },
-        ],
-        totalExercises: 13,
-        totalSets: 72,
-        dominantType: "Strength",
-        hasData: true,
-      },
-      dailyWorkoutProgress: [
-        {
-          date: "2024-01-01",
-          completionRate: 100,
-          hasPlannedWorkout: true,
-        },
-        {
-          date: "2024-01-02",
-          completionRate: 75,
-          hasPlannedWorkout: true,
-        },
-        {
-          date: "2024-01-03",
-          completionRate: 0,
-          hasPlannedWorkout: false,
-        },
-      ],
-    },
-  })
   public async getDashboardMetrics(
     @Path() userId: number,
     @Query() startDate?: string,
@@ -169,16 +73,6 @@ export class DashboardController extends Controller {
   @Get("/{userId}/weekly-summary")
   @Response<WeeklySummaryResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<WeeklySummaryResponse>({
-    success: true,
-    data: {
-      workoutCompletionRate: 85,
-      exerciseCompletionRate: 92,
-      streak: 5,
-      totalWorkoutsThisWeek: 4,
-      completedWorkoutsThisWeek: 3,
-    },
-  })
   public async getWeeklySummary(
     @Path() userId: number
   ): Promise<WeeklySummaryResponse> {
@@ -196,29 +90,6 @@ export class DashboardController extends Controller {
   @Get("/{userId}/workout-consistency")
   @Response<WorkoutConsistencyResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<WorkoutConsistencyResponse>({
-    success: true,
-    data: [
-      {
-        week: "2024-01-01",
-        weekLabel: "Week 1 (Jan 1-7)",
-        totalWorkouts: 4,
-        completedWorkouts: 3,
-        completionRate: 75,
-        isInProgress: false,
-        status: "completed",
-      },
-      {
-        week: "2024-01-08",
-        weekLabel: "Week 2 (Jan 8-14)",
-        totalWorkouts: 4,
-        completedWorkouts: 4,
-        completionRate: 100,
-        isInProgress: false,
-        status: "completed",
-      },
-    ],
-  })
   public async getWorkoutConsistency(
     @Path() userId: number,
     @Query() startDate?: string,
@@ -249,21 +120,6 @@ export class DashboardController extends Controller {
   @Get("/{userId}/weight-metrics")
   @Response<WeightMetricsResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<WeightMetricsResponse>({
-    success: true,
-    data: [
-      {
-        name: "Bench Press",
-        totalWeight: 2400,
-        muscleGroups: ["chest", "shoulders", "triceps"],
-      },
-      {
-        name: "Squat",
-        totalWeight: 3200,
-        muscleGroups: ["legs", "glutes", "core"],
-      },
-    ],
-  })
   public async getWeightMetrics(
     @Path() userId: number,
     @Query() startDate?: string,
@@ -296,22 +152,6 @@ export class DashboardController extends Controller {
   @Get("/{userId}/weight-accuracy")
   @Response<WeightAccuracyResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<WeightAccuracyResponse>({
-    success: true,
-    data: {
-      accuracyRate: 78,
-      totalSets: 50,
-      exactMatches: 39,
-      higherWeight: 8,
-      lowerWeight: 3,
-      avgWeightDifference: 2.5,
-      chartData: [
-        { label: "Exact Weight", value: 39, color: "#10b981" },
-        { label: "Higher Weight", value: 8, color: "#f59e0b" },
-        { label: "Lower Weight", value: 3, color: "#ef4444" },
-      ],
-    },
-  })
   public async getWeightAccuracy(
     @Path() userId: number,
     @Query() startDate?: string,
@@ -342,27 +182,6 @@ export class DashboardController extends Controller {
   @Get("/{userId}/goal-progress")
   @Response<GoalProgressResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<GoalProgressResponse>({
-    success: true,
-    data: [
-      {
-        goal: "muscle_gain",
-        progressScore: 65,
-        totalSets: 120,
-        totalReps: 1440,
-        totalWeight: 14400,
-        completedWorkouts: 12,
-      },
-      {
-        goal: "strength",
-        progressScore: 72,
-        totalSets: 95,
-        totalReps: 760,
-        totalWeight: 18200,
-        completedWorkouts: 10,
-      },
-    ],
-  })
   public async getGoalProgress(
     @Path() userId: number,
     @Query() startDate?: string,
@@ -393,23 +212,6 @@ export class DashboardController extends Controller {
   @Get("/{userId}/total-volume")
   @Response<TotalVolumeMetricsResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<TotalVolumeMetricsResponse>({
-    success: true,
-    data: [
-      {
-        date: "2024-01-01",
-        totalVolume: 2400,
-        exerciseCount: 4,
-        label: "Jan 1",
-      },
-      {
-        date: "2024-01-02",
-        totalVolume: 2800,
-        exerciseCount: 5,
-        label: "Jan 2",
-      },
-    ],
-  })
   public async getTotalVolumeMetrics(
     @Path() userId: number,
     @Query() startDate?: string,
@@ -440,47 +242,6 @@ export class DashboardController extends Controller {
   @Get("/{userId}/workout-type-metrics")
   @Response<WorkoutTypeMetricsResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<WorkoutTypeMetricsResponse>({
-    success: true,
-    data: {
-      distribution: [
-        {
-          tag: "strength",
-          label: "Strength",
-          totalSets: 45,
-          totalReps: 540,
-          exerciseCount: 8,
-          completedWorkouts: 6,
-          percentage: 62.5,
-          color: "#ef4444",
-        },
-        {
-          tag: "cardio",
-          label: "Cardio",
-          totalSets: 18,
-          totalReps: 360,
-          exerciseCount: 3,
-          completedWorkouts: 4,
-          percentage: 25.0,
-          color: "#3b82f6",
-        },
-        {
-          tag: "flexibility",
-          label: "Flexibility",
-          totalSets: 9,
-          totalReps: 180,
-          exerciseCount: 2,
-          completedWorkouts: 3,
-          percentage: 12.5,
-          color: "#10b981",
-        },
-      ],
-      totalExercises: 13,
-      totalSets: 72,
-      dominantType: "Strength",
-      hasData: true,
-    },
-  })
   public async getWorkoutTypeMetrics(
     @Path() userId: number,
     @Query() startDate?: string,

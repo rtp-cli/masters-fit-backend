@@ -3,6 +3,7 @@ import {
   workouts,
   planDays,
   planDayExercises,
+  workoutBlocks,
   exerciseLogs,
   workoutLogs,
   exercises,
@@ -266,11 +267,15 @@ export class DashboardService {
     const allExercisesThisWeek = await db
       .select({
         planDayExerciseId: planDayExercises.id,
-        planDayId: planDayExercises.planDayId,
+        planDayId: workoutBlocks.planDayId,
         date: planDays.date,
       })
       .from(planDayExercises)
-      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .where(
         and(
           eq(planDays.workoutId, workoutId),
@@ -283,7 +288,7 @@ export class DashboardService {
     const completedExercisesThisWeek = await db
       .select({
         planDayExerciseId: exerciseLogs.planDayExerciseId,
-        planDayId: planDayExercises.planDayId,
+        planDayId: workoutBlocks.planDayId,
         date: planDays.date,
       })
       .from(exerciseLogs)
@@ -291,7 +296,11 @@ export class DashboardService {
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
       )
-      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .where(
         and(
           eq(planDays.workoutId, workoutId),
@@ -310,7 +319,11 @@ export class DashboardService {
         hasExerciseLogs: sql<boolean>`COUNT(${exerciseLogs.id}) > 0`,
       })
       .from(planDays)
-      .leftJoin(planDayExercises, eq(planDays.id, planDayExercises.planDayId))
+      .leftJoin(workoutBlocks, eq(planDays.id, workoutBlocks.planDayId))
+      .leftJoin(
+        planDayExercises,
+        eq(workoutBlocks.id, planDayExercises.workoutBlockId)
+      )
       .leftJoin(
         exerciseLogs,
         eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
@@ -326,7 +339,7 @@ export class DashboardService {
       .orderBy(asc(planDays.date));
 
     // Calculate completion rates
-    const totalWorkoutsThisWeek = plannedDaysThisWeek.length;
+    const totalWorkoutsThisWeek = planDayCompletionDataThisWeek.length;
     const completedWorkoutsThisWeek = planDayCompletionDataThisWeek.filter(
       (day) => day.hasExerciseLogs && day.completedExercises > 0
     ).length;
@@ -356,7 +369,11 @@ export class DashboardService {
       })
       .from(planDays)
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
-      .leftJoin(planDayExercises, eq(planDays.id, planDayExercises.planDayId))
+      .leftJoin(workoutBlocks, eq(planDays.id, workoutBlocks.planDayId))
+      .leftJoin(
+        planDayExercises,
+        eq(workoutBlocks.id, planDayExercises.workoutBlockId)
+      )
       .leftJoin(
         exerciseLogs,
         eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
@@ -423,7 +440,11 @@ export class DashboardService {
         hasExerciseLogs: sql<boolean>`COUNT(${exerciseLogs.id}) > 0`,
       })
       .from(planDays)
-      .leftJoin(planDayExercises, eq(planDays.id, planDayExercises.planDayId))
+      .leftJoin(workoutBlocks, eq(planDays.id, workoutBlocks.planDayId))
+      .leftJoin(
+        planDayExercises,
+        eq(workoutBlocks.id, planDayExercises.workoutBlockId)
+      )
       .leftJoin(
         exerciseLogs,
         eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
@@ -586,7 +607,11 @@ export class DashboardService {
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
       )
-      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
       .where(and(...whereConditions))
@@ -648,7 +673,11 @@ export class DashboardService {
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
       )
-      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
       .where(and(...whereConditions));
@@ -672,10 +701,10 @@ export class DashboardService {
       (e) => (e.plannedWeight || 0) > 0
     );
     const bodyweightWithAddedWeight = allExerciseData.filter(
-      (e) => (e.plannedWeight || 0) === 0 && (e.weightUsed || 0) > 0
+      (e) => (e.plannedWeight || 0) === 0 && (Number(e.weightUsed) || 0) > 0
     );
     const pureBodyweight = allExerciseData.filter(
-      (e) => (e.plannedWeight || 0) === 0 && (e.weightUsed || 0) === 0
+      (e) => (e.plannedWeight || 0) === 0 && (Number(e.weightUsed) || 0) === 0
     );
 
     let totalSets = 0;
@@ -688,7 +717,7 @@ export class DashboardService {
     plannedWeightExercises.forEach((exercise) => {
       totalSets++;
       const plannedWeight = exercise.plannedWeight || 0;
-      const weightUsed = exercise.weightUsed || 0;
+      const weightUsed = Number(exercise.weightUsed) || 0;
       const diff = weightUsed - plannedWeight;
       weightDifferences.push(diff);
 
@@ -705,7 +734,7 @@ export class DashboardService {
     bodyweightWithAddedWeight.forEach((exercise) => {
       totalSets++;
       higherWeight++; // Adding weight to bodyweight exercise counts as "higher"
-      weightDifferences.push(exercise.weightUsed || 0); // Difference from 0
+      weightDifferences.push(Number(exercise.weightUsed) || 0); // Difference from 0
     });
 
     const accuracyRate = totalSets > 0 ? (exactMatches / totalSets) * 100 : 0;
@@ -771,7 +800,11 @@ export class DashboardService {
       .where(eq(profiles.userId, userId))
       .limit(1);
 
-    if (!userProfile[0] || !userProfile[0].goals) {
+    if (
+      !userProfile[0] ||
+      !userProfile[0].goals ||
+      !Array.isArray(userProfile[0].goals)
+    ) {
       return [];
     }
 
@@ -861,7 +894,11 @@ export class DashboardService {
             planDayExercises,
             eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
           )
-          .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+          .innerJoin(
+            workoutBlocks,
+            eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+          )
+          .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
           .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
           .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
           .where(
@@ -989,7 +1026,11 @@ export class DashboardService {
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
       )
-      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
       .where(and(...whereConditions))
@@ -1078,7 +1119,11 @@ export class DashboardService {
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
       )
-      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
       .where(and(...whereConditions))
@@ -1097,8 +1142,8 @@ export class DashboardService {
         data.totalWeight > 0
           ? data.totalWeight
           : data.totalVolume > 0
-          ? data.totalVolume
-          : data.logCount;
+            ? data.totalVolume
+            : data.logCount;
 
       return {
         date: data.date,
@@ -1260,7 +1305,11 @@ export class DashboardService {
         `,
       })
       .from(planDays)
-      .innerJoin(planDayExercises, eq(planDays.id, planDayExercises.planDayId))
+      .leftJoin(workoutBlocks, eq(planDays.id, workoutBlocks.planDayId))
+      .leftJoin(
+        planDayExercises,
+        eq(workoutBlocks.id, planDayExercises.workoutBlockId)
+      )
       .leftJoin(
         exerciseLogs,
         eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
@@ -1337,7 +1386,11 @@ export class DashboardService {
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
       )
-      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .where(and(...whereConditions))
       .groupBy(planDays.date)
@@ -1413,7 +1466,11 @@ export class DashboardService {
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
       )
-      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
       .where(and(...whereConditions))
@@ -1448,7 +1505,7 @@ export class DashboardService {
 
       // Process exercises with planned weights
       const plannedWeight = exercise.plannedWeight || 0;
-      const weightUsed = exercise.weightUsed || 0;
+      const weightUsed = Number(exercise.weightUsed) || 0;
 
       // Count this set
       dayMetric.totalSets++;
@@ -1541,7 +1598,11 @@ export class DashboardService {
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
       )
-      .innerJoin(planDays, eq(planDayExercises.planDayId, planDays.id))
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
       .where(and(...whereConditions))

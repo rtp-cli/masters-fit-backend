@@ -1,30 +1,46 @@
-// Common
+// Common types
 export { ApiResponse } from "@/types/common/responses";
 
-// Auth
+// Auth types
 export * from "@/types/auth/requests";
 export * from "@/types/auth/responses";
 
-// Workout
-export * from "@/types/workout/requests";
-export {
-  WorkoutsResponse,
-  WorkoutResponse,
-  WorkoutWithDetails,
-  PlanDayWithExercises,
-  PlanDayWithExercise,
-  PlanDayResponse,
-  PlanDayExerciseResponse,
-} from "@/types/workout/responses";
+// Dashboard types
+export * from "@/types/dashboard/types";
+export * from "@/types/dashboard/requests";
+export * from "@/types/dashboard/responses";
 
-// Exercise
+// Exercise types
 export {
   Exercise,
   ExercisesResponse,
   ExerciseResponse,
 } from "@/types/exercise/responses";
 
-// Search
+// Logs types
+export {
+  ExerciseLogsResponse,
+  ExerciseLogResponse,
+  BlockLogsResponse,
+  BlockLogResponse,
+  PlanDayLogsResponse,
+  PlanDayLogResponse,
+  WorkoutLogResponse,
+  WorkoutLogOrNullResponse,
+  WorkoutLogsResponse,
+  WorkoutProgressResponse,
+  PlanDayProgressResponse,
+  CompletedExercisesResponse,
+} from "@/types/logs/responses";
+
+// Profile types
+export * from "@/types/profile/types";
+
+// Prompts types
+export * from "@/types/prompts/requests";
+export * from "@/types/prompts/responses";
+
+// Search types
 export {
   DateSearchResponse,
   ExerciseSearchResponse,
@@ -37,24 +53,24 @@ export {
   PersonalRecord,
 } from "@/types/search/responses";
 
-// Profile
-export * from "@/types/profile/types";
+// User types
+export * from "./user/responses";
 
-// Logs
+// Workout types
+export * from "@/types/workout/requests";
 export {
-  ExerciseLogsResponse,
-  ExerciseLogResponse,
-  WorkoutLogResponse,
-  WorkoutLogOrNullResponse,
-  WorkoutLogsResponse,
-  CompletedExercisesResponse,
-} from "@/types/logs/responses";
-
-// Prompts
-export * from "@/types/prompts/requests";
-export * from "@/types/prompts/responses";
-
-// Dashboard
-export * from "@/types/dashboard/types";
-export * from "@/types/dashboard/requests";
-export * from "@/types/dashboard/responses";
+  WorkoutsResponse,
+  WorkoutResponse,
+  WorkoutWithDetails,
+  PlanDayWithExercises,
+  PlanDayWithExercise,
+  PlanDayResponse,
+  PlanDayExerciseResponse,
+  // New block-based types
+  WorkoutBlock,
+  WorkoutBlockWithExercises,
+  WorkoutBlockWithExercise,
+  WorkoutBlockExercise,
+  WorkoutBlockResponse,
+  WorkoutBlockExerciseResponse,
+} from "@/types/workout/responses";

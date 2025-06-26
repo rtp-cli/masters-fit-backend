@@ -855,26 +855,56 @@
 					},
 					"setsCompleted": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"nullable": true
 					},
 					"repsCompleted": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"nullable": true
 					},
 					"weightUsed": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"nullable": true
 					},
-					"isComplete": {
-						"type": "boolean"
+					"durationCompleted": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"roundsCompleted": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"restTimeTaken": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
 					},
 					"timeTaken": {
 						"type": "number",
 						"format": "double",
 						"nullable": true
 					},
+					"isComplete": {
+						"type": "boolean"
+					},
+					"isSkipped": {
+						"type": "boolean"
+					},
 					"notes": {
 						"type": "string",
+						"nullable": true
+					},
+					"difficulty": {
+						"type": "string",
+						"nullable": true
+					},
+					"rating": {
+						"type": "number",
+						"format": "double",
 						"nullable": true
 					},
 					"createdAt": {
@@ -892,9 +922,15 @@
 					"setsCompleted",
 					"repsCompleted",
 					"weightUsed",
-					"isComplete",
+					"durationCompleted",
+					"roundsCompleted",
+					"restTimeTaken",
 					"timeTaken",
+					"isComplete",
+					"isSkipped",
 					"notes",
+					"difficulty",
+					"rating",
 					"createdAt",
 					"updatedAt"
 				],
@@ -944,6 +980,272 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"BlockLog": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"workoutBlockId": {
+						"type": "number",
+						"format": "double"
+					},
+					"roundsCompleted": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"timeCapMinutes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"actualTimeMinutes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"totalReps": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"totalDuration": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"score": {
+						"type": "string",
+						"nullable": true
+					},
+					"isComplete": {
+						"type": "boolean"
+					},
+					"isSkipped": {
+						"type": "boolean"
+					},
+					"notes": {
+						"type": "string",
+						"nullable": true
+					},
+					"difficulty": {
+						"type": "string",
+						"nullable": true
+					},
+					"rating": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"workoutBlockId",
+					"roundsCompleted",
+					"timeCapMinutes",
+					"actualTimeMinutes",
+					"totalReps",
+					"totalDuration",
+					"score",
+					"isComplete",
+					"isSkipped",
+					"notes",
+					"difficulty",
+					"rating",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BlockLogResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"log": {
+						"$ref": "#/components/schemas/BlockLog"
+					}
+				},
+				"required": [
+					"success",
+					"log"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BlockLogsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"logs": {
+						"items": {
+							"$ref": "#/components/schemas/BlockLog"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"logs"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PlanDayLog": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"planDayId": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTimeMinutes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"blocksCompleted": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"exercisesCompleted": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"totalVolume": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"averageHeartRate": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"maxHeartRate": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"isComplete": {
+						"type": "boolean"
+					},
+					"isSkipped": {
+						"type": "boolean"
+					},
+					"notes": {
+						"type": "string",
+						"nullable": true
+					},
+					"difficulty": {
+						"type": "string",
+						"nullable": true
+					},
+					"rating": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"mood": {
+						"type": "string",
+						"nullable": true
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"planDayId",
+					"totalTimeMinutes",
+					"blocksCompleted",
+					"exercisesCompleted",
+					"totalVolume",
+					"averageHeartRate",
+					"maxHeartRate",
+					"isComplete",
+					"isSkipped",
+					"notes",
+					"difficulty",
+					"rating",
+					"mood",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PlanDayLogResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"log": {
+						"$ref": "#/components/schemas/PlanDayLog"
+					}
+				},
+				"required": [
+					"success",
+					"log"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PlanDayLogsResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"logs": {
+						"items": {
+							"$ref": "#/components/schemas/PlanDayLog"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"logs"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"WorkoutLog": {
 				"properties": {
 					"id": {
@@ -954,10 +1256,27 @@
 						"type": "number",
 						"format": "double"
 					},
-					"isComplete": {
-						"type": "boolean"
+					"totalTimeMinutes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
 					},
-					"totalTimeTaken": {
+					"daysCompleted": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"totalDays": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"totalVolume": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"averageRating": {
 						"type": "number",
 						"format": "double",
 						"nullable": true
@@ -969,6 +1288,28 @@
 						},
 						"type": "array",
 						"nullable": true
+					},
+					"completedBlocks": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"completedDays": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"isComplete": {
+						"type": "boolean"
+					},
+					"isActive": {
+						"type": "boolean"
 					},
 					"notes": {
 						"type": "string",
@@ -986,9 +1327,16 @@
 				"required": [
 					"id",
 					"workoutId",
-					"isComplete",
-					"totalTimeTaken",
+					"totalTimeMinutes",
+					"daysCompleted",
+					"totalDays",
+					"totalVolume",
+					"averageRating",
 					"completedExercises",
+					"completedBlocks",
+					"completedDays",
+					"isComplete",
+					"isActive",
 					"notes",
 					"createdAt",
 					"updatedAt"
@@ -1060,6 +1408,139 @@
 				"required": [
 					"success",
 					"logs"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ProgressMetrics": {
+				"properties": {
+					"completed": {
+						"type": "number",
+						"format": "double"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"percentage": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"completed",
+					"total",
+					"percentage"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutProgress": {
+				"properties": {
+					"workoutLog": {
+						"$ref": "#/components/schemas/WorkoutLog"
+					},
+					"progress": {
+						"properties": {
+							"days": {
+								"$ref": "#/components/schemas/ProgressMetrics"
+							},
+							"blocks": {
+								"$ref": "#/components/schemas/ProgressMetrics"
+							},
+							"exercises": {
+								"$ref": "#/components/schemas/ProgressMetrics"
+							}
+						},
+						"required": [
+							"days",
+							"blocks",
+							"exercises"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"workoutLog",
+					"progress"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutProgressResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"progress": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/WorkoutProgress"
+							}
+						],
+						"nullable": true
+					}
+				},
+				"required": [
+					"success",
+					"progress"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PlanDayProgress": {
+				"properties": {
+					"planDayLog": {
+						"$ref": "#/components/schemas/PlanDayLog"
+					},
+					"progress": {
+						"properties": {
+							"blocks": {
+								"$ref": "#/components/schemas/ProgressMetrics"
+							},
+							"exercises": {
+								"$ref": "#/components/schemas/ProgressMetrics"
+							}
+						},
+						"required": [
+							"blocks",
+							"exercises"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"planDayLog",
+					"progress"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PlanDayProgressResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"progress": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/PlanDayProgress"
+							}
+						],
+						"nullable": true
+					}
+				},
+				"required": [
+					"success",
+					"progress"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -1899,13 +2380,13 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"PlanDayWithExercise": {
+			"WorkoutBlockWithExercise": {
 				"properties": {
 					"id": {
 						"type": "number",
 						"format": "double"
 					},
-					"planDayId": {
+					"workoutBlockId": {
 						"type": "number",
 						"format": "double"
 					},
@@ -1939,6 +2420,10 @@
 					"notes": {
 						"type": "string"
 					},
+					"order": {
+						"type": "number",
+						"format": "double"
+					},
 					"created_at": {
 						"type": "string",
 						"format": "date-time"
@@ -1953,12 +2438,63 @@
 				},
 				"required": [
 					"id",
-					"planDayId",
+					"workoutBlockId",
 					"exerciseId",
 					"completed",
 					"created_at",
 					"updated_at",
 					"exercise"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"WorkoutBlockWithExercises": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"instructions": {
+						"type": "string"
+					},
+					"blockType": {
+						"type": "string"
+					},
+					"blockName": {
+						"type": "string"
+					},
+					"timeCapMinutes": {
+						"type": "number",
+						"format": "double"
+					},
+					"rounds": {
+						"type": "number",
+						"format": "double"
+					},
+					"order": {
+						"type": "number",
+						"format": "double"
+					},
+					"exercises": {
+						"items": {
+							"$ref": "#/components/schemas/WorkoutBlockWithExercise"
+						},
+						"type": "array"
+					},
+					"created_at": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updated_at": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"exercises",
+					"created_at",
+					"updated_at"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -1974,6 +2510,10 @@
 						"format": "double"
 					},
 					"date": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"instructions": {
 						"type": "string"
 					},
 					"name": {
@@ -1986,9 +2526,9 @@
 						"type": "number",
 						"format": "double"
 					},
-					"exercises": {
+					"blocks": {
 						"items": {
-							"$ref": "#/components/schemas/PlanDayWithExercise"
+							"$ref": "#/components/schemas/WorkoutBlockWithExercises"
 						},
 						"type": "array"
 					},
@@ -2007,7 +2547,7 @@
 					"date",
 					"name",
 					"dayNumber",
-					"exercises",
+					"blocks",
 					"created_at",
 					"updated_at"
 				],
@@ -2068,8 +2608,6 @@
 					"startDate",
 					"endDate",
 					"promptId",
-					"isActive",
-					"completed",
 					"created_at",
 					"updated_at",
 					"planDays"
@@ -2210,6 +2748,19 @@
 					},
 					"date": {
 						"type": "string"
+					},
+					"instructions": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"dayNumber": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
@@ -2219,7 +2770,7 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"PlanDayExerciseResponse": {
+			"WorkoutBlockExerciseResponse": {
 				"properties": {
 					"success": {
 						"type": "boolean"
@@ -2228,19 +2779,23 @@
 						"type": "string"
 					},
 					"data": {},
-					"planDayExercise": {
-						"$ref": "#/components/schemas/PlanDayWithExercise"
+					"workoutBlockExercise": {
+						"$ref": "#/components/schemas/WorkoutBlockWithExercise"
 					}
 				},
 				"required": [
 					"success",
-					"planDayExercise"
+					"workoutBlockExercise"
 				],
 				"type": "object",
 				"additionalProperties": false
 			},
 			"CreatePlanDayExerciseRequest": {
 				"properties": {
+					"workoutBlockId": {
+						"type": "number",
+						"format": "double"
+					},
 					"planDayId": {
 						"type": "number",
 						"format": "double"
@@ -2277,10 +2832,17 @@
 					"completed": {
 						"type": "boolean",
 						"nullable": true
+					},
+					"notes": {
+						"type": "string"
+					},
+					"order": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
-					"planDayId",
+					"workoutBlockId",
 					"exerciseId",
 					"sets",
 					"reps",
@@ -2295,10 +2857,11 @@
 			"Partial_InsertPlanDayExercise_": {
 				"properties": {
 					"weight": {},
+					"order": {},
 					"createdAt": {},
 					"updatedAt": {},
 					"completed": {},
-					"planDayId": {},
+					"workoutBlockId": {},
 					"exerciseId": {},
 					"sets": {},
 					"reps": {},
@@ -2338,20 +2901,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/AuthVerifyResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"needsOnboarding": false,
-											"user": {
-												"id": 1,
-												"email": "user@example.com",
-												"name": "John Doe"
-											},
-											"token": "jwt.token.here"
-										}
-									}
 								}
 							}
 						}
@@ -2397,16 +2946,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/AuthLoginResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"message": "Authorization code generated successfully",
-											"userExists": true,
-											"needsOnboarding": false
-										}
-									}
 								}
 							}
 						}
@@ -2452,14 +2991,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/AuthSignupResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"message": "User created successfully"
-										}
-									}
 								}
 							}
 						}
@@ -2544,19 +3075,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/AuthVerifyResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"needsOnboarding": false,
-											"user": {
-												"id": 1,
-												"email": "user@example.com",
-												"name": "John Doe"
-											}
-										}
-									}
 								}
 							}
 						}
@@ -2602,122 +3120,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DashboardMetricsResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"data": {
-												"weeklySummary": {
-													"workoutCompletionRate": 85,
-													"exerciseCompletionRate": 92,
-													"streak": 5,
-													"totalWorkoutsThisWeek": 4,
-													"completedWorkoutsThisWeek": 3
-												},
-												"workoutConsistency": [
-													{
-														"week": "2024-01-01",
-														"weekLabel": "Week 1 (Jan 1-7)",
-														"totalWorkouts": 4,
-														"completedWorkouts": 3,
-														"completionRate": 75,
-														"isInProgress": false,
-														"status": "completed"
-													}
-												],
-												"weightMetrics": [
-													{
-														"name": "Bench Press",
-														"totalWeight": 2400,
-														"muscleGroups": [
-															"chest",
-															"shoulders",
-															"triceps"
-														]
-													}
-												],
-												"weightAccuracy": {
-													"accuracyRate": 78,
-													"totalSets": 50,
-													"exactMatches": 39,
-													"higherWeight": 8,
-													"lowerWeight": 3,
-													"avgWeightDifference": 2.5,
-													"chartData": [
-														{
-															"label": "Exact Weight",
-															"value": 39,
-															"color": "#10b981"
-														},
-														{
-															"label": "Higher Weight",
-															"value": 8,
-															"color": "#f59e0b"
-														},
-														{
-															"label": "Lower Weight",
-															"value": 3,
-															"color": "#ef4444"
-														}
-													]
-												},
-												"goalProgress": [
-													{
-														"goal": "muscle_gain",
-														"progressScore": 65,
-														"totalSets": 120,
-														"totalReps": 1440,
-														"totalWeight": 14400,
-														"completedWorkouts": 12
-													}
-												],
-												"totalVolumeMetrics": [
-													{
-														"date": "2024-01-01",
-														"totalVolume": 2400,
-														"exerciseCount": 4,
-														"label": "Jan 1"
-													}
-												],
-												"workoutTypeMetrics": {
-													"distribution": [
-														{
-															"tag": "strength",
-															"label": "Strength",
-															"totalSets": 45,
-															"totalReps": 540,
-															"exerciseCount": 8,
-															"completedWorkouts": 6,
-															"percentage": 62.5,
-															"color": "#ef4444"
-														}
-													],
-													"totalExercises": 13,
-													"totalSets": 72,
-													"dominantType": "Strength",
-													"hasData": true
-												},
-												"dailyWorkoutProgress": [
-													{
-														"date": "2024-01-01",
-														"completionRate": 100,
-														"hasPlannedWorkout": true
-													},
-													{
-														"date": "2024-01-02",
-														"completionRate": 75,
-														"hasPlannedWorkout": true
-													},
-													{
-														"date": "2024-01-03",
-														"completionRate": 0,
-														"hasPlannedWorkout": false
-													}
-												]
-											}
-										}
-									}
 								}
 							}
 						}
@@ -2809,20 +3211,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/WeeklySummaryResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"data": {
-												"workoutCompletionRate": 85,
-												"exerciseCompletionRate": 92,
-												"streak": 5,
-												"totalWorkoutsThisWeek": 4,
-												"completedWorkoutsThisWeek": 3
-											}
-										}
-									}
 								}
 							}
 						}
@@ -2870,33 +3258,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/WorkoutConsistencyResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"data": [
-												{
-													"week": "2024-01-01",
-													"weekLabel": "Week 1 (Jan 1-7)",
-													"totalWorkouts": 4,
-													"completedWorkouts": 3,
-													"completionRate": 75,
-													"isInProgress": false,
-													"status": "completed"
-												},
-												{
-													"week": "2024-01-08",
-													"weekLabel": "Week 2 (Jan 8-14)",
-													"totalWorkouts": 4,
-													"completedWorkouts": 4,
-													"completionRate": 100,
-													"isInProgress": false,
-													"status": "completed"
-												}
-											]
-										}
-									}
 								}
 							}
 						}
@@ -2975,33 +3336,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/WeightMetricsResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"data": [
-												{
-													"name": "Bench Press",
-													"totalWeight": 2400,
-													"muscleGroups": [
-														"chest",
-														"shoulders",
-														"triceps"
-													]
-												},
-												{
-													"name": "Squat",
-													"totalWeight": 3200,
-													"muscleGroups": [
-														"legs",
-														"glutes",
-														"core"
-													]
-												}
-											]
-										}
-									}
 								}
 							}
 						}
@@ -3093,38 +3427,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/WeightAccuracyResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"data": {
-												"accuracyRate": 78,
-												"totalSets": 50,
-												"exactMatches": 39,
-												"higherWeight": 8,
-												"lowerWeight": 3,
-												"avgWeightDifference": 2.5,
-												"chartData": [
-													{
-														"label": "Exact Weight",
-														"value": 39,
-														"color": "#10b981"
-													},
-													{
-														"label": "Higher Weight",
-														"value": 8,
-														"color": "#f59e0b"
-													},
-													{
-														"label": "Lower Weight",
-														"value": 3,
-														"color": "#ef4444"
-													}
-												]
-											}
-										}
-									}
 								}
 							}
 						}
@@ -3203,31 +3505,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/GoalProgressResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"data": [
-												{
-													"goal": "muscle_gain",
-													"progressScore": 65,
-													"totalSets": 120,
-													"totalReps": 1440,
-													"totalWeight": 14400,
-													"completedWorkouts": 12
-												},
-												{
-													"goal": "strength",
-													"progressScore": 72,
-													"totalSets": 95,
-													"totalReps": 760,
-													"totalWeight": 18200,
-													"completedWorkouts": 10
-												}
-											]
-										}
-									}
 								}
 							}
 						}
@@ -3306,27 +3583,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/TotalVolumeMetricsResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"data": [
-												{
-													"date": "2024-01-01",
-													"totalVolume": 2400,
-													"exerciseCount": 4,
-													"label": "Jan 1"
-												},
-												{
-													"date": "2024-01-02",
-													"totalVolume": 2800,
-													"exerciseCount": 5,
-													"label": "Jan 2"
-												}
-											]
-										}
-									}
 								}
 							}
 						}
@@ -3405,51 +3661,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/WorkoutTypeMetricsResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"data": {
-												"distribution": [
-													{
-														"tag": "strength",
-														"label": "Strength",
-														"totalSets": 45,
-														"totalReps": 540,
-														"exerciseCount": 8,
-														"completedWorkouts": 6,
-														"percentage": 62.5,
-														"color": "#ef4444"
-													},
-													{
-														"tag": "cardio",
-														"label": "Cardio",
-														"totalSets": 18,
-														"totalReps": 360,
-														"exerciseCount": 3,
-														"completedWorkouts": 4,
-														"percentage": 25,
-														"color": "#3b82f6"
-													},
-													{
-														"tag": "flexibility",
-														"label": "Flexibility",
-														"totalSets": 9,
-														"totalReps": 180,
-														"exerciseCount": 2,
-														"completedWorkouts": 3,
-														"percentage": 12.5,
-														"color": "#10b981"
-													}
-												],
-												"totalExercises": 13,
-												"totalSets": 72,
-												"dominantType": "Strength",
-												"hasData": true
-											}
-										}
-									}
 								}
 							}
 						}
@@ -4052,30 +4263,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExercisesResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"exercises": [
-												{
-													"id": 1,
-													"name": "Push-up",
-													"description": "A classic bodyweight exercise",
-													"category": "strength",
-													"difficulty": "beginner",
-													"equipment": "none",
-													"muscles_targeted": [
-														"chest",
-														"shoulders",
-														"triceps"
-													],
-													"created_at": "2025-06-24T10:55:36.240Z",
-													"updated_at": "2025-06-24T10:55:36.240Z"
-												}
-											]
-										}
-									}
 								}
 							}
 						}
@@ -4159,28 +4346,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExerciseResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"exercise": {
-												"id": 1,
-												"name": "Push-up",
-												"description": "A classic bodyweight exercise",
-												"category": "strength",
-												"difficulty": "beginner",
-												"equipment": "none",
-												"muscles_targeted": [
-													"chest",
-													"shoulders",
-													"triceps"
-												],
-												"created_at": "2025-06-24T10:55:36.240Z",
-												"updated_at": "2025-06-24T10:55:36.240Z"
-											}
-										}
-									}
 								}
 							}
 						}
@@ -4352,13 +4517,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ApiResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true
-										}
-									}
 								}
 							}
 						}
@@ -4476,7 +4634,208 @@
 				}
 			}
 		},
-		"/logs/exercise/{planDayId}": {
+		"/logs/exercise/{exerciseLogId}": {
+			"put": {
+				"operationId": "UpdateExerciseLog",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update exercise log",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Exercise log ID",
+						"in": "path",
+						"name": "exerciseLogId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Update data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Update data"
+							}
+						}
+					}
+				}
+			},
+			"get": {
+				"operationId": "GetExerciseLog",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get exercise log by ID",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Exercise log ID",
+						"in": "path",
+						"name": "exerciseLogId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/exercise/plan-day-exercise/{planDayExerciseId}": {
+			"get": {
+				"operationId": "GetExerciseLogsForPlanDayExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseLogsResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get exercise logs for a plan day exercise",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day exercise ID",
+						"in": "path",
+						"name": "planDayExerciseId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/exercise/block/{workoutBlockId}": {
+			"get": {
+				"operationId": "GetExerciseLogsForWorkoutBlock",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExerciseLogsResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get exercise logs for a workout block",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout block ID",
+						"in": "path",
+						"name": "workoutBlockId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/exercise/plan-day/{planDayId}": {
 			"get": {
 				"operationId": "GetExerciseLogsForPlanDay",
 				"responses": {
@@ -4501,7 +4860,7 @@
 						}
 					}
 				},
-				"description": "Get exercise logs for a plan day",
+				"description": "Get exercise logs for a plan day (legacy endpoint)",
 				"tags": [
 					"Logs"
 				],
@@ -4515,6 +4874,600 @@
 						"description": "Plan day ID",
 						"in": "path",
 						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/block": {
+			"post": {
+				"operationId": "CreateBlockLog",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BlockLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create block log",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"description": "Block log data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Block log data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/logs/block/{blockLogId}": {
+			"put": {
+				"operationId": "UpdateBlockLog",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BlockLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update block log",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Block log ID",
+						"in": "path",
+						"name": "blockLogId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Update data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Update data"
+							}
+						}
+					}
+				}
+			},
+			"get": {
+				"operationId": "GetBlockLog",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BlockLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get block log by ID",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Block log ID",
+						"in": "path",
+						"name": "blockLogId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/block/workout-block/{workoutBlockId}": {
+			"get": {
+				"operationId": "GetBlockLogsForWorkoutBlock",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BlockLogsResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get block logs for a workout block",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout block ID",
+						"in": "path",
+						"name": "workoutBlockId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/block/workout-block/{workoutBlockId}/latest": {
+			"get": {
+				"operationId": "GetLatestBlockLogForWorkoutBlock",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BlockLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get latest block log for a workout block",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout block ID",
+						"in": "path",
+						"name": "workoutBlockId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/block/plan-day/{planDayId}": {
+			"get": {
+				"operationId": "GetBlockLogsForPlanDay",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BlockLogsResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get block logs for a plan day",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/plan-day": {
+			"post": {
+				"operationId": "CreatePlanDayLog",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create plan day log",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"description": "Plan day log data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Plan day log data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/logs/plan-day/{planDayLogId}": {
+			"put": {
+				"operationId": "UpdatePlanDayLog",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update plan day log",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day log ID",
+						"in": "path",
+						"name": "planDayLogId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Update data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"description": "Update data"
+							}
+						}
+					}
+				}
+			},
+			"get": {
+				"operationId": "GetPlanDayLog",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get plan day log by ID",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day log ID",
+						"in": "path",
+						"name": "planDayLogId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/plan-day/plan-day/{planDayId}": {
+			"get": {
+				"operationId": "GetPlanDayLogsForPlanDay",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayLogsResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get plan day logs for a plan day",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/plan-day/plan-day/{planDayId}/latest": {
+			"get": {
+				"operationId": "GetLatestPlanDayLogForPlanDay",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get latest plan day log for a plan day",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/plan-day/workout/{workoutId}": {
+			"get": {
+				"operationId": "GetPlanDayLogsForWorkout",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayLogsResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get plan day logs for a workout",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
 						"required": true,
 						"schema": {
 							"format": "double",
@@ -4773,16 +5726,16 @@
 				]
 			}
 		},
-		"/logs/workout/{workoutId}/completed": {
+		"/logs/workout/{workoutId}/progress": {
 			"get": {
-				"operationId": "GetCompletedExercisesForWorkout",
+				"operationId": "GetWorkoutProgress",
 				"responses": {
 					"200": {
 						"description": "Success",
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/CompletedExercisesResponse"
+									"$ref": "#/components/schemas/WorkoutProgressResponse"
 								}
 							}
 						}
@@ -4798,7 +5751,7 @@
 						}
 					}
 				},
-				"description": "Get completed exercises for a workout",
+				"description": "Get workout progress",
 				"tags": [
 					"Logs"
 				],
@@ -4812,6 +5765,54 @@
 						"description": "Workout ID",
 						"in": "path",
 						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/plan-day/{planDayId}/progress": {
+			"get": {
+				"operationId": "GetPlanDayProgress",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PlanDayProgressResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get plan day progress",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
 						"required": true,
 						"schema": {
 							"format": "double",
@@ -4879,6 +5880,170 @@
 				]
 			}
 		},
+		"/logs/workout/{workoutId}/block/{workoutBlockId}": {
+			"post": {
+				"operationId": "AddCompletedBlock",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Add completed block to workout",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Workout block ID",
+						"in": "path",
+						"name": "workoutBlockId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/workout/{workoutId}/day/{planDayId}": {
+			"post": {
+				"operationId": "AddCompletedDay",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Add completed day to workout",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/workout/{workoutId}/completed": {
+			"get": {
+				"operationId": "GetCompletedExercisesForWorkout",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CompletedExercisesResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get completed exercises for a workout",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/logs/workout/{workoutId}/complete": {
 			"post": {
 				"operationId": "MarkWorkoutComplete",
@@ -4904,7 +6069,7 @@
 						}
 					}
 				},
-				"description": "Mark workout as complete based on all exercises being completed",
+				"description": "Mark workout as complete",
 				"tags": [
 					"Logs"
 				],
@@ -4926,7 +6091,7 @@
 					}
 				],
 				"requestBody": {
-					"description": "Array of all exercise IDs for the workout",
+					"description": "Total exercise IDs",
 					"required": true,
 					"content": {
 						"application/json": {
@@ -4944,7 +6109,7 @@
 									"totalExerciseIds"
 								],
 								"type": "object",
-								"description": "Array of all exercise IDs for the workout"
+								"description": "Total exercise IDs"
 							}
 						}
 					}
@@ -4956,37 +6121,11 @@
 				"operationId": "GetProfile",
 				"responses": {
 					"200": {
-						"description": "Success",
+						"description": "Ok",
 						"content": {
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ProfileResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"profile": {
-												"id": 1,
-												"userId": 1,
-												"height": 180,
-												"weight": 75,
-												"age": 30,
-												"gender": "male",
-												"goals": [
-													"fat_loss",
-													"muscle_gain"
-												],
-												"fitnessLevel": "beginner",
-												"limitations": [
-													"knee_pain"
-												],
-												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-24T10:55:36.253Z",
-												"updated_at": "2025-06-24T10:55:36.253Z"
-											}
-										}
-									}
 								}
 							}
 						}
@@ -5034,32 +6173,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ProfileResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"profile": {
-												"id": 1,
-												"userId": 1,
-												"height": 180,
-												"weight": 75,
-												"age": 30,
-												"gender": "male",
-												"goals": [
-													"fat_loss",
-													"muscle_gain"
-												],
-												"fitnessLevel": "beginner",
-												"limitations": [
-													"knee_pain"
-												],
-												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-24T10:55:36.253Z",
-												"updated_at": "2025-06-24T10:55:36.253Z"
-											}
-										}
-									}
 								}
 							}
 						}
@@ -5107,32 +6220,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ProfileResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"profile": {
-												"id": 1,
-												"userId": 1,
-												"height": 180,
-												"weight": 75,
-												"age": 30,
-												"gender": "male",
-												"goals": [
-													"fat_loss",
-													"muscle_gain"
-												],
-												"fitnessLevel": "beginner",
-												"limitations": [
-													"knee_pain"
-												],
-												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-24T10:55:36.255Z",
-												"updated_at": "2025-06-24T10:55:36.255Z"
-											}
-										}
-									}
 								}
 							}
 						}
@@ -5190,32 +6277,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ProfileResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"profile": {
-												"id": 1,
-												"userId": 1,
-												"height": 180,
-												"weight": 75,
-												"age": 30,
-												"gender": "male",
-												"goals": [
-													"fat_loss",
-													"muscle_gain"
-												],
-												"fitnessLevel": "beginner",
-												"limitations": [
-													"knee_pain"
-												],
-												"medicalNotes": "I have a knee pain",
-												"created_at": "2025-06-24T10:55:36.256Z",
-												"updated_at": "2025-06-24T10:55:36.256Z"
-											}
-										}
-									}
 								}
 							}
 						}
@@ -5273,23 +6334,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/UserPromptsResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"prompts": [
-												{
-													"id": 1,
-													"userId": 1,
-													"prompt": "What's a good workout for beginners?",
-													"response": "Here's a beginner-friendly workout...",
-													"created_at": "2025-06-24T10:55:36.256Z",
-													"updated_at": "2025-06-24T10:55:36.256Z"
-												}
-											]
-										}
-									}
 								}
 							}
 						}
@@ -5338,21 +6382,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/CreatePromptResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"prompt": {
-												"id": 1,
-												"userId": 1,
-												"prompt": "What's a good workout for beginners?",
-												"response": "Here's a beginner-friendly workout...",
-												"created_at": "2025-06-24T10:55:36.256Z",
-												"updated_at": "2025-06-24T10:55:36.256Z"
-											}
-										}
-									}
 								}
 							}
 						}
@@ -5402,50 +6431,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DateSearchResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"date": "2024-01-15",
-											"workout": {
-												"id": 1,
-												"name": "Upper Body Strength",
-												"description": "Focus on upper body muscles",
-												"completed": false,
-												"planDay": {
-													"id": 1,
-													"date": "2024-01-15T00:00:00.000Z",
-													"exercises": [
-														{
-															"id": 1,
-															"exercise": {
-																"id": 1,
-																"name": "Push-ups",
-																"description": "Classic bodyweight exercise",
-																"muscleGroups": [
-																	"Chest",
-																	"Shoulders"
-																],
-																"equipment": [
-																	"None"
-																],
-																"difficulty": "beginner",
-																"instructions": "Lower your body to the ground and push back up"
-															},
-															"sets": 3,
-															"reps": 12,
-															"weight": null,
-															"duration": null,
-															"completed": false,
-															"completionRate": 0
-														}
-													]
-												},
-												"overallCompletionRate": 0
-											}
-										}
-									}
 								}
 							}
 						}
@@ -5513,44 +6498,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/ExerciseSearchResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"exercise": {
-												"id": 1,
-												"name": "Push-ups",
-												"description": "Classic bodyweight exercise",
-												"muscleGroups": [
-													"Chest",
-													"Shoulders",
-													"Triceps"
-												],
-												"equipment": [
-													"None"
-												],
-												"difficulty": "beginner",
-												"instructions": "Lower your body to the ground and push back up",
-												"created_at": "2025-06-24T10:55:36.257Z",
-												"updated_at": "2025-06-24T10:55:36.257Z"
-											},
-											"userStats": {
-												"totalAssignments": 15,
-												"totalCompletions": 12,
-												"completionRate": 80,
-												"averageSets": 3.2,
-												"averageReps": 11.5,
-												"averageWeight": null,
-												"lastPerformed": "2024-01-10T00:00:00.000Z",
-												"personalRecord": {
-													"maxWeight": null,
-													"maxReps": 15,
-													"maxSets": 4
-												}
-											}
-										}
-									}
 								}
 							}
 						}
@@ -5679,70 +6626,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/WorkoutsResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"workouts": [
-												{
-													"id": 1,
-													"userId": 1,
-													"name": "Full Body Workout",
-													"description": "A complete full body workout",
-													"startDate": "2025-06-24T10:55:36.260Z",
-													"endDate": "2025-06-24T10:55:36.260Z",
-													"promptId": 1,
-													"isActive": true,
-													"completed": false,
-													"created_at": "2025-06-24T10:55:36.260Z",
-													"updated_at": "2025-06-24T10:55:36.260Z",
-													"planDays": [
-														{
-															"id": 1,
-															"workoutId": 1,
-															"date": "2025-06-24T10:55:36.260Z",
-															"name": "Day 1",
-															"description": "Upper body focus",
-															"dayNumber": 1,
-															"created_at": "2025-06-24T10:55:36.260Z",
-															"updated_at": "2025-06-24T10:55:36.260Z",
-															"exercises": [
-																{
-																	"id": 1,
-																	"planDayId": 1,
-																	"exerciseId": 1,
-																	"sets": 3,
-																	"reps": 12,
-																	"weight": 50,
-																	"restTime": 60,
-																	"completed": false,
-																	"notes": "Keep proper form",
-																	"created_at": "2025-06-24T10:55:36.260Z",
-																	"updated_at": "2025-06-24T10:55:36.260Z",
-																	"exercise": {
-																		"id": 1,
-																		"name": "Push-up",
-																		"description": "A classic bodyweight exercise",
-																		"category": "strength",
-																		"difficulty": "beginner",
-																		"equipment": "none",
-																		"muscles_targeted": [
-																			"chest",
-																			"shoulders",
-																			"triceps"
-																		],
-																		"created_at": "2025-06-24T10:55:36.260Z",
-																		"updated_at": "2025-06-24T10:55:36.260Z"
-																	}
-																}
-															]
-														}
-													]
-												}
-											]
-										}
-									}
 								}
 							}
 						}
@@ -5788,27 +6671,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/WorkoutResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"workout": {
-												"id": 1,
-												"userId": 1,
-												"name": "Full Body Workout",
-												"description": "A complete full body workout",
-												"startDate": "2025-06-24T10:55:36.260Z",
-												"endDate": "2025-06-24T10:55:36.260Z",
-												"promptId": 1,
-												"isActive": true,
-												"completed": false,
-												"created_at": "2025-06-24T10:55:36.260Z",
-												"updated_at": "2025-06-24T10:55:36.260Z",
-												"planDays": []
-											}
-										}
-									}
 								}
 							}
 						}
@@ -5868,29 +6730,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/WorkoutsResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"workouts": [
-												{
-													"id": 1,
-													"userId": 1,
-													"name": "Full Body Workout",
-													"description": "A complete full body workout",
-													"startDate": "2025-06-24T10:55:36.260Z",
-													"endDate": "2025-06-24T10:55:36.260Z",
-													"promptId": 1,
-													"isActive": true,
-													"completed": false,
-													"created_at": "2025-06-24T10:55:36.260Z",
-													"updated_at": "2025-06-24T10:55:36.260Z",
-													"planDays": []
-												}
-											]
-										}
-									}
 								}
 							}
 						}
@@ -5938,27 +6777,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/WorkoutResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"workout": {
-												"id": 1,
-												"userId": 1,
-												"name": "Full Body Workout",
-												"description": "A complete full body workout",
-												"startDate": "2025-06-24T10:55:36.260Z",
-												"endDate": "2025-06-24T10:55:36.260Z",
-												"promptId": 1,
-												"isActive": true,
-												"completed": false,
-												"created_at": "2025-06-24T10:55:36.260Z",
-												"updated_at": "2025-06-24T10:55:36.260Z",
-												"planDays": []
-											}
-										}
-									}
 								}
 							}
 						}
@@ -6019,24 +6837,6 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/PlanDayResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"planDay": {
-												"id": 1,
-												"workoutId": 1,
-												"date": "2025-06-24T10:55:36.421Z",
-												"name": "Day 1",
-												"description": "Upper body focus",
-												"dayNumber": 1,
-												"created_at": "2025-06-24T10:55:36.421Z",
-												"updated_at": "2025-06-24T10:55:36.421Z",
-												"exercises": []
-											}
-										}
-									}
 								}
 							}
 						}
@@ -6087,7 +6887,7 @@
 				}
 			}
 		},
-		"/workouts/days/{planDayId}/exercises": {
+		"/workouts/plan-day/{planDayId}/exercise": {
 			"post": {
 				"operationId": "CreatePlanDayExercise",
 				"responses": {
@@ -6096,42 +6896,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/PlanDayExerciseResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"planDayExercise": {
-												"id": 1,
-												"planDayId": 1,
-												"exerciseId": 1,
-												"sets": 3,
-												"reps": 12,
-												"weight": 50,
-												"restTime": 60,
-												"completed": false,
-												"notes": "Keep proper form",
-												"created_at": "2025-06-24T10:55:36.421Z",
-												"updated_at": "2025-06-24T10:55:36.421Z",
-												"exercise": {
-													"id": 1,
-													"name": "Push-up",
-													"description": "A classic bodyweight exercise",
-													"category": "strength",
-													"difficulty": "beginner",
-													"equipment": "none",
-													"muscles_targeted": [
-														"chest",
-														"shoulders",
-														"triceps"
-													],
-													"created_at": "2025-06-24T10:55:36.421Z",
-													"updated_at": "2025-06-24T10:55:36.421Z"
-												}
-											}
-										}
-									}
+									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
 								}
 							}
 						}
@@ -6141,13 +6906,13 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/PlanDayExerciseResponse"
+									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
 								}
 							}
 						}
 					}
 				},
-				"description": "Create new plan day exercise",
+				"description": "Create plan day exercise",
 				"tags": [
 					"Workouts"
 				],
@@ -6169,20 +6934,20 @@
 					}
 				],
 				"requestBody": {
-					"description": "Plan day exercise data",
+					"description": "Exercise data",
 					"required": true,
 					"content": {
 						"application/json": {
 							"schema": {
 								"$ref": "#/components/schemas/CreatePlanDayExerciseRequest",
-								"description": "Plan day exercise data"
+								"description": "Exercise data"
 							}
 						}
 					}
 				}
 			}
 		},
-		"/workouts/exercises/{id}": {
+		"/workouts/exercise/{id}": {
 			"put": {
 				"operationId": "UpdatePlanDayExercise",
 				"responses": {
@@ -6191,42 +6956,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/PlanDayExerciseResponse"
-								},
-								"examples": {
-									"Example 1": {
-										"value": {
-											"success": true,
-											"planDayExercise": {
-												"id": 1,
-												"planDayId": 1,
-												"exerciseId": 1,
-												"sets": 3,
-												"reps": 12,
-												"weight": 50,
-												"restTime": 60,
-												"completed": false,
-												"notes": "Keep proper form",
-												"created_at": "2025-06-24T10:55:36.421Z",
-												"updated_at": "2025-06-24T10:55:36.421Z",
-												"exercise": {
-													"id": 1,
-													"name": "Push-up",
-													"description": "A classic bodyweight exercise",
-													"category": "strength",
-													"difficulty": "beginner",
-													"equipment": "none",
-													"muscles_targeted": [
-														"chest",
-														"shoulders",
-														"triceps"
-													],
-													"created_at": "2025-06-24T10:55:36.422Z",
-													"updated_at": "2025-06-24T10:55:36.422Z"
-												}
-											}
-										}
-									}
+									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
 								}
 							}
 						}
@@ -6236,7 +6966,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/PlanDayExerciseResponse"
+									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
 								}
 							}
 						}
@@ -6253,7 +6983,7 @@
 				],
 				"parameters": [
 					{
-						"description": "Plan day exercise ID",
+						"description": "Exercise ID",
 						"in": "path",
 						"name": "id",
 						"required": true,
@@ -6264,13 +6994,13 @@
 					}
 				],
 				"requestBody": {
-					"description": "Updated plan day exercise data",
+					"description": "Updated exercise data",
 					"required": true,
 					"content": {
 						"application/json": {
 							"schema": {
 								"$ref": "#/components/schemas/Partial_InsertPlanDayExercise_",
-								"description": "Updated plan day exercise data"
+								"description": "Updated exercise data"
 							}
 						}
 					}
@@ -6555,21 +7285,33 @@
 					}
 				],
 				"requestBody": {
-					"description": "Regeneration reason",
+					"description": "Regeneration reason and optional styles",
 					"required": true,
 					"content": {
 						"application/json": {
 							"schema": {
 								"properties": {
-									"regenerationReason": {
+									"limitations": {
+										"items": {
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"styles": {
+										"items": {
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"reason": {
 										"type": "string"
 									}
 								},
 								"required": [
-									"regenerationReason"
+									"reason"
 								],
 								"type": "object",
-								"description": "Regeneration reason"
+								"description": "Regeneration reason and optional styles"
 							}
 						}
 					}

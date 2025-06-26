@@ -16,11 +16,8 @@ import {
 import {
   WorkoutsResponse,
   WorkoutResponse,
-  WorkoutWithDetails,
-  PlanDayWithExercises,
-  PlanDayWithExercise,
   PlanDayResponse,
-  PlanDayExerciseResponse,
+  WorkoutBlockExerciseResponse,
 } from "@/types/workout/responses";
 import {
   CreateWorkoutRequest,
@@ -41,62 +38,6 @@ export class WorkoutController extends Controller {
   @Get("/{userId}")
   @Response<WorkoutsResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<WorkoutsResponse>({
-    success: true,
-    workouts: [
-      {
-        id: 1,
-        userId: 1,
-        name: "Full Body Workout",
-        description: "A complete full body workout",
-        startDate: new Date(),
-        endDate: new Date(),
-        promptId: 1,
-        isActive: true,
-        completed: false,
-        created_at: new Date(),
-        updated_at: new Date(),
-        planDays: [
-          {
-            id: 1,
-            workoutId: 1,
-            date: new Date(),
-            name: "Day 1",
-            description: "Upper body focus",
-            dayNumber: 1,
-            created_at: new Date(),
-            updated_at: new Date(),
-            exercises: [
-              {
-                id: 1,
-                planDayId: 1,
-                exerciseId: 1,
-                sets: 3,
-                reps: 12,
-                weight: 50,
-                restTime: 60,
-                completed: false,
-                notes: "Keep proper form",
-                created_at: new Date(),
-                updated_at: new Date(),
-                exercise: {
-                  id: 1,
-                  name: "Push-up",
-                  description: "A classic bodyweight exercise",
-                  category: "strength",
-                  difficulty: "beginner",
-                  equipment: "none",
-                  muscles_targeted: ["chest", "shoulders", "triceps"],
-                  created_at: new Date(),
-                  updated_at: new Date(),
-                },
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  })
   public async getUserWorkouts(
     @Path() userId: number
   ): Promise<WorkoutsResponse> {
@@ -113,25 +54,6 @@ export class WorkoutController extends Controller {
   @Get("/{userId}/active")
   @Response<WorkoutsResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<WorkoutsResponse>({
-    success: true,
-    workouts: [
-      {
-        id: 1,
-        userId: 1,
-        name: "Full Body Workout",
-        description: "A complete full body workout",
-        startDate: new Date(),
-        endDate: new Date(),
-        promptId: 1,
-        isActive: true,
-        completed: false,
-        created_at: new Date(),
-        updated_at: new Date(),
-        planDays: [],
-      },
-    ],
-  })
   public async getActiveWorkouts(
     @Path() userId: number
   ): Promise<WorkoutsResponse> {
@@ -149,23 +71,6 @@ export class WorkoutController extends Controller {
   @Post("/{userId}")
   @Response<WorkoutResponse>(400, "Bad Request")
   @SuccessResponse(201, "Created")
-  @Example<WorkoutResponse>({
-    success: true,
-    workout: {
-      id: 1,
-      userId: 1,
-      name: "Full Body Workout",
-      description: "A complete full body workout",
-      startDate: new Date(),
-      endDate: new Date(),
-      promptId: 1,
-      isActive: true,
-      completed: false,
-      created_at: new Date(),
-      updated_at: new Date(),
-      planDays: [],
-    },
-  })
   public async createWorkout(
     @Path() userId: number,
     @Body() requestBody: CreateWorkoutRequest
@@ -178,7 +83,12 @@ export class WorkoutController extends Controller {
     });
     return {
       success: true,
-      workout,
+      workout: {
+        ...workout,
+        planDays: [],
+        created_at: workout.createdAt,
+        updated_at: workout.updatedAt,
+      },
     };
   }
 
@@ -190,23 +100,6 @@ export class WorkoutController extends Controller {
   @Put("/{id}")
   @Response<WorkoutResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<WorkoutResponse>({
-    success: true,
-    workout: {
-      id: 1,
-      userId: 1,
-      name: "Full Body Workout",
-      description: "A complete full body workout",
-      startDate: new Date(),
-      endDate: new Date(),
-      promptId: 1,
-      isActive: true,
-      completed: false,
-      created_at: new Date(),
-      updated_at: new Date(),
-      planDays: [],
-    },
-  })
   public async updateWorkout(
     @Path() id: number,
     @Body() requestBody: Partial<InsertWorkout>
@@ -226,20 +119,6 @@ export class WorkoutController extends Controller {
   @Post("/{workoutId}/days")
   @Response<PlanDayResponse>(400, "Bad Request")
   @SuccessResponse(201, "Created")
-  @Example<PlanDayResponse>({
-    success: true,
-    planDay: {
-      id: 1,
-      workoutId: 1,
-      date: new Date(),
-      name: "Day 1",
-      description: "Upper body focus",
-      dayNumber: 1,
-      created_at: new Date(),
-      updated_at: new Date(),
-      exercises: [],
-    },
-  })
   public async createPlanDay(
     @Path() workoutId: number,
     @Body() requestBody: CreatePlanDayRequest
@@ -255,101 +134,45 @@ export class WorkoutController extends Controller {
   }
 
   /**
-   * Create new plan day exercise
+   * Create plan day exercise
    * @param planDayId Plan day ID
-   * @param requestBody Plan day exercise data
+   * @param requestBody Exercise data
    */
-  @Post("/days/{planDayId}/exercises")
-  @Response<PlanDayExerciseResponse>(400, "Bad Request")
+  @Post("/plan-day/{planDayId}/exercise")
+  @Response<WorkoutBlockExerciseResponse>(400, "Bad Request")
   @SuccessResponse(201, "Created")
-  @Example<PlanDayExerciseResponse>({
-    success: true,
-    planDayExercise: {
-      id: 1,
-      planDayId: 1,
-      exerciseId: 1,
-      sets: 3,
-      reps: 12,
-      weight: 50,
-      restTime: 60,
-      completed: false,
-      notes: "Keep proper form",
-      created_at: new Date(),
-      updated_at: new Date(),
-      exercise: {
-        id: 1,
-        name: "Push-up",
-        description: "A classic bodyweight exercise",
-        category: "strength",
-        difficulty: "beginner",
-        equipment: "none",
-        muscles_targeted: ["chest", "shoulders", "triceps"],
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    },
-  })
   public async createPlanDayExercise(
     @Path() planDayId: number,
     @Body() requestBody: CreatePlanDayExerciseRequest
-  ): Promise<PlanDayExerciseResponse> {
-    const planDayExercise = await workoutService.createPlanDayExercise({
+  ): Promise<WorkoutBlockExerciseResponse> {
+    const exercise = await workoutService.createPlanDayExercise({
       ...requestBody,
-      planDayId,
-      completed: false,
     });
     return {
       success: true,
-      planDayExercise,
+      workoutBlockExercise: exercise,
     };
   }
 
   /**
    * Update plan day exercise
-   * @param id Plan day exercise ID
-   * @param requestBody Updated plan day exercise data
+   * @param id Exercise ID
+   * @param requestBody Updated exercise data
    */
-  @Put("/exercises/{id}")
-  @Response<PlanDayExerciseResponse>(400, "Bad Request")
+  @Put("/exercise/{id}")
+  @Response<WorkoutBlockExerciseResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<PlanDayExerciseResponse>({
-    success: true,
-    planDayExercise: {
-      id: 1,
-      planDayId: 1,
-      exerciseId: 1,
-      sets: 3,
-      reps: 12,
-      weight: 50,
-      restTime: 60,
-      completed: false,
-      notes: "Keep proper form",
-      created_at: new Date(),
-      updated_at: new Date(),
-      exercise: {
-        id: 1,
-        name: "Push-up",
-        description: "A classic bodyweight exercise",
-        category: "strength",
-        difficulty: "beginner",
-        equipment: "none",
-        muscles_targeted: ["chest", "shoulders", "triceps"],
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    },
-  })
   public async updatePlanDayExercise(
     @Path() id: number,
     @Body() requestBody: Partial<InsertPlanDayExercise>
-  ): Promise<PlanDayExerciseResponse> {
-    const planDayExercise = await workoutService.updatePlanDayExercise(
+  ): Promise<WorkoutBlockExerciseResponse> {
+    const exercise = await workoutService.updatePlanDayExercise(
       id,
       requestBody
     );
     return {
       success: true,
-      planDayExercise,
+      workoutBlockExercise: exercise,
     };
   }
 
@@ -432,7 +255,7 @@ export class WorkoutController extends Controller {
    * Regenerate a single day's workout
    * @param userId User ID
    * @param planDayId Plan day ID
-   * @param requestBody Regeneration reason
+   * @param requestBody Regeneration reason and optional styles
    */
   @Post("/{userId}/days/{planDayId}/regenerate")
   @Response<PlanDayResponse>(400, "Bad Request")
@@ -440,12 +263,18 @@ export class WorkoutController extends Controller {
   public async regenerateDailyWorkout(
     @Path() userId: number,
     @Path() planDayId: number,
-    @Body() requestBody: { regenerationReason: string }
+    @Body()
+    requestBody: {
+      reason: string;
+      styles?: string[];
+      limitations?: string[];
+    }
   ): Promise<PlanDayResponse> {
     const planDay = await workoutService.regenerateDailyWorkout(
       userId,
       planDayId,
-      requestBody.regenerationReason
+      requestBody.reason,
+      requestBody.styles
     );
     return {
       success: true,

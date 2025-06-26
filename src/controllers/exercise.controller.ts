@@ -33,22 +33,6 @@ export class ExerciseController extends Controller {
   @Get("/")
   @Response<ExercisesResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<ExercisesResponse>({
-    success: true,
-    exercises: [
-      {
-        id: 1,
-        name: "Push-up",
-        description: "A classic bodyweight exercise",
-        category: "strength",
-        difficulty: "beginner",
-        equipment: "none",
-        muscles_targeted: ["chest", "shoulders", "triceps"],
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    ],
-  })
   public async getExercises(): Promise<ExercisesResponse> {
     const dbExercises = await exerciseService.getExercises();
     const exercises: Exercise[] = dbExercises.map((ex) => ({
@@ -76,20 +60,6 @@ export class ExerciseController extends Controller {
   @Get("/{id}")
   @Response<ExerciseResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<ExerciseResponse>({
-    success: true,
-    exercise: {
-      id: 1,
-      name: "Push-up",
-      description: "A classic bodyweight exercise",
-      category: "strength",
-      difficulty: "beginner",
-      equipment: "none",
-      muscles_targeted: ["chest", "shoulders", "triceps"],
-      created_at: new Date(),
-      updated_at: new Date(),
-    },
-  })
   public async getExercise(@Path() id: number): Promise<ExerciseResponse> {
     const dbExercise = await exerciseService.getExerciseById(id);
     if (!dbExercise) {
@@ -203,9 +173,6 @@ export class ExerciseController extends Controller {
   @Response<ApiResponse>(400, "Bad Request")
   @Response<ApiResponse>(404, "Exercise not found")
   @SuccessResponse(200, "Link updated successfully")
-  @Example<ApiResponse>({
-    success: true,
-  })
   public async updateExerciseLink(
     @Path() id: number,
     @Body() requestBody: { link: string | null }

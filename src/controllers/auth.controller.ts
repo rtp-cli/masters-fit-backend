@@ -36,16 +36,6 @@ export class AuthController extends Controller {
   @Post("check-email")
   @Response<AuthVerifyResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<AuthVerifyResponse>({
-    success: true,
-    needsOnboarding: false,
-    user: {
-      id: 1,
-      email: "user@example.com",
-      name: "John Doe",
-    },
-    token: "jwt.token.here",
-  })
   public async checkEmail(
     @Body() requestBody: EmailAuthRequest
   ): Promise<AuthVerifyResponse> {
@@ -91,12 +81,6 @@ export class AuthController extends Controller {
   @Post("login")
   @Response<AuthLoginResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<AuthLoginResponse>({
-    success: true,
-    message: "Authorization code generated successfully",
-    userExists: true,
-    needsOnboarding: false,
-  })
   public async login(
     @Body() requestBody: EmailAuthRequest
   ): Promise<AuthLoginResponse> {
@@ -135,10 +119,6 @@ export class AuthController extends Controller {
   @Post("signup")
   @Response<AuthSignupResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<AuthSignupResponse>({
-    success: true,
-    message: "User created successfully",
-  })
   public async signup(
     @Body() requestBody: SignUpRequest
   ): Promise<AuthSignupResponse> {
@@ -217,15 +197,6 @@ export class AuthController extends Controller {
   @Post("verify")
   @Response<AuthVerifyResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<AuthVerifyResponse>({
-    success: true,
-    needsOnboarding: false,
-    user: {
-      id: 1,
-      email: "user@example.com",
-      name: "John Doe",
-    },
-  })
   public async verify(
     @Body() requestBody: AuthCodeRequest
   ): Promise<AuthVerifyResponse> {

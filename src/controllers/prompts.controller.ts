@@ -31,19 +31,6 @@ export class PromptsController extends Controller {
   @Get("/{userId}")
   @Response<UserPromptsResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<UserPromptsResponse>({
-    success: true,
-    prompts: [
-      {
-        id: 1,
-        userId: 1,
-        prompt: "What's a good workout for beginners?",
-        response: "Here's a beginner-friendly workout...",
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    ],
-  })
   public async getUserPrompts(
     @Path() userId: number
   ): Promise<UserPromptsResponse> {
@@ -70,17 +57,6 @@ export class PromptsController extends Controller {
   @Post("/")
   @Response<CreatePromptResponse>(400, "Bad Request")
   @SuccessResponse(201, "Created")
-  @Example<CreatePromptResponse>({
-    success: true,
-    prompt: {
-      id: 1,
-      userId: 1,
-      prompt: "What's a good workout for beginners?",
-      response: "Here's a beginner-friendly workout...",
-      created_at: new Date(),
-      updated_at: new Date(),
-    },
-  })
   public async createPrompt(
     @Body() requestBody: CreatePromptRequest
   ): Promise<CreatePromptResponse> {

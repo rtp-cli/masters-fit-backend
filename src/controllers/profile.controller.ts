@@ -25,24 +25,6 @@ export class ProfileController extends Controller {
    */
   @Get("/{userId}")
   @Response<ApiResponse>(400, "Bad Request")
-  @SuccessResponse(200, "Success")
-  @Example<ProfileResponse>({
-    success: true,
-    profile: {
-      id: 1,
-      userId: 1,
-      height: 180,
-      weight: 75,
-      age: 30,
-      gender: "male",
-      goals: ["fat_loss", "muscle_gain"],
-      fitnessLevel: "beginner",
-      limitations: ["knee_pain"],
-      medicalNotes: "I have a knee pain",
-      created_at: new Date(),
-      updated_at: new Date(),
-    },
-  })
   public async getProfile(@Path() userId: number): Promise<ProfileResponse> {
     const dbProfile = await profileService.getProfileByUserId(userId);
     if (!dbProfile) {
@@ -81,23 +63,6 @@ export class ProfileController extends Controller {
   @Post("/")
   @Response<ApiResponse>(400, "Bad Request")
   @SuccessResponse(201, "Created")
-  @Example<ProfileResponse>({
-    success: true,
-    profile: {
-      id: 1,
-      userId: 1,
-      height: 180,
-      weight: 75,
-      age: 30,
-      gender: "male",
-      goals: ["fat_loss", "muscle_gain"],
-      fitnessLevel: "beginner",
-      limitations: ["knee_pain"],
-      medicalNotes: "I have a knee pain",
-      created_at: new Date(),
-      updated_at: new Date(),
-    },
-  })
   public async createProfile(
     @Body() requestBody: Partial<Profile>
   ): Promise<ProfileResponse> {
@@ -168,23 +133,6 @@ export class ProfileController extends Controller {
   @Put("/{id}")
   @Response<ApiResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<ProfileResponse>({
-    success: true,
-    profile: {
-      id: 1,
-      userId: 1,
-      height: 180,
-      weight: 75,
-      age: 30,
-      gender: "male",
-      goals: ["fat_loss", "muscle_gain"],
-      fitnessLevel: "beginner",
-      limitations: ["knee_pain"],
-      medicalNotes: "I have a knee pain",
-      created_at: new Date(),
-      updated_at: new Date(),
-    },
-  })
   public async updateProfile(
     @Path() id: number,
     @Body() requestBody: Partial<Profile>
@@ -247,23 +195,6 @@ export class ProfileController extends Controller {
   @Put("/user/{userId}")
   @Response<ApiResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  @Example<ProfileResponse>({
-    success: true,
-    profile: {
-      id: 1,
-      userId: 1,
-      height: 180,
-      weight: 75,
-      age: 30,
-      gender: "male",
-      goals: ["fat_loss", "muscle_gain"],
-      fitnessLevel: "beginner",
-      limitations: ["knee_pain"],
-      medicalNotes: "I have a knee pain",
-      created_at: new Date(),
-      updated_at: new Date(),
-    },
-  })
   public async updateProfileByUserId(
     @Path() userId: number,
     @Body() requestBody: Partial<Profile>

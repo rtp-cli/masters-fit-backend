@@ -17,9 +17,9 @@ export interface Exercise {
   updated_at: Date;
 }
 
-export interface PlanDayExercise {
+export interface WorkoutBlockExercise {
   id: number;
-  planDayId: number;
+  workoutBlockId: number;
   exerciseId: number;
   sets?: number;
   reps?: number;
@@ -28,6 +28,19 @@ export interface PlanDayExercise {
   restTime?: number;
   completed: boolean;
   notes?: string;
+  order?: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface WorkoutBlock {
+  id: number;
+  blockType?: string;
+  blockName?: string;
+  timeCapMinutes?: number;
+  rounds?: number;
+  instructions?: string;
+  order?: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -35,7 +48,7 @@ export interface PlanDayExercise {
 export interface PlanDay {
   id: number;
   workoutId: number;
-  date: string;
+  date: Date;
   instructions?: string;
   name: string;
   description?: string;
@@ -52,19 +65,26 @@ export interface Workout {
   startDate: string;
   endDate: string;
   promptId: number;
-  isActive: boolean;
-  completed: boolean;
+  isActive?: boolean;
+  completed?: boolean;
   created_at: Date;
   updated_at: Date;
 }
 
-export interface PlanDayWithExercise extends PlanDayExercise {
+export interface WorkoutBlockWithExercise extends WorkoutBlockExercise {
   exercise: Exercise;
+}
+
+export interface WorkoutBlockWithExercises
+  extends Omit<WorkoutBlock, "created_at" | "updated_at"> {
+  exercises: WorkoutBlockWithExercise[];
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface PlanDayWithExercises
   extends Omit<PlanDay, "created_at" | "updated_at"> {
-  exercises: PlanDayWithExercise[];
+  blocks: WorkoutBlockWithExercises[];
   created_at: Date;
   updated_at: Date;
 }
@@ -83,6 +103,23 @@ export interface WorkoutsResponse extends ApiResponse {
 
 export interface PlanDayResponse extends ApiResponse {
   planDay: PlanDayWithExercises;
+}
+
+export interface WorkoutBlockResponse extends ApiResponse {
+  workoutBlock: WorkoutBlockWithExercises;
+}
+
+export interface WorkoutBlockExerciseResponse extends ApiResponse {
+  workoutBlockExercise: WorkoutBlockWithExercise;
+}
+
+// Legacy types for backward compatibility
+export interface PlanDayExercise extends WorkoutBlockExercise {
+  planDayId: number;
+}
+
+export interface PlanDayWithExercise extends WorkoutBlockWithExercise {
+  planDayId: number;
 }
 
 export interface PlanDayExerciseResponse extends ApiResponse {

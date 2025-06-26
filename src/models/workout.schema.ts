@@ -48,6 +48,9 @@ export const planDays = pgTable("plan_days", {
     .references(() => workouts.id),
   date: text("date").notNull(),
   instructions: text("instructions"), // Day-level coaching instructions
+  name: text("name"), // Name of the workout day
+  description: text("description"), // Description of the workout day
+  dayNumber: integer("day_number"), // Day number in the workout plan
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -61,15 +64,46 @@ export const planDayRelations = relations(planDays, ({ one, many }) => ({
     fields: [planDays.workoutId],
     references: [workouts.id],
   }),
-  exercises: many(planDayExercises),
+  blocks: many(workoutBlocks),
 }));
 
-// Workout Exercise Junction Table
-export const planDayExercises = pgTable("plan_day_exercises", {
+// Workout blocks - represents different segments of a workout day
+export const workoutBlocks = pgTable("workout_blocks", {
   id: serial("id").primaryKey(),
   planDayId: integer("plan_day_id")
     .notNull()
     .references(() => planDays.id),
+  blockType: text("block_type").default("traditional"), // Type of workout block
+  blockName: text("block_name"), // Name of the workout block
+  timeCapMinutes: integer("time_cap_minutes"), // Time cap for AMRAP/EMOM blocks
+  rounds: integer("rounds").default(1), // Number of rounds for circuits/flows
+  instructions: text("instructions"), // Block-level coaching instructions
+  order: integer("order").default(1), // Order of blocks within the day
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const workoutBlockRelations = relations(
+  workoutBlocks,
+  ({ one, many }) => ({
+    planDay: one(planDays, {
+      fields: [workoutBlocks.planDayId],
+      references: [planDays.id],
+    }),
+    exercises: many(planDayExercises),
+  })
+);
+
+// Workout Exercise Junction Table - now references workout blocks instead of plan days
+export const planDayExercises = pgTable("plan_day_exercises", {
+  id: serial("id").primaryKey(),
+  workoutBlockId: integer("workout_block_id")
+    .notNull()
+    .references(() => workoutBlocks.id),
   exerciseId: integer("exercise_id")
     .notNull()
     .references(() => exercises.id),
@@ -80,6 +114,7 @@ export const planDayExercises = pgTable("plan_day_exercises", {
   restTime: integer("rest_time"), // in seconds
   notes: text("notes"),
   completed: boolean("completed").default(false),
+  order: integer("order").default(1), // Order of exercises within the block
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -91,9 +126,9 @@ export const planDayExercises = pgTable("plan_day_exercises", {
 export const planDayExerciseRelations = relations(
   planDayExercises,
   ({ one }) => ({
-    planDay: one(planDays, {
-      fields: [planDayExercises.planDayId],
-      references: [planDays.id],
+    workoutBlock: one(workoutBlocks, {
+      fields: [planDayExercises.workoutBlockId],
+      references: [workoutBlocks.id],
     }),
     exercise: one(exercises, {
       fields: [planDayExercises.exerciseId],
@@ -112,6 +147,10 @@ export const insertPlanDaySchema = createInsertSchema(planDays).omit({
   id: true,
 });
 
+export const insertWorkoutBlockSchema = createInsertSchema(workoutBlocks).omit({
+  id: true,
+});
+
 export const insertPlanDayExerciseSchema = createInsertSchema(
   planDayExercises
 ).omit({
@@ -125,10 +164,10 @@ export interface Workout {
   startDate: string;
   endDate: string;
   promptId: number;
-  isActive: boolean | null;
+  isActive?: boolean;
   name: string;
-  description: string | null;
-  completed: boolean | null;
+  description?: string;
+  completed?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -138,13 +177,29 @@ export interface PlanDay {
   workoutId: number;
   date: string;
   instructions: string | null;
+  name: string | null;
+  description: string | null;
+  dayNumber: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WorkoutBlock {
+  id: number;
+  planDayId: number;
+  blockType: string | null;
+  blockName: string | null;
+  timeCapMinutes: number | null;
+  rounds: number | null;
+  instructions: string | null;
+  order: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface PlanDayExercise {
   id: number;
-  planDayId: number;
+  workoutBlockId: number;
   exerciseId: number;
   sets: number | null;
   reps: number | null;
@@ -153,10 +208,12 @@ export interface PlanDayExercise {
   restTime: number | null;
   notes: string | null;
   completed: boolean | null;
+  order: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export type InsertWorkout = z.infer<typeof insertWorkoutSchema>;
 export type InsertPlanDay = z.infer<typeof insertPlanDaySchema>;
+export type InsertWorkoutBlock = z.infer<typeof insertWorkoutBlockSchema>;
 export type InsertPlanDayExercise = z.infer<typeof insertPlanDayExerciseSchema>;
