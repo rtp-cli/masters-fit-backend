@@ -2463,6 +2463,10 @@
 					"blockName": {
 						"type": "string"
 					},
+					"blockDurationMinutes": {
+						"type": "number",
+						"format": "double"
+					},
 					"timeCapMinutes": {
 						"type": "number",
 						"format": "double"

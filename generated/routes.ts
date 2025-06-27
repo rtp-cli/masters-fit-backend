@@ -903,6 +903,7 @@ const models: TsoaRoute.Models = {
             "instructions": {"dataType":"string"},
             "blockType": {"dataType":"string"},
             "blockName": {"dataType":"string"},
+            "blockDurationMinutes": {"dataType":"double"},
             "timeCapMinutes": {"dataType":"double"},
             "rounds": {"dataType":"double"},
             "order": {"dataType":"double"},

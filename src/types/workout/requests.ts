@@ -33,6 +33,7 @@ export interface CreateWorkoutBlockRequest {
   planDayId: number;
   blockType?: string;
   blockName?: string;
+  blockDurationMinutes?: number;
   timeCapMinutes?: number;
   rounds?: number;
   instructions?: string;

@@ -75,6 +75,7 @@ export const workoutBlocks = pgTable("workout_blocks", {
     .references(() => planDays.id),
   blockType: text("block_type").default("traditional"), // Type of workout block
   blockName: text("block_name"), // Name of the workout block
+  blockDurationMinutes: integer("block_duration_minutes"), // Calculated duration of the block in minutes
   timeCapMinutes: integer("time_cap_minutes"), // Time cap for AMRAP/EMOM blocks
   rounds: integer("rounds").default(1), // Number of rounds for circuits/flows
   instructions: text("instructions"), // Block-level coaching instructions
@@ -189,6 +190,7 @@ export interface WorkoutBlock {
   planDayId: number;
   blockType: string | null;
   blockName: string | null;
+  blockDurationMinutes: number | null;
   timeCapMinutes: number | null;
   rounds: number | null;
   instructions: string | null;

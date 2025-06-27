@@ -6,6 +6,7 @@ import { exerciseService } from "./exercise.service";
 import {
   buildClaudePrompt,
   buildClaudeDailyPrompt,
+  buildClaudeChunkedPrompt,
 } from "@/utils/prompt-generator";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -173,6 +174,168 @@ export class PromptsService extends BaseService {
     });
 
     return { response: parsedResponse, promptId: createdPrompt.id };
+  }
+
+  public async generateChunkedPrompt(userId: number, customFeedback?: string) {
+    const profile = await profileService.getProfileByUserId(userId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    // Validate profile has required fields
+    if (
+      !profile.availableDays ||
+      !profile.preferredStyles ||
+      !profile.workoutDuration ||
+      !profile.environment
+    ) {
+      throw new Error(
+        "Profile is missing required fields: availableDays, preferredStyles, workoutDuration, or environment"
+      );
+    }
+
+    const exercises = await exerciseService.getExercises();
+    const exerciseNames = exercises.map((exercise) => exercise.name);
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+
+    const totalDays = profile.availableDays?.length || 7;
+    const chunkSize = 2; // Generate 2 days at a time
+    const totalChunks = Math.ceil(totalDays / chunkSize);
+
+    console.log(
+      `Generating ${totalDays} days in ${totalChunks} chunks of ${chunkSize} days each`
+    );
+
+    let allWorkoutDays: any[] = [];
+    let allExercisesToAdd: any[] = [];
+    let workoutName = "";
+    let workoutDescription = "";
+
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      const startDay = chunkIndex * chunkSize + 1;
+      const endDay = Math.min(startDay + chunkSize - 1, totalDays);
+      const chunkNumber = chunkIndex + 1;
+
+      console.log(
+        `Generating chunk ${chunkNumber}/${totalChunks}: days ${startDay} to ${endDay}`
+      );
+
+      const prompt = buildClaudeChunkedPrompt(
+        profile,
+        exerciseNames,
+        chunkNumber,
+        totalChunks,
+        startDay,
+        endDay,
+        customFeedback
+      );
+
+      try {
+        const response = await anthropic.messages.create({
+          model: "claude-3-5-sonnet-20241022",
+          max_tokens: 8192,
+          messages: [{ role: "user" as const, content: prompt }],
+        });
+
+        const data = (response.content[0] as any).text;
+
+        // Check if response was truncated
+        if (response.stop_reason === "max_tokens") {
+          console.error(
+            `❌ Chunk ${chunkNumber} response was truncated due to token limit.`
+          );
+          throw new Error(
+            `Chunk ${chunkNumber} response was truncated. Please try again.`
+          );
+        }
+
+        let parsedResponse;
+        try {
+          parsedResponse = JSON.parse(data);
+        } catch (parseError: any) {
+          console.error(
+            `JSON Parse Error for chunk ${chunkNumber}:`,
+            parseError.message
+          );
+          throw new Error(
+            `Failed to parse chunk ${chunkNumber} response as JSON: ${parseError.message}`
+          );
+        }
+
+        // Validate chunk structure
+        if (
+          !parsedResponse.workoutPlan ||
+          !Array.isArray(parsedResponse.workoutPlan)
+        ) {
+          throw new Error(
+            `Chunk ${chunkNumber} missing valid workoutPlan array`
+          );
+        }
+
+        const expectedDaysInChunk = endDay - startDay + 1;
+        if (parsedResponse.workoutPlan.length !== expectedDaysInChunk) {
+          throw new Error(
+            `Chunk ${chunkNumber} generated ${parsedResponse.workoutPlan.length} days, expected ${expectedDaysInChunk}`
+          );
+        }
+
+        // Store name and description from first chunk
+        if (chunkIndex === 0) {
+          workoutName = parsedResponse.name || "Custom Workout Plan";
+          workoutDescription =
+            parsedResponse.description || "Comprehensive weekly workout plan";
+        }
+
+        // Accumulate workout days
+        allWorkoutDays.push(...parsedResponse.workoutPlan);
+
+        // Accumulate exercises to add
+        if (
+          parsedResponse.exercisesToAdd &&
+          Array.isArray(parsedResponse.exercisesToAdd)
+        ) {
+          allExercisesToAdd.push(...parsedResponse.exercisesToAdd);
+        }
+
+        console.log(
+          `✅ Successfully generated chunk ${chunkNumber} with ${parsedResponse.workoutPlan.length} days`
+        );
+
+        // Add a small delay between chunks to avoid rate limiting
+        if (chunkIndex < totalChunks - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      } catch (error: any) {
+        console.error(`Error generating chunk ${chunkNumber}:`, error.message);
+        throw new Error(
+          `Failed to generate chunk ${chunkNumber}: ${error.message}`
+        );
+      }
+    }
+
+    // Combine all chunks into final response
+    const finalResponse = {
+      name: workoutName,
+      description: workoutDescription,
+      workoutPlan: allWorkoutDays,
+      exercisesToAdd: allExercisesToAdd,
+    };
+
+    console.log(
+      `✅ Successfully generated complete workout plan with ${allWorkoutDays.length} days`
+    );
+
+    // Create a single prompt record for the entire generation
+    const combinedPromptText = `CHUNKED GENERATION: ${totalChunks} chunks for ${totalDays} days`;
+    const createdPrompt = await this.createPrompt({
+      userId,
+      prompt: combinedPromptText,
+      response: JSON.stringify(finalResponse),
+    });
+
+    return { response: finalResponse, promptId: createdPrompt.id };
   }
 
   public async generateRegenerationPrompt(

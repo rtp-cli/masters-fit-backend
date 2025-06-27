@@ -70,6 +70,7 @@ type DBWorkoutResult = {
       planDayId: number;
       blockType: string | null;
       blockName: string | null;
+      blockDurationMinutes: number | null;
       timeCapMinutes: number | null;
       rounds: number | null;
       instructions: string | null;
@@ -133,6 +134,7 @@ type DBWorkoutQueryResult = {
       planDayId: number;
       blockType: string | null;
       blockName: string | null;
+      blockDurationMinutes: number | null;
       timeCapMinutes: number | null;
       rounds: number | null;
       instructions: string | null;
@@ -284,6 +286,7 @@ export class WorkoutService extends BaseService {
           id: block.id,
           blockType: block.blockType ?? undefined,
           blockName: block.blockName ?? undefined,
+          blockDurationMinutes: block.blockDurationMinutes ?? undefined,
           timeCapMinutes: block.timeCapMinutes ?? undefined,
           rounds: block.rounds ?? undefined,
           instructions: block.instructions ?? undefined,
@@ -419,6 +422,7 @@ export class WorkoutService extends BaseService {
             planDayId: block.planDayId,
             blockType: block.blockType,
             blockName: block.blockName,
+            blockDurationMinutes: block.blockDurationMinutes,
             timeCapMinutes: block.timeCapMinutes,
             rounds: block.rounds,
             instructions: block.instructions,
@@ -510,6 +514,7 @@ export class WorkoutService extends BaseService {
             planDayId: block.planDayId,
             blockType: block.blockType,
             blockName: block.blockName,
+            blockDurationMinutes: block.blockDurationMinutes,
             timeCapMinutes: block.timeCapMinutes,
             rounds: block.rounds,
             instructions: block.instructions,
@@ -793,10 +798,35 @@ export class WorkoutService extends BaseService {
       console.log(`No active workouts found for user ${userId}`);
     }
 
-    const { response, promptId } = await promptsService.generatePrompt(
-      userId,
-      customFeedback
-    );
+    // Try chunked generation first, fallback to regular generation if it fails
+    let response, promptId;
+    try {
+      console.log("Attempting chunked generation...");
+      const result = await promptsService.generateChunkedPrompt(
+        userId,
+        customFeedback
+      );
+      response = result.response;
+      promptId = result.promptId;
+      console.log("✅ Chunked generation successful");
+    } catch (chunkedError: any) {
+      console.warn(
+        "⚠️ Chunked generation failed, falling back to regular generation:",
+        chunkedError.message
+      );
+      try {
+        const result = await promptsService.generatePrompt(
+          userId,
+          customFeedback
+        );
+        response = result.response;
+        promptId = result.promptId;
+        console.log("✅ Fallback generation successful");
+      } catch (fallbackError: any) {
+        console.error("❌ Both chunked and fallback generation failed");
+        throw new Error(`Workout generation failed: ${fallbackError.message}`);
+      }
+    }
     const profile = await profileService.getProfileByUserId(userId);
     // Calculate startDate and endDate as YYYY-MM-DD strings in user's timezone
     const startDate = timezone
@@ -896,6 +926,7 @@ export class WorkoutService extends BaseService {
           planDayId: planDay.id,
           blockType: block.blockType,
           blockName: block.blockName,
+          blockDurationMinutes: block.blockDurationMinutes,
           timeCapMinutes: block.timeCapMinutes,
           rounds: block.rounds,
           instructions: block.instructions,
@@ -1186,6 +1217,7 @@ export class WorkoutService extends BaseService {
       .set({
         blockType: determinedBlockType,
         blockName: determinedBlockName,
+        blockDurationMinutes: response.blockDurationMinutes,
         timeCapMinutes: determinedTimeCap,
         rounds: determinedRounds,
         updatedAt: new Date(),
@@ -1207,6 +1239,7 @@ export class WorkoutService extends BaseService {
         id: block.id,
         blockType: block.blockType ?? undefined,
         blockName: block.blockName ?? undefined,
+        blockDurationMinutes: block.blockDurationMinutes ?? undefined,
         timeCapMinutes: block.timeCapMinutes ?? undefined,
         rounds: block.rounds ?? undefined,
         instructions: block.instructions ?? undefined,
