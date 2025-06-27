@@ -28,6 +28,26 @@ export function getCurrentDateString(): string {
 }
 
 /**
+ * Get current date in YYYY-MM-DD format in a specific timezone
+ * This is used for workout generation based on user's timezone
+ */
+export function getCurrentDateStringInTimezone(timezone: string): string {
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    return formatter.format(now); // Returns YYYY-MM-DD in specified timezone
+  } catch (error) {
+    console.warn(`Invalid timezone ${timezone}, falling back to server time`);
+    return getCurrentDateString(); // Fallback to server timezone
+  }
+}
+
+/**
  * Convert any date input to UTC Date object (for database timestamps only)
  */
 export function toUTCDate(dateInput: string | Date | null | undefined): Date {
@@ -221,6 +241,46 @@ export function getDateForWeekday(weekday: string, afterDate?: string): string {
 
   // Start from afterDate or today
   const startDate = afterDate ? afterDate : getTodayString();
+  const [year, month, day] = startDate.split("-").map(Number);
+  const currentDate = new Date(year, month - 1, day);
+
+  // Find the next occurrence of the target weekday
+  while (currentDate.getDay() !== targetIndex) {
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return formatDateToString(currentDate);
+}
+
+/**
+ * Create a date string for a specific day of the week in a specific timezone (for workout scheduling)
+ */
+export function getDateForWeekdayInTimezone(
+  weekday: string,
+  afterDate?: string,
+  timezone?: string
+): string {
+  const daysOfWeek = [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+  ];
+
+  const targetIndex = daysOfWeek.indexOf(weekday.toLowerCase());
+  if (targetIndex === -1) {
+    throw new Error(`Invalid weekday: ${weekday}`);
+  }
+
+  // Start from afterDate or today in the specified timezone
+  const startDate = afterDate
+    ? afterDate
+    : timezone
+      ? getCurrentDateStringInTimezone(timezone)
+      : getTodayString();
   const [year, month, day] = startDate.split("-").map(Number);
   const currentDate = new Date(year, month - 1, day);
 

@@ -179,14 +179,20 @@ export class WorkoutController extends Controller {
   /**
    * Generate workout plan
    * @param userId User ID
+   * @param requestBody Generation options including timezone
    */
   @Post("/{userId}/generate")
   @Response<WorkoutResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
   public async generateWorkoutPlan(
-    @Path() userId: number
+    @Path() userId: number,
+    @Body() requestBody?: { customFeedback?: string; timezone?: string }
   ): Promise<WorkoutResponse> {
-    const workout = await workoutService.generateWorkoutPlan(userId);
+    const workout = await workoutService.generateWorkoutPlan(
+      userId,
+      requestBody?.customFeedback,
+      requestBody?.timezone
+    );
     return {
       success: true,
       workout,

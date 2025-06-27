@@ -918,7 +918,7 @@ const models: TsoaRoute.Models = {
         "properties": {
             "id": {"dataType":"double","required":true},
             "workoutId": {"dataType":"double","required":true},
-            "date": {"dataType":"datetime","required":true},
+            "date": {"dataType":"string","required":true},
             "instructions": {"dataType":"string"},
             "name": {"dataType":"string","required":true},
             "description": {"dataType":"string"},
@@ -2880,6 +2880,7 @@ export function RegisterRoutes(app: Router) {
             function WorkoutController_generateWorkoutPlan(request: any, response: any, next: any) {
             const args = {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    requestBody: {"in":"body","name":"requestBody","dataType":"nestedObjectLiteral","nestedProperties":{"timezone":{"dataType":"string"},"customFeedback":{"dataType":"string"}}},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa

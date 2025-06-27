@@ -2510,8 +2510,7 @@
 						"format": "double"
 					},
 					"date": {
-						"type": "string",
-						"format": "date-time"
+						"type": "string"
 					},
 					"instructions": {
 						"type": "string"
@@ -7052,7 +7051,27 @@
 							"type": "number"
 						}
 					}
-				]
+				],
+				"requestBody": {
+					"description": "Generation options including timezone",
+					"required": false,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"timezone": {
+										"type": "string"
+									},
+									"customFeedback": {
+										"type": "string"
+									}
+								},
+								"type": "object",
+								"description": "Generation options including timezone"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/workouts/{userId}/regenerate": {

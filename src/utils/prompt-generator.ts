@@ -56,6 +56,7 @@ Each workout style requires distinct programming philosophy, structure, and coac
 - **Characteristics:** High intensity, functional movements, scoreable workouts
 - **Language:** Use authentic CrossFit terminology (Rx, scaled, pacing cues)
 - **Block Types:** Use "amrap", "emom", or "for_time" - never "traditional"
+- **Weight Assignment:** CrossFit frequently uses weighted movements (barbells, dumbbells, kettlebells). Specify appropriate weights for exercises like thrusters, deadlifts, kettlebell swings, wall balls, etc. Use Rx/scaled weight recommendations.
 
 **CROSSFIT FORMAT OPTIONS:**
 **Option 1: Pure CrossFit Format** (Recommended for shorter sessions)
@@ -79,21 +80,38 @@ Each workout style requires distinct programming philosophy, structure, and coac
 - **Structure:** Dynamic warm-up → High-intensity intervals → Recovery
 - **Characteristics:** Time-based intervals, minimal rest, heart rate elevation
 - **Block Types:** Use "circuit" or "tabata" with high-intensity exercises
+- **Weight Assignment:** 
+  * For weighted exercises (e.g., dumbbell thrusters, kettlebell swings, weighted squats), specify appropriate weights
+  * Use moderate weights that allow for sustained high intensity throughout intervals
+  * Include RPE guidance in notes (e.g., "Weight at RPE 7/10")
+  * For bodyweight exercises, set weight to 0
 
 ### Strength Programming
 - **Formats:** Traditional sets/reps (5x5, 4x8), Pyramid sets, Progressive overload
 - **Structure:** Warm-up → Main lifts → Accessory work → Cool-down
 - **Characteristics:** Compound movements, rest periods, form focus
 - **Block Types:** Use "traditional" with proper sets/reps/rest
+- **Weight Assignment:**
+  * Specify weights for all resistance exercises
+  * Main lifts: Use percentage of 1RM or specific weight ranges
+  * Accessory work: Specify weights based on rep ranges and training goals
+  * Include %1RM or RPE guidance in notes
+  * For bodyweight exercises, set weight to 0
+
+### Functional Programming
+- **Formats:** Multi-planar movements, real-life patterns, compound movements
+- **Structure:** Movement prep → Functional patterns → Integration
+- **Characteristics:** Compound movements (lunges with rotation, carries, jumps)
+- **Block Types:** Use "circuit" blocks with compound movements
+- **Weight Assignment:** Many functional exercises use weights (farmer's walks, loaded carries, weighted step-ups, medicine ball throws). Specify appropriate functional weights that challenge movement patterns.
 
 ### Other Styles
-- **Yoga:** Flow sequences, breath coordination, mindful transitions, poses for flexibility and core control
-- **Pilates:** Core stability, controlled movement, spinal alignment, precision-focused sequences
-- **Functional:** Multi-planar movements, real-life patterns, compound movements (lunges with rotation, carries, jumps)
-- **Rehab:** Low-load, controlled tempo, joint-friendly patterns, 1-2 rounds of focused movements with high cueing detail
-- **Mobility:** Slow, controlled dynamic movements, joint articulation, range of motion focus, end-range holds
-- **Balance:** Single-leg movements, unstable surface exercises, control, proprioception, safe progression
-- **Cardio:** High-intensity circuits, EMOM, steady-state intervals, heart rate elevation with jumping jacks, running, cycling
+- **Yoga:** Flow sequences, breath coordination, mindful transitions, poses for flexibility and core control. Weight assignment: Set to 0 for all exercises.
+- **Pilates:** Core stability, controlled movement, spinal alignment, precision-focused sequences. Weight assignment: Occasionally uses light weights (1-3 lbs) for resistance. Set to 0 for bodyweight exercises.
+- **Rehab:** Low-load, controlled tempo, joint-friendly patterns, 1-2 rounds of focused movements with high cueing detail. Weight assignment: Use very light weights for resistance exercises, 0 for bodyweight therapeutic movements.
+- **Mobility:** Slow, controlled dynamic movements, joint articulation, range of motion focus, end-range holds. Weight assignment: Set to 0 for all exercises.
+- **Balance:** Single-leg movements, unstable surface exercises, control, proprioception, safe progression. Weight assignment: May use light weights for added challenge (light dumbbells for single-leg deadlifts). Set to 0 for pure balance work.
+- **Cardio:** High-intensity circuits, EMOM, steady-state intervals, heart rate elevation with jumping jacks, running, cycling. Weight assignment: For weighted cardio exercises (weighted burpees, dumbbell complexes), specify appropriate weights. Set to 0 for pure cardio movements.
 
 Choose the most appropriate format and structure for the styles selected. Combine intelligently when multiple styles are used (e.g., CrossFit + Strength may use a strength-biased WOD). Always adjust exercise selection, intensity, and structure based on the user's environment, equipment, fitness level, and physical limitations.
 `;
@@ -153,21 +171,21 @@ const getBlockTypeGuide = (): string => {
   return `
 ## BLOCK TYPE PROGRAMMING GUIDE
 
-- **"traditional"**: Standard sets x reps format. Use actual sets (3-5), reps (5-15), and rest periods (30-120s). Best for strength, bodybuilding.
-- **"amrap"**: As Many Rounds As Possible. Set timeCapMinutes (15-25), use sets=1 for all exercises, specify target reps per round, minimal restTime (0-15s). Instructions must explain the AMRAP format.
-- **"emom"**: Every Minute On the Minute. Set timeCapMinutes (8-20), use sets=1, specify work per minute, restTime=remaining time in minute. Instructions must explain EMOM format.
-- **"for_time"**: Complete prescribed work as fast as possible. Set rounds (3-5), use sets=1, specify reps per round, minimal restTime. Instructions must include total work and time goal.
-- **"circuit"**: Timed circuit training. Set rounds (3-6), use sets=1, specify work duration or reps, short restTime (15-30s). Instructions explain circuit flow.
-- **"flow"**: Continuous movement sequence (yoga, pilates). Set rounds (3-8), use sets=1, specify hold duration or transitions, minimal restTime. Instructions explain flow sequence.
-- **"tabata"**: 20s work, 10s rest format. Set rounds (4-8), use sets=1, duration=20, restTime=10. Instructions explain Tabata protocol.
+- **"traditional"**: Standard sets x reps format. Use actual sets (3-5), reps (5-15), and rest periods (30-120s). Best for strength, bodybuilding. Specify weights for resistance exercises, 0 for bodyweight.
+- **"amrap"**: As Many Rounds As Possible. Set timeCapMinutes (15-25), use sets=1 for all exercises, specify target reps per round, minimal restTime (0-15s). Instructions must explain the AMRAP format. Include weights for weighted movements.
+- **"emom"**: Every Minute On the Minute. Set timeCapMinutes (8-20), use sets=1, specify work per minute, restTime=remaining time in minute. Instructions must explain EMOM format. Include weights for weighted movements.
+- **"for_time"**: Complete prescribed work as fast as possible. Set rounds (3-5), use sets=1, specify reps per round, minimal restTime. Instructions must include total work and time goal. Include weights for weighted movements.
+- **"circuit"**: Timed circuit training. Set rounds (3-6), use sets=1, specify work duration or reps, short restTime (15-30s). Instructions explain circuit flow. Include weights for weighted exercises.
+- **"flow"**: Continuous movement sequence (yoga, pilates). Set rounds (3-8), use sets=1, specify hold duration or transitions, minimal restTime. Instructions explain flow sequence. Typically weight is 0, but may include light weights for pilates.
+- **"tabata"**: 20s work, 10s rest format. Set rounds (4-8), use sets=1, duration=20, restTime=10. Instructions explain Tabata protocol. Include weights for weighted exercises.
 
 **CRITICAL STYLE-TO-BLOCK MAPPING:**
-- CrossFit → Use "amrap", "emom", or "for_time" blocks. Never use "traditional" for CrossFit.
-- HIIT → Use "circuit" or "tabata" blocks with high-intensity exercises.
-- Strength → Use "traditional" blocks with proper sets/reps/rest.
-- Yoga/Pilates → Use "flow" blocks with pose sequences and hold durations.
-- Rehab → Use "traditional" blocks with controlled movements and longer rest.
-- Functional → Use "circuit" blocks with compound movements.
+- CrossFit → Use "amrap", "emom", or "for_time" blocks. Never use "traditional" for CrossFit. Include weights for weighted movements.
+- HIIT → Use "circuit" or "tabata" blocks with high-intensity exercises. Include weights for weighted exercises.
+- Strength → Use "traditional" blocks with proper sets/reps/rest. Specify weights for resistance exercises.
+- Yoga/Pilates → Use "flow" blocks with pose sequences and hold durations. Weight is 0 for yoga, may be light weights for pilates.
+- Rehab → Use "traditional" blocks with controlled movements and longer rest. Use light weights when appropriate.
+- Functional → Use "circuit" blocks with compound movements. Include weights for loaded movements.
 `;
 };
 
@@ -344,6 +362,15 @@ Prioritize coaching quality over token efficiency:
 - **EXERCISE-LEVEL NOTES**: Include specific coaching cues in individual exercise notes field:
   * Movement quality cues, intensity guidance, form reminders, breathing patterns, or motivational elements
   * Make notes specific to the exercise and training style context
+  * **WEIGHT TARGETING:** Assign specific weights when exercises require resistance equipment:
+    - **Strength Training:** Specify weights for all resistance exercises (barbells, dumbbells, kettlebells, machines)
+    - **HIIT/CrossFit:** Include weights for weighted movements (thrusters, swings, loaded carries)  
+    - **Functional Training:** Assign weights for loaded movements (farmer's walks, weighted step-ups)
+    - **Cardio:** Include weights for weighted cardio exercises (weighted burpees, dumbbell complexes)
+    - **Rehabilitation:** Use light weights for resistance exercises when appropriate
+    - **Bodyweight/Yoga/Mobility:** Set weight to 0 for these exercise types
+    - **Professional Judgment:** Use your expertise to determine appropriate weights based on exercise type, user fitness level, and training goals
+    - **Weight Guidance:** Include RPE, %1RM, or descriptive guidance in exercise notes when helpful
 - **LOGICAL PROGRESSION**: Structure exercises in coaching-appropriate order with proper flow
 - **PROFESSIONAL QUALITY**: Better to have fewer, well-programmed exercises than many poorly structured ones
 - **DURATION BALANCE**: Use style-appropriate methods to reach target duration while maintaining workout integrity

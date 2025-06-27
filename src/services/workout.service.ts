@@ -35,7 +35,9 @@ import {
   toUTCDate,
   formatTimestampForAPI,
   getCurrentDateString,
+  getCurrentDateStringInTimezone,
   getDateForWeekday,
+  getDateForWeekdayInTimezone,
   addDays,
   formatDateAsString,
 } from "@/utils/date.utils";
@@ -763,7 +765,8 @@ export class WorkoutService extends BaseService {
 
   async generateWorkoutPlan(
     userId: number,
-    customFeedback?: string
+    customFeedback?: string,
+    timezone?: string
   ): Promise<WorkoutWithDetails> {
     // First, find and deactivate the current active workout(s)
     const activeWorkouts = await this.db
@@ -795,8 +798,10 @@ export class WorkoutService extends BaseService {
       customFeedback
     );
     const profile = await profileService.getProfileByUserId(userId);
-    // Calculate startDate and endDate as YYYY-MM-DD strings (timezone-independent)
-    const startDate = getCurrentDateString();
+    // Calculate startDate and endDate as YYYY-MM-DD strings in user's timezone
+    const startDate = timezone
+      ? getCurrentDateStringInTimezone(timezone)
+      : getCurrentDateString();
     const endDate = addDays(startDate, 6);
 
     const workout = await this.createWorkout({
@@ -824,11 +829,21 @@ export class WorkoutService extends BaseService {
 
     const workoutPlan = response.workoutPlan;
     const availableDays = profile?.availableDays || []; // e.g. ["tuesday", "wednesday", "saturday"]
-    const today = getCurrentDateString();
-    const todayDate = new Date();
-    const todayDay = todayDate
-      .toLocaleDateString("en-US", { weekday: "long" })
-      .toLowerCase();
+    const today = timezone
+      ? getCurrentDateStringInTimezone(timezone)
+      : getCurrentDateString();
+
+    // Get today's weekday in the specified timezone
+    const todayDay = timezone
+      ? new Date()
+          .toLocaleDateString("en-US", {
+            weekday: "long",
+            timeZone: timezone,
+          })
+          .toLowerCase()
+      : new Date()
+          .toLocaleDateString("en-US", { weekday: "long" })
+          .toLowerCase();
 
     // New logic for rotating available days
     const daysOfWeek = [
@@ -854,7 +869,9 @@ export class WorkoutService extends BaseService {
 
     for (let i = 0; i < workoutPlan.length; i++) {
       const availableDay = rotatedDays[i % rotatedDays.length];
-      const scheduledDate = getDateForWeekday(availableDay, referenceDate);
+      const scheduledDate = timezone
+        ? getDateForWeekdayInTimezone(availableDay, referenceDate, timezone)
+        : getDateForWeekday(availableDay, referenceDate);
 
       // Move reference date to the day after the scheduledDate to prevent same day reuse
       referenceDate = addDays(scheduledDate, 1);
