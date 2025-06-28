@@ -4589,28 +4589,18 @@
 			"post": {
 				"operationId": "CreateExerciseLog",
 				"responses": {
-					"201": {
-						"description": "Created",
+					"200": {
+						"description": "Ok",
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/ExerciseLogResponse"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ApiResponse"
+									"$ref": "#/components/schemas/ExerciseLog"
 								}
 							}
 						}
 					}
 				},
-				"description": "Create exercise log",
+				"description": "Create a new exercise log entry",
 				"tags": [
 					"Logs"
 				],
@@ -4621,12 +4611,64 @@
 				],
 				"parameters": [],
 				"requestBody": {
-					"description": "Exercise log data",
 					"required": true,
 					"content": {
 						"application/json": {
 							"schema": {
-								"description": "Exercise log data"
+								"properties": {
+									"rating": {
+										"type": "number",
+										"format": "double"
+									},
+									"difficulty": {
+										"type": "string"
+									},
+									"notes": {
+										"type": "string"
+									},
+									"isSkipped": {
+										"type": "boolean"
+									},
+									"isComplete": {
+										"type": "boolean"
+									},
+									"timeTaken": {
+										"type": "number",
+										"format": "double"
+									},
+									"restTimeTaken": {
+										"type": "number",
+										"format": "double"
+									},
+									"durationCompleted": {
+										"type": "number",
+										"format": "double"
+									},
+									"weightUsed": {
+										"type": "number",
+										"format": "double"
+									},
+									"roundsCompleted": {
+										"type": "number",
+										"format": "double"
+									},
+									"repsCompleted": {
+										"type": "number",
+										"format": "double"
+									},
+									"setsCompleted": {
+										"type": "number",
+										"format": "double"
+									},
+									"planDayExerciseId": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"planDayExerciseId"
+								],
+								"type": "object"
 							}
 						}
 					}

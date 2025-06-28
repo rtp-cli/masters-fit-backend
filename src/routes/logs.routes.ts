@@ -1,4 +1,5 @@
 import { LogsController } from "@/controllers/logs.controller";
+import { logsService } from "@/services";
 import { Router } from "express";
 import { ZodError } from "zod";
 
@@ -8,8 +9,8 @@ const controller = new LogsController();
 // Create exercise log
 router.post("/exercise", async (req, res) => {
   try {
-    const response = await controller.createExerciseLog(req.body);
-    res.status(201).json(response);
+    const exerciseLog = await logsService.createExerciseLog(req.body);
+    res.status(201).json(exerciseLog);
   } catch (error) {
     if (error instanceof ZodError) {
       res.status(400).json({ success: false, error: "Invalid request data" });

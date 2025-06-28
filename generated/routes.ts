@@ -1666,7 +1666,7 @@ export function RegisterRoutes(app: Router) {
 
             function LogsController_createExerciseLog(request: any, response: any, next: any) {
             const args = {
-                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"any"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"rating":{"dataType":"double"},"difficulty":{"dataType":"string"},"notes":{"dataType":"string"},"isSkipped":{"dataType":"boolean"},"isComplete":{"dataType":"boolean"},"timeTaken":{"dataType":"double"},"restTimeTaken":{"dataType":"double"},"durationCompleted":{"dataType":"double"},"weightUsed":{"dataType":"double"},"roundsCompleted":{"dataType":"double"},"repsCompleted":{"dataType":"double"},"setsCompleted":{"dataType":"double"},"planDayExerciseId":{"dataType":"double","required":true}}},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -1679,7 +1679,7 @@ export function RegisterRoutes(app: Router) {
 
 
               const promise = controller.createExerciseLog.apply(controller, validatedArgs as any);
-              promiseHandler(controller, promise, response, 201, next);
+              promiseHandler(controller, promise, response, undefined, next);
             } catch (err) {
                 return next(err);
             }

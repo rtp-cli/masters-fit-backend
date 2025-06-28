@@ -7,6 +7,7 @@ import {
   updateBlockLogSchema,
   updatePlanDayLogSchema,
   updateWorkoutLogSchema,
+  ExerciseLog,
 } from "@/models";
 import { logsService } from "@/services";
 import {
@@ -46,21 +47,34 @@ export class LogsController extends Controller {
   // ==================== EXERCISE LOGS ====================
 
   /**
-   * Create exercise log
-   * @param requestBody Exercise log data
+   * Create a new exercise log entry
    */
   @Post("/exercise")
-  @Response<ApiResponse>(400, "Bad Request")
-  @SuccessResponse(201, "Created")
   public async createExerciseLog(
-    @Body() requestBody: any
-  ): Promise<ExerciseLogResponse> {
-    const validatedData = insertExerciseLogSchema.parse(requestBody);
-    const log = await logsService.createExerciseLog(validatedData);
-    return {
-      success: true,
-      log,
-    };
+    @Body()
+    requestBody: {
+      planDayExerciseId: number;
+      setsCompleted?: number;
+      repsCompleted?: number;
+      roundsCompleted?: number;
+      weightUsed?: number;
+      durationCompleted?: number;
+      restTimeTaken?: number;
+      timeTaken?: number;
+      isComplete?: boolean;
+      isSkipped?: boolean;
+      notes?: string;
+      difficulty?: string;
+      rating?: number;
+    }
+  ): Promise<ExerciseLog> {
+    try {
+      const exerciseLog = await logsService.createExerciseLog(requestBody);
+      return exerciseLog;
+    } catch (error) {
+      console.error("Error creating exercise log:", error);
+      throw error;
+    }
   }
 
   /**

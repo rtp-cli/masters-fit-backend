@@ -1080,39 +1080,25 @@ export class DashboardService {
     startDate?: string,
     endDate?: string
   ): Promise<TotalVolumeMetrics[]> {
-    // Build simple conditions - just user ID and any exercise log activity
-    const whereConditions = [
-      eq(workouts.userId, userId),
-      // Removed strict filters - now includes any logged exercise activity
-      sql`${exerciseLogs.id} IS NOT NULL`,
-    ];
+    const { start: startDateUTC, end: endDateUTC } = getDateRangeUTC(
+      startDate,
+      endDate
+    );
 
-    // Add date filters only if dates are provided
-    if (startDate || endDate) {
-      const { start, end } = getDateRangeUTC(startDate, endDate);
-
-      // Filter by plan day date to get workouts planned within the date range
-      const startDateStr = start.toISOString().split("T")[0];
-      const endDateStr = end.toISOString().split("T")[0];
-
-      if (startDate) {
-        whereConditions.push(gte(planDays.date, startDateStr));
-      }
-      if (endDate) {
-        whereConditions.push(lte(planDays.date, endDateStr));
-      }
-    }
-
-    // Get daily data for ALL exercises with any logged activity
-    const allExerciseData = await db
+    // Get all exercise logs for the user within the date range
+    const exerciseLogsQuery = db
       .select({
-        date: planDays.date,
-        totalWeight: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}), 0)::INTEGER`,
-        totalVolume: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted}), 0)::INTEGER`,
-        exerciseCount: sql<number>`COUNT(DISTINCT ${exercises.id})::INTEGER`,
-        totalSets: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted}), 0)::INTEGER`,
-        totalReps: sql<number>`COALESCE(SUM(${exerciseLogs.repsCompleted}), 0)::INTEGER`,
-        logCount: sql<number>`COUNT(${exerciseLogs.id})::INTEGER`,
+        logId: exerciseLogs.id,
+        setsCompleted: exerciseLogs.setsCompleted,
+        repsCompleted: exerciseLogs.repsCompleted,
+        roundsCompleted: exerciseLogs.roundsCompleted,
+        weightUsed: exerciseLogs.weightUsed,
+        durationCompleted: exerciseLogs.durationCompleted,
+        createdAt: exerciseLogs.createdAt,
+        exerciseId: planDayExercises.exerciseId,
+        exerciseName: exercises.name,
+        muscleGroups: exercises.muscleGroups,
+        planDayDate: planDays.date,
       })
       .from(exerciseLogs)
       .innerJoin(
@@ -1126,32 +1112,73 @@ export class DashboardService {
       .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .innerJoin(exercises, eq(planDayExercises.exerciseId, exercises.id))
-      .where(and(...whereConditions))
-      .groupBy(planDays.date)
-      .orderBy(asc(planDays.date));
+      .where(
+        and(
+          eq(workouts.userId, userId),
+          gte(exerciseLogs.createdAt, startDateUTC),
+          lte(exerciseLogs.createdAt, endDateUTC),
+          eq(exerciseLogs.isComplete, true)
+        )
+      )
+      .orderBy(asc(exerciseLogs.createdAt));
 
-    return allExerciseData.map((data) => {
-      const date = new Date(data.date);
-      const label = formatDateForDisplay(date, {
-        month: "short",
-        day: "numeric",
-      });
+    const exerciseLogsData = await exerciseLogsQuery;
 
-      // Use weight-based volume if available, otherwise use rep-based volume, otherwise use log count
-      const totalVolume =
-        data.totalWeight > 0
-          ? data.totalWeight
-          : data.totalVolume > 0
-            ? data.totalVolume
-            : data.logCount;
+    // Group by date and calculate volume
+    const dailyVolumeMap = new Map<string, number>();
+    const dailyExerciseCountMap = new Map<string, Set<number>>();
 
-      return {
-        date: data.date,
-        totalVolume,
-        exerciseCount: data.exerciseCount || 0,
-        label,
-      };
+    exerciseLogsData.forEach((log) => {
+      const dateStr = formatDateForDisplay(log.planDayDate);
+      let volume = 0;
+
+      // Calculate volume based on exercise type
+      if (log.setsCompleted && log.repsCompleted && log.weightUsed) {
+        // Traditional volume: sets × reps × weight
+        volume =
+          log.setsCompleted * log.repsCompleted * parseFloat(log.weightUsed);
+
+        // If rounds are specified, multiply by rounds
+        if (log.roundsCompleted && log.roundsCompleted > 0) {
+          volume *= log.roundsCompleted;
+        }
+      } else if (log.repsCompleted) {
+        // Bodyweight volume: just reps (or reps × rounds)
+        volume = log.repsCompleted;
+
+        if (log.roundsCompleted && log.roundsCompleted > 0) {
+          volume *= log.roundsCompleted;
+        }
+      } else if (log.durationCompleted) {
+        // Time-based volume: duration in seconds
+        volume = log.durationCompleted;
+
+        if (log.roundsCompleted && log.roundsCompleted > 0) {
+          volume *= log.roundsCompleted;
+        }
+      }
+
+      const currentVolume = dailyVolumeMap.get(dateStr) || 0;
+      dailyVolumeMap.set(dateStr, currentVolume + volume);
+
+      // Track unique exercises per day
+      if (!dailyExerciseCountMap.has(dateStr)) {
+        dailyExerciseCountMap.set(dateStr, new Set());
+      }
+      dailyExerciseCountMap.get(dateStr)!.add(log.exerciseId);
     });
+
+    // Convert to array and sort by date
+    const result: TotalVolumeMetrics[] = Array.from(dailyVolumeMap.entries())
+      .map(([date, totalVolume]) => ({
+        date,
+        totalVolume,
+        exerciseCount: dailyExerciseCountMap.get(date)?.size || 0,
+        label: formatDateForDisplay(date),
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return result;
   }
 
   private async calculateWorkoutStreak(userId: number): Promise<number> {
