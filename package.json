@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "RESTful API server for Masters Fit fitness tracking application",
   "type": "module",
-  "main": "api/index.js",
+  "main": "src/index.js",
   "scripts": {
-    "start": "node api/index.js",
-    "dev": "concurrently \"tsoa spec-and-routes\" \"tsx watch --require tsconfig-paths/register api/index.ts\"",
+    "start": "node src/index.js",
+    "dev": "concurrently \"tsoa spec-and-routes\" \"tsx watch --require tsconfig-paths/register src/index.ts\"",
     "build": "tsoa spec-and-routes && tsc",
     "lint": "eslint . --ext .ts",
     "test": "jest",

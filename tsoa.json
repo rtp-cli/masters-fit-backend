@@ -1,7 +1,7 @@
 {
-  "entryFile": "api/index.ts",
+  "entryFile": "src/index.ts",
   "noImplicitAdditionalProperties": "throw-on-extras",
-  "controllerPathGlobs": ["api/**/*controller.ts"],
+  "controllerPathGlobs": ["src/**/*controller.ts"],
   "spec": {
     "outputDirectory": "generated",
     "specVersion": 3,
@@ -16,7 +16,7 @@
   "routes": {
     "routesDir": "generated",
     "middleware": "express",
-    "authenticationModule": "api/middleware/auth.middleware.ts",
+    "authenticationModule": "src/middleware/auth.middleware.ts",
     "esModuleInterop": true,
     "routesImportOptions": {
       "importType": "esm"
@@ -25,7 +25,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["api/*"]
+      "@/*": ["src/*"]
     }
   }
 }
