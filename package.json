@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/src/index.js",
   "scripts": {
-    "start": "node dist/src/index.js",
+    "start": "tsx --require tsconfig-paths/register src/index.ts",
     "dev": "concurrently \"tsoa spec-and-routes\" \"tsx watch --require tsconfig-paths/register src/index.ts\"",
     "build": "tsoa spec-and-routes && tsc",
     "lint": "eslint . --ext .ts",
