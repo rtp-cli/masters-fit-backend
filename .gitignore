@@ -6,3 +6,4 @@ dist/
 .env.development
 *.log
 .expo/
+generated/
