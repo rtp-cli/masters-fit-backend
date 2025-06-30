@@ -10,7 +10,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 export default defineConfig({
-  schema: "./src/models/index.ts",
+  schema: "./api/models/index.ts",
   out: "./migrations",
   driver: "pg",
   dbCredentials: {
