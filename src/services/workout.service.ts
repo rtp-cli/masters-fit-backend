@@ -42,6 +42,7 @@ import {
   formatDateAsString,
 } from "@/utils/date.utils";
 import { workoutLogs } from "../models/logs.schema";
+import { logger } from "@/utils/logger";
 
 type DBWorkoutResult = {
   id: number;
@@ -780,10 +781,14 @@ export class WorkoutService extends BaseService {
       .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
 
     if (activeWorkouts.length > 0) {
-      console.log(
-        `Found ${activeWorkouts.length} active workout(s) for user ${userId}:`,
-        activeWorkouts.map((w) => `ID: ${w.id}, Name: ${w.name}`)
-      );
+      logger.info("Found active workouts, deactivating them", {
+        operation: "generateWorkoutPlan",
+        userId,
+        metadata: {
+          count: activeWorkouts.length,
+          workouts: activeWorkouts.map((w) => `ID: ${w.id}, Name: ${w.name}`),
+        },
+      });
 
       // Deactivate all current active workouts
       await this.db
@@ -791,28 +796,34 @@ export class WorkoutService extends BaseService {
         .set({ isActive: false, updatedAt: new Date() })
         .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
 
-      console.log(
-        `Successfully deactivated active workouts for user ${userId}`
-      );
+      logger.info("Successfully deactivated active workouts", {
+        operation: "generateWorkoutPlan",
+        userId,
+      });
     } else {
-      console.log(`No active workouts found for user ${userId}`);
+      logger.info("No active workouts found for user", {
+        userId,
+        operation: "generateWorkoutPlan",
+      });
     }
 
     // Try chunked generation first, fallback to regular generation if it fails
     let response, promptId;
     try {
-      console.log("Attempting chunked generation...");
       const result = await promptsService.generateChunkedPrompt(
         userId,
         customFeedback
       );
       response = result.response;
       promptId = result.promptId;
-      console.log("✅ Chunked generation successful");
     } catch (chunkedError: any) {
-      console.warn(
-        "⚠️ Chunked generation failed, falling back to regular generation:",
-        chunkedError.message
+      logger.warn(
+        "Chunked workout generation failed, falling back to regular generation",
+        {
+          userId,
+          operation: "generateWorkoutPlan",
+          error: (chunkedError as Error).message,
+        }
       );
       try {
         const result = await promptsService.generatePrompt(
@@ -821,10 +832,22 @@ export class WorkoutService extends BaseService {
         );
         response = result.response;
         promptId = result.promptId;
-        console.log("✅ Fallback generation successful");
+        logger.info("Fallback workout generation successful", {
+          userId,
+          operation: "generateWorkoutPlan",
+        });
       } catch (fallbackError: any) {
-        console.error("❌ Both chunked and fallback generation failed");
-        throw new Error(`Workout generation failed: ${fallbackError.message}`);
+        logger.error(
+          "Both chunked and fallback generation failed",
+          fallbackError as Error,
+          {
+            userId,
+            operation: "generateWorkoutPlan",
+          }
+        );
+        throw new Error(
+          `Workout generation failed: ${(fallbackError as Error).message}`
+        );
       }
     }
     const profile = await profileService.getProfileByUserId(userId);
@@ -1049,9 +1072,16 @@ export class WorkoutService extends BaseService {
       .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
 
     if (activeWorkouts.length > 0) {
-      console.log(
-        `Found ${activeWorkouts.length} active workout(s) for user ${userId}:`,
-        activeWorkouts.map((w) => `ID: ${w.id}, Name: ${w.name}`)
+      logger.info(
+        "Found active workouts, deactivating them before regeneration",
+        {
+          userId,
+          operation: "regenerateWorkoutPlan",
+          metadata: {
+            count: activeWorkouts.length,
+            workouts: activeWorkouts.map((w) => `ID: ${w.id}, Name: ${w.name}`),
+          },
+        }
       );
 
       // Deactivate all current active workouts
@@ -1060,19 +1090,16 @@ export class WorkoutService extends BaseService {
         .set({ isActive: false, updatedAt: new Date() })
         .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
 
-      console.log(
-        `Successfully deactivated active workouts for user ${userId}`
+      logger.info(
+        "Successfully deactivated active workouts before regeneration",
+        {
+          userId,
+          operation: "regenerateWorkoutPlan",
+        }
       );
-    } else {
-      console.log(`No active workouts found for user ${userId}`);
     }
 
-    // Generate the new workout plan
     const workout = await this.generateWorkoutPlan(userId, customFeedback);
-    console.log(
-      `Generated new workout plan with ID ${workout.id} for user ${userId}`
-    );
-
     return workout;
   }
 

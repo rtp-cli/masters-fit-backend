@@ -27,6 +27,7 @@ import {
 import { ApiResponse } from "@/types/common/responses";
 import { workoutService } from "@/services";
 import { InsertWorkout, InsertPlanDay, InsertPlanDayExercise } from "@/models";
+import { logger } from "@/utils/logger";
 
 @Route("workouts")
 @Tags("Workouts")
@@ -306,7 +307,10 @@ export class WorkoutController extends Controller {
         })),
       };
     } catch (error) {
-      console.error("Error getting active workouts:", error);
+      logger.error("Error getting active workouts", error as Error, {
+        operation: "getActiveWorkouts",
+        metadata: { userId },
+      });
       throw new Error("Failed to fetch active workouts");
     }
   }

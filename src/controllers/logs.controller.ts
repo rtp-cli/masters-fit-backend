@@ -39,6 +39,7 @@ import {
   Security,
   Put,
 } from "@tsoa/runtime";
+import { logger } from "@/utils/logger";
 
 @Route("logs")
 @Tags("Logs")
@@ -72,7 +73,9 @@ export class LogsController extends Controller {
       const exerciseLog = await logsService.createExerciseLog(requestBody);
       return exerciseLog;
     } catch (error) {
-      console.error("Error creating exercise log:", error);
+      logger.error("Error creating exercise log", error as Error, {
+        operation: "createExerciseLog",
+      });
       throw error;
     }
   }

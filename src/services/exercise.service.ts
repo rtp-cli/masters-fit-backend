@@ -1,6 +1,7 @@
 import { Exercise, exercises, InsertExercise } from "@/models";
 import { BaseService } from "./base.service";
 import { eq, ilike } from "drizzle-orm";
+import { logger } from "@/utils/logger";
 
 export class ExerciseService extends BaseService {
   async createExercise(data: InsertExercise) {
@@ -28,8 +29,12 @@ export class ExerciseService extends BaseService {
     // First check if exercise with this name already exists
     const existing = await this.getExerciseByName(data.name);
     if (existing) {
-      console.log(
-        `Exercise "${data.name}" already exists with ID ${existing.id}, skipping creation`
+      logger.debug(
+        `Exercise "${data.name}" already exists with ID ${existing.id}, skipping creation`,
+        {
+          operation: "createExerciseIfNotExists",
+          metadata: { exerciseName: data.name, existingId: existing.id },
+        }
       );
       return existing;
     }

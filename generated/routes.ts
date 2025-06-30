@@ -3,22 +3,22 @@
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { Controller, ValidationService, FieldErrors, ValidateError, TsoaRoute, HttpStatusCodeLiteral, TsoaResponse, fetchMiddlewares } from '@tsoa/runtime';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-import { AuthController } from './../api/controllers/auth.controller';
+import { AuthController } from './../src/controllers/auth.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-import { DashboardController } from './../api/controllers/dashboard.controller';
+import { DashboardController } from './../src/controllers/dashboard.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-import { ExerciseController } from './../api/controllers/exercise.controller';
+import { ExerciseController } from './../src/controllers/exercise.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-import { LogsController } from './../api/controllers/logs.controller';
+import { LogsController } from './../src/controllers/logs.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-import { ProfileController } from './../api/controllers/profile.controller';
+import { ProfileController } from './../src/controllers/profile.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-import { PromptsController } from './../api/controllers/prompts.controller';
+import { PromptsController } from './../src/controllers/prompts.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-import { SearchController } from './../api/controllers/search.controller';
+import { SearchController } from './../src/controllers/search.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-import { WorkoutController } from './../api/controllers/workout.controller';
-import { expressAuthentication } from './../api/middleware/auth.middleware';
+import { WorkoutController } from './../src/controllers/workout.controller';
+import { expressAuthentication } from './../src/middleware/auth.middleware';
 // @ts-ignore - no great way to install types from subpackage
 const promiseAny = require('promise.any');
 import type { RequestHandler, Router } from 'express';

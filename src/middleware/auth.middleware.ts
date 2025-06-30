@@ -20,6 +20,9 @@ export async function expressAuthentication(
       email: string;
     };
 
+    // Set userId in request for logging context
+    request.userId = parseInt(decoded.id);
+
     return decoded;
   } catch {
     throw new Error("Invalid or expired token");

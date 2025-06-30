@@ -1,12 +1,19 @@
 import app from "./app";
+import { logger } from "./utils/logger";
 
 const port = parseInt(process.env.PORT || "5000", 10);
 
 // Only start the server if not in Vercel environment
-if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+if (process.env.NODE_ENV !== "production") {
   app.listen(port, "0.0.0.0", () => {
-    console.log(`Server is running on http://localhost:${port}`);
-    console.log(`Swagger docs: http://localhost:${port}/api/docs`);
+    logger.info("Server started successfully", {
+      operation: "serverStart",
+      metadata: {
+        port,
+        environment: process.env.NODE_ENV || "development",
+        docsUrl: `http://localhost:${port}/api/docs`,
+      },
+    });
   });
 }
 

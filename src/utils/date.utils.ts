@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 /**
  * Centralized Date Utilities for Masters Fit Application
  *
@@ -42,7 +44,10 @@ export function getCurrentDateStringInTimezone(timezone: string): string {
     });
     return formatter.format(now); // Returns YYYY-MM-DD in specified timezone
   } catch (error) {
-    console.warn(`Invalid timezone ${timezone}, falling back to server time`);
+    logger.warn("Invalid timezone, falling back to server time", {
+      operation: "formatDateForUserTimezone",
+      metadata: { timezone },
+    });
     return getCurrentDateString(); // Fallback to server timezone
   }
 }

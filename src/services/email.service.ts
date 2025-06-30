@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { otpEmailTemplate } from "@/templates/otp-email";
+import { logger } from "@/utils/logger";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -9,7 +10,11 @@ const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "noreply@alif.care";
 export class EmailService {
   async sendOtpEmail(to: string, otp: string, name: string) {
     try {
-      console.log(`[EmailService] Preparing to send OTP email to: ${to}`);
+      logger.info("Sending OTP email", {
+        operation: "sendOtpEmail",
+        metadata: { recipient: to, name },
+      });
+
       const { html, text } = otpEmailTemplate({ otp, name });
 
       const response = await resend.emails.send({
@@ -21,20 +26,23 @@ export class EmailService {
         replyTo: REPLY_TO_EMAIL,
       });
 
-      console.log(`[EmailService] Email sent successfully to: ${to}`, response);
-
       if (response.error) {
-        console.error(
-          "[EmailService] Resend responded with an error:",
-          response.error
-        );
+        logger.error("Email service responded with error", undefined, {
+          operation: "sendOtpEmail",
+          metadata: { recipient: to, error: response.error },
+        });
         throw new Error(`Resend error: ${response.error.message}`);
       }
+
+      logger.info("OTP email sent successfully", {
+        operation: "sendOtpEmail",
+        metadata: { recipient: to, messageId: response.data?.id },
+      });
     } catch (error) {
-      console.error(
-        "[EmailService] An exception occurred while sending email:",
-        error
-      );
+      logger.error("Failed to send OTP email", error as Error, {
+        operation: "sendOtpEmail",
+        metadata: { recipient: to },
+      });
       throw new Error("Failed to send OTP email");
     }
   }

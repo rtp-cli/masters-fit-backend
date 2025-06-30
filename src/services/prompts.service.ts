@@ -9,6 +9,7 @@ import {
   buildClaudeChunkedPrompt,
 } from "@/utils/prompt-generator";
 import Anthropic from "@anthropic-ai/sdk";
+import { logger } from "@/utils/logger";
 
 export class PromptsService extends BaseService {
   public async getUserPrompts(userId: number): Promise<Prompt[]> {
@@ -55,8 +56,6 @@ export class PromptsService extends BaseService {
     let parsedResponse;
 
     while (attempts < maxAttempts) {
-      console.log(`Attempt ${attempts + 1} to generate workout plan`);
-
       try {
         const response = await anthropic.messages.create({
           model: "claude-3-5-sonnet-20241022",
@@ -77,73 +76,57 @@ export class PromptsService extends BaseService {
 
         // Check if response was truncated or approaching limit
         if (response.stop_reason === "max_tokens") {
-          console.error(
-            "❌ AI response was truncated due to token limit. This will likely cause JSON parsing errors."
-          );
-          console.error("Response length:", data.length);
-          console.error("Last 200 characters:", data.slice(-200));
+          logger.error("AI response truncated due to token limit", undefined, {
+            userId,
+            operation: "generatePrompt",
+            metadata: { responseLength: data.length },
+          });
           throw new Error(
             "AI response was truncated. Please try regenerating with a shorter request."
           );
         }
 
-        // Warn if approaching token limit (>90% of response length suggests near-limit)
+        // Warn if approaching token limit
         if (data.length > 7000) {
-          console.warn(
-            "⚠️ AI response is quite long. Consider optimizing prompt for efficiency."
-          );
-          console.warn("Response length:", data.length);
+          logger.warn("AI response approaching token limit", {
+            userId,
+            operation: "generatePrompt",
+            metadata: { responseLength: data.length },
+          });
         }
 
         try {
           parsedResponse = JSON.parse(data);
-
-          // Log the parsed response structure
-          console.log("Parsed response structure:", {
-            hasWorkoutPlan: !!parsedResponse.workoutPlan,
-            workoutPlanLength: parsedResponse.workoutPlan?.length,
-            expectedDays: profile.availableDays?.length || 7,
-            firstDayBlocks: parsedResponse.workoutPlan?.[0]?.blocks?.length,
-          });
-
-          // Validate number of days
           if (
             parsedResponse.workoutPlan?.length ===
             (profile.availableDays?.length || 7)
           ) {
-            console.log(
-              "✅ Successfully generated workout plan with correct number of days"
-            );
-            break; // Valid response, exit loop
-          }
-
-          console.warn(
-            `AI generated ${parsedResponse.workoutPlan?.length} days instead of ${profile.availableDays?.length || 7} days. Attempt ${attempts + 1}/${maxAttempts}`
-          );
-
-          // Log the first day's structure if available
-          if (parsedResponse.workoutPlan?.[0]) {
-            console.log("First day structure:", {
-              name: parsedResponse.workoutPlan[0].name,
-              blockCount: parsedResponse.workoutPlan[0].blocks?.length,
-              exerciseCount: parsedResponse.workoutPlan[0].blocks?.reduce(
-                (total: number, block: any) =>
-                  total + (block.exercises?.length || 0),
-                0
-              ),
+            logger.info("Workout plan generated successfully", {
+              userId,
+              operation: "generatePrompt",
+              metadata: {
+                daysGenerated: parsedResponse.workoutPlan?.length,
+                expectedDays: profile.availableDays?.length || 7,
+              },
             });
+            break;
           }
-        } catch (parseError: any) {
-          console.error("JSON Parse Error:", parseError.message);
-          console.error("Raw response length:", data.length);
-          console.error("Response ends with:", data.slice(-100));
 
-          // Try to find where the JSON structure breaks
-          const lastBracketIndex = data.lastIndexOf("}");
-          const lastSquareBracketIndex = data.lastIndexOf("]");
-          console.error("Last closing brackets at:", {
-            curly: lastBracketIndex,
-            square: lastSquareBracketIndex,
+          logger.warn("AI generated incorrect number of days, retrying", {
+            userId,
+            operation: "generatePrompt",
+            metadata: {
+              daysGenerated: parsedResponse.workoutPlan?.length,
+              expectedDays: profile.availableDays?.length || 7,
+              attempt: attempts + 1,
+              maxAttempts,
+            },
+          });
+        } catch (parseError: any) {
+          logger.error("Failed to parse AI response as JSON", parseError, {
+            userId,
+            operation: "generatePrompt",
+            metadata: { responseLength: data.length },
           });
 
           throw new Error(
@@ -151,7 +134,10 @@ export class PromptsService extends BaseService {
           );
         }
       } catch (apiError: any) {
-        console.error("API Error:", apiError.message);
+        logger.error("AI API error during prompt generation", apiError, {
+          userId,
+          operation: "generatePrompt",
+        });
         throw new Error(`Failed to generate workout plan: ${apiError.message}`);
       }
 
@@ -163,9 +149,6 @@ export class PromptsService extends BaseService {
         `Failed to generate correct number of days after ${maxAttempts} attempts`
       );
     }
-
-    // Log response for debugging
-    console.log("AI Response length:", data.length);
 
     const createdPrompt = await this.createPrompt({
       userId,
@@ -204,9 +187,11 @@ export class PromptsService extends BaseService {
     const chunkSize = 2; // Generate 2 days at a time
     const totalChunks = Math.ceil(totalDays / chunkSize);
 
-    console.log(
-      `Generating ${totalDays} days in ${totalChunks} chunks of ${chunkSize} days each`
-    );
+    logger.info("Starting chunked workout generation", {
+      userId,
+      operation: "generateChunkedPrompt",
+      metadata: { totalDays, totalChunks, chunkSize },
+    });
 
     let allWorkoutDays: any[] = [];
     let allExercisesToAdd: any[] = [];
@@ -218,9 +203,11 @@ export class PromptsService extends BaseService {
       const endDay = Math.min(startDay + chunkSize - 1, totalDays);
       const chunkNumber = chunkIndex + 1;
 
-      console.log(
-        `Generating chunk ${chunkNumber}/${totalChunks}: days ${startDay} to ${endDay}`
-      );
+      logger.debug("Generating chunk", {
+        userId,
+        operation: "generateChunkedPrompt",
+        metadata: { chunkNumber, totalChunks, startDay, endDay },
+      });
 
       const prompt = buildClaudeChunkedPrompt(
         profile,
@@ -243,8 +230,14 @@ export class PromptsService extends BaseService {
 
         // Check if response was truncated
         if (response.stop_reason === "max_tokens") {
-          console.error(
-            `❌ Chunk ${chunkNumber} response was truncated due to token limit.`
+          logger.error(
+            "Chunk response truncated due to token limit",
+            undefined,
+            {
+              userId,
+              operation: "generateChunkedPrompt",
+              metadata: { chunkNumber },
+            }
           );
           throw new Error(
             `Chunk ${chunkNumber} response was truncated. Please try again.`
@@ -255,10 +248,11 @@ export class PromptsService extends BaseService {
         try {
           parsedResponse = JSON.parse(data);
         } catch (parseError: any) {
-          console.error(
-            `JSON Parse Error for chunk ${chunkNumber}:`,
-            parseError.message
-          );
+          logger.error("Failed to parse chunk response as JSON", parseError, {
+            userId,
+            operation: "generateChunkedPrompt",
+            metadata: { chunkNumber },
+          });
           throw new Error(
             `Failed to parse chunk ${chunkNumber} response as JSON: ${parseError.message}`
           );
@@ -299,16 +293,16 @@ export class PromptsService extends BaseService {
           allExercisesToAdd.push(...parsedResponse.exercisesToAdd);
         }
 
-        console.log(
-          `✅ Successfully generated chunk ${chunkNumber} with ${parsedResponse.workoutPlan.length} days`
-        );
-
         // Add a small delay between chunks to avoid rate limiting
         if (chunkIndex < totalChunks - 1) {
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       } catch (error: any) {
-        console.error(`Error generating chunk ${chunkNumber}:`, error.message);
+        logger.error("Error generating chunk", error, {
+          userId,
+          operation: "generateChunkedPrompt",
+          metadata: { chunkNumber },
+        });
         throw new Error(
           `Failed to generate chunk ${chunkNumber}: ${error.message}`
         );
@@ -323,9 +317,11 @@ export class PromptsService extends BaseService {
       exercisesToAdd: allExercisesToAdd,
     };
 
-    console.log(
-      `✅ Successfully generated complete workout plan with ${allWorkoutDays.length} days`
-    );
+    logger.info("Complete workout plan generated successfully", {
+      userId,
+      operation: "generateChunkedPrompt",
+      metadata: { totalDays: allWorkoutDays.length },
+    });
 
     // Create a single prompt record for the entire generation
     const combinedPromptText = `CHUNKED GENERATION: ${totalChunks} chunks for ${totalDays} days`;
@@ -416,11 +412,15 @@ export class PromptsService extends BaseService {
 
       // Check if response was truncated or approaching limit
       if (response.stop_reason === "max_tokens") {
-        console.error(
-          "❌ AI regeneration response was truncated due to token limit."
+        logger.error(
+          "AI regeneration response truncated due to token limit",
+          undefined,
+          {
+            userId,
+            operation: "generateRegenerationPrompt",
+            metadata: { responseLength: data.length },
+          }
         );
-        console.error("Response length:", data.length);
-        console.error("Last 200 characters:", data.slice(-200));
         throw new Error(
           "AI response was truncated. Please try regenerating with shorter feedback."
         );
@@ -428,8 +428,11 @@ export class PromptsService extends BaseService {
 
       // Warn if approaching token limit
       if (data.length > 7000) {
-        console.warn("⚠️ AI regeneration response is quite long.");
-        console.warn("Response length:", data.length);
+        logger.warn("AI regeneration response approaching token limit", {
+          userId,
+          operation: "generateRegenerationPrompt",
+          metadata: { responseLength: data.length },
+        });
       }
 
       try {
@@ -441,13 +444,26 @@ export class PromptsService extends BaseService {
         ) {
           break; // Valid response, exit loop
         }
-        console.warn(
-          `AI generated ${parsedResponse.workoutPlan?.length} days instead of ${updatedProfile.availableDays?.length || 7} days. Attempt ${attempts + 1}/${maxAttempts}`
-        );
+        logger.warn("AI generated incorrect number of days, retrying", {
+          userId,
+          operation: "generateRegenerationPrompt",
+          metadata: {
+            daysGenerated: parsedResponse.workoutPlan?.length,
+            expectedDays: updatedProfile.availableDays?.length || 7,
+            attempt: attempts + 1,
+            maxAttempts,
+          },
+        });
       } catch (parseError: any) {
-        console.error("JSON Parse Error in regeneration:", parseError.message);
-        console.error("Raw response length:", data.length);
-        console.error("Response ends with:", data.slice(-100));
+        logger.error(
+          "Failed to parse AI regeneration response as JSON",
+          parseError,
+          {
+            userId,
+            operation: "generateRegenerationPrompt",
+            metadata: { responseLength: data.length },
+          }
+        );
         throw new Error(
           `Failed to parse AI response as JSON: ${parseError.message}`
         );
@@ -461,9 +477,6 @@ export class PromptsService extends BaseService {
         `Failed to generate correct number of days after ${maxAttempts} attempts`
       );
     }
-
-    // Log response for debugging
-    console.log("AI Regeneration Response length:", data.length);
 
     const createdPrompt = await this.createPrompt({
       userId,
@@ -508,11 +521,15 @@ export class PromptsService extends BaseService {
 
     // Check if response was truncated or approaching limit
     if (response.stop_reason === "max_tokens") {
-      console.error(
-        "❌ AI daily regeneration response was truncated due to token limit."
+      logger.error(
+        "AI daily regeneration response truncated due to token limit",
+        undefined,
+        {
+          userId,
+          operation: "generateDailyRegenerationPrompt",
+          metadata: { responseLength: data.length, dayNumber },
+        }
       );
-      console.error("Response length:", data.length);
-      console.error("Last 200 characters:", data.slice(-200));
       throw new Error(
         "AI response was truncated. Please try regenerating with shorter feedback."
       );
@@ -520,13 +537,12 @@ export class PromptsService extends BaseService {
 
     // Warn if approaching token limit
     if (data.length > 7000) {
-      console.warn("⚠️ AI daily regeneration response is quite long.");
-      console.warn("Response length:", data.length);
+      logger.warn("AI daily regeneration response approaching token limit", {
+        userId,
+        operation: "generateDailyRegenerationPrompt",
+        metadata: { responseLength: data.length, dayNumber },
+      });
     }
-
-    // Log response for debugging
-    console.log("AI Daily Regeneration Response length:", data.length);
-    console.log("Stop reason:", response.stop_reason);
 
     const createdPrompt = await this.createPrompt({
       userId,
@@ -538,12 +554,15 @@ export class PromptsService extends BaseService {
       const parsedResponse = JSON.parse(data);
       return { response: parsedResponse, promptId: createdPrompt.id };
     } catch (parseError: any) {
-      console.error(
-        "JSON Parse Error in daily regeneration:",
-        parseError.message
+      logger.error(
+        "Failed to parse AI daily regeneration response as JSON",
+        parseError,
+        {
+          userId,
+          operation: "generateDailyRegenerationPrompt",
+          metadata: { responseLength: data.length, dayNumber },
+        }
       );
-      console.error("Raw response length:", data.length);
-      console.error("Response ends with:", data.slice(-100));
       throw new Error(
         `Failed to parse AI response as JSON: ${parseError.message}`
       );

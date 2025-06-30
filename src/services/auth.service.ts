@@ -2,6 +2,7 @@ import { BaseService } from "./base.service";
 import { authCodes } from "@/models";
 import type { AuthCode, InsertAuthCode } from "@/models";
 import { and, eq, gt } from "drizzle-orm";
+import { logger } from "@/utils/logger";
 
 export class AuthService extends BaseService {
   async createAuthCode(data: InsertAuthCode) {
@@ -56,13 +57,17 @@ export class AuthService extends BaseService {
       } catch (error: any) {
         // Check for PostgreSQL's unique violation error code
         if (error.code === "23505") {
-          console.log(
-            `[AuthService] Collision detected for auth code ${authCode}. Retrying...`
-          );
+          logger.debug("Auth code collision detected, retrying", {
+            operation: "generateAuthCode",
+            metadata: { email, attempts: attempts + 1 },
+          });
           attempts++;
         } else {
           // It's a different error, so we should not retry.
-          console.error("[AuthService] Failed to create auth code:", error);
+          logger.error("Failed to create auth code", error, {
+            operation: "generateAuthCode",
+            metadata: { email },
+          });
           throw error;
         }
       }

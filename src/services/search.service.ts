@@ -14,6 +14,7 @@ import {
   type ExerciseLog,
 } from "@/models";
 import { BaseService } from "./base.service";
+import { logger } from "@/utils/logger";
 
 // Simple response types
 interface DateSearchResponse {
@@ -177,7 +178,10 @@ export class SearchService extends BaseService {
         workout: searchResult,
       };
     } catch (error) {
-      console.error("Error searching by date:", error);
+      logger.error("Error searching workouts by date", error as Error, {
+        operation: "searchWorkoutsByDate",
+        metadata: { userId },
+      });
       throw new Error("Failed to search by date");
     }
   }
@@ -325,7 +329,9 @@ export class SearchService extends BaseService {
         userStats,
       };
     } catch (error) {
-      console.error("Error searching exercise:", error);
+      logger.error("Error searching exercise", error as Error, {
+        operation: "searchExercise",
+      });
       throw new Error("Failed to search exercise");
     }
   }
@@ -351,7 +357,9 @@ export class SearchService extends BaseService {
 
       return results;
     } catch (error) {
-      console.error("Error searching exercises:", error);
+      logger.error("Error searching exercises", error as Error, {
+        operation: "searchExercises",
+      });
       throw new Error("Failed to search exercises");
     }
   }

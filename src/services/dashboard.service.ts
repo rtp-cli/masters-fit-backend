@@ -29,6 +29,7 @@ import {
   formatDateForDisplay,
   getCurrentUTCDate,
 } from "@/utils/date.utils";
+import { logger } from "@/utils/logger";
 
 export class DashboardService {
   // Muscle group mappings for each fitness goal
@@ -172,7 +173,10 @@ export class DashboardService {
       this.getTotalVolumeMetrics(userId, startDate, endDate),
       this.getWorkoutTypeMetrics(userId, startDate, endDate).catch(
         (error: any) => {
-          console.error("Error fetching workout type metrics:", error);
+          logger.error("Error fetching workout type metrics", error as Error, {
+            userId,
+            operation: "getWorkoutTypeMetrics",
+          });
           return {
             distribution: [],
             totalExercises: 0,
