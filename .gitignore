@@ -1,5 +1,9 @@
-.env
-node_modules
+node_modules/
 dist/
-.expo/
+.env
+.env.local
+.env.production
+.env.development
 .vercel
+*.log
+.expo/
