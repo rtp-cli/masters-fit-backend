@@ -8,7 +8,6 @@
     "start": "node api/index.js",
     "dev": "concurrently \"tsoa spec-and-routes\" \"tsx watch --require tsconfig-paths/register api/index.ts\"",
     "build": "tsoa spec-and-routes && tsc",
-    "vercel-build": "tsoa spec-and-routes && tsc",
     "lint": "eslint . --ext .ts",
     "test": "jest",
     "db:push": "drizzle-kit push",
