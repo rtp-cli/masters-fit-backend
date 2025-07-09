@@ -43,6 +43,12 @@ import {
 } from "@/utils/date.utils";
 import { workoutLogs } from "../models/logs.schema";
 import { logger } from "@/utils/logger";
+import {
+  determineBlockType,
+  generateBlockName,
+  determineTimeCap,
+  determineRounds,
+} from "@/utils/workout-block-configuration.utils";
 
 type DBWorkoutResult = {
   id: number;
@@ -177,36 +183,7 @@ export class WorkoutService extends BaseService {
   private determineBlockType(
     preferredStyles: string[] | null | undefined
   ): string {
-    if (!preferredStyles || preferredStyles.length === 0) {
-      return "traditional";
-    }
-
-    // Priority order for style-to-block mapping
-    const styleBlockMap: { [key: string]: string } = {
-      crossfit: "amrap", // CrossFit gets AMRAP by default
-      hiit: "circuit", // HIIT gets circuit format
-      yoga: "flow", // Yoga gets flow format
-      pilates: "flow", // Pilates gets flow format
-      strength: "traditional", // Strength gets traditional sets/reps
-      cardio: "circuit", // Cardio gets circuit format
-      functional: "circuit", // Functional gets circuit format
-      balance: "traditional", // Balance gets traditional format
-      mobility: "flow", // Mobility gets flow format
-      rehab: "traditional", // Rehab gets traditional format
-    };
-
-    // Find the first matching style and return its block type
-    for (const style of preferredStyles) {
-      if (style && typeof style === "string") {
-        // Safe check for undefined/null styles
-        const blockType = styleBlockMap[style.toLowerCase()];
-        if (blockType) {
-          return blockType;
-        }
-      }
-    }
-
-    return "traditional"; // Default fallback
+    return determineBlockType(preferredStyles);
   }
 
   // Helper function to generate appropriate block name based on type and styles
@@ -214,20 +191,7 @@ export class WorkoutService extends BaseService {
     blockType: string,
     preferredStyles: string[] | null | undefined
   ): string {
-    const styles = preferredStyles || ["general"];
-    const primaryStyle = styles[0] || "general";
-
-    const blockNameMap: { [key: string]: string } = {
-      amrap: `${primaryStyle.toUpperCase()} AMRAP WOD`,
-      emom: `${primaryStyle.toUpperCase()} EMOM`,
-      for_time: `${primaryStyle.toUpperCase()} For Time`,
-      circuit: `${primaryStyle.charAt(0).toUpperCase() + primaryStyle.slice(1)} Circuit`,
-      flow: `${primaryStyle.charAt(0).toUpperCase() + primaryStyle.slice(1)} Flow`,
-      tabata: `${primaryStyle.charAt(0).toUpperCase() + primaryStyle.slice(1)} Tabata`,
-      traditional: `${primaryStyle.charAt(0).toUpperCase() + primaryStyle.slice(1)} Training`,
-    };
-
-    return blockNameMap[blockType] || "Workout Session";
+    return generateBlockName(blockType, preferredStyles);
   }
 
   // Helper function to determine time cap based on block type and duration
@@ -235,29 +199,12 @@ export class WorkoutService extends BaseService {
     blockType: string,
     workoutDuration: number
   ): number | null {
-    const timeBasedBlocks = ["amrap", "emom", "for_time", "circuit", "tabata"];
-
-    if (timeBasedBlocks.includes(blockType)) {
-      // Reserve 5 minutes for warm-up and 5 minutes for cool-down
-      return Math.max(10, workoutDuration - 10);
-    }
-
-    return null; // Traditional and flow blocks don't need time caps
+    return determineTimeCap(blockType, workoutDuration);
   }
 
   // Helper function to determine rounds based on block type and duration
   private determineRounds(blockType: string, workoutDuration: number): number {
-    const roundsMap: { [key: string]: number } = {
-      amrap: 1, // AMRAP is time-based, not round-based
-      emom: 1, // EMOM is time-based, not round-based
-      for_time: 3, // Typical CrossFit rounds
-      circuit: Math.min(5, Math.max(3, Math.floor(workoutDuration / 10))), // Scale with duration
-      flow: Math.min(6, Math.max(3, Math.floor(workoutDuration / 8))), // Scale with duration
-      tabata: 4, // Standard Tabata rounds
-      traditional: 1, // Traditional uses sets per exercise, not rounds
-    };
-
-    return roundsMap[blockType] || 1;
+    return determineRounds(blockType, workoutDuration);
   }
 
   private transformWorkout(workout: DBWorkoutResult): WorkoutWithDetails {
