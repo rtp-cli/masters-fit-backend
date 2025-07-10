@@ -51,6 +51,7 @@ export const planDays = pgTable("plan_days", {
   name: text("name"), // Name of the workout day
   description: text("description"), // Description of the workout day
   dayNumber: integer("day_number"), // Day number in the workout plan
+  isComplete: boolean("is_complete").default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

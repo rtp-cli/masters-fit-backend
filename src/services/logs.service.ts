@@ -610,6 +610,13 @@ export class LogsService extends BaseService {
       });
     }
   }
+
+  async markWorkoutDayComplete(planDayId: number): Promise<void> {
+    await this.db
+      .update(planDays)
+      .set({ isComplete: true, updatedAt: new Date() })
+      .where(eq(planDays.id, planDayId));
+  }
 }
 
 export const logsService = new LogsService();

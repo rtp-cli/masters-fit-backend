@@ -72,6 +72,7 @@ type DBWorkoutResult = {
     dayNumber: number | null;
     createdAt: Date | null;
     updatedAt: Date | null;
+    isComplete: boolean | null;
     blocks: Array<{
       id: number;
       planDayId: number;
@@ -136,6 +137,7 @@ type DBWorkoutQueryResult = {
     dayNumber: number | null;
     createdAt: Date | null;
     updatedAt: Date | null;
+    isComplete: boolean | null;
     blocks: Array<{
       id: number;
       planDayId: number;
@@ -228,6 +230,7 @@ export class WorkoutService extends BaseService {
         name: planDay.name || `Day ${index + 1}`,
         description: planDay.description ?? undefined,
         dayNumber: planDay.dayNumber || index + 1,
+        isComplete: planDay.isComplete ?? false,
         created_at: new Date(planDay.createdAt ?? Date.now()),
         updated_at: new Date(planDay.updatedAt ?? Date.now()),
         blocks: planDay.blocks.map((block, blockIndex) => ({
@@ -363,6 +366,7 @@ export class WorkoutService extends BaseService {
           name: pd.name,
           description: pd.description,
           dayNumber: pd.dayNumber,
+          isComplete: pd.isComplete,
           createdAt: pd.createdAt,
           updatedAt: pd.updatedAt,
           blocks: pd.blocks.map((block, blockIndex) => ({
@@ -455,6 +459,7 @@ export class WorkoutService extends BaseService {
           name: pd.name,
           description: pd.description,
           dayNumber: pd.dayNumber,
+          isComplete: pd.isComplete,
           createdAt: pd.createdAt,
           updatedAt: pd.updatedAt,
           blocks: pd.blocks.map((block) => ({

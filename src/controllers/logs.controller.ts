@@ -664,6 +664,22 @@ export class LogsController extends Controller {
       log: log!,
     };
   }
+
+  /**
+   * Mark workout day as complete
+   * @param planDayId Plan day ID
+   */
+  @Post("/workout/day/{planDayId}/complete")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async markWorkoutDayComplete(
+    @Path() planDayId: number
+  ): Promise<ApiResponse> {
+    await logsService.markWorkoutDayComplete(planDayId);
+    return {
+      success: true,
+    };
+  }
 }
 
 export const logsController = new LogsController();
