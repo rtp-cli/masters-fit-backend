@@ -17,6 +17,7 @@ import {
   getDateRangeUTC,
   formatDateForDisplay,
   getCurrentUTCDate,
+  formatDateToISO,
 } from "@/utils/date.utils";
 import { logger } from "@/utils/logger";
 
@@ -367,87 +368,87 @@ export class WorkoutAnalyticsService {
   ): Promise<
     { date: string; completionRate: number; hasPlannedWorkout: boolean }[]
   > {
-    // Get current week's dates
-    const currentDate = getCurrentUTCDate();
-    const startOfWeek = new Date(currentDate);
-    const dayOfWeek = startOfWeek.getDay();
-    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Adjust for Monday start
-    startOfWeek.setDate(startOfWeek.getDate() + diff);
+    // 1. Find the user's active workout
+    const activeWorkout = await db.query.workouts.findFirst({
+      where: and(eq(workouts.userId, userId), eq(workouts.isActive, true)),
+    });
 
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(endOfWeek.getDate() + 6);
+    let startDate: Date;
+    let endDate: Date;
 
-    const weekDates: string[] = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(startOfWeek);
-      date.setDate(date.getDate() + i);
-      weekDates.push(date.toISOString().split("T")[0]);
+    if (activeWorkout) {
+      // 2. If an active workout exists, use its date range
+      startDate = new Date(activeWorkout.startDate);
+      endDate = new Date(activeWorkout.endDate);
+    } else {
+      // 3. Fallback to the current calendar week if no active workout
+      const today = getCurrentUTCDate();
+      startDate = new Date(today);
+      const dayOfWeek = today.getUTCDay();
+      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday is the first day
+      startDate.setUTCDate(today.getUTCDate() + diff);
+
+      endDate = new Date(startDate);
+      endDate.setUTCDate(startDate.getUTCDate() + 6);
     }
 
-    // Get all plan days for the current week
-    const planDaysData = await db
+    // Get all plan days within the determined date range for this user
+    const userPlanDays = await db
       .select({
-        planDayId: planDays.id,
+        id: planDays.id,
         date: planDays.date,
-        workoutId: planDays.workoutId,
+        isComplete: planDays.isComplete, // Use the new isComplete flag
       })
       .from(planDays)
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
       .where(
         and(
           eq(workouts.userId, userId),
-          gte(planDays.date, weekDates[0]),
-          lte(planDays.date, weekDates[6])
+          gte(planDays.date, formatDateToISO(startDate)),
+          lte(planDays.date, formatDateToISO(endDate))
         )
-      );
+      )
+      .orderBy(planDays.date);
 
-    // Get completion data for each plan day
-    const completionByDate = new Map<string, number>();
-    const plannedWorkoutsByDate = new Set<string>();
+    // Create a map for quick lookup of planned days
+    const plannedDaysMap = new Map(
+      userPlanDays.map((pd) => [
+        pd.date,
+        {
+          id: pd.id,
+          isComplete: pd.isComplete,
+        },
+      ])
+    );
 
-    for (const planDay of planDaysData) {
-      plannedWorkoutsByDate.add(planDay.date);
+    // Generate progress for each day in the range
+    const progressData = [];
+    const currentDate = new Date(startDate);
 
-      // Get total exercises for this plan day
-      const totalExercises = await db
-        .select({
-          count: count(planDayExercises.id),
-        })
-        .from(planDayExercises)
-        .innerJoin(
-          workoutBlocks,
-          eq(planDayExercises.workoutBlockId, workoutBlocks.id)
-        )
-        .where(eq(workoutBlocks.planDayId, planDay.planDayId));
+    while (currentDate <= endDate) {
+      const dateStr = formatDateToISO(currentDate);
+      const plannedDay = plannedDaysMap.get(dateStr);
 
-      // Get completed exercises for this plan day
-      const completedExercises = await db
-        .select({
-          count: count(exerciseLogs.id),
-        })
-        .from(exerciseLogs)
-        .innerJoin(
-          planDayExercises,
-          eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
-        )
-        .innerJoin(
-          workoutBlocks,
-          eq(planDayExercises.workoutBlockId, workoutBlocks.id)
-        )
-        .where(eq(workoutBlocks.planDayId, planDay.planDayId));
+      if (plannedDay) {
+        // This day has a planned workout
+        progressData.push({
+          date: dateStr,
+          completionRate: plannedDay.isComplete ? 100 : 0,
+          hasPlannedWorkout: true,
+        });
+      } else {
+        // This is a rest day
+        progressData.push({
+          date: dateStr,
+          completionRate: 0,
+          hasPlannedWorkout: false,
+        });
+      }
 
-      const total = totalExercises[0]?.count || 0;
-      const completed = completedExercises[0]?.count || 0;
-
-      const completionRate = total > 0 ? (completed / total) * 100 : 0;
-      completionByDate.set(planDay.date, Math.round(completionRate));
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
 
-    return weekDates.map((date) => ({
-      date,
-      completionRate: completionByDate.get(date) || 0,
-      hasPlannedWorkout: plannedWorkoutsByDate.has(date),
-    }));
+    return progressData;
   }
 
   async getWorkoutTypeByDate(

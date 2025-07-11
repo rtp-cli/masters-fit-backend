@@ -111,6 +111,14 @@ export function formatDateForDisplay(
 }
 
 /**
+ * Format a Date object to an ISO string (YYYY-MM-DD) in UTC.
+ * This is crucial for database queries to avoid timezone shifts.
+ */
+export function formatDateToISO(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+/**
  * Format date as YYYY-MM-DD string (timezone-independent for workout dates)
  */
 export function formatDateAsString(
