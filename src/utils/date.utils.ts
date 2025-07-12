@@ -257,6 +257,11 @@ export function getDateForWeekday(weekday: string, afterDate?: string): string {
   const [year, month, day] = startDate.split("-").map(Number);
   const currentDate = new Date(year, month - 1, day);
 
+  // Check if the start date is already the target weekday
+  if (currentDate.getDay() === targetIndex) {
+    return formatDateToString(currentDate);
+  }
+
   // Find the next occurrence of the target weekday
   while (currentDate.getDay() !== targetIndex) {
     currentDate.setDate(currentDate.getDate() + 1);
@@ -296,6 +301,11 @@ export function getDateForWeekdayInTimezone(
       : getTodayString();
   const [year, month, day] = startDate.split("-").map(Number);
   const currentDate = new Date(year, month - 1, day);
+
+  // Check if the start date is already the target weekday
+  if (currentDate.getDay() === targetIndex) {
+    return formatDateToString(currentDate);
+  }
 
   // Find the next occurrence of the target weekday
   while (currentDate.getDay() !== targetIndex) {
