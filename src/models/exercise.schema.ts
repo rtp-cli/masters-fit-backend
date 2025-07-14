@@ -1,6 +1,6 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
-import { planDayExercises } from "./workout.schema";
 import { z } from "zod";
 import {
   AvailableEquipment as AvailableEquipmentEnum,
@@ -21,7 +21,11 @@ export const exercises = pgTable("exercises", {
   tag: text("tag"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  nameIdx: index("idx_exercises_name").on(table.name),
+  muscleGroupsIdx: index("idx_exercises_muscle_groups_gin").on(table.muscleGroups).using(sql`gin`),
+  searchCompositeIdx: index("idx_exercises_search_composite").on(table.name, table.muscleGroups),
+}));
 
 // Exercise schemas for validation
 export const insertExerciseSchema = createInsertSchema(exercises, {

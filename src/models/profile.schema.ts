@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
-import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, index } from "drizzle-orm/pg-core";
 
 import {
   FitnessGoal,
@@ -47,7 +47,9 @@ export const profiles = pgTable("profiles", {
   intensityLevel: text("intensity_level").$type<IntensityLevel>(),
   medicalNotes: text("medical_notes"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_profiles_user_id").on(table.userId),
+}));
 
 // Schema for insert operations
 export const insertProfileSchema = createInsertSchema(profiles).omit({

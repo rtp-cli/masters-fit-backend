@@ -5,7 +5,9 @@ import {
   integer,
   boolean,
   timestamp,
+  index,
 } from "drizzle-orm/pg-core";
+import { eq } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "@/models/user.schema";
@@ -34,7 +36,11 @@ export const workouts = pgTable("workouts", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("idx_workouts_user_id").on(table.userId),
+  userActiveIdx: index("idx_workouts_user_active").on(table.userId, table.isActive).where(eq(table.isActive, true)),
+  completedIdx: index("idx_workouts_completed").on(table.completed),
+}));
 
 export const workoutRelations = relations(workouts, ({ many }) => ({
   planDays: many(planDays),
@@ -58,7 +64,13 @@ export const planDays = pgTable("plan_days", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => ({
+  workoutIdIdx: index("idx_plan_days_workout_id").on(table.workoutId),
+  dateIdx: index("idx_plan_days_date").on(table.date),
+  workoutDateIdx: index("idx_plan_days_workout_date").on(table.workoutId, table.date),
+  isCompleteIdx: index("idx_plan_days_complete").on(table.isComplete),
+  incompleteWorkoutDateIdx: index("idx_plan_days_incomplete").on(table.workoutId, table.date).where(eq(table.isComplete, false)),
+}));
 
 export const planDayRelations = relations(planDays, ({ one, many }) => ({
   workout: one(workouts, {
@@ -87,7 +99,9 @@ export const workoutBlocks = pgTable("workout_blocks", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => ({
+  planDayIdIdx: index("idx_workout_blocks_plan_day_id").on(table.planDayId),
+}));
 
 export const workoutBlockRelations = relations(
   workoutBlocks,
@@ -123,7 +137,10 @@ export const planDayExercises = pgTable("plan_day_exercises", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => ({
+  workoutBlockIdIdx: index("idx_plan_day_exercises_workout_block_id").on(table.workoutBlockId),
+  exerciseIdIdx: index("idx_plan_day_exercises_exercise_id").on(table.exerciseId),
+}));
 
 export const planDayExerciseRelations = relations(
   planDayExercises,

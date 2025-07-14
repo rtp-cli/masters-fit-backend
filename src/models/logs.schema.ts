@@ -6,7 +6,9 @@ import {
   text,
   timestamp,
   decimal,
+  index,
 } from "drizzle-orm/pg-core";
+import { eq } from "drizzle-orm";
 import {
   planDayExercises,
   workouts,
@@ -48,7 +50,12 @@ export const exerciseLogs = pgTable("exercise_logs", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  planDayExerciseIdIdx: index("idx_exercise_logs_plan_day_exercise_id").on(table.planDayExerciseId),
+  createdAtIdx: index("idx_exercise_logs_created_at").on(table.createdAt),
+  isCompleteIdx: index("idx_exercise_logs_is_complete").on(table.isComplete),
+  completeCreatedIdx: index("idx_exercise_logs_complete_created").on(table.isComplete, table.createdAt).where(eq(table.isComplete, true)),
+}));
 
 // Block-level logs - for tracking AMRAP rounds, EMOM minutes, etc.
 export const blockLogs = pgTable("block_logs", {
@@ -79,7 +86,9 @@ export const blockLogs = pgTable("block_logs", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  workoutBlockIdIdx: index("idx_block_logs_workout_block_id").on(table.workoutBlockId),
+}));
 
 // Plan day logs - for tracking day-level completion
 export const planDayLogs = pgTable("plan_day_logs", {
@@ -143,7 +152,9 @@ export const workoutLogs = pgTable("workout_logs", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  workoutIdIdx: index("idx_workout_logs_workout_id").on(table.workoutId),
+}));
 
 // Schemas for insert operations
 export const insertExerciseLogSchema = createInsertSchema(exerciseLogs, {

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, boolean, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -10,7 +10,9 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   needsOnboarding: boolean("needs_onboarding").default(true),
-});
+}, (table) => ({
+  emailIdx: index("idx_users_email").on(table.email),
+}));
 
 // Schema for insert operations
 export const insertUserSchema = createInsertSchema(users).pick({
