@@ -1195,12 +1195,14 @@ export class WorkoutService extends BaseService {
     }
 
     // Update the plan day with new instructions, name, and description from response
+    // Reset isComplete to false since this is a new regenerated workout
     await this.db
       .update(planDays)
       .set({
         name: response.name || existingPlanDay.name,
         description: response.description || existingPlanDay.description,
         instructions: response.instructions,
+        isComplete: false,
         updatedAt: new Date(),
       })
       .where(eq(planDays.id, planDayId));
