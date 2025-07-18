@@ -96,7 +96,7 @@ export class PromptsService extends BaseService {
     while (attempts < maxAttempts) {
       try {
         const response = await anthropic.messages.create({
-          model: "claude-3-5-sonnet-20241022",
+          model: "claude-sonnet-4-20250514",
           max_tokens: 8192,
           messages: [
             { role: "user" as const, content: prompt },
@@ -147,7 +147,7 @@ export class PromptsService extends BaseService {
 
         try {
           parsedResponse = JSON.parse(cleanJsonResponse(data));
-          
+
           // Log parsed response structure for debugging
           logger.debug("Parsed AI response structure", {
             userId,
@@ -158,14 +158,16 @@ export class PromptsService extends BaseService {
               hasExercisesToAdd: !!parsedResponse.exercisesToAdd,
               exercisesToAddLength: parsedResponse.exercisesToAdd?.length,
               responseKeys: Object.keys(parsedResponse),
-              sampleDay: parsedResponse.workoutPlan?.[0] ? {
-                dayKeys: Object.keys(parsedResponse.workoutPlan[0]),
-                hasBlocks: !!parsedResponse.workoutPlan[0].blocks,
-                blocksLength: parsedResponse.workoutPlan[0].blocks?.length
-              } : null
-            }
+              sampleDay: parsedResponse.workoutPlan?.[0]
+                ? {
+                    dayKeys: Object.keys(parsedResponse.workoutPlan[0]),
+                    hasBlocks: !!parsedResponse.workoutPlan[0].blocks,
+                    blocksLength: parsedResponse.workoutPlan[0].blocks?.length,
+                  }
+                : null,
+            },
           });
-          
+
           if (
             parsedResponse.workoutPlan?.length ===
             (profile.availableDays?.length || 7)
@@ -293,7 +295,7 @@ export class PromptsService extends BaseService {
 
       try {
         const response = await anthropic.messages.create({
-          model: "claude-3-5-sonnet-20241022",
+          model: "claude-sonnet-4-20250514",
           max_tokens: 8192,
           messages: [{ role: "user" as const, content: prompt }],
         });
@@ -331,7 +333,7 @@ export class PromptsService extends BaseService {
         let parsedResponse;
         try {
           parsedResponse = JSON.parse(cleanJsonResponse(data));
-          
+
           // Log parsed chunk structure for debugging
           logger.debug("Parsed AI chunk response structure", {
             userId,
@@ -342,12 +344,14 @@ export class PromptsService extends BaseService {
               workoutPlanLength: parsedResponse.workoutPlan?.length,
               hasExercisesToAdd: !!parsedResponse.exercisesToAdd,
               responseKeys: Object.keys(parsedResponse),
-              sampleDay: parsedResponse.workoutPlan?.[0] ? {
-                dayKeys: Object.keys(parsedResponse.workoutPlan[0]),
-                hasBlocks: !!parsedResponse.workoutPlan[0].blocks,
-                blocksLength: parsedResponse.workoutPlan[0].blocks?.length
-              } : null
-            }
+              sampleDay: parsedResponse.workoutPlan?.[0]
+                ? {
+                    dayKeys: Object.keys(parsedResponse.workoutPlan[0]),
+                    hasBlocks: !!parsedResponse.workoutPlan[0].blocks,
+                    blocksLength: parsedResponse.workoutPlan[0].blocks?.length,
+                  }
+                : null,
+            },
           });
         } catch (parseError: any) {
           logger.error("Failed to parse chunk response as JSON", parseError, {
@@ -496,7 +500,7 @@ export class PromptsService extends BaseService {
 
     while (attempts < maxAttempts) {
       const response = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
+        model: "claude-sonnet-4-20250514",
         max_tokens: 8192,
         messages: [
           { role: "user" as const, content: prompt },
@@ -551,7 +555,7 @@ export class PromptsService extends BaseService {
 
       try {
         parsedResponse = JSON.parse(cleanJsonResponse(data));
-        
+
         // Log parsed regeneration response structure for debugging
         logger.debug("Parsed AI regeneration response structure", {
           userId,
@@ -561,14 +565,16 @@ export class PromptsService extends BaseService {
             workoutPlanLength: parsedResponse.workoutPlan?.length,
             hasExercisesToAdd: !!parsedResponse.exercisesToAdd,
             responseKeys: Object.keys(parsedResponse),
-            sampleDay: parsedResponse.workoutPlan?.[0] ? {
-              dayKeys: Object.keys(parsedResponse.workoutPlan[0]),
-              hasBlocks: !!parsedResponse.workoutPlan[0].blocks,
-              blocksLength: parsedResponse.workoutPlan[0].blocks?.length
-            } : null
-          }
+            sampleDay: parsedResponse.workoutPlan?.[0]
+              ? {
+                  dayKeys: Object.keys(parsedResponse.workoutPlan[0]),
+                  hasBlocks: !!parsedResponse.workoutPlan[0].blocks,
+                  blocksLength: parsedResponse.workoutPlan[0].blocks?.length,
+                }
+              : null,
+          },
         });
-        
+
         // Validate number of days
         if (
           parsedResponse.workoutPlan?.length ===
@@ -699,7 +705,7 @@ export class PromptsService extends BaseService {
 
     try {
       const parsedResponse = JSON.parse(cleanJsonResponse(data));
-      
+
       // Log parsed daily regeneration response structure for debugging
       logger.debug("Parsed AI daily regeneration response structure", {
         userId,
@@ -713,16 +719,19 @@ export class PromptsService extends BaseService {
           exercisesLength: parsedResponse.exercises?.length,
           hasName: !!parsedResponse.name,
           hasDescription: !!parsedResponse.description,
-          sampleBlock: parsedResponse.blocks?.[0] ? {
-            blockKeys: Object.keys(parsedResponse.blocks[0]),
-            hasExercises: !!parsedResponse.blocks[0].exercises,
-            exercisesLength: parsedResponse.blocks[0].exercises?.length,
-            sampleExercise: parsedResponse.blocks[0].exercises?.[0] ? 
-              Object.keys(parsedResponse.blocks[0].exercises[0]) : null
-          } : null
-        }
+          sampleBlock: parsedResponse.blocks?.[0]
+            ? {
+                blockKeys: Object.keys(parsedResponse.blocks[0]),
+                hasExercises: !!parsedResponse.blocks[0].exercises,
+                exercisesLength: parsedResponse.blocks[0].exercises?.length,
+                sampleExercise: parsedResponse.blocks[0].exercises?.[0]
+                  ? Object.keys(parsedResponse.blocks[0].exercises[0])
+                  : null,
+              }
+            : null,
+        },
       });
-      
+
       return { response: parsedResponse, promptId: createdPrompt.id };
     } catch (parseError: any) {
       logger.error(

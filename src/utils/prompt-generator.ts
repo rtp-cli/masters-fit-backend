@@ -968,42 +968,31 @@ export const buildClaudeDailyPrompt = (
   const workoutDuration = profile.workoutDuration || 30;
 
   const prompt = `
-# PROFESSIONAL FITNESS PROGRAMMING ASSISTANT - DAILY REGENERATION
+# WORKOUT REGENERATION - USER FEEDBACK PRIORITY
 
-You are an experienced fitness trainer and certified fitness professional. Your role is to regenerate a single day's workout session by addressing the user's feedback while maintaining style authenticity and professional quality.
+🚨 **CRITICAL: USER REGENERATION REASON**
+"${regenerationReason}"
 
-## USER PROFILE
+**YOUR PRIMARY TASK:** Modify the workout to address this feedback. The regeneration reason can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
 
-**Demographics:**
-    - Age: ${profile.age}
-    - Gender: ${profile.gender}
-    - Height: ${profile.height} cm
-    - Weight: ${profile.weight} lbs
+## REGENERATION RULES
+1. **FEEDBACK FIRST**: Address the regeneration reason above all else
+2. **OVERRIDE AUTHORITY**: The regeneration reason can change:
+   - Workout style (CrossFit → Yoga, Strength → Cardio, etc.)
+   - Duration (shorter/longer than profile setting)
+   - Equipment usage (add/remove equipment needs)
+   - Intensity level (easier/harder than profile)
+   - Exercise selection (specific exercises requested)
+3. **ONLY IGNORE IF**: The request would cause injury or is clearly app-breaking malicious input
 
-**Fitness Profile:**
-    - Goals: ${profile.goals}
-    - Physical Limitations: ${profile.limitations}
-    - Fitness Level: ${profile.fitnessLevel}
-- Intensity Level: ${profile.intensityLevel}
-- Medical Notes: ${profile.medicalNotes || "None"}
+## USER CONTEXT
+**Demographics:** ${profile.age}yo ${profile.gender}, ${profile.height}cm, ${profile.weight}lbs
+**Profile:** Goals: ${profile.goals} | Limitations: ${profile.limitations} | Level: ${profile.fitnessLevel}
+**Default Preferences:** Styles: ${profile.preferredStyles?.join(", ")} | Duration: ${workoutDuration}min | ${profile.environment}
+**Equipment:** ${getEquipmentDescription(profile.environment, profile.equipment, profile.otherEquipment)}
 
-**Training Preferences:**
-- Preferred Styles: ${profile.preferredStyles?.join(", ") || "General fitness"}
-- Workout Duration: ${workoutDuration} minutes per session
-- Environment: ${profile.environment}
-    - Available Equipment: ${getEquipmentDescription(
-      profile.environment,
-      profile.equipment,
-      profile.otherEquipment
-    )}
-
-    **Previously Generated Workout (Day ${dayNumber}):**
-    ${JSON.stringify(previousWorkout, null, 2)}
-
-    **CRITICAL USER FEEDBACK / REASON FOR REGENERATION:**
-    "${regenerationReason}"
-    
-    **THIS FEEDBACK MUST BE ADDRESSED** - The user specifically requested this change and it is the PRIMARY reason for regeneration!
+**Previous Workout (Day ${dayNumber}):**
+${JSON.stringify(previousWorkout, null, 2)}
 
 ${getConstraintIntegrationProtocol()}
 
