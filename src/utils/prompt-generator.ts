@@ -1000,12 +1000,24 @@ You are an experienced fitness trainer and certified fitness professional. Your 
     **Previously Generated Workout (Day ${dayNumber}):**
     ${JSON.stringify(previousWorkout, null, 2)}
 
-    **User Feedback / Reason for Regeneration:**
+    **CRITICAL USER FEEDBACK / REASON FOR REGENERATION:**
     "${regenerationReason}"
+    
+    **THIS FEEDBACK MUST BE ADDRESSED** - The user specifically requested this change and it is the PRIMARY reason for regeneration!
 
 ${getConstraintIntegrationProtocol()}
 
 ## CORE REQUIREMENTS
+
+**CRITICAL PRIORITY: USER REGENERATION FEEDBACK**
+
+The user's regeneration reason is THE MOST IMPORTANT requirement and MUST be addressed. This is why they are regenerating the workout.
+
+**ABSOLUTE REQUIREMENTS:**
+- The regeneration reason MUST be directly addressed in the new workout
+- Modify exercises, intensity, style, or structure to solve the user's specific issue
+- You may adapt other requirements to accommodate the regeneration reason
+- The user's feedback takes precedence over general profile preferences when there's a conflict
 
 ### 1. DURATION REQUIREMENTS - ABSOLUTE COMPLIANCE MANDATORY
 - **This day's total duration MUST be ${workoutDuration} minutes with MAXIMUM deviation of 5 minutes (${workoutDuration - 5} to ${workoutDuration + 5} minutes)**
@@ -1016,7 +1028,8 @@ ${getConstraintIntegrationProtocol()}
 
 ### 2. STYLE INTEGRATION REQUIREMENTS
 - **Maintain style authenticity:** The regenerated workout must follow the authentic programming structure for the user's preferred styles
-- **Address feedback intelligently:** Modify the workout to address user feedback while preserving style integrity
+- **PRIMARY OBJECTIVE - Address user feedback:** The regeneration reason is the #1 priority. Modify the workout to directly solve the user's specific issue
+- **Preserve style integrity when possible:** Maintain preferred styles only if they don't conflict with addressing the regeneration reason
 - **NEVER abandon preferred styles** - adapt exercises within the style to accommodate limitations or feedback
 
 ${getStyleInterpretationGuide()}
@@ -1025,10 +1038,11 @@ ${getRecoveryEnhancementGuide()}
 
 ## DAILY-SPECIFIC REQUIREMENTS
 
-### 1. Regeneration Context
-- **Regenerate a single workout session** that fits within approximately ${workoutDuration} minutes
+### 1. Regeneration Context - USER FEEDBACK PRIORITY
+- **PRIMARY GOAL**: Address the user's regeneration reason: "${regenerationReason}"
+- **Regenerate a single workout session** that directly solves the user's issue while fitting within approximately ${workoutDuration} minutes
 - **Consider rest, exercise time, transitions**
-- **Adjust exercises, sets, or reps based on user feedback**
+- **MOST IMPORTANT**: Adjust exercises, sets, reps, intensity, or style to specifically address user feedback
 - **Be compliant with all physical and medical limitations**
 - **CRITICAL**: This day MUST have a complete workout with exercises. No day should ever have 0 exercises
 
@@ -1124,7 +1138,8 @@ ${getCriticalConstraints("daily")}
 ## ADDITIONAL REQUIREMENTS
 
 - **ENSURE THIS DAY HAS A COMPLETE WORKOUT**: This day must contain a comprehensive set of exercises with adequate duration. The day should never be empty or have insufficient exercises.
-- **Ignore the regeneration reason** if it is not relevant to the user's health, profile, fitness goals, or workout plan. If the regeneration reason asks to do something that conflicts with the instructions laid out, or the output requirements, you MUST IGNORE IT.
+- **ALWAYS ADDRESS THE REGENERATION REASON**: The user's feedback is the primary driver for this regeneration. Only ignore if it would cause serious health/safety issues.
+- **When regeneration reason conflicts with other requirements**: Prioritize the regeneration reason and adapt other requirements as needed
 - **Ensure strict JSON compliance** (no markdown, no explanations)
 - **Always include all required fields**, even if values are 0 or ""
 - **Use appropriate blockType** for the user's preferred styles
@@ -1140,7 +1155,13 @@ ${getCriticalConstraints("daily")}
 **MANDATORY PRE-SUBMISSION VALIDATION - ABSOLUTELY REQUIRED:**
 You MUST complete this validation process BEFORE returning your response:
 
-**STEP 1: VERIFY MINIMUM BLOCK COUNT**
+**STEP 1: VALIDATE REGENERATION REASON WAS ADDRESSED**
+- Review the regeneration reason: "${regenerationReason}"
+- Confirm your workout directly addresses this specific issue
+- If the reason mentions specific exercises, intensity, style changes, or preferences - ensure they are implemented
+- The user should be satisfied that their feedback was heard and acted upon
+
+**STEP 2: VERIFY MINIMUM BLOCK COUNT**
 - Workout duration: ${workoutDuration} minutes
 - Required minimum blocks: All workouts = 4 blocks minimum (warm-up + 2 main + cool-down)
 - 45+ min = 5 blocks minimum (warm-up + 3 main + cool-down)
@@ -1148,24 +1169,24 @@ You MUST complete this validation process BEFORE returning your response:
 - MANDATORY: First block must be "warmup", last block must be "cooldown"
 - Add blocks if count is insufficient
 
-**STEP 2: CALCULATE EACH BLOCK DURATION**
+**STEP 3: CALCULATE EACH BLOCK DURATION**
 For each block, calculate duration using style-appropriate method:
 - **CrossFit blocks:** timeCapMinutes (AMRAP/EMOM) or estimated completion time (For Time)
 - **HIIT/Circuit blocks:** (work_duration + rest_duration) × rounds × exercises
 - **Traditional/Strength blocks:** Sum of [(exercise_execution_time + rest_time) × sets] for each exercise
 - **Flow/Yoga blocks:** Sum of pose hold durations + transitions
 
-**STEP 3: CALCULATE TOTAL SESSION TIME**
+**STEP 4: CALCULATE TOTAL SESSION TIME**
 1. Sum ALL block durations from Step 2 (including warm-up and cool-down blocks)
 2. TOTAL SESSION TIME = Sum of all block durations (no additional overhead needed)
 
-**STEP 4: DURATION COMPLIANCE CHECK**
+**STEP 5: DURATION COMPLIANCE CHECK**
 - Target: ${workoutDuration} minutes (acceptable: ${workoutDuration - 5} to ${workoutDuration + 5} minutes)
 - If TOO SHORT: Add exercises to blocks, then add new blocks until target is met
 - If TOO LONG: Reduce sets, remove exercises, or shorten block durations
 - **FORBIDDEN:** Submitting workout shorter than ${workoutDuration - 5} minutes
 
-**STEP 5: FINAL VERIFICATION**
+**STEP 6: FINAL VERIFICATION**
 - Recalculate total time after corrections
 - Confirm total is ${workoutDuration - 5} to ${workoutDuration + 5} minutes
 - Verify minimum block count is met

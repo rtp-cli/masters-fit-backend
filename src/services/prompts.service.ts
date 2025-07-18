@@ -11,6 +11,44 @@ import {
 import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "@/utils/logger";
 
+// Utility function to clean JSON responses that may be wrapped in code blocks
+function cleanJsonResponse(response: string): string {
+  const original = response.trim();
+
+  // Remove markdown code blocks if present
+  const jsonBlockPattern = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/;
+  const match = original.match(jsonBlockPattern);
+
+  if (match) {
+    const cleaned = match[1].trim();
+    logger.debug("Cleaned JSON code block", {
+      operation: "cleanJsonResponse",
+      metadata: {
+        originalLength: original.length,
+        cleanedLength: cleaned.length,
+        hadCodeBlock: true,
+        originalPreview:
+          original.substring(0, 100) + (original.length > 100 ? "..." : ""),
+        cleanedPreview:
+          cleaned.substring(0, 100) + (cleaned.length > 100 ? "..." : ""),
+      },
+    });
+    return cleaned;
+  }
+
+  // Return original response if no code block found
+  logger.debug("No code block found in response", {
+    operation: "cleanJsonResponse",
+    metadata: {
+      responseLength: original.length,
+      hadCodeBlock: false,
+      preview:
+        original.substring(0, 100) + (original.length > 100 ? "..." : ""),
+    },
+  });
+  return original;
+}
+
 export class PromptsService extends BaseService {
   public async getUserPrompts(userId: number): Promise<Prompt[]> {
     const result = await this.db
@@ -74,6 +112,18 @@ export class PromptsService extends BaseService {
         });
         data = (response.content[0] as any).text;
 
+        // Log raw response for debugging
+        logger.debug("Raw AI response received", {
+          userId,
+          operation: "generatePrompt",
+          metadata: {
+            responseLength: data.length,
+            stopReason: response.stop_reason,
+            attempt: attempts + 1,
+            preview: data.substring(0, 200) + (data.length > 200 ? "..." : ""),
+          },
+        });
+
         // Check if response was truncated or approaching limit
         if (response.stop_reason === "max_tokens") {
           logger.error("AI response truncated due to token limit", undefined, {
@@ -96,7 +146,26 @@ export class PromptsService extends BaseService {
         }
 
         try {
-          parsedResponse = JSON.parse(data);
+          parsedResponse = JSON.parse(cleanJsonResponse(data));
+          
+          // Log parsed response structure for debugging
+          logger.debug("Parsed AI response structure", {
+            userId,
+            operation: "generatePrompt",
+            metadata: {
+              hasWorkoutPlan: !!parsedResponse.workoutPlan,
+              workoutPlanLength: parsedResponse.workoutPlan?.length,
+              hasExercisesToAdd: !!parsedResponse.exercisesToAdd,
+              exercisesToAddLength: parsedResponse.exercisesToAdd?.length,
+              responseKeys: Object.keys(parsedResponse),
+              sampleDay: parsedResponse.workoutPlan?.[0] ? {
+                dayKeys: Object.keys(parsedResponse.workoutPlan[0]),
+                hasBlocks: !!parsedResponse.workoutPlan[0].blocks,
+                blocksLength: parsedResponse.workoutPlan[0].blocks?.length
+              } : null
+            }
+          });
+          
           if (
             parsedResponse.workoutPlan?.length ===
             (profile.availableDays?.length || 7)
@@ -126,7 +195,10 @@ export class PromptsService extends BaseService {
           logger.error("Failed to parse AI response as JSON", parseError, {
             userId,
             operation: "generatePrompt",
-            metadata: { responseLength: data.length },
+            metadata: {
+              responseLength: data.length,
+              rawResponse: data.substring(0, 500),
+            },
           });
 
           throw new Error(
@@ -228,6 +300,18 @@ export class PromptsService extends BaseService {
 
         const data = (response.content[0] as any).text;
 
+        // Log raw chunk response for debugging
+        logger.debug("Raw AI chunk response received", {
+          userId,
+          operation: "generateChunkedPrompt",
+          metadata: {
+            chunkNumber,
+            responseLength: data.length,
+            stopReason: response.stop_reason,
+            preview: data.substring(0, 200) + (data.length > 200 ? "..." : ""),
+          },
+        });
+
         // Check if response was truncated
         if (response.stop_reason === "max_tokens") {
           logger.error(
@@ -246,12 +330,30 @@ export class PromptsService extends BaseService {
 
         let parsedResponse;
         try {
-          parsedResponse = JSON.parse(data);
+          parsedResponse = JSON.parse(cleanJsonResponse(data));
+          
+          // Log parsed chunk structure for debugging
+          logger.debug("Parsed AI chunk response structure", {
+            userId,
+            operation: "generateChunkedPrompt",
+            metadata: {
+              chunkNumber,
+              hasWorkoutPlan: !!parsedResponse.workoutPlan,
+              workoutPlanLength: parsedResponse.workoutPlan?.length,
+              hasExercisesToAdd: !!parsedResponse.exercisesToAdd,
+              responseKeys: Object.keys(parsedResponse),
+              sampleDay: parsedResponse.workoutPlan?.[0] ? {
+                dayKeys: Object.keys(parsedResponse.workoutPlan[0]),
+                hasBlocks: !!parsedResponse.workoutPlan[0].blocks,
+                blocksLength: parsedResponse.workoutPlan[0].blocks?.length
+              } : null
+            }
+          });
         } catch (parseError: any) {
           logger.error("Failed to parse chunk response as JSON", parseError, {
             userId,
             operation: "generateChunkedPrompt",
-            metadata: { chunkNumber },
+            metadata: { chunkNumber, rawResponse: data.substring(0, 500) },
           });
           throw new Error(
             `Failed to parse chunk ${chunkNumber} response as JSON: ${parseError.message}`
@@ -410,6 +512,18 @@ export class PromptsService extends BaseService {
       });
       data = (response.content[0] as any).text;
 
+      // Log raw regeneration response for debugging
+      logger.debug("Raw AI regeneration response received", {
+        userId,
+        operation: "generateRegenerationPrompt",
+        metadata: {
+          responseLength: data.length,
+          stopReason: response.stop_reason,
+          attempt: attempts + 1,
+          preview: data.substring(0, 200) + (data.length > 200 ? "..." : ""),
+        },
+      });
+
       // Check if response was truncated or approaching limit
       if (response.stop_reason === "max_tokens") {
         logger.error(
@@ -436,7 +550,25 @@ export class PromptsService extends BaseService {
       }
 
       try {
-        parsedResponse = JSON.parse(data);
+        parsedResponse = JSON.parse(cleanJsonResponse(data));
+        
+        // Log parsed regeneration response structure for debugging
+        logger.debug("Parsed AI regeneration response structure", {
+          userId,
+          operation: "generateRegenerationPrompt",
+          metadata: {
+            hasWorkoutPlan: !!parsedResponse.workoutPlan,
+            workoutPlanLength: parsedResponse.workoutPlan?.length,
+            hasExercisesToAdd: !!parsedResponse.exercisesToAdd,
+            responseKeys: Object.keys(parsedResponse),
+            sampleDay: parsedResponse.workoutPlan?.[0] ? {
+              dayKeys: Object.keys(parsedResponse.workoutPlan[0]),
+              hasBlocks: !!parsedResponse.workoutPlan[0].blocks,
+              blocksLength: parsedResponse.workoutPlan[0].blocks?.length
+            } : null
+          }
+        });
+        
         // Validate number of days
         if (
           parsedResponse.workoutPlan?.length ===
@@ -461,7 +593,10 @@ export class PromptsService extends BaseService {
           {
             userId,
             operation: "generateRegenerationPrompt",
-            metadata: { responseLength: data.length },
+            metadata: {
+              responseLength: data.length,
+              rawResponse: data.substring(0, 500),
+            },
           }
         );
         throw new Error(
@@ -513,11 +648,23 @@ export class PromptsService extends BaseService {
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-20250514",
       max_tokens: 8192,
       messages: [{ role: "user" as const, content: prompt }],
     });
     const data = (response.content[0] as any).text;
+
+    // Log raw daily regeneration response for debugging
+    logger.debug("Raw AI daily regeneration response received", {
+      userId,
+      operation: "generateDailyRegenerationPrompt",
+      metadata: {
+        dayNumber,
+        responseLength: data.length,
+        stopReason: response.stop_reason,
+        preview: data.substring(0, 200) + (data.length > 200 ? "..." : ""),
+      },
+    });
 
     // Check if response was truncated or approaching limit
     if (response.stop_reason === "max_tokens") {
@@ -551,7 +698,31 @@ export class PromptsService extends BaseService {
     });
 
     try {
-      const parsedResponse = JSON.parse(data);
+      const parsedResponse = JSON.parse(cleanJsonResponse(data));
+      
+      // Log parsed daily regeneration response structure for debugging
+      logger.debug("Parsed AI daily regeneration response structure", {
+        userId,
+        operation: "generateDailyRegenerationPrompt",
+        metadata: {
+          dayNumber,
+          responseKeys: Object.keys(parsedResponse),
+          hasBlocks: !!parsedResponse.blocks,
+          blocksLength: parsedResponse.blocks?.length,
+          hasExercises: !!parsedResponse.exercises,
+          exercisesLength: parsedResponse.exercises?.length,
+          hasName: !!parsedResponse.name,
+          hasDescription: !!parsedResponse.description,
+          sampleBlock: parsedResponse.blocks?.[0] ? {
+            blockKeys: Object.keys(parsedResponse.blocks[0]),
+            hasExercises: !!parsedResponse.blocks[0].exercises,
+            exercisesLength: parsedResponse.blocks[0].exercises?.length,
+            sampleExercise: parsedResponse.blocks[0].exercises?.[0] ? 
+              Object.keys(parsedResponse.blocks[0].exercises[0]) : null
+          } : null
+        }
+      });
+      
       return { response: parsedResponse, promptId: createdPrompt.id };
     } catch (parseError: any) {
       logger.error(
@@ -560,7 +731,11 @@ export class PromptsService extends BaseService {
         {
           userId,
           operation: "generateDailyRegenerationPrompt",
-          metadata: { responseLength: data.length, dayNumber },
+          metadata: {
+            responseLength: data.length,
+            dayNumber,
+            rawResponse: data.substring(0, 500),
+          },
         }
       );
       throw new Error(

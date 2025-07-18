@@ -71,7 +71,9 @@ export class ExerciseController extends Controller {
       description: dbExercise.description || undefined,
       category: dbExercise.muscleGroups[0], // Using first muscle group as category
       difficulty: dbExercise.difficulty || "beginner",
-      equipment: dbExercise.equipment?.join(", ") || undefined,
+      equipment: Array.isArray(dbExercise.equipment) 
+        ? dbExercise.equipment.join(", ") 
+        : dbExercise.equipment || undefined,
       link: dbExercise.link || undefined,
       muscles_targeted: dbExercise.muscleGroups,
       created_at: dbExercise.createdAt,
@@ -101,7 +103,9 @@ export class ExerciseController extends Controller {
       description: dbExercise.description || undefined,
       category: dbExercise.muscleGroups[0],
       difficulty: dbExercise.difficulty || "beginner",
-      equipment: dbExercise.equipment?.join(", ") || undefined,
+      equipment: Array.isArray(dbExercise.equipment) 
+        ? dbExercise.equipment.join(", ") 
+        : dbExercise.equipment || undefined,
       link: dbExercise.link || undefined,
       muscles_targeted: dbExercise.muscleGroups,
       created_at: dbExercise.createdAt,
@@ -137,7 +141,9 @@ export class ExerciseController extends Controller {
       description: dbExercise.description || undefined,
       category: dbExercise.muscleGroups[0],
       difficulty: dbExercise.difficulty || "beginner",
-      equipment: dbExercise.equipment?.join(", ") || undefined,
+      equipment: Array.isArray(dbExercise.equipment) 
+        ? dbExercise.equipment.join(", ") 
+        : dbExercise.equipment || undefined,
       link: dbExercise.link || undefined,
       muscles_targeted: dbExercise.muscleGroups,
       created_at: dbExercise.createdAt,

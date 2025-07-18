@@ -268,7 +268,9 @@ export class WorkoutService extends BaseService {
                   ? exercise.exercise.muscleGroups[0]
                   : "general",
               difficulty: exercise.exercise.difficulty || "beginner",
-              equipment: exercise.exercise.equipment?.join(", ") ?? undefined,
+              equipment: Array.isArray(exercise.exercise.equipment) 
+                ? exercise.exercise.equipment.join(", ") 
+                : exercise.exercise.equipment ?? undefined,
               link: exercise.exercise.link ?? undefined,
               muscles_targeted: exercise.exercise.muscleGroups || [],
               created_at: new Date(exercise.exercise.createdAt ?? Date.now()),
@@ -619,7 +621,9 @@ export class WorkoutService extends BaseService {
             ? exercise.muscleGroups[0]
             : "general",
         difficulty: exercise.difficulty || "beginner",
-        equipment: exercise.equipment?.join(", ") ?? undefined,
+        equipment: Array.isArray(exercise.equipment) 
+          ? exercise.equipment.join(", ") 
+          : exercise.equipment ?? undefined,
         link: exercise.link ?? undefined,
         muscles_targeted: exercise.muscleGroups || [],
         created_at: new Date(exercise.createdAt ?? Date.now()),
@@ -690,7 +694,9 @@ export class WorkoutService extends BaseService {
             ? exerciseDetails.muscleGroups[0]
             : "general",
         difficulty: exerciseDetails.difficulty || "beginner",
-        equipment: exerciseDetails.equipment?.join(", ") ?? undefined,
+        equipment: Array.isArray(exerciseDetails.equipment) 
+          ? exerciseDetails.equipment.join(", ") 
+          : exerciseDetails.equipment ?? undefined,
         link: exerciseDetails.link ?? undefined,
         muscles_targeted: exerciseDetails.muscleGroups || [],
         created_at: new Date(exerciseDetails.createdAt ?? Date.now()),
@@ -1160,45 +1166,57 @@ export class WorkoutService extends BaseService {
       .where(eq(planDayExercises.workoutBlockId, existingPlanDay.blocks[0].id));
 
     // Create new exercises for this plan day
-    const newExercises = [];
-    for (const exercise of response.exercises) {
-      const exerciseDetails = await exerciseService.getExerciseByName(
-        exercise.exerciseName
-      );
-      if (exerciseDetails) {
-        const newExercise = await this.createPlanDayExercise({
-          workoutBlockId: existingPlanDay.blocks[0].id,
-          exerciseId: exerciseDetails.id,
-          sets: exercise.sets,
-          reps: exercise.reps,
-          weight: exercise.weight,
-          duration: exercise.duration,
-          restTime: exercise.restTime,
-          notes: exercise.notes,
-          order: exercise.order,
-        });
-        newExercises.push(newExercise);
+    const newExercises: any[] = [];
+    // The response structure has exercises nested inside blocks
+    if (response.blocks && response.blocks.length > 0) {
+      for (const block of response.blocks) {
+        if (block.exercises) {
+          for (const exercise of block.exercises) {
+            const exerciseDetails = await exerciseService.getExerciseByName(
+              exercise.exerciseName
+            );
+            if (exerciseDetails) {
+              const newExercise = await this.createPlanDayExercise({
+                workoutBlockId: existingPlanDay.blocks[0].id,
+                exerciseId: exerciseDetails.id,
+                sets: exercise.sets,
+                reps: exercise.reps,
+                weight: exercise.weight,
+                duration: exercise.duration,
+                restTime: exercise.restTime,
+                notes: exercise.notes,
+                order: exercise.order,
+              });
+              newExercises.push(newExercise);
+            }
+          }
+        }
       }
     }
 
-    // Update the plan day with new instructions
+    // Update the plan day with new instructions, name, and description from response
     await this.db
       .update(planDays)
       .set({
+        name: response.name || existingPlanDay.name,
+        description: response.description || existingPlanDay.description,
         instructions: response.instructions,
         updatedAt: new Date(),
       })
       .where(eq(planDays.id, planDayId));
 
     // Update the workout block with programmatically determined block info
+    // Get block info from the response if available
+    const responseBlock = response.blocks && response.blocks.length > 0 ? response.blocks[0] : null;
     await this.db
       .update(workoutBlocks)
       .set({
-        blockType: determinedBlockType,
-        blockName: determinedBlockName,
-        blockDurationMinutes: response.blockDurationMinutes,
-        timeCapMinutes: determinedTimeCap,
-        rounds: determinedRounds,
+        blockType: responseBlock?.blockType || determinedBlockType,
+        blockName: responseBlock?.blockName || determinedBlockName,
+        blockDurationMinutes: responseBlock?.blockDurationMinutes || null,
+        timeCapMinutes: responseBlock?.timeCapMinutes || determinedTimeCap,
+        rounds: responseBlock?.rounds || determinedRounds,
+        instructions: responseBlock?.instructions || null,
         updatedAt: new Date(),
       })
       .where(eq(workoutBlocks.id, existingPlanDay.blocks[0].id));
@@ -1209,23 +1227,23 @@ export class WorkoutService extends BaseService {
       workoutId: existingPlanDay.workoutId,
       date: existingPlanDay.date, // Keep as string to avoid timezone conversion
       instructions: response.instructions ?? undefined,
-      name: existingPlanDay.name || "",
-      description: existingPlanDay.description ?? undefined,
+      name: response.name || existingPlanDay.name || "",
+      description: response.description || (existingPlanDay.description ?? undefined),
       dayNumber: existingPlanDay.dayNumber || 1,
       created_at: new Date(existingPlanDay.createdAt ?? Date.now()),
       updated_at: new Date(),
       blocks: existingPlanDay.blocks.map((block, index) => ({
         id: block.id,
-        blockType: block.blockType ?? undefined,
-        blockName: block.blockName ?? undefined,
-        blockDurationMinutes: block.blockDurationMinutes ?? undefined,
-        timeCapMinutes: block.timeCapMinutes ?? undefined,
-        rounds: block.rounds ?? undefined,
-        instructions: block.instructions ?? undefined,
+        blockType: responseBlock?.blockType || (block.blockType ?? undefined),
+        blockName: responseBlock?.blockName || (block.blockName ?? undefined),
+        blockDurationMinutes: responseBlock?.blockDurationMinutes || (block.blockDurationMinutes ?? undefined),
+        timeCapMinutes: responseBlock?.timeCapMinutes || (block.timeCapMinutes ?? undefined),
+        rounds: responseBlock?.rounds || (block.rounds ?? undefined),
+        instructions: responseBlock?.instructions || (block.instructions ?? undefined),
         order: index,
         created_at: new Date(block.createdAt ?? Date.now()),
-        updated_at: new Date(block.updatedAt ?? Date.now()),
-        exercises: block.exercises.map((ex) => ({
+        updated_at: new Date(),
+        exercises: newExercises.map((ex, exIndex) => ({
           id: ex.id,
           workoutBlockId: ex.workoutBlockId,
           exerciseId: ex.exerciseId,
@@ -1248,7 +1266,9 @@ export class WorkoutService extends BaseService {
                 ? ex.exercise.muscleGroups[0]
                 : "general",
             difficulty: ex.exercise.difficulty || "beginner",
-            equipment: ex.exercise.equipment?.join(", ") ?? undefined,
+            equipment: Array.isArray(ex.exercise.equipment) 
+              ? ex.exercise.equipment.join(", ") 
+              : ex.exercise.equipment ?? undefined,
             link: ex.exercise.link ?? undefined,
             muscles_targeted: ex.exercise.muscleGroups || [],
             created_at: new Date(ex.exercise.createdAt ?? Date.now()),
