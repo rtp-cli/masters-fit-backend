@@ -152,6 +152,7 @@ const getConstraintIntegrationProtocol = (): string => {
   You MUST follow this protocol for balancing user preferences and limitations:
 
   1. **STYLE FIRST:** The user's 'preferredStyles' are the primary driver of the workout's structure. Your first priority is to design a session that is authentic to this style (e.g., a real AMRAP for CrossFit, a real flow for Yoga).
+  - The style preference set up in the user's profile must be violated if the user's workout regeneration reason asks to do so. But in all other cases, the styles must be adhered to and are non-negotiable.
 
   2. **ADAPT, DON'T ABANDON:** When a 'limitation' is present (e.g., "shoulder pain"), your task is to ADAPT the chosen style, not abandon it.
 
@@ -203,6 +204,7 @@ const getBlockTypeGuide = (): string => {
 
 - **"warmup"**: Dynamic warm-up movements to prepare the body for exercise. Set rounds (1), use sets=1, specify movement duration (20-30s) or reps (5-8), minimal restTime (0-10s). Instructions explain warm-up flow and purpose. Weight is typically 0 for bodyweight movements.
   * **Duration Calculation:** Sum of all movement durations + transitions (typically 2-3 minutes total)
+  - Workout warmups should not have too many exercises, this doesnt mean that you should not have a warmup block, but it does mean that you should not have a warmup block with more exercises than any other blocks.
 
 - **"cooldown"**: Static stretches and recovery movements to end the session. Set rounds (1), use sets=1, specify hold duration (20-30s), minimal restTime. Instructions explain cool-down sequence and breathing. Weight is 0 for stretching/mobility work.
   * **Duration Calculation:** Sum of all stretch hold durations + transitions (typically 2-3 minutes total)
@@ -338,6 +340,8 @@ For EVERY workout session, calculate total time as follows:
 - **45+ minutes:** MINIMUM 5 blocks (warm-up + 3 main blocks + cool-down)
 - **70+ minutes:** MINIMUM 6 blocks (warm-up + 4 main blocks + cool-down)
 - **MANDATORY:** Every workout must start with "warmup" block and end with "cooldown" block
+- Workout warmups should not have too many exercises, this doesnt mean that you should not have a warmup block, but it does mean that you should not have a warmup block with more exercises than any other blocks.
+- Blocks should be evenly defined with an appropriate amount of exercises for the required workout time duration.
 
 **EXPLICIT EXAMPLES - LONGER WORKOUTS REQUIRED:**
 You MUST create workouts that reach the target duration. Here are mandatory examples:
@@ -1157,6 +1161,8 @@ You MUST complete this validation process BEFORE returning your response:
 - 70+ min = 6 blocks minimum (warm-up + 4 main + cool-down)
 - MANDATORY: First block must be "warmup", last block must be "cooldown"
 - Add blocks if count is insufficient
+- Workout warmups should not have too many exercises, this doesnt mean that you should not have a warmup block, but it does mean that you should not have a warmup block with more exercises than any other blocks.
+- Blocks should be evenly defined with an appropriate amount of exercises for the required workout time duration.
 
 **STEP 3: CALCULATE EACH BLOCK DURATION**
 For each block, calculate duration using style-appropriate method:
