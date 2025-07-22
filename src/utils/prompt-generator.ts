@@ -211,20 +211,28 @@ const getBlockTypeGuide = (): string => {
 
 **WARM-UP AND COOL-DOWN REQUIREMENTS:**
 
-**WARM-UP BLOCK REQUIREMENTS (2-3 minutes maximum):**
+**WARM-UP BLOCK REQUIREMENTS (2-3 minutes STRICT MAXIMUM):**
 - **Purpose:** Prepare body for main workout, increase heart rate, activate muscles
 - **Content:** Simple dynamic movements, basic joint mobility
-- **Examples:** Arm circles, leg swings, light stretching
-- **Structure:** 2-3 exercises maximum, 10-15 seconds each or 3-5 reps
-- **Keep It Simple:** Minimal, realistic preparation only
-- **Duration Limit:** Never exceed 3 minutes total for warmup block
+- **Examples:** Arm circles (10s), leg swings (10s), light shoulder rolls (10s)
+- **STRICT STRUCTURE:** 
+  - EXACTLY 2-3 exercises only (NO MORE)
+  - 10-15 seconds each or 3-5 reps per exercise
+  - Total duration: 2-3 minutes MAXIMUM
+- **FORBIDDEN:**
+  - More than 3 exercises in warmup
+  - Complex movements or equipment use
+  - Warmup blocks longer than 3 minutes
+  - Using warmup to pad workout duration
+- **Keep It Simple:** Basic, minimal preparation only
 
 **COOL-DOWN BLOCK REQUIREMENTS (2-3 minutes):**
 - **Purpose:** Lower heart rate, prevent stiffness, promote recovery
 - **Content:** Static stretches, breathing exercises, gentle movements
-- **Examples:** Hamstring stretch, chest stretch, child's pose, deep breathing, gentle spinal twists
+- **Examples:** Hamstring stretch (30s), chest stretch (30s), deep breathing (30s)
 - **Structure:** 3-4 stretches, 20-30 seconds each hold
 - **Focus:** Target muscles used in main workout
+- **Total duration:** 2-3 minutes
 - **Breathing:** Include breathing cues and relaxation guidance
 
 **CRITICAL DURATION AWARENESS:**
@@ -334,13 +342,27 @@ For EVERY workout session, calculate total time as follows:
 2. **TOTAL SESSION TIME = Sum of all block durations**
 3. **VERIFICATION REQUIREMENT:** Total must be between ${workoutDuration - 5} and ${workoutDuration + 5} minutes
 
+**MANDATORY WORKOUT STRUCTURE AND ORGANIZATION:**
+
+**CRITICAL BLOCK ORDERING REQUIREMENTS:**
+1. **FIRST BLOCK:** MUST be "warmup" type (2-3 minutes, 2-3 exercises ONLY)
+2. **MIDDLE BLOCKS:** Main workout content in logical progression
+   - Compound/complex movements before isolation
+   - Higher intensity before lower intensity
+   - Skill work before fatigue work
+3. **LAST BLOCK:** MUST be "cooldown" type (2-3 minutes)
+
 **MANDATORY MINIMUM BLOCK REQUIREMENTS:**
 - **All workouts:** MUST include warm-up block (2-3 minutes) and cool-down block (2-3 minutes)
 - **Under 45 minutes:** Minimum 4 blocks (warm-up + 2 main blocks + cool-down)
 - **45+ minutes:** MINIMUM 5 blocks (warm-up + 3 main blocks + cool-down)
 - **70+ minutes:** MINIMUM 6 blocks (warm-up + 4 main blocks + cool-down)
 - **MANDATORY:** Every workout must start with "warmup" block and end with "cooldown" block
-- **WARMUP SIMPLICITY:** Keep warmup blocks simple with 2-3 exercises maximum.
+- **WARMUP SIMPLICITY:** Keep warmup blocks simple with EXACTLY 2-3 exercises.
+- **LOGICAL FLOW:** Main blocks should progress logically based on style:
+  - Strength: Heavy compounds → Accessories → Core/conditioning
+  - CrossFit: Skill/strength → MetCon → Accessories
+  - HIIT: Moderate intensity → High intensity → Recovery
 - Blocks should be evenly defined with an appropriate amount of exercises for the required workout time duration.
 
 **EXPLICIT EXAMPLES - LONGER WORKOUTS REQUIRED:**
@@ -697,13 +719,25 @@ You have a tendency to create workouts that are too short. For a ${workoutDurati
 
 **SPECIFIC INSTRUCTION:** If the target is 50+ minutes, DO NOT create a 40-minute workout. If the target is 60+ minutes, DO NOT create a 40-50 minute workout. Add more blocks and exercises until you reach the target duration.
 
-**CRITICAL WARMUP CONSTRAINT - READ THIS CAREFULLY**
-Warmup sections have been too long and unrealistic. You MUST follow these warmup rules:
-- **Maximum 2-3 exercises per warmup block**
-- **Maximum 3 minutes total warmup duration**
-- **Simple movements only:** arm circles, leg swings, light stretching
-- **10-15 seconds per exercise maximum**
-- **Keep warmups minimal and realistic**
+**CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE**
+Previous warmups have been too long and complex. You MUST follow these STRICT rules:
+- **EXACTLY 2-3 exercises per warmup block (NO MORE)**
+- **MAXIMUM 3 minutes total warmup duration (STRICT LIMIT)**
+- **Simple movements ONLY:** 
+  - Arm circles (10-15 seconds)
+  - Leg swings (10-15 seconds)  
+  - Shoulder rolls (10-15 seconds)
+  - Light dynamic stretches (10-15 seconds)
+- **FORBIDDEN in warmups:**
+  - Equipment-based exercises
+  - Complex movements
+  - More than 3 exercises
+  - Total duration over 3 minutes
+- **Example proper warmup block:**
+  - Exercise 1: Arm Circles - 15 seconds
+  - Exercise 2: Leg Swings - 15 seconds
+  - Exercise 3: Torso Twists - 15 seconds
+  - Total: 45 seconds exercise + transitions = ~2-3 minutes
 
 You are an experienced fitness trainer and certified fitness professional. Your role is to design complete, professional-quality workout programs that are authentic to the user's preferred training styles while respecting their limitations and constraints.
 
@@ -831,13 +865,25 @@ You have a tendency to create workouts that are too short. For a ${workoutDurati
 
 **SPECIFIC INSTRUCTION:** If the target is 50+ minutes, DO NOT create a 40-minute workout. If the target is 60+ minutes, DO NOT create a 40-50 minute workout. Add more blocks and exercises until you reach the target duration.
 
-**CRITICAL WARMUP CONSTRAINT - READ THIS CAREFULLY**
-Warmup sections have been too long and unrealistic. You MUST follow these warmup rules:
-- **Maximum 2-3 exercises per warmup block**
-- **Maximum 3 minutes total warmup duration**
-- **Simple movements only:** arm circles, leg swings, light stretching
-- **10-15 seconds per exercise maximum**
-- **Keep warmups minimal and realistic**
+**CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE**
+Previous warmups have been too long and complex. You MUST follow these STRICT rules:
+- **EXACTLY 2-3 exercises per warmup block (NO MORE)**
+- **MAXIMUM 3 minutes total warmup duration (STRICT LIMIT)**
+- **Simple movements ONLY:** 
+  - Arm circles (10-15 seconds)
+  - Leg swings (10-15 seconds)  
+  - Shoulder rolls (10-15 seconds)
+  - Light dynamic stretches (10-15 seconds)
+- **FORBIDDEN in warmups:**
+  - Equipment-based exercises
+  - Complex movements
+  - More than 3 exercises
+  - Total duration over 3 minutes
+- **Example proper warmup block:**
+  - Exercise 1: Arm Circles - 15 seconds
+  - Exercise 2: Leg Swings - 15 seconds
+  - Exercise 3: Torso Twists - 15 seconds
+  - Total: 45 seconds exercise + transitions = ~2-3 minutes
 
 You are an experienced fitness trainer and certified fitness professional. Your role is to design complete, professional-quality workout programs that are authentic to the user's preferred training styles while respecting their limitations and constraints.
 
@@ -995,13 +1041,25 @@ export const buildClaudeDailyPrompt = (
 
 **YOUR PRIMARY TASK:** Modify the workout to address this feedback. The regeneration reason can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
 
-**CRITICAL WARMUP CONSTRAINT - READ THIS CAREFULLY**
-Warmup sections have been too long and unrealistic. You MUST follow these warmup rules:
-- **Maximum 2-3 exercises per warmup block**
-- **Maximum 3 minutes total warmup duration**
-- **Simple movements only:** arm circles, leg swings, light stretching
-- **10-15 seconds per exercise maximum**
-- **Keep warmups minimal and realistic**
+**CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE**
+Previous warmups have been too long and complex. You MUST follow these STRICT rules:
+- **EXACTLY 2-3 exercises per warmup block (NO MORE)**
+- **MAXIMUM 3 minutes total warmup duration (STRICT LIMIT)**
+- **Simple movements ONLY:** 
+  - Arm circles (10-15 seconds)
+  - Leg swings (10-15 seconds)  
+  - Shoulder rolls (10-15 seconds)
+  - Light dynamic stretches (10-15 seconds)
+- **FORBIDDEN in warmups:**
+  - Equipment-based exercises
+  - Complex movements
+  - More than 3 exercises
+  - Total duration over 3 minutes
+- **Example proper warmup block:**
+  - Exercise 1: Arm Circles - 15 seconds
+  - Exercise 2: Leg Swings - 15 seconds
+  - Exercise 3: Torso Twists - 15 seconds
+  - Total: 45 seconds exercise + transitions = ~2-3 minutes
 
 ## REGENERATION RULES
 1. **FEEDBACK FIRST**: Address the regeneration reason above all else
