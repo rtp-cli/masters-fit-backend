@@ -202,22 +202,22 @@ const getBlockTypeGuide = (): string => {
 - **"tabata"**: 20s work, 10s rest format. Set rounds (4-8), use sets=1, duration=20, restTime=10. Instructions explain Tabata protocol. Include weights for weighted exercises.
   * **Duration Calculation:** (20s + 10s) × 8 rounds = 4 minutes per exercise × number of exercises
 
-- **"warmup"**: Dynamic warm-up movements to prepare the body for exercise. Set rounds (1), use sets=1, specify movement duration (20-30s) or reps (5-8), minimal restTime (0-10s). Instructions explain warm-up flow and purpose. Weight is typically 0 for bodyweight movements.
-  * **Duration Calculation:** Sum of all movement durations + transitions (typically 2-3 minutes total)
-  - Workout warmups should not have too many exercises, this doesnt mean that you should not have a warmup block, but it does mean that you should not have a warmup block with more exercises than any other blocks.
+- **"warmup"**: Simple dynamic warm-up movements to prepare the body for exercise. Set rounds (1), use sets=1, specify movement duration (10-15s) or reps (3-5), minimal restTime (0-10s). Instructions explain warm-up flow and purpose. Weight is typically 0 for bodyweight movements.
+  * **Duration Calculation:** Sum of all movement durations + transitions (maximum 3 minutes total)
+  - **WARMUP CONSTRAINT:** Maximum 2-3 exercises only. Keep warmups simple and realistic.
 
 - **"cooldown"**: Static stretches and recovery movements to end the session. Set rounds (1), use sets=1, specify hold duration (20-30s), minimal restTime. Instructions explain cool-down sequence and breathing. Weight is 0 for stretching/mobility work.
   * **Duration Calculation:** Sum of all stretch hold durations + transitions (typically 2-3 minutes total)
 
 **WARM-UP AND COOL-DOWN REQUIREMENTS:**
 
-**WARM-UP BLOCK REQUIREMENTS (2-3 minutes):**
+**WARM-UP BLOCK REQUIREMENTS (2-3 minutes maximum):**
 - **Purpose:** Prepare body for main workout, increase heart rate, activate muscles
-- **Content:** Dynamic movements, joint mobility, activation exercises
-- **Examples:** Arm circles, leg swings, bodyweight squats, walking lunges, hip circles, shoulder rolls
-- **Structure:** 3-5 exercises, 20-30 seconds each or 5-8 reps
-- **Progression:** Start gentle, gradually increase intensity
-- **Style-Specific:** Match warm-up to main workout (e.g., shoulder prep for upper body day)
+- **Content:** Simple dynamic movements, basic joint mobility
+- **Examples:** Arm circles, leg swings, light stretching
+- **Structure:** 2-3 exercises maximum, 10-15 seconds each or 3-5 reps
+- **Keep It Simple:** Minimal, realistic preparation only
+- **Duration Limit:** Never exceed 3 minutes total for warmup block
 
 **COOL-DOWN BLOCK REQUIREMENTS (2-3 minutes):**
 - **Purpose:** Lower heart rate, prevent stiffness, promote recovery
@@ -340,7 +340,7 @@ For EVERY workout session, calculate total time as follows:
 - **45+ minutes:** MINIMUM 5 blocks (warm-up + 3 main blocks + cool-down)
 - **70+ minutes:** MINIMUM 6 blocks (warm-up + 4 main blocks + cool-down)
 - **MANDATORY:** Every workout must start with "warmup" block and end with "cooldown" block
-- Workout warmups should not have too many exercises, this doesnt mean that you should not have a warmup block, but it does mean that you should not have a warmup block with more exercises than any other blocks.
+- **WARMUP SIMPLICITY:** Keep warmup blocks simple with 2-3 exercises maximum.
 - Blocks should be evenly defined with an appropriate amount of exercises for the required workout time duration.
 
 **EXPLICIT EXAMPLES - LONGER WORKOUTS REQUIRED:**
@@ -697,6 +697,14 @@ You have a tendency to create workouts that are too short. For a ${workoutDurati
 
 **SPECIFIC INSTRUCTION:** If the target is 50+ minutes, DO NOT create a 40-minute workout. If the target is 60+ minutes, DO NOT create a 40-50 minute workout. Add more blocks and exercises until you reach the target duration.
 
+**CRITICAL WARMUP CONSTRAINT - READ THIS CAREFULLY**
+Warmup sections have been too long and unrealistic. You MUST follow these warmup rules:
+- **Maximum 2-3 exercises per warmup block**
+- **Maximum 3 minutes total warmup duration**
+- **Simple movements only:** arm circles, leg swings, light stretching
+- **10-15 seconds per exercise maximum**
+- **Keep warmups minimal and realistic**
+
 You are an experienced fitness trainer and certified fitness professional. Your role is to design complete, professional-quality workout programs that are authentic to the user's preferred training styles while respecting their limitations and constraints.
 
 **CRITICAL INSTRUCTION: You MUST generate a COMPLETE WEEKLY workout plan with ${profile.availableDays?.length || 7} days. Do NOT generate just one day - generate the entire week.**
@@ -822,6 +830,14 @@ This is a CHUNKED workout plan generator (Chunk ${chunkNumber} of ${totalChunks}
 You have a tendency to create workouts that are too short. For a ${workoutDuration}-minute request, you MUST create ${workoutDuration}-minute workouts, NOT 30-40 minute workouts. Every single workout session MUST be ${workoutDuration} minutes with MAXIMUM deviation of 5 minutes (${workoutDuration - 5} to ${workoutDuration + 5} minutes total). 
 
 **SPECIFIC INSTRUCTION:** If the target is 50+ minutes, DO NOT create a 40-minute workout. If the target is 60+ minutes, DO NOT create a 40-50 minute workout. Add more blocks and exercises until you reach the target duration.
+
+**CRITICAL WARMUP CONSTRAINT - READ THIS CAREFULLY**
+Warmup sections have been too long and unrealistic. You MUST follow these warmup rules:
+- **Maximum 2-3 exercises per warmup block**
+- **Maximum 3 minutes total warmup duration**
+- **Simple movements only:** arm circles, leg swings, light stretching
+- **10-15 seconds per exercise maximum**
+- **Keep warmups minimal and realistic**
 
 You are an experienced fitness trainer and certified fitness professional. Your role is to design complete, professional-quality workout programs that are authentic to the user's preferred training styles while respecting their limitations and constraints.
 
@@ -978,6 +994,14 @@ export const buildClaudeDailyPrompt = (
 "${regenerationReason}"
 
 **YOUR PRIMARY TASK:** Modify the workout to address this feedback. The regeneration reason can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
+
+**CRITICAL WARMUP CONSTRAINT - READ THIS CAREFULLY**
+Warmup sections have been too long and unrealistic. You MUST follow these warmup rules:
+- **Maximum 2-3 exercises per warmup block**
+- **Maximum 3 minutes total warmup duration**
+- **Simple movements only:** arm circles, leg swings, light stretching
+- **10-15 seconds per exercise maximum**
+- **Keep warmups minimal and realistic**
 
 ## REGENERATION RULES
 1. **FEEDBACK FIRST**: Address the regeneration reason above all else
@@ -1161,7 +1185,7 @@ You MUST complete this validation process BEFORE returning your response:
 - 70+ min = 6 blocks minimum (warm-up + 4 main + cool-down)
 - MANDATORY: First block must be "warmup", last block must be "cooldown"
 - Add blocks if count is insufficient
-- Workout warmups should not have too many exercises, this doesnt mean that you should not have a warmup block, but it does mean that you should not have a warmup block with more exercises than any other blocks.
+- **WARMUP SIMPLICITY:** Keep warmup blocks simple with 2-3 exercises maximum.
 - Blocks should be evenly defined with an appropriate amount of exercises for the required workout time duration.
 
 **STEP 3: CALCULATE EACH BLOCK DURATION**
