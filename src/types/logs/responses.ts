@@ -3,16 +3,23 @@ export interface ApiResponse {
   error?: string;
 }
 
+// Exercise set log interface
+export interface ExerciseSetLog {
+  id: number;
+  exerciseLogId: number;
+  roundNumber: number;
+  setNumber: number;
+  weight: number | null;
+  reps: number | null;
+  restAfter: number | null;
+  createdAt: Date;
+}
+
 // Enhanced exercise log interface
 export interface ExerciseLog {
   id: number;
   planDayExerciseId: number;
-  setsCompleted: number | null;
-  repsCompleted: number | null;
-  weightUsed: number | null;
   durationCompleted: number | null;
-  roundsCompleted: number | null;
-  restTimeTaken: number | null;
   timeTaken: number | null;
   isComplete: boolean;
   isSkipped: boolean;
@@ -21,6 +28,7 @@ export interface ExerciseLog {
   rating: number | null;
   createdAt: Date;
   updatedAt: Date;
+  sets?: ExerciseSetLog[];
 }
 
 // New block log interface

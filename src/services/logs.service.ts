@@ -1,16 +1,20 @@
 import {
   exerciseLogs,
+  exerciseSetLogs,
   blockLogs,
   planDayLogs,
   workoutLogs,
   InsertExerciseLog,
+  InsertExerciseSetLog,
   InsertBlockLog,
   InsertPlanDayLog,
   InsertWorkoutLog,
   UpdateExerciseLog,
+  UpdateExerciseSetLog,
   UpdateBlockLog,
   UpdatePlanDayLog,
   UpdateWorkoutLog,
+  ExerciseSetLog,
 } from "@/models";
 import {
   planDayExercises,
@@ -30,43 +34,112 @@ const parseDecimal = (value: string | null): number | null => {
 export class LogsService extends BaseService {
   // ==================== EXERCISE LOGS ====================
 
-  async createExerciseLog(data: InsertExerciseLog) {
-    // Convert weightUsed to string for decimal field
-    const insertData = {
-      ...data,
-      weightUsed: data.weightUsed ? data.weightUsed.toString() : null,
-    };
+  async createExerciseLog(data: {
+    planDayExerciseId: number;
+    sets: Array<{
+      roundNumber: number;
+      setNumber: number;
+      weight: number;
+      reps: number;
+      restAfter?: number;
+    }>;
+    durationCompleted?: number;
+    timeTaken?: number;
+    notes?: string;
+    difficulty?: string;
+    rating?: number;
+  }) {
+    const { sets, ...exerciseLogData } = data;
 
+    // Create parent exercise log
     const [createdExerciseLog] = await this.db
       .insert(exerciseLogs)
-      .values(insertData)
+      .values({
+        ...exerciseLogData,
+        isComplete: true, // If they're logging sets, they completed it
+      })
       .returning();
 
-    // Convert decimal fields back to numbers for interface compatibility
+    // Create set logs (only if sets array is not empty)
+    let createdSetLogs: any[] = [];
+    if (sets && sets.length > 0) {
+      const setLogsData = sets.map((set) => ({
+        exerciseLogId: createdExerciseLog.id,
+        roundNumber: set.roundNumber,
+        setNumber: set.setNumber,
+        weight: set.weight ? set.weight.toString() : null,
+        reps: set.reps,
+        restAfter: set.restAfter,
+      }));
+
+      createdSetLogs = await this.db
+        .insert(exerciseSetLogs)
+        .values(setLogsData)
+        .returning();
+    }
+
+    // Convert decimal fields back to numbers
+    const setsWithNumbers = createdSetLogs.map((set) => ({
+      ...set,
+      weight: parseDecimal(set.weight),
+    }));
+
     return {
       ...createdExerciseLog,
-      weightUsed: parseDecimal(createdExerciseLog.weightUsed),
+      sets: setsWithNumbers,
     };
   }
 
   async updateExerciseLog(exerciseLogId: number, data: UpdateExerciseLog) {
-    // Convert weightUsed to string for decimal field
-    const updateData = {
-      ...data,
-      weightUsed: data.weightUsed ? data.weightUsed.toString() : undefined,
-      updatedAt: new Date(),
-    };
-
     const [updatedExerciseLog] = await this.db
       .update(exerciseLogs)
-      .set(updateData)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
       .where(eq(exerciseLogs.id, exerciseLogId))
       .returning();
 
-    // Convert decimal fields back to numbers for interface compatibility
+    return updatedExerciseLog;
+  }
+
+  async createExerciseSetLog(data: InsertExerciseSetLog) {
+    const insertData = {
+      ...data,
+      weight: data.weight ? data.weight.toString() : null,
+    };
+
+    const [createdSetLog] = await this.db
+      .insert(exerciseSetLogs)
+      .values(insertData)
+      .returning();
+
     return {
-      ...updatedExerciseLog,
-      weightUsed: parseDecimal(updatedExerciseLog.weightUsed),
+      ...createdSetLog,
+      weight: parseDecimal(createdSetLog.weight),
+    };
+  }
+
+  async updateExerciseSetLog(setLogId: number, data: UpdateExerciseSetLog) {
+    const updateData = {
+      ...data,
+      weight:
+        data.weight !== undefined
+          ? data.weight
+            ? data.weight.toString()
+            : null
+          : undefined,
+    };
+
+    const [updatedSetLog] = await this.db
+      .update(exerciseSetLogs)
+      .set(updateData)
+      .where(eq(exerciseSetLogs.id, setLogId))
+      .returning();
+
+    return {
+      ...updatedSetLog,
+      weight: parseDecimal(updatedSetLog.weight),
     };
   }
 
@@ -77,10 +150,18 @@ export class LogsService extends BaseService {
 
     if (!log) return null;
 
-    // Convert decimal fields back to numbers for interface compatibility
+    // Get associated set logs
+    const sets = await this.db.query.exerciseSetLogs.findMany({
+      where: eq(exerciseSetLogs.exerciseLogId, exerciseLogId),
+      orderBy: [exerciseSetLogs.roundNumber, exerciseSetLogs.setNumber],
+    });
+
     return {
       ...log,
-      weightUsed: parseDecimal(log.weightUsed),
+      sets: sets.map((set) => ({
+        ...set,
+        weight: parseDecimal(set.weight),
+      })),
     };
   }
 
@@ -90,11 +171,25 @@ export class LogsService extends BaseService {
       orderBy: [desc(exerciseLogs.createdAt)],
     });
 
-    // Convert decimal fields back to numbers for interface compatibility
-    return logs.map((log) => ({
-      ...log,
-      weightUsed: parseDecimal(log.weightUsed),
-    }));
+    // Get sets for each log
+    const logsWithSets = await Promise.all(
+      logs.map(async (log) => {
+        const sets = await this.db.query.exerciseSetLogs.findMany({
+          where: eq(exerciseSetLogs.exerciseLogId, log.id),
+          orderBy: [exerciseSetLogs.roundNumber, exerciseSetLogs.setNumber],
+        });
+
+        return {
+          ...log,
+          sets: sets.map((set) => ({
+            ...set,
+            weight: parseDecimal(set.weight),
+          })),
+        };
+      })
+    );
+
+    return logsWithSets;
   }
 
   async getExerciseLogsForPlanDayExercises(planDayExerciseIds: number[]) {
@@ -103,11 +198,25 @@ export class LogsService extends BaseService {
       orderBy: [desc(exerciseLogs.createdAt)],
     });
 
-    // Convert decimal fields back to numbers for interface compatibility
-    return logs.map((log) => ({
-      ...log,
-      weightUsed: parseDecimal(log.weightUsed),
-    }));
+    // Get sets for each log
+    const logsWithSets = await Promise.all(
+      logs.map(async (log) => {
+        const sets = await this.db.query.exerciseSetLogs.findMany({
+          where: eq(exerciseSetLogs.exerciseLogId, log.id),
+          orderBy: [exerciseSetLogs.roundNumber, exerciseSetLogs.setNumber],
+        });
+
+        return {
+          ...log,
+          sets: sets.map((set) => ({
+            ...set,
+            weight: parseDecimal(set.weight),
+          })),
+        };
+      })
+    );
+
+    return logsWithSets;
   }
 
   async getExerciseLogsForWorkoutBlock(workoutBlockId: number) {
@@ -124,11 +233,54 @@ export class LogsService extends BaseService {
       orderBy: [desc(exerciseLogs.createdAt)],
     });
 
-    // Convert decimal fields back to numbers for interface compatibility
+    // Get sets for all logs efficiently
+    const logIds = logs.map((log) => log.id);
+    const setsByLogId = await this.getSetsForExerciseLogs(logIds);
+
     return logs.map((log) => ({
       ...log,
-      weightUsed: parseDecimal(log.weightUsed),
+      sets: setsByLogId[log.id] || [],
     }));
+  }
+
+  async getExerciseSetLogs(exerciseLogId: number) {
+    const sets = await this.db.query.exerciseSetLogs.findMany({
+      where: eq(exerciseSetLogs.exerciseLogId, exerciseLogId),
+      orderBy: [exerciseSetLogs.roundNumber, exerciseSetLogs.setNumber],
+    });
+
+    return sets.map((set) => ({
+      ...set,
+      weight: parseDecimal(set.weight),
+    }));
+  }
+
+  // Helper method to get sets for multiple exercise logs
+  private async getSetsForExerciseLogs(exerciseLogIds: number[]) {
+    if (exerciseLogIds.length === 0) return {};
+
+    const sets = await this.db.query.exerciseSetLogs.findMany({
+      where: inArray(exerciseSetLogs.exerciseLogId, exerciseLogIds),
+      orderBy: [
+        exerciseSetLogs.exerciseLogId,
+        exerciseSetLogs.roundNumber,
+        exerciseSetLogs.setNumber,
+      ],
+    });
+
+    // Group sets by exercise log ID
+    const setsByLogId: Record<number, ExerciseSetLog[]> = {};
+    sets.forEach((set) => {
+      if (!setsByLogId[set.exerciseLogId]) {
+        setsByLogId[set.exerciseLogId] = [];
+      }
+      setsByLogId[set.exerciseLogId].push({
+        ...set,
+        weight: parseDecimal(set.weight),
+      });
+    });
+
+    return setsByLogId;
   }
 
   // ==================== BLOCK LOGS ====================
@@ -575,10 +727,13 @@ export class LogsService extends BaseService {
       orderBy: [desc(exerciseLogs.createdAt)],
     });
 
-    // Convert decimal fields back to numbers for interface compatibility
+    // Get sets for all logs efficiently
+    const logIds = logs.map((log) => log.id);
+    const setsByLogId = await this.getSetsForExerciseLogs(logIds);
+
     return logs.map((log) => ({
       ...log,
-      weightUsed: parseDecimal(log.weightUsed),
+      sets: setsByLogId[log.id] || [],
     }));
   }
 

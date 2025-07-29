@@ -35,7 +35,6 @@ import {
   Tags,
   Get,
   Path,
-  Example,
   Security,
   Put,
 } from "@tsoa/runtime";
@@ -48,22 +47,22 @@ export class LogsController extends Controller {
   // ==================== EXERCISE LOGS ====================
 
   /**
-   * Create a new exercise log entry
+   * Create a new exercise log entry with set-level data
    */
   @Post("/exercise")
   public async createExerciseLog(
     @Body()
     requestBody: {
       planDayExerciseId: number;
-      setsCompleted?: number;
-      repsCompleted?: number;
-      roundsCompleted?: number;
-      weightUsed?: number;
+      sets: Array<{
+        roundNumber: number;
+        setNumber: number;
+        weight: number;
+        reps: number;
+        restAfter?: number;
+      }>;
       durationCompleted?: number;
-      restTimeTaken?: number;
       timeTaken?: number;
-      isComplete?: boolean;
-      isSkipped?: boolean;
       notes?: string;
       difficulty?: string;
       rating?: number;

@@ -6,12 +6,14 @@ import {
   planDayExercises,
   exercises,
   exerciseLogs,
+  exerciseSetLogs,
   workoutLogs,
   type Exercise,
   type PlanDay,
   type WorkoutBlock,
   type PlanDayExercise,
   type ExerciseLog,
+  type ExerciseSetLog,
 } from "@/models";
 import { BaseService } from "./base.service";
 import { logger } from "@/utils/logger";
@@ -99,6 +101,23 @@ export class SearchService extends BaseService {
             })
           : [];
 
+      // Get set logs for each exercise log
+      const logIds = logs.map(log => log.id);
+      const setLogs = logIds.length > 0
+        ? await this.db.query.exerciseSetLogs.findMany({
+            where: sql`exercise_log_id IN (${sql.join(logIds, sql`, `)})`
+          })
+        : [];
+
+      // Group set logs by exercise log id
+      const setLogsByExerciseLogId = setLogs.reduce((acc, setLog) => {
+        if (!acc[setLog.exerciseLogId]) {
+          acc[setLog.exerciseLogId] = [];
+        }
+        acc[setLog.exerciseLogId].push(setLog);
+        return acc;
+      }, {} as Record<number, typeof setLogs>);
+
       // Calculate completion rates for each exercise
       const blocksWithExercises = planDay.blocks.map((block) => ({
         ...block,
@@ -110,9 +129,9 @@ export class SearchService extends BaseService {
           let completionRate = 0;
           if (exerciseLog && planExercise.sets && planExercise.reps) {
             const plannedVolume = planExercise.sets * planExercise.reps;
-            const completedVolume =
-              (exerciseLog.setsCompleted || 0) *
-              (exerciseLog.repsCompleted || 0);
+            const exerciseSetLogs = setLogsByExerciseLogId[exerciseLog.id] || [];
+            const completedVolume = exerciseSetLogs
+              .reduce((sum, setLog) => sum + (setLog.reps || 0), 0);
             completionRate = Math.round(
               (completedVolume / plannedVolume) * 100
             );
@@ -242,57 +261,60 @@ export class SearchService extends BaseService {
           (totalCompletions / totalAssignments) * 100
         );
 
+        // Get all set logs for completed exercises
+        const completedLogIds = completedExercises
+          .map((item) => item.exerciseLog?.id)
+          .filter((id): id is number => id !== undefined && id !== null);
+
+        const allSetLogs = completedLogIds.length > 0
+          ? await this.db.query.exerciseSetLogs.findMany({
+              where: sql`exercise_log_id IN (${sql.join(completedLogIds, sql`, `)})`
+            })
+          : [];
+
+        // Use all sets
+        const workingSets = allSetLogs;
+
         // Calculate averages from completed exercises
-        const completedLogs = completedExercises
-          .map((item) => item.exerciseLog)
-          .filter(Boolean);
-        const averageSets =
-          completedLogs.length > 0
-            ? completedLogs.reduce(
-                (sum, log) => sum + (log!.setsCompleted || 0),
-                0
-              ) / completedLogs.length
-            : 0;
-        const averageReps =
-          completedLogs.length > 0
-            ? completedLogs.reduce(
-                (sum, log) => sum + (log!.repsCompleted || 0),
-                0
-              ) / completedLogs.length
-            : 0;
-        const averageWeight =
-          completedLogs.length > 0
-            ? completedLogs.reduce(
-                (sum, log) => sum + (Number(log!.weightUsed) || 0),
-                0
-              ) / completedLogs.length
-            : null;
+        const totalSets = workingSets.length;
+        const totalReps = workingSets.reduce((sum, setLog) => sum + (setLog.reps || 0), 0);
+        const totalWeight = workingSets.reduce((sum, setLog) => sum + (Number(setLog.weight) || 0), 0);
+        
+        const averageSets = completedExercises.length > 0
+          ? totalSets / completedExercises.length
+          : 0;
+        const averageReps = totalSets > 0
+          ? totalReps / totalSets
+          : 0;
+        const averageWeight = workingSets.filter(s => s.weight).length > 0
+          ? totalWeight / workingSets.filter(s => s.weight).length
+          : null;
 
         // Find personal records
-        const maxWeight =
-          completedLogs.length > 0
-            ? Math.max(
-                ...completedLogs.map((log) => Number(log!.weightUsed) || 0)
-              ) || null
-            : null;
-        const maxReps =
-          completedLogs.length > 0
-            ? Math.max(...completedLogs.map((log) => log!.repsCompleted || 0))
-            : 0;
-        const maxSets =
-          completedLogs.length > 0
-            ? Math.max(...completedLogs.map((log) => log!.setsCompleted || 0))
-            : 0;
+        const maxWeight = workingSets.length > 0
+          ? Math.max(...workingSets.map((setLog) => Number(setLog.weight) || 0)) || null
+          : null;
+        const maxReps = workingSets.length > 0
+          ? Math.max(...workingSets.map((setLog) => setLog.reps || 0))
+          : 0;
+        
+        // Max sets per session
+        const setsByExerciseLog: Record<number, number> = {};
+        workingSets.forEach(setLog => {
+          setsByExerciseLog[setLog.exerciseLogId] = (setsByExerciseLog[setLog.exerciseLogId] || 0) + 1;
+        });
+        const maxSets = Object.keys(setsByExerciseLog).length > 0
+          ? Math.max(...Object.values(setsByExerciseLog))
+          : 0;
 
         // Find last performed date
-        const lastPerformed =
-          completedLogs.length > 0
-            ? new Date(
-                Math.max(
-                  ...completedLogs.map((log) => log!.createdAt.getTime())
-                )
+        const lastPerformed = completedExercises.length > 0
+          ? new Date(
+              Math.max(
+                ...completedExercises.map((item) => item.exerciseLog!.createdAt.getTime())
               )
-            : null;
+            )
+          : null;
 
         userStats = {
           totalAssignments,

@@ -1,6 +1,7 @@
 import { db } from "@/config/database";
 import {
   exerciseLogs,
+  exerciseSetLogs,
   exercises,
   planDayExercises,
   planDays,
@@ -8,7 +9,7 @@ import {
   workoutBlocks,
   profiles,
 } from "@/models";
-import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { FitnessGoals } from "@/constants/profile";
 import { GoalProgress, MuscleGroupGoalMapping } from "@/types/dashboard/types";
 import { getDateRangeUTC } from "@/utils/date.utils";
@@ -130,18 +131,22 @@ export class GoalProgressService {
       // Get exercises that target relevant muscle groups
       const goalSpecificData = await db
         .select({
-          totalSets: sql<number>`COUNT(${exerciseLogs.id})`,
-          totalReps: sql<number>`SUM(COALESCE(${exerciseLogs.repsCompleted}, 0))`,
+          totalSets: sql<number>`COUNT(DISTINCT ${exerciseSetLogs.id})`,
+          totalReps: sql<number>`SUM(COALESCE(${exerciseSetLogs.reps}, 0))`,
           totalWeight: sql<number>`SUM(
             CASE 
-              WHEN ${exerciseLogs.weightUsed} > 0 THEN 
-                ${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}
+              WHEN ${exerciseSetLogs.weight} > 0 THEN 
+                ${exerciseSetLogs.reps} * ${exerciseSetLogs.weight}
               ELSE 0
             END
           )`,
           completedWorkouts: sql<number>`COUNT(DISTINCT ${planDays.workoutId})`,
         })
-        .from(exerciseLogs)
+        .from(exerciseSetLogs)
+        .innerJoin(
+          exerciseLogs,
+          eq(exerciseSetLogs.exerciseLogId, exerciseLogs.id)
+        )
         .innerJoin(
           planDayExercises,
           eq(exerciseLogs.planDayExerciseId, planDayExercises.id)

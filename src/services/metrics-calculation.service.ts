@@ -1,6 +1,7 @@
 import { db } from "@/config/database";
 import {
   exerciseLogs,
+  exerciseSetLogs,
   exercises,
   planDayExercises,
   planDays,
@@ -29,7 +30,7 @@ export class MetricsCalculationService {
     // Build basic conditions
     const whereConditions = [
       eq(workouts.userId, userId),
-      sql`${exerciseLogs.weightUsed} > 0`,
+      sql`${exerciseSetLogs.weight} > 0`,
     ];
 
     // Add date filters only if dates are provided
@@ -46,7 +47,7 @@ export class MetricsCalculationService {
       case "day":
         selectFields = {
           name: planDays.date,
-          totalWeight: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}), 0)::INTEGER`,
+          totalWeight: sql<number>`COALESCE(SUM(${exerciseSetLogs.reps} * ${exerciseSetLogs.weight}), 0)::INTEGER`,
           muscleGroups: sql<string[]>`ARRAY[]::text[]`,
         };
         groupByClause = [planDays.date];
@@ -54,7 +55,7 @@ export class MetricsCalculationService {
       case "muscle_group":
         selectFields = {
           name: sql<string>`UNNEST(${exercises.muscleGroups})`,
-          totalWeight: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}), 0)::INTEGER`,
+          totalWeight: sql<number>`COALESCE(SUM(${exerciseSetLogs.reps} * ${exerciseSetLogs.weight}), 0)::INTEGER`,
           muscleGroups: sql<string[]>`ARRAY[UNNEST(${exercises.muscleGroups})]`,
         };
         groupByClause = [sql`UNNEST(${exercises.muscleGroups})`];
@@ -62,7 +63,7 @@ export class MetricsCalculationService {
       default: // exercise (most useful default)
         selectFields = {
           name: exercises.name,
-          totalWeight: sql<number>`COALESCE(SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}), 0)::INTEGER`,
+          totalWeight: sql<number>`COALESCE(SUM(${exerciseSetLogs.reps} * ${exerciseSetLogs.weight}), 0)::INTEGER`,
           muscleGroups: exercises.muscleGroups,
         };
         groupByClause = [exercises.id, exercises.name, exercises.muscleGroups];
@@ -70,7 +71,11 @@ export class MetricsCalculationService {
 
     const weightData = await db
       .select(selectFields)
-      .from(exerciseLogs)
+      .from(exerciseSetLogs)
+      .innerJoin(
+        exerciseLogs,
+        eq(exerciseSetLogs.exerciseLogId, exerciseLogs.id)
+      )
       .innerJoin(
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
@@ -85,9 +90,7 @@ export class MetricsCalculationService {
       .where(and(...whereConditions))
       .groupBy(...groupByClause)
       .orderBy(
-        desc(
-          sql`SUM(${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed})`
-        )
+        desc(sql`SUM(${exerciseSetLogs.reps} * ${exerciseSetLogs.weight})`)
       )
       .limit(20);
 
@@ -104,11 +107,7 @@ export class MetricsCalculationService {
     endDate?: string
   ): Promise<WeightAccuracyMetrics> {
     // Build basic conditions
-    const whereConditions = [
-      eq(workouts.userId, userId),
-      sql`${exerciseLogs.setsCompleted} > 0`,
-      sql`${exerciseLogs.repsCompleted} > 0`,
-    ];
+    const whereConditions = [eq(workouts.userId, userId)];
 
     // Add date filters only if dates are provided
     if (startDate || endDate) {
@@ -126,17 +125,21 @@ export class MetricsCalculationService {
       }
     }
 
-    // Get all exercise logs with their planned weights
+    // Get all exercise set logs with their planned weights
     const allExerciseData = await db
       .select({
-        exerciseLogId: exerciseLogs.id,
-        weightUsed: exerciseLogs.weightUsed,
+        setLogId: exerciseSetLogs.id,
+        actualWeight: exerciseSetLogs.weight,
         plannedWeight: planDayExercises.weight,
         exerciseName: exercises.name,
-        setsCompleted: exerciseLogs.setsCompleted,
-        repsCompleted: exerciseLogs.repsCompleted,
+        roundNumber: exerciseSetLogs.roundNumber,
+        setNumber: exerciseSetLogs.setNumber,
       })
-      .from(exerciseLogs)
+      .from(exerciseSetLogs)
+      .innerJoin(
+        exerciseLogs,
+        eq(exerciseSetLogs.exerciseLogId, exerciseLogs.id)
+      )
       .innerJoin(
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
@@ -165,11 +168,11 @@ export class MetricsCalculationService {
     }
 
     // Separate into different categories
-    const plannedWeightExercises = allExerciseData.filter(
+    const plannedWeightSets = allExerciseData.filter(
       (e) => (e.plannedWeight || 0) > 0
     );
     const bodyweightWithAddedWeight = allExerciseData.filter(
-      (e) => (e.plannedWeight || 0) === 0 && (Number(e.weightUsed) || 0) > 0
+      (e) => (e.plannedWeight || 0) === 0 && (Number(e.actualWeight) || 0) > 0
     );
 
     let totalSets = 0;
@@ -178,17 +181,17 @@ export class MetricsCalculationService {
     let lowerWeight = 0;
     let weightDifferences: number[] = [];
 
-    // Process exercises with planned weights
-    plannedWeightExercises.forEach((exercise) => {
+    // Process sets with planned weights
+    plannedWeightSets.forEach((set) => {
       totalSets++;
-      const plannedWeight = exercise.plannedWeight || 0;
-      const weightUsed = Number(exercise.weightUsed) || 0;
-      const diff = weightUsed - plannedWeight;
+      const plannedWeight = set.plannedWeight || 0;
+      const actualWeight = Number(set.actualWeight) || 0;
+      const diff = actualWeight - plannedWeight;
       weightDifferences.push(diff);
 
-      if (weightUsed === plannedWeight) {
+      if (actualWeight === plannedWeight) {
         exactMatches++;
-      } else if (weightUsed > plannedWeight) {
+      } else if (actualWeight > plannedWeight) {
         higherWeight++;
       } else {
         lowerWeight++;
@@ -196,10 +199,10 @@ export class MetricsCalculationService {
     });
 
     // Process bodyweight exercises where user added weight
-    bodyweightWithAddedWeight.forEach((exercise) => {
+    bodyweightWithAddedWeight.forEach((set) => {
       totalSets++;
       higherWeight++; // Adding weight to bodyweight exercise counts as "higher"
-      weightDifferences.push(Number(exercise.weightUsed) || 0); // Difference from 0
+      weightDifferences.push(Number(set.actualWeight) || 0); // Difference from 0
     });
 
     const accuracyRate = totalSets > 0 ? (exactMatches / totalSets) * 100 : 0;
@@ -239,7 +242,7 @@ export class MetricsCalculationService {
       });
     }
 
-    const hasPlannedWeights = plannedWeightExercises.length > 0;
+    const hasPlannedWeights = plannedWeightSets.length > 0;
     const hasExerciseData = totalSets > 0;
 
     return {
@@ -275,15 +278,19 @@ export class MetricsCalculationService {
         date: sql<string>`DATE(${exerciseLogs.createdAt})`,
         totalVolume: sql<number>`COALESCE(SUM(
           CASE 
-            WHEN ${exerciseLogs.weightUsed} > 0 THEN 
-              ${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted} * ${exerciseLogs.weightUsed}
+            WHEN ${exerciseSetLogs.weight} > 0 THEN 
+              ${exerciseSetLogs.reps} * ${exerciseSetLogs.weight}
             ELSE 
-              ${exerciseLogs.setsCompleted} * ${exerciseLogs.repsCompleted}
+              ${exerciseSetLogs.reps}
           END
         ), 0)::INTEGER`,
         exerciseCount: sql<number>`COUNT(DISTINCT ${planDayExercises.exerciseId})`,
       })
-      .from(exerciseLogs)
+      .from(exerciseSetLogs)
+      .innerJoin(
+        exerciseLogs,
+        eq(exerciseSetLogs.exerciseLogId, exerciseLogs.id)
+      )
       .innerJoin(
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
@@ -316,7 +323,7 @@ export class MetricsCalculationService {
     // Build basic conditions
     const whereConditions = [
       eq(workouts.userId, userId),
-      sql`${exerciseLogs.weightUsed} > 0`,
+      sql`${exerciseSetLogs.weight} > 0`,
     ];
 
     // Add date filters only if dates are provided
@@ -329,10 +336,14 @@ export class MetricsCalculationService {
     const progressionData = await db
       .select({
         date: sql<string>`DATE(${exerciseLogs.createdAt})`,
-        avgWeight: sql<number>`AVG(CAST(${exerciseLogs.weightUsed} AS REAL))`,
-        maxWeight: sql<number>`MAX(CAST(${exerciseLogs.weightUsed} AS INTEGER))`,
+        avgWeight: sql<number>`AVG(CAST(${exerciseSetLogs.weight} AS REAL))`,
+        maxWeight: sql<number>`MAX(CAST(${exerciseSetLogs.weight} AS INTEGER))`,
       })
-      .from(exerciseLogs)
+      .from(exerciseSetLogs)
+      .innerJoin(
+        exerciseLogs,
+        eq(exerciseSetLogs.exerciseLogId, exerciseLogs.id)
+      )
       .innerJoin(
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
@@ -370,11 +381,7 @@ export class MetricsCalculationService {
     }[]
   > {
     // Build basic conditions
-    const whereConditions = [
-      eq(workouts.userId, userId),
-      sql`${exerciseLogs.setsCompleted} > 0`,
-      sql`${exerciseLogs.repsCompleted} > 0`,
-    ];
+    const whereConditions = [eq(workouts.userId, userId)];
 
     // Add date filters only if dates are provided
     if (startDate || endDate) {
@@ -387,9 +394,13 @@ export class MetricsCalculationService {
       .select({
         date: sql<string>`DATE(${exerciseLogs.createdAt})`,
         plannedWeight: planDayExercises.weight,
-        actualWeight: exerciseLogs.weightUsed,
+        actualWeight: exerciseSetLogs.weight,
       })
-      .from(exerciseLogs)
+      .from(exerciseSetLogs)
+      .innerJoin(
+        exerciseLogs,
+        eq(exerciseSetLogs.exerciseLogId, exerciseLogs.id)
+      )
       .innerJoin(
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)

@@ -18,77 +18,111 @@ import {
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
 
-// Enhanced exercise logs - supports all exercise types
-export const exerciseLogs = pgTable("exercise_logs", {
-  id: serial("id").primaryKey(),
-  // Reference to the plan day exercise
-  planDayExerciseId: integer("plan_day_exercise_id")
-    .notNull()
-    .references(() => planDayExercises.id),
+// Exercise logs - parent container for exercise performance
+export const exerciseLogs = pgTable(
+  "exercise_logs",
+  {
+    id: serial("id").primaryKey(),
+    // Reference to the plan day exercise
+    planDayExerciseId: integer("plan_day_exercise_id")
+      .notNull()
+      .references(() => planDayExercises.id),
 
-  // Traditional exercise metrics
-  setsCompleted: integer("sets_completed"),
-  repsCompleted: integer("reps_completed"),
-  weightUsed: decimal("weight_used", { precision: 6, scale: 2 }),
+    // Time-based exercise metrics
+    durationCompleted: integer("duration_completed"), // in seconds
+    timeTaken: integer("time_taken"), // total time for this exercise in seconds
 
-  // Time-based exercise metrics
-  durationCompleted: integer("duration_completed"), // in seconds
-  roundsCompleted: integer("rounds_completed"),
+    // Completion status
+    isComplete: boolean("is_complete").notNull().default(false),
+    isSkipped: boolean("is_skipped").notNull().default(false),
 
-  // Rest and timing
-  restTimeTaken: integer("rest_time_taken"), // in seconds
-  timeTaken: integer("time_taken"), // total time for this exercise in seconds
+    // Additional data
+    notes: text("notes"),
+    difficulty: text("difficulty"), // user-reported difficulty
+    rating: integer("rating"), // user rating 1-10
 
-  // Completion status
-  isComplete: boolean("is_complete").notNull().default(false),
-  isSkipped: boolean("is_skipped").notNull().default(false),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    planDayExerciseIdIdx: index("idx_exercise_logs_plan_day_exercise_id").on(
+      table.planDayExerciseId
+    ),
+    createdAtIdx: index("idx_exercise_logs_created_at").on(table.createdAt),
+    isCompleteIdx: index("idx_exercise_logs_is_complete").on(table.isComplete),
+    completeCreatedIdx: index("idx_exercise_logs_complete_created")
+      .on(table.isComplete, table.createdAt)
+      .where(eq(table.isComplete, true)),
+  })
+);
 
-  // Additional data
-  notes: text("notes"),
-  difficulty: text("difficulty"), // user-reported difficulty
-  rating: integer("rating"), // user rating 1-10
+// New table for set-level exercise logging
+export const exerciseSetLogs = pgTable(
+  "exercise_set_logs",
+  {
+    id: serial("id").primaryKey(),
+    // Reference to the parent exercise log
+    exerciseLogId: integer("exercise_log_id")
+      .notNull()
+      .references(() => exerciseLogs.id, { onDelete: "cascade" }),
+    roundNumber: integer("round_number").notNull().default(1),
+    setNumber: integer("set_number").notNull(),
+    weight: decimal("weight", { precision: 6, scale: 2 }),
+    reps: integer("reps"),
+    restAfter: integer("rest_after"),
 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => ({
-  planDayExerciseIdIdx: index("idx_exercise_logs_plan_day_exercise_id").on(table.planDayExerciseId),
-  createdAtIdx: index("idx_exercise_logs_created_at").on(table.createdAt),
-  isCompleteIdx: index("idx_exercise_logs_is_complete").on(table.isComplete),
-  completeCreatedIdx: index("idx_exercise_logs_complete_created").on(table.isComplete, table.createdAt).where(eq(table.isComplete, true)),
-}));
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    exerciseLogIdIdx: index("idx_exercise_set_logs_exercise_log_id").on(
+      table.exerciseLogId
+    ),
+    roundSetIdx: index("idx_exercise_set_logs_round_set").on(
+      table.exerciseLogId,
+      table.roundNumber,
+      table.setNumber
+    ),
+  })
+);
 
 // Block-level logs - for tracking AMRAP rounds, EMOM minutes, etc.
-export const blockLogs = pgTable("block_logs", {
-  id: serial("id").primaryKey(),
-  // Reference to the workout block
-  workoutBlockId: integer("workout_block_id")
-    .notNull()
-    .references(() => workoutBlocks.id),
+export const blockLogs = pgTable(
+  "block_logs",
+  {
+    id: serial("id").primaryKey(),
+    // Reference to the workout block
+    workoutBlockId: integer("workout_block_id")
+      .notNull()
+      .references(() => workoutBlocks.id),
 
-  // Block completion metrics
-  roundsCompleted: integer("rounds_completed"),
-  timeCapMinutes: integer("time_cap_minutes"),
-  actualTimeMinutes: integer("actual_time_minutes"),
+    // Block completion metrics
+    roundsCompleted: integer("rounds_completed"),
+    timeCapMinutes: integer("time_cap_minutes"),
+    actualTimeMinutes: integer("actual_time_minutes"),
 
-  // Block-specific metrics
-  totalReps: integer("total_reps"), // for AMRAP/EMOM
-  totalDuration: integer("total_duration"), // in seconds
-  score: text("score"), // for CrossFit-style scoring
+    // Block-specific metrics
+    totalReps: integer("total_reps"), // for AMRAP/EMOM
+    totalDuration: integer("total_duration"), // in seconds
+    score: text("score"), // for CrossFit-style scoring
 
-  // Completion status
-  isComplete: boolean("is_complete").notNull().default(false),
-  isSkipped: boolean("is_skipped").notNull().default(false),
+    // Completion status
+    isComplete: boolean("is_complete").notNull().default(false),
+    isSkipped: boolean("is_skipped").notNull().default(false),
 
-  // Additional data
-  notes: text("notes"),
-  difficulty: text("difficulty"), // user-reported difficulty
-  rating: integer("rating"), // user rating 1-10
+    // Additional data
+    notes: text("notes"),
+    difficulty: text("difficulty"), // user-reported difficulty
+    rating: integer("rating"), // user rating 1-10
 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => ({
-  workoutBlockIdIdx: index("idx_block_logs_workout_block_id").on(table.workoutBlockId),
-}));
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    workoutBlockIdIdx: index("idx_block_logs_workout_block_id").on(
+      table.workoutBlockId
+    ),
+  })
+);
 
 // Plan day logs - for tracking day-level completion
 export const planDayLogs = pgTable("plan_day_logs", {
@@ -123,48 +157,49 @@ export const planDayLogs = pgTable("plan_day_logs", {
 });
 
 // Enhanced workout logs
-export const workoutLogs = pgTable("workout_logs", {
-  id: serial("id").primaryKey(),
-  workoutId: integer("workout_id")
-    .notNull()
-    .references(() => workouts.id),
+export const workoutLogs = pgTable(
+  "workout_logs",
+  {
+    id: serial("id").primaryKey(),
+    workoutId: integer("workout_id")
+      .notNull()
+      .references(() => workouts.id),
 
-  // Workout completion metrics
-  totalTimeMinutes: integer("total_time_minutes").default(0),
-  daysCompleted: integer("days_completed").default(0),
-  totalDays: integer("total_days").default(0),
+    // Workout completion metrics
+    totalTimeMinutes: integer("total_time_minutes").default(0),
+    daysCompleted: integer("days_completed").default(0),
+    totalDays: integer("total_days").default(0),
 
-  // Workout-specific metrics
-  totalVolume: integer("total_volume"), // total reps/weight/duration across all days
-  averageRating: decimal("average_rating", { precision: 3, scale: 2 }),
+    // Workout-specific metrics
+    totalVolume: integer("total_volume"), // total reps/weight/duration across all days
+    averageRating: decimal("average_rating", { precision: 3, scale: 2 }),
 
-  // Completion tracking
-  completedExercises: integer("completed_exercises").array().$type<number[]>(),
-  completedBlocks: integer("completed_blocks").array().$type<number[]>(),
-  completedDays: integer("completed_days").array().$type<number[]>(),
+    // Completion tracking
+    completedExercises: integer("completed_exercises")
+      .array()
+      .$type<number[]>(),
+    completedBlocks: integer("completed_blocks").array().$type<number[]>(),
+    completedDays: integer("completed_days").array().$type<number[]>(),
 
-  // Status
-  isComplete: boolean("is_complete").notNull().default(false),
-  isActive: boolean("is_active").notNull().default(true),
+    // Status
+    isComplete: boolean("is_complete").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
 
-  // Additional data
-  notes: text("notes").default(""),
+    // Additional data
+    notes: text("notes").default(""),
 
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => ({
-  workoutIdIdx: index("idx_workout_logs_workout_id").on(table.workoutId),
-}));
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    workoutIdIdx: index("idx_workout_logs_workout_id").on(table.workoutId),
+  })
+);
 
 // Schemas for insert operations
 export const insertExerciseLogSchema = createInsertSchema(exerciseLogs, {
   planDayExerciseId: z.number(),
-  setsCompleted: z.number().optional(),
-  repsCompleted: z.number().optional(),
-  weightUsed: z.number().optional(),
   durationCompleted: z.number().optional(),
-  roundsCompleted: z.number().optional(),
-  restTimeTaken: z.number().optional(),
   timeTaken: z.number().optional(),
   isComplete: z.boolean().optional(),
   isSkipped: z.boolean().optional(),
@@ -175,6 +210,18 @@ export const insertExerciseLogSchema = createInsertSchema(exerciseLogs, {
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const insertExerciseSetLogSchema = createInsertSchema(exerciseSetLogs, {
+  exerciseLogId: z.number(),
+  roundNumber: z.number().min(1),
+  setNumber: z.number().min(1),
+  weight: z.number().min(0).optional(),
+  reps: z.number().min(0).optional(),
+  restAfter: z.number().min(0).optional(),
+}).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertBlockLogSchema = createInsertSchema(blockLogs, {
@@ -237,18 +284,19 @@ export const insertWorkoutLogSchema = createInsertSchema(workoutLogs, {
 
 // Update schemas
 export const updateExerciseLogSchema = z.object({
-  setsCompleted: z.number().optional(),
-  repsCompleted: z.number().optional(),
-  weightUsed: z.number().optional(),
   durationCompleted: z.number().optional(),
-  roundsCompleted: z.number().optional(),
-  restTimeTaken: z.number().optional(),
   timeTaken: z.number().optional(),
   isComplete: z.boolean().optional(),
   isSkipped: z.boolean().optional(),
   notes: z.string().optional(),
   difficulty: z.string().optional(),
   rating: z.number().min(1).max(10).optional(),
+});
+
+export const updateExerciseSetLogSchema = z.object({
+  weight: z.number().min(0).optional(),
+  reps: z.number().min(0).optional(),
+  restAfter: z.number().min(0).optional(),
 });
 
 export const updateBlockLogSchema = z.object({
@@ -298,12 +346,7 @@ export const updateWorkoutLogSchema = z.object({
 export interface ExerciseLog {
   id: number;
   planDayExerciseId: number;
-  setsCompleted: number | null;
-  repsCompleted: number | null;
-  weightUsed: number | null;
   durationCompleted: number | null;
-  roundsCompleted: number | null;
-  restTimeTaken: number | null;
   timeTaken: number | null;
   isComplete: boolean;
   isSkipped: boolean;
@@ -312,6 +355,17 @@ export interface ExerciseLog {
   rating: number | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ExerciseSetLog {
+  id: number;
+  exerciseLogId: number;
+  roundNumber: number;
+  setNumber: number;
+  weight: number | null;
+  reps: number | null;
+  restAfter: number | null;
+  createdAt: Date;
 }
 
 export interface BlockLog {
@@ -371,12 +425,14 @@ export interface WorkoutLog {
 
 // Type exports for insert operations
 export type InsertExerciseLog = z.infer<typeof insertExerciseLogSchema>;
+export type InsertExerciseSetLog = z.infer<typeof insertExerciseSetLogSchema>;
 export type InsertBlockLog = z.infer<typeof insertBlockLogSchema>;
 export type InsertPlanDayLog = z.infer<typeof insertPlanDayLogSchema>;
 export type InsertWorkoutLog = z.infer<typeof insertWorkoutLogSchema>;
 
 // Type exports for update operations
 export type UpdateExerciseLog = z.infer<typeof updateExerciseLogSchema>;
+export type UpdateExerciseSetLog = z.infer<typeof updateExerciseSetLogSchema>;
 export type UpdateBlockLog = z.infer<typeof updateBlockLogSchema>;
 export type UpdatePlanDayLog = z.infer<typeof updatePlanDayLogSchema>;
 export type UpdateWorkoutLog = z.infer<typeof updateWorkoutLogSchema>;

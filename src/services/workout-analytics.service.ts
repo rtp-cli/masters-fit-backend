@@ -5,6 +5,7 @@ import {
   planDayExercises,
   workoutBlocks,
   exerciseLogs,
+  exerciseSetLogs,
   exercises,
 } from "@/models";
 import { eq, and, gte, lte, desc, sql, count, inArray } from "drizzle-orm";
@@ -237,10 +238,14 @@ export class WorkoutAnalyticsService {
           blockName: workoutBlocks.blockName,
           blockType: workoutBlocks.blockType,
           exerciseId: planDayExercises.exerciseId,
-          sets: count(exerciseLogs.id),
-          totalReps: sql<number>`SUM(COALESCE(${exerciseLogs.repsCompleted}, 0))`,
+          sets: count(exerciseSetLogs.id),
+          totalReps: sql<number>`SUM(COALESCE(${exerciseSetLogs.reps}, 0))`,
         })
         .from(exerciseLogs)
+        .innerJoin(
+          exerciseSetLogs,
+          eq(exerciseSetLogs.exerciseLogId, exerciseLogs.id)
+        )
         .innerJoin(
           planDayExercises,
           eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
@@ -483,11 +488,15 @@ export class WorkoutAnalyticsService {
         date: sql<string>`DATE(${exerciseLogs.createdAt})`,
         blockName: workoutBlocks.blockName,
         blockType: workoutBlocks.blockType,
-        sets: count(exerciseLogs.id),
-        totalReps: sql<number>`SUM(COALESCE(${exerciseLogs.repsCompleted}, 0))`,
+        sets: count(exerciseSetLogs.id),
+        totalReps: sql<number>`SUM(COALESCE(${exerciseSetLogs.reps}, 0))`,
         exerciseId: planDayExercises.exerciseId,
       })
       .from(exerciseLogs)
+      .innerJoin(
+        exerciseSetLogs,
+        eq(exerciseSetLogs.exerciseLogId, exerciseLogs.id)
+      )
       .innerJoin(
         planDayExercises,
         eq(exerciseLogs.planDayExerciseId, planDayExercises.id)
