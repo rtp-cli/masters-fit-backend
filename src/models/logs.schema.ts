@@ -180,6 +180,10 @@ export const workoutLogs = pgTable(
       .$type<number[]>(),
     completedBlocks: integer("completed_blocks").array().$type<number[]>(),
     completedDays: integer("completed_days").array().$type<number[]>(),
+    
+    // Skip tracking
+    skippedExercises: integer("skipped_exercises").array().$type<number[]>(),
+    skippedBlocks: integer("skipped_blocks").array().$type<number[]>(),
 
     // Status
     isComplete: boolean("is_complete").notNull().default(false),
@@ -273,6 +277,8 @@ export const insertWorkoutLogSchema = createInsertSchema(workoutLogs, {
   completedExercises: z.array(z.number()).optional(),
   completedBlocks: z.array(z.number()).optional(),
   completedDays: z.array(z.number()).optional(),
+  skippedExercises: z.array(z.number()).optional(),
+  skippedBlocks: z.array(z.number()).optional(),
   isComplete: z.boolean().optional(),
   isActive: z.boolean().optional(),
   notes: z.string().optional(),
@@ -337,6 +343,8 @@ export const updateWorkoutLogSchema = z.object({
   completedExercises: z.array(z.number()).optional(),
   completedBlocks: z.array(z.number()).optional(),
   completedDays: z.array(z.number()).optional(),
+  skippedExercises: z.array(z.number()).optional(),
+  skippedBlocks: z.array(z.number()).optional(),
   isComplete: z.boolean().optional(),
   isActive: z.boolean().optional(),
   notes: z.string().optional(),
@@ -416,6 +424,8 @@ export interface WorkoutLog {
   completedExercises: number[] | null;
   completedBlocks: number[] | null;
   completedDays: number[] | null;
+  skippedExercises: number[] | null;
+  skippedBlocks: number[] | null;
   isComplete: boolean;
   isActive: boolean;
   notes: string | null;

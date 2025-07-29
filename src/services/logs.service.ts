@@ -503,6 +503,8 @@ export class LogsService extends BaseService {
         completedExercises: [],
         completedBlocks: [],
         completedDays: [],
+        skippedExercises: [],
+        skippedBlocks: [],
         notes: "",
       });
     }
@@ -558,6 +560,80 @@ export class LogsService extends BaseService {
     return this.getLatestWorkoutLogForWorkout(workoutId);
   }
 
+  // ==================== SKIP TRACKING ====================
+
+  async addSkippedExercise(workoutId: number, planDayExerciseId: number) {
+    const workoutLog = await this.getOrCreateWorkoutLog(workoutId);
+
+    const currentSkipped = workoutLog.skippedExercises || [];
+    const currentCompleted = workoutLog.completedExercises || [];
+    
+    // Remove from completed if it was there, and add to skipped
+    const updatedCompleted = currentCompleted.filter(id => id !== planDayExerciseId);
+    if (!currentSkipped.includes(planDayExerciseId)) {
+      const updatedSkipped = [...currentSkipped, planDayExerciseId];
+
+      await this.updateWorkoutLog(workoutId, {
+        skippedExercises: updatedSkipped,
+        completedExercises: updatedCompleted,
+      });
+    }
+
+    // Also mark the exercise itself as skipped in the planDayExercises table
+    await this.db
+      .update(planDayExercises)
+      .set({ isSkipped: true, updatedAt: new Date() })
+      .where(eq(planDayExercises.id, planDayExerciseId));
+
+    return this.getLatestWorkoutLogForWorkout(workoutId);
+  }
+
+  async addSkippedBlock(workoutId: number, workoutBlockId: number) {
+    const workoutLog = await this.getOrCreateWorkoutLog(workoutId);
+
+    const currentSkipped = workoutLog.skippedBlocks || [];
+    const currentCompleted = workoutLog.completedBlocks || [];
+    
+    // Remove from completed if it was there, and add to skipped
+    const updatedCompleted = currentCompleted.filter(id => id !== workoutBlockId);
+    if (!currentSkipped.includes(workoutBlockId)) {
+      const updatedSkipped = [...currentSkipped, workoutBlockId];
+
+      await this.updateWorkoutLog(workoutId, {
+        skippedBlocks: updatedSkipped,
+        completedBlocks: updatedCompleted,
+      });
+    }
+
+    // Mark all exercises in the block as skipped
+    await this.db
+      .update(planDayExercises)
+      .set({ isSkipped: true, updatedAt: new Date() })
+      .where(eq(planDayExercises.workoutBlockId, workoutBlockId));
+
+    // Also add all exercises in this block to skippedExercises array
+    const blockExercises = await this.db.query.planDayExercises.findMany({
+      where: eq(planDayExercises.workoutBlockId, workoutBlockId),
+    });
+
+    const exerciseIds = blockExercises.map(ex => ex.id);
+    const currentSkippedExercises = workoutLog.skippedExercises || [];
+    const currentCompletedExercises = workoutLog.completedExercises || [];
+    
+    // Remove block exercises from completed and add to skipped
+    const updatedCompletedExercises = currentCompletedExercises.filter(
+      id => !exerciseIds.includes(id)
+    );
+    const updatedSkippedExercises = [...new Set([...currentSkippedExercises, ...exerciseIds])];
+
+    await this.updateWorkoutLog(workoutId, {
+      skippedExercises: updatedSkippedExercises,
+      completedExercises: updatedCompletedExercises,
+    });
+
+    return this.getLatestWorkoutLogForWorkout(workoutId);
+  }
+
   // ==================== AGGREGATION METHODS ====================
 
   async getWorkoutProgress(workoutId: number) {
@@ -569,30 +645,35 @@ export class LogsService extends BaseService {
     const totalBlocks = await this.getTotalBlocksForWorkout(workoutId);
     const totalDays = await this.getTotalDaysForWorkout(workoutId);
 
+    const completedExercises = workoutLog.completedExercises?.length || 0;
+    const skippedExercises = workoutLog.skippedExercises?.length || 0;
+    const processedExercises = completedExercises + skippedExercises;
+
+    const completedBlocks = workoutLog.completedBlocks?.length || 0;
+    const skippedBlocks = workoutLog.skippedBlocks?.length || 0;
+    const processedBlocks = completedBlocks + skippedBlocks;
+
     return {
       workoutLog,
       progress: {
         exercises: {
-          completed: workoutLog.completedExercises?.length || 0,
+          completed: completedExercises,
+          skipped: skippedExercises,
           total: totalExercises,
+          processed: processedExercises,
           percentage:
             totalExercises > 0
-              ? Math.round(
-                  ((workoutLog.completedExercises?.length || 0) /
-                    totalExercises) *
-                    100
-                )
+              ? Math.round((processedExercises / totalExercises) * 100)
               : 0,
         },
         blocks: {
-          completed: workoutLog.completedBlocks?.length || 0,
+          completed: completedBlocks,
+          skipped: skippedBlocks,
           total: totalBlocks,
+          processed: processedBlocks,
           percentage:
             totalBlocks > 0
-              ? Math.round(
-                  ((workoutLog.completedBlocks?.length || 0) / totalBlocks) *
-                    100
-                )
+              ? Math.round((processedBlocks / totalBlocks) * 100)
               : 0,
         },
         days: {
@@ -755,8 +836,11 @@ export class LogsService extends BaseService {
     if (!workoutLog) return;
 
     const completedExercises = workoutLog.completedExercises || [];
+    const skippedExercises = workoutLog.skippedExercises || [];
+    const processedExercises = [...completedExercises, ...skippedExercises];
+    
     const isComplete = totalExerciseIds.every((id) =>
-      completedExercises.includes(id)
+      processedExercises.includes(id)
     );
 
     if (isComplete !== workoutLog.isComplete) {

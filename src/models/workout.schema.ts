@@ -130,6 +130,7 @@ export const planDayExercises = pgTable("plan_day_exercises", {
   restTime: integer("rest_time"), // in seconds
   notes: text("notes"),
   completed: boolean("completed").default(false),
+  isSkipped: boolean("is_skipped").default(false),
   order: integer("order").default(1), // Order of exercises within the block
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -228,6 +229,7 @@ export interface PlanDayExercise {
   restTime: number | null;
   notes: string | null;
   completed: boolean | null;
+  isSkipped: boolean | null;
   order: number | null;
   createdAt: Date;
   updatedAt: Date;

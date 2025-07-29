@@ -151,6 +151,46 @@ router.post(
   }
 );
 
+// Skip exercise
+router.post(
+  "/workout/:workoutId/exercise/:planDayExerciseId/skip",
+  async (req, res) => {
+    try {
+      const response = await controller.skipExercise(
+        Number(req.params.workoutId),
+        Number(req.params.planDayExerciseId)
+      );
+      res.json(response);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ success: false, error: "Invalid request data" });
+      } else if (error instanceof Error) {
+        res.status(400).json({ success: false, error: error.message });
+      }
+    }
+  }
+);
+
+// Skip workout block
+router.post(
+  "/workout/:workoutId/block/:workoutBlockId/skip",
+  async (req, res) => {
+    try {
+      const response = await controller.skipBlock(
+        Number(req.params.workoutId),
+        Number(req.params.workoutBlockId)
+      );
+      res.json(response);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ success: false, error: "Invalid request data" });
+      } else if (error instanceof Error) {
+        res.status(400).json({ success: false, error: error.message });
+      }
+    }
+  }
+);
+
 // Mark workout as complete
 router.post("/workout/:workoutId/complete", async (req, res) => {
   try {

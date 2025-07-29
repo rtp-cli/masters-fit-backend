@@ -619,6 +619,49 @@ export class LogsController extends Controller {
     };
   }
 
+  // ==================== SKIP ENDPOINTS ====================
+
+  /**
+   * Skip an exercise
+   * @param workoutId Workout ID
+   * @param planDayExerciseId Plan day exercise ID
+   */
+  @Post("/workout/{workoutId}/exercise/{planDayExerciseId}/skip")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async skipExercise(
+    @Path() workoutId: number,
+    @Path() planDayExerciseId: number
+  ): Promise<WorkoutLogResponse> {
+    const log = await logsService.addSkippedExercise(
+      workoutId,
+      planDayExerciseId
+    );
+    return {
+      success: true,
+      log: log!,
+    };
+  }
+
+  /**
+   * Skip a workout block
+   * @param workoutId Workout ID
+   * @param workoutBlockId Workout block ID
+   */
+  @Post("/workout/{workoutId}/block/{workoutBlockId}/skip")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async skipBlock(
+    @Path() workoutId: number,
+    @Path() workoutBlockId: number
+  ): Promise<WorkoutLogResponse> {
+    const log = await logsService.addSkippedBlock(workoutId, workoutBlockId);
+    return {
+      success: true,
+      log: log!,
+    };
+  }
+
   // ==================== LEGACY ENDPOINTS (for backward compatibility) ====================
 
   /**
