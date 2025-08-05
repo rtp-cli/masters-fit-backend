@@ -289,6 +289,66 @@ export class WorkoutController extends Controller {
     };
   }
 
+  /**
+   * Get workout history for a user
+   * @param userId User ID
+   */
+  @Get("/{userId}/history")
+  @Response<WorkoutsResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async getWorkoutHistory(
+    @Path() userId: number
+  ): Promise<WorkoutsResponse> {
+    const workouts = await workoutService.getWorkoutHistory(userId);
+    return {
+      success: true,
+      workouts,
+    };
+  }
+
+  /**
+   * Get list of previous workouts with flexible time filtering
+   * @param userId User ID
+   */
+  @Get("/{userId}/previous-workouts")
+  @Response<{ success: boolean; workouts: any[] }>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async getPreviousWorkouts(
+    @Path() userId: number
+  ): Promise<{ success: boolean; workouts: any[] }> {
+    // For now, let's try 'all' to see if there are any workouts at all
+    const workouts = await workoutService.getPreviousWorkouts(userId, 'all');
+    return {
+      success: true,
+      workouts,
+    };
+  }
+
+  /**
+   * Repeat a previous week's workout with a new start date
+   * @param userId User ID
+   * @param originalWorkoutId Original workout ID to repeat
+   * @param requestBody New start date and optional modifications
+   */
+  @Post("/{userId}/repeat-week/{originalWorkoutId}")
+  @Response<WorkoutResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async repeatPreviousWeekWorkout(
+    @Path() userId: number,
+    @Path() originalWorkoutId: number,
+    @Body() requestBody: { newStartDate: string }
+  ): Promise<WorkoutResponse> {
+    const workout = await workoutService.repeatPreviousWeekWorkout(
+      userId,
+      originalWorkoutId,
+      requestBody.newStartDate
+    );
+    return {
+      success: true,
+      workout,
+    };
+  }
+
   // Test endpoint to check active workouts (for debugging)
   @Get("/:userId/debug/active")
   async getActiveWorkoutsDebug(@Path() userId: string) {

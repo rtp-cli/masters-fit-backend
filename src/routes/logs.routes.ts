@@ -208,9 +208,42 @@ router.post("/workout/:workoutId/complete", async (req, res) => {
   }
 });
 
+// Plan day completion
 router.post("/workout/day/:planDayId/complete", async (req, res) => {
   try {
     const response = await controller.markWorkoutDayComplete(
+      Number(req.params.planDayId),
+      req.body
+    );
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+});
+
+// Plan day log routes
+router.get("/plan-day/plan-day/:planDayId", async (req, res) => {
+  try {
+    const response = await controller.getPlanDayLogsForPlanDay(
+      Number(req.params.planDayId)
+    );
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+});
+
+router.get("/plan-day/plan-day/:planDayId/latest", async (req, res) => {
+  try {
+    const response = await controller.getLatestPlanDayLogForPlanDay(
       Number(req.params.planDayId)
     );
     res.json(response);

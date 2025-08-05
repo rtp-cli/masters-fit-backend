@@ -567,6 +567,7 @@ const getJsonOutputFormat = (profile: Profile): string => {
 - The workoutPlan array MUST contain exactly ${profile.availableDays?.length || 7} workout day objects
 - Each day MUST be numbered sequentially (1 to ${profile.availableDays?.length || 7})
 - NEVER return just one day's workout
+- The workout plan name must be a name for the entire workout. DO NOT include things like "Days 1-2" in the plan name, it should be a holistic name.
 
 
 

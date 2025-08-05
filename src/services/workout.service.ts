@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql, not, or } from "drizzle-orm";
 import {
   workouts,
   planDays,
@@ -268,9 +268,9 @@ export class WorkoutService extends BaseService {
                   ? exercise.exercise.muscleGroups[0]
                   : "general",
               difficulty: exercise.exercise.difficulty || "beginner",
-              equipment: Array.isArray(exercise.exercise.equipment) 
-                ? exercise.exercise.equipment.join(", ") 
-                : exercise.exercise.equipment ?? undefined,
+              equipment: Array.isArray(exercise.exercise.equipment)
+                ? exercise.exercise.equipment.join(", ")
+                : (exercise.exercise.equipment ?? undefined),
               link: exercise.exercise.link ?? undefined,
               muscles_targeted: exercise.exercise.muscleGroups || [],
               created_at: new Date(exercise.exercise.createdAt ?? Date.now()),
@@ -621,9 +621,9 @@ export class WorkoutService extends BaseService {
             ? exercise.muscleGroups[0]
             : "general",
         difficulty: exercise.difficulty || "beginner",
-        equipment: Array.isArray(exercise.equipment) 
-          ? exercise.equipment.join(", ") 
-          : exercise.equipment ?? undefined,
+        equipment: Array.isArray(exercise.equipment)
+          ? exercise.equipment.join(", ")
+          : (exercise.equipment ?? undefined),
         link: exercise.link ?? undefined,
         muscles_targeted: exercise.muscleGroups || [],
         created_at: new Date(exercise.createdAt ?? Date.now()),
@@ -694,9 +694,9 @@ export class WorkoutService extends BaseService {
             ? exerciseDetails.muscleGroups[0]
             : "general",
         difficulty: exerciseDetails.difficulty || "beginner",
-        equipment: Array.isArray(exerciseDetails.equipment) 
-          ? exerciseDetails.equipment.join(", ") 
-          : exerciseDetails.equipment ?? undefined,
+        equipment: Array.isArray(exerciseDetails.equipment)
+          ? exerciseDetails.equipment.join(", ")
+          : (exerciseDetails.equipment ?? undefined),
         link: exerciseDetails.link ?? undefined,
         muscles_targeted: exerciseDetails.muscleGroups || [],
         created_at: new Date(exerciseDetails.createdAt ?? Date.now()),
@@ -949,37 +949,67 @@ export class WorkoutService extends BaseService {
     );
   }
 
-  async fetchActiveWorkout(userId: number): Promise<WorkoutWithDetails> {
-    const workout = await this.db.query.workouts.findFirst({
-      where: and(
-        eq(workouts.userId, userId),
-        eq(workouts.completed, false),
-        eq(workouts.isActive, true),
-        // sql`${workouts.startDate} <= CURRENT_DATE AND ${workouts.endDate} >= CURRENT_DATE`,
-        eq(workouts.completed, false)
-      ),
-      with: {
-        planDays: {
-          with: {
-            blocks: {
-              with: {
-                exercises: {
-                  with: {
-                    exercise: true,
+  async fetchActiveWorkout(userId: number): Promise<WorkoutWithDetails | null> {
+    try {
+      const today = new Date();
+      logger.info("Fetching active workout", {
+        operation: "fetchActiveWorkout",
+        metadata: { userId, today: today.toISOString() }
+      });
+      
+      const workout = await this.db.query.workouts.findFirst({
+        where: and(
+          eq(workouts.userId, userId),
+          eq(workouts.isActive, true),
+          eq(workouts.completed, false),
+          sql`${workouts.startDate}::date <= ${today}::date AND ${workouts.endDate}::date >= ${today}::date`
+        ),
+        with: {
+          planDays: {
+            with: {
+              blocks: {
+                with: {
+                  exercises: {
+                    with: {
+                      exercise: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-    });
+      });
 
-    if (!workout) {
-      throw new Error("No active workout found");
+      if (!workout) {
+        logger.info("No active workout found", {
+          operation: "fetchActiveWorkout",
+          metadata: { userId }
+        });
+        return null;
+      }
+      
+      logger.info("Active workout found", {
+        operation: "fetchActiveWorkout",
+        metadata: { 
+          userId, 
+          workoutId: workout.id,
+          isActive: workout.isActive,
+          completed: workout.completed,
+          startDate: workout.startDate,
+          endDate: workout.endDate
+        }
+      });
+
+      return this.transformWorkout(workout as unknown as DBWorkoutResult);
+    } catch (error) {
+      logger.error("Error fetching active workout", error as Error, {
+        operation: "fetchActiveWorkout",
+        metadata: { userId },
+      });
+      // Return null instead of throwing - no active workout is a valid state
+      return null;
     }
-
-    return this.transformWorkout(workout as unknown as DBWorkoutResult);
   }
 
   async regenerateWorkoutPlan(
@@ -1209,7 +1239,8 @@ export class WorkoutService extends BaseService {
 
     // Update the workout block with programmatically determined block info
     // Get block info from the response if available
-    const responseBlock = response.blocks && response.blocks.length > 0 ? response.blocks[0] : null;
+    const responseBlock =
+      response.blocks && response.blocks.length > 0 ? response.blocks[0] : null;
     await this.db
       .update(workoutBlocks)
       .set({
@@ -1230,7 +1261,8 @@ export class WorkoutService extends BaseService {
       date: existingPlanDay.date, // Keep as string to avoid timezone conversion
       instructions: response.instructions ?? undefined,
       name: response.name || existingPlanDay.name || "",
-      description: response.description || (existingPlanDay.description ?? undefined),
+      description:
+        response.description || (existingPlanDay.description ?? undefined),
       dayNumber: existingPlanDay.dayNumber || 1,
       created_at: new Date(existingPlanDay.createdAt ?? Date.now()),
       updated_at: new Date(),
@@ -1238,10 +1270,14 @@ export class WorkoutService extends BaseService {
         id: block.id,
         blockType: responseBlock?.blockType || (block.blockType ?? undefined),
         blockName: responseBlock?.blockName || (block.blockName ?? undefined),
-        blockDurationMinutes: responseBlock?.blockDurationMinutes || (block.blockDurationMinutes ?? undefined),
-        timeCapMinutes: responseBlock?.timeCapMinutes || (block.timeCapMinutes ?? undefined),
+        blockDurationMinutes:
+          responseBlock?.blockDurationMinutes ||
+          (block.blockDurationMinutes ?? undefined),
+        timeCapMinutes:
+          responseBlock?.timeCapMinutes || (block.timeCapMinutes ?? undefined),
         rounds: responseBlock?.rounds || (block.rounds ?? undefined),
-        instructions: responseBlock?.instructions || (block.instructions ?? undefined),
+        instructions:
+          responseBlock?.instructions || (block.instructions ?? undefined),
         order: index,
         created_at: new Date(block.createdAt ?? Date.now()),
         updated_at: new Date(),
@@ -1268,9 +1304,9 @@ export class WorkoutService extends BaseService {
                 ? ex.exercise.muscleGroups[0]
                 : "general",
             difficulty: ex.exercise.difficulty || "beginner",
-            equipment: Array.isArray(ex.exercise.equipment) 
-              ? ex.exercise.equipment.join(", ") 
-              : ex.exercise.equipment ?? undefined,
+            equipment: Array.isArray(ex.exercise.equipment)
+              ? ex.exercise.equipment.join(", ")
+              : (ex.exercise.equipment ?? undefined),
             link: ex.exercise.link ?? undefined,
             muscles_targeted: ex.exercise.muscleGroups || [],
             created_at: new Date(ex.exercise.createdAt ?? Date.now()),
@@ -1279,6 +1315,414 @@ export class WorkoutService extends BaseService {
         })),
       })),
     };
+  }
+
+  /**
+   * Get workout history for a user (all past workouts - completed or not)
+   */
+  async getWorkoutHistory(userId: number): Promise<WorkoutWithDetails[]> {
+    const today = new Date();
+
+    // Get all workouts that are either:
+    // 1. Not active (isActive = false)
+    // 2. Active but past their end date
+    // 3. Completed
+    const historicalWorkouts = await this.db.query.workouts.findMany({
+      where: and(
+        eq(workouts.userId, userId),
+        or(
+          eq(workouts.isActive, false),
+          eq(workouts.completed, true),
+          sql`${workouts.endDate}::date < ${today}::date`
+        )
+      ),
+      orderBy: [desc(workouts.endDate)],
+      with: {
+        planDays: {
+          orderBy: [asc(planDays.date)],
+          with: {
+            blocks: {
+              orderBy: [asc(workoutBlocks.order)],
+              with: {
+                exercises: {
+                  orderBy: [asc(planDayExercises.order)],
+                  with: {
+                    exercise: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return historicalWorkouts.map((workout) =>
+      this.transformWorkout(workout as unknown as DBWorkoutResult)
+    );
+  }
+
+  /**
+   * Get list of previous workouts with flexible time filtering
+   */
+  async getPreviousWorkouts(
+    userId: number,
+    timeFilter: "week" | "month" | "3months" | "all" = "month"
+  ): Promise<any[]> {
+    const today = new Date();
+    let dateFilter = null;
+
+    if (timeFilter !== "all") {
+      const filterDate = new Date();
+      switch (timeFilter) {
+        case "week":
+          filterDate.setDate(filterDate.getDate() - 7);
+          break;
+        case "month":
+          filterDate.setMonth(filterDate.getMonth() - 1);
+          break;
+        case "3months":
+          filterDate.setMonth(filterDate.getMonth() - 3);
+          break;
+      }
+      dateFilter = filterDate;
+    }
+
+    const whereConditions = [
+      eq(workouts.userId, userId),
+      // Exclude truly active workouts (within date range and active)
+      not(
+        and(
+          eq(workouts.isActive, true),
+          eq(workouts.completed, false),
+          sql`${workouts.startDate}::date <= ${today}::date AND ${workouts.endDate}::date >= ${today}::date`
+        )
+      ),
+    ];
+
+    if (dateFilter) {
+      whereConditions.push(gte(workouts.endDate, dateFilter));
+    }
+
+    const previousWorkouts = await this.db.query.workouts.findMany({
+      where: and(...whereConditions),
+      orderBy: [desc(workouts.endDate)],
+      with: {
+        planDays: {
+          orderBy: [asc(planDays.date)],
+          with: {
+            blocks: {
+              with: {
+                exercises: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return previousWorkouts.map((workout) => {
+      const totalWorkouts = workout.planDays?.length || 0;
+      const completedWorkouts =
+        workout.planDays?.filter((day) => day.isComplete).length || 0;
+      const completionRate =
+        totalWorkouts > 0
+          ? Math.round((completedWorkouts / totalWorkouts) * 100)
+          : 0;
+
+      return {
+        id: workout.id,
+        name: workout.name,
+        description: workout.description,
+        startDate: formatDateAsString(workout.startDate),
+        endDate: formatDateAsString(workout.endDate),
+        totalWorkouts,
+        completedWorkouts,
+        completionRate,
+        duration: this.calculateWorkoutDuration(
+          workout.startDate,
+          workout.endDate
+        ),
+        planDays:
+          workout.planDays?.map((day, index) => ({
+            id: day.id,
+            dayNumber: day.dayNumber || index + 1,
+            date: formatDateAsString(day.date),
+            name: day.name || `Day ${index + 1}`,
+            description: day.description,
+            isComplete: day.isComplete || false,
+            totalExercises:
+              day.blocks?.reduce(
+                (total, block) => total + (block.exercises?.length || 0),
+                0
+              ) || 0,
+            blocks:
+              day.blocks?.map((block) => ({
+                id: block.id,
+                blockName: block.blockName,
+                blockType: block.blockType,
+                exerciseCount: block.exercises?.length || 0,
+              })) || [],
+          })) || [],
+      };
+    });
+  }
+
+  private calculateWorkoutDuration(
+    startDate: Date | string,
+    endDate: Date | string
+  ): string {
+    const start =
+      typeof startDate === "string" ? new Date(startDate) : startDate;
+    const end = typeof endDate === "string" ? new Date(endDate) : endDate;
+
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    if (diffDays === 1) return "1 day";
+    if (diffDays < 7) return `${diffDays} days`;
+    if (diffDays === 7) return "1 week";
+
+    const weeks = Math.floor(diffDays / 7);
+    const remainingDays = diffDays % 7;
+
+    if (remainingDays === 0)
+      return `${weeks} ${weeks === 1 ? "week" : "weeks"}`;
+    return `${weeks}w ${remainingDays}d`;
+  }
+
+  /**
+   * Repeat a previous week's workout with a new start date
+   */
+  async repeatPreviousWeekWorkout(
+    userId: number,
+    originalWorkoutId: number,
+    newStartDate: string
+  ): Promise<WorkoutWithDetails> {
+    // First, deactivate any existing active workouts
+    await this.db
+      .update(workouts)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
+
+    // Get the original workout with all its data
+    const originalWorkout = await this.db.query.workouts.findFirst({
+      where: and(
+        eq(workouts.id, originalWorkoutId),
+        eq(workouts.userId, userId)
+      ),
+      with: {
+        planDays: {
+          orderBy: [asc(planDays.date)],
+          with: {
+            blocks: {
+              orderBy: [asc(workoutBlocks.order)],
+              with: {
+                exercises: {
+                  orderBy: [asc(planDayExercises.order)],
+                  with: {
+                    exercise: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!originalWorkout) {
+      throw new Error("Original workout not found");
+    }
+
+    // Get user profile to access available workout days
+    const profile = await profileService.getProfileByUserId(userId);
+    const availableDays = profile?.availableDays || [];
+
+    // Create new workout with 7-day duration
+    const newStart = new Date(newStartDate);
+    const newEndDate = addDays(newStartDate, 6); // 7 days total (0-6)
+    
+    const [newWorkout] = await this.db
+      .insert(workouts)
+      .values({
+        userId,
+        name: `${originalWorkout.name}`,
+        description: originalWorkout.description,
+        startDate: sql`${newStart}::date`,
+        endDate: sql`${new Date(newEndDate)}::date`,
+        promptId: originalWorkout.promptId, // Copy the prompt ID from original workout
+        isActive: true,
+        completed: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    // If user has available days configured, distribute workouts accordingly
+    if (availableDays.length > 0) {
+      // Calculate new dates for plan days based on available workout days
+      const startDayOfWeek = new Date(newStartDate).toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+      const daysOfWeek = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const todayIndex = daysOfWeek.indexOf(startDayOfWeek);
+      
+      // Sort available days to start from today
+      const sortedAvailable = availableDays
+        .map((day) => ({ day, index: daysOfWeek.indexOf(day) }))
+        .sort((a, b) => ((a.index - todayIndex + 7) % 7) - ((b.index - todayIndex + 7) % 7))
+        .map((obj) => obj.day);
+
+      // Create new plan days with dates based on available workout days
+      let referenceDate = newStartDate;
+      for (let i = 0; i < (originalWorkout.planDays || []).length; i++) {
+        const originalPlanDay = originalWorkout.planDays[i];
+        const availableDay = sortedAvailable[i % sortedAvailable.length];
+        const scheduledDate = getDateForWeekday(availableDay, referenceDate);
+        
+        // Move reference date to the day after the scheduledDate to prevent same day reuse
+        referenceDate = addDays(scheduledDate, 1);
+
+        const [newPlanDay] = await this.db
+          .insert(planDays)
+          .values({
+            workoutId: newWorkout.id,
+            date: sql`${new Date(scheduledDate)}::date`,
+            name: originalPlanDay.name,
+            description: originalPlanDay.description,
+            instructions: originalPlanDay.instructions,
+            isComplete: false, // Reset completion status
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
+
+        // Create new workout blocks
+        for (const originalBlock of originalPlanDay.blocks || []) {
+          const [newBlock] = await this.db
+            .insert(workoutBlocks)
+            .values({
+              planDayId: newPlanDay.id,
+              blockType: originalBlock.blockType,
+              blockName: originalBlock.blockName,
+              blockDurationMinutes: originalBlock.blockDurationMinutes,
+              timeCapMinutes: originalBlock.timeCapMinutes,
+              rounds: originalBlock.rounds,
+              instructions: originalBlock.instructions,
+              order: originalBlock.order,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .returning();
+
+          // Create new plan day exercises
+          for (const originalExercise of originalBlock.exercises || []) {
+            await this.db.insert(planDayExercises).values({
+              workoutBlockId: newBlock.id,
+              exerciseId: originalExercise.exerciseId,
+              sets: originalExercise.sets,
+              reps: originalExercise.reps,
+              weight: originalExercise.weight,
+              duration: originalExercise.duration,
+              restTime: originalExercise.restTime,
+              completed: false, // Reset completion status
+              notes: originalExercise.notes,
+              order: originalExercise.order,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+        }
+      }
+    } else {
+      // No available days configured - just copy with date shift
+      const originalStartDate = new Date(originalWorkout.startDate);
+      const dateDiff = newStart.getTime() - originalStartDate.getTime();
+      
+      for (const originalPlanDay of originalWorkout.planDays || []) {
+        const originalDate = new Date(originalPlanDay.date);
+        const newDate = new Date(originalDate.getTime() + dateDiff);
+
+        const [newPlanDay] = await this.db
+          .insert(planDays)
+          .values({
+            workoutId: newWorkout.id,
+            date: sql`${newDate}::date`,
+            name: originalPlanDay.name,
+            description: originalPlanDay.description,
+            instructions: originalPlanDay.instructions,
+            isComplete: false, // Reset completion status
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
+
+        // Create new workout blocks
+        for (const originalBlock of originalPlanDay.blocks || []) {
+          const [newBlock] = await this.db
+            .insert(workoutBlocks)
+            .values({
+              planDayId: newPlanDay.id,
+              blockType: originalBlock.blockType,
+              blockName: originalBlock.blockName,
+              blockDurationMinutes: originalBlock.blockDurationMinutes,
+              timeCapMinutes: originalBlock.timeCapMinutes,
+              rounds: originalBlock.rounds,
+              instructions: originalBlock.instructions,
+              order: originalBlock.order,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            })
+            .returning();
+
+          // Create new plan day exercises
+          for (const originalExercise of originalBlock.exercises || []) {
+            await this.db.insert(planDayExercises).values({
+              workoutBlockId: newBlock.id,
+              exerciseId: originalExercise.exerciseId,
+              sets: originalExercise.sets,
+              reps: originalExercise.reps,
+              weight: originalExercise.weight,
+              duration: originalExercise.duration,
+              restTime: originalExercise.restTime,
+              completed: false, // Reset completion status
+              notes: originalExercise.notes,
+              order: originalExercise.order,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+        }
+      }
+    }
+
+    // Fetch and return the newly created workout with all its details
+    const createdWorkout = await this.db.query.workouts.findFirst({
+      where: eq(workouts.id, newWorkout.id),
+      with: {
+        planDays: {
+          orderBy: [asc(planDays.date)],
+          with: {
+            blocks: {
+              orderBy: [asc(workoutBlocks.order)],
+              with: {
+                exercises: {
+                  orderBy: [asc(planDayExercises.order)],
+                  with: {
+                    exercise: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!createdWorkout) {
+      throw new Error("Failed to fetch created workout");
+    }
+
+    return this.transformWorkout(createdWorkout as unknown as DBWorkoutResult);
   }
 }
 

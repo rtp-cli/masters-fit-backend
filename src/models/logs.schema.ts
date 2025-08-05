@@ -133,7 +133,7 @@ export const planDayLogs = pgTable("plan_day_logs", {
     .references(() => planDays.id),
 
   // Day completion metrics
-  totalTimeMinutes: integer("total_time_minutes"),
+  totalTimeSeconds: integer("total_time_seconds"),
   blocksCompleted: integer("blocks_completed"),
   exercisesCompleted: integer("exercises_completed"),
 
@@ -249,7 +249,7 @@ export const insertBlockLogSchema = createInsertSchema(blockLogs, {
 
 export const insertPlanDayLogSchema = createInsertSchema(planDayLogs, {
   planDayId: z.number(),
-  totalTimeMinutes: z.number().optional(),
+  totalTimeSeconds: z.number().optional(),
   blocksCompleted: z.number().optional(),
   exercisesCompleted: z.number().optional(),
   totalVolume: z.number().optional(),
@@ -320,7 +320,7 @@ export const updateBlockLogSchema = z.object({
 });
 
 export const updatePlanDayLogSchema = z.object({
-  totalTimeMinutes: z.number().optional(),
+  totalTimeSeconds: z.number().optional(),
   blocksCompleted: z.number().optional(),
   exercisesCompleted: z.number().optional(),
   totalVolume: z.number().optional(),
@@ -397,7 +397,7 @@ export interface BlockLog {
 export interface PlanDayLog {
   id: number;
   planDayId: number;
-  totalTimeMinutes: number | null;
+  totalTimeSeconds: number | null;
   blocksCompleted: number | null;
   exercisesCompleted: number | null;
   totalVolume: number | null;

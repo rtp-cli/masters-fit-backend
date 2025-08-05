@@ -20,6 +20,7 @@ import {
   planDayExercises,
   workoutBlocks,
   planDays,
+  workouts,
 } from "@/models/workout.schema";
 import { BaseService } from "./base.service";
 import { eq, and, inArray, desc, count, sum } from "drizzle-orm";
@@ -850,11 +851,101 @@ export class LogsService extends BaseService {
     }
   }
 
-  async markWorkoutDayComplete(planDayId: number): Promise<void> {
+  async markWorkoutDayComplete(
+    planDayId: number,
+    completionData?: {
+      totalTimeSeconds?: number;
+      exercisesCompleted?: number;
+      blocksCompleted?: number;
+      notes?: string;
+    }
+  ): Promise<void> {
+    // First, get the plan day to find the workout ID
+    const planDay = await this.db
+      .select()
+      .from(planDays)
+      .where(eq(planDays.id, planDayId))
+      .limit(1);
+
+    if (planDay.length === 0) {
+      throw new Error("Plan day not found");
+    }
+
+    const workoutId = planDay[0].workoutId;
+
+    // Mark the plan day as complete
     await this.db
       .update(planDays)
       .set({ isComplete: true, updatedAt: new Date() })
       .where(eq(planDays.id, planDayId));
+
+    // If completion data is provided, create/update plan day log
+    if (completionData) {
+      const logData = {
+        planDayId,
+        totalTimeSeconds: completionData.totalTimeSeconds,
+        exercisesCompleted: completionData.exercisesCompleted,
+        blocksCompleted: completionData.blocksCompleted,
+        isComplete: true,
+        notes: completionData.notes,
+      };
+
+      // Try to find existing plan day log first
+      const existingLog = await this.db
+        .select()
+        .from(planDayLogs)
+        .where(eq(planDayLogs.planDayId, planDayId))
+        .limit(1);
+
+      if (existingLog.length > 0) {
+        // Update existing log
+        await this.db
+          .update(planDayLogs)
+          .set({ ...logData, updatedAt: new Date() })
+          .where(eq(planDayLogs.id, existingLog[0].id));
+      } else {
+        // Create new log
+        await this.db.insert(planDayLogs).values(logData);
+      }
+    }
+
+    // Check if all plan days in the workout are now complete
+    const allPlanDays = await this.db
+      .select()
+      .from(planDays)
+      .where(eq(planDays.workoutId, workoutId));
+
+    const allComplete = allPlanDays.every(day => day.isComplete);
+
+    if (allComplete) {
+      // Mark the entire workout as complete
+      await this.db
+        .update(workouts)
+        .set({ completed: true, updatedAt: new Date() })
+        .where(eq(workouts.id, workoutId));
+
+      // Create/update workout log to mark as complete
+      const workoutLog = await this.getOrCreateWorkoutLog(workoutId);
+      
+      // Calculate total time from all plan day logs
+      const planDayLogs = await this.db
+        .select()
+        .from(planDayLogs)
+        .where(inArray(planDayLogs.planDayId, allPlanDays.map(day => day.id)));
+
+      const totalTimeSeconds = planDayLogs.reduce((total, log) => {
+        return total + (log.totalTimeSeconds || 0);
+      }, 0);
+
+      const totalTimeMinutes = Math.round(totalTimeSeconds / 60);
+
+      await this.updateWorkoutLog(workoutId, {
+        totalTimeMinutes,
+        daysCompleted: allPlanDays.length,
+        totalDays: allPlanDays.length,
+        isComplete: true,
+      });
+    }
   }
 }
 

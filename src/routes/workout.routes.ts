@@ -179,6 +179,66 @@ router.get("/:userId/active-workout", async (req, res) => {
     const response = await controller.fetchActiveWorkout(
       Number(req.params.userId)
     );
+    // Always return 200 - having no active workout is a valid state
+    res.status(200).json(response);
+  } catch (error) {
+    // Only return error status for actual errors, not "no workout" states
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      // Log the actual error for debugging
+      console.error("Error in active-workout route:", error);
+      res.status(500).json({ success: false, error: "Internal server error" });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Get workout history
+router.get("/:userId/history", async (req, res) => {
+  try {
+    const response = await controller.getWorkoutHistory(
+      Number(req.params.userId)
+    );
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Get previous workouts from past month
+router.get("/:userId/previous-workouts", async (req, res) => {
+  try {
+    const response = await controller.getPreviousWorkouts(
+      Number(req.params.userId)
+    );
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Repeat previous week workout
+router.post("/:userId/repeat-week/:originalWorkoutId", async (req, res) => {
+  try {
+    const response = await controller.repeatPreviousWeekWorkout(
+      Number(req.params.userId),
+      Number(req.params.originalWorkoutId),
+      req.body
+    );
     res.json(response);
   } catch (error) {
     if (error instanceof ZodError) {
