@@ -20,7 +20,7 @@ export class EmailService {
       const response = await resend.emails.send({
         from: `MastersFit <${FROM_EMAIL}>`,
         to,
-        subject: "Your MastersFit Verification Code",
+        subject: `Your MastersFit code is ${otp}.`,
         html,
         text,
         replyTo: REPLY_TO_EMAIL,
