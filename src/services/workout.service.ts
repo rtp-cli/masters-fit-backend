@@ -49,6 +49,7 @@ import {
   determineTimeCap,
   determineRounds,
 } from "@/utils/workout-block-configuration.utils";
+import { emitProgress } from "@/utils/websocket-progress.utils";
 
 type DBWorkoutResult = {
   id: number;
@@ -732,6 +733,9 @@ export class WorkoutService extends BaseService {
     customFeedback?: string,
     timezone?: string
   ): Promise<WorkoutWithDetails> {
+    // Emit 5% - Starting
+    emitProgress(userId, 5);
+
     // First, find and deactivate the current active workout(s)
     const activeWorkouts = await this.db
       .select({ id: workouts.id, name: workouts.name })
@@ -815,6 +819,9 @@ export class WorkoutService extends BaseService {
       : getCurrentDateString();
     const endDate = addDays(startDate, 6);
 
+    // Emit 85% - Starting database creation
+    emitProgress(userId, 85);
+
     const workout = await this.createWorkout({
       userId,
       promptId,
@@ -876,74 +883,121 @@ export class WorkoutService extends BaseService {
       .map((obj) => obj.day);
     const rotatedDays = sortedAvailable;
 
-    let referenceDate = today;
+    // Optimize database operations with bulk inserts and transactions
+    await this.db.transaction(async (tx) => {
+      let referenceDate = today;
+      
+      // Prepare bulk data for plan days
+      const planDaysData: InsertPlanDay[] = [];
+      const workoutBlocksData: InsertWorkoutBlock[] = [];
+      const planDayExercisesData: InsertPlanDayExercise[] = [];
+      const exerciseDetailsMap = new Map<string, any>();
 
-    for (let i = 0; i < workoutPlan.length; i++) {
-      const availableDay = rotatedDays[i % rotatedDays.length];
-      const scheduledDate = timezone
-        ? getDateForWeekdayInTimezone(availableDay, referenceDate, timezone)
-        : getDateForWeekday(availableDay, referenceDate);
-
-      // Move reference date to the day after the scheduledDate to prevent same day reuse
-      referenceDate = addDays(scheduledDate, 1);
-
-      const planDay = await this.createPlanDay({
-        workoutId: workout.id,
-        date: scheduledDate,
-        instructions: workoutPlan[i].instructions,
-        name: workoutPlan[i].name,
-        description: workoutPlan[i].description,
-        dayNumber: i,
-      });
-
-      // Create blocks for this plan day
-      for (
-        let blockIndex = 0;
-        blockIndex < workoutPlan[i].blocks.length;
-        blockIndex++
-      ) {
-        const block = workoutPlan[i].blocks[blockIndex];
-        const workoutBlock = await this.createWorkoutBlock({
-          planDayId: planDay.id,
-          blockType: block.blockType,
-          blockName: block.blockName,
-          blockDurationMinutes: block.blockDurationMinutes,
-          timeCapMinutes: block.timeCapMinutes,
-          rounds: block.rounds,
-          instructions: block.instructions,
-          order: block.order,
-        });
-
-        // Create exercises for this block
-        for (
-          let exerciseIndex = 0;
-          exerciseIndex < block.exercises.length;
-          exerciseIndex++
-        ) {
-          const exercise = block.exercises[exerciseIndex];
-          const exerciseDetails = await exerciseService.getExerciseByName(
-            exercise.exerciseName
-          );
-          if (exerciseDetails) {
-            await this.createPlanDayExercise({
-              workoutBlockId: workoutBlock.id,
-              exerciseId: exerciseDetails.id,
-              sets: exercise.sets,
-              reps: exercise.reps,
-              weight: exercise.weight,
-              duration: exercise.duration,
-              restTime: exercise.restTime,
-              notes: exercise.notes,
-              order: exercise.order,
-            });
+      // First pass: collect all exercise names and fetch them
+      const allExerciseNames = new Set<string>();
+      for (const day of workoutPlan) {
+        for (const block of day.blocks) {
+          for (const exercise of block.exercises) {
+            allExerciseNames.add(exercise.exerciseName);
           }
         }
       }
-    }
+
+      // Fetch all exercises in parallel
+      const exercisePromises = Array.from(allExerciseNames).map(async (name) => {
+        const exercise = await exerciseService.getExerciseByName(name);
+        if (exercise) {
+          exerciseDetailsMap.set(name, exercise);
+        }
+      });
+      await Promise.all(exercisePromises);
+
+      // Second pass: prepare all data structures
+      for (let i = 0; i < workoutPlan.length; i++) {
+        const availableDay = rotatedDays[i % rotatedDays.length];
+        const scheduledDate = timezone
+          ? getDateForWeekdayInTimezone(availableDay, referenceDate, timezone)
+          : getDateForWeekday(availableDay, referenceDate);
+
+        // Move reference date to the day after the scheduledDate to prevent same day reuse
+        referenceDate = addDays(scheduledDate, 1);
+
+        planDaysData.push({
+          workoutId: workout.id,
+          date: scheduledDate,
+          instructions: workoutPlan[i].instructions,
+          name: workoutPlan[i].name,
+          description: workoutPlan[i].description,
+          dayNumber: i,
+        });
+      }
+
+      // Bulk insert plan days
+      const createdPlanDays = await tx.insert(planDays).values(planDaysData).returning();
+
+      // Prepare blocks data with plan day IDs
+      for (let i = 0; i < workoutPlan.length; i++) {
+        const planDay = createdPlanDays[i];
+        for (let blockIndex = 0; blockIndex < workoutPlan[i].blocks.length; blockIndex++) {
+          const block = workoutPlan[i].blocks[blockIndex];
+          workoutBlocksData.push({
+            planDayId: planDay.id,
+            blockType: block.blockType,
+            blockName: block.blockName,
+            blockDurationMinutes: block.blockDurationMinutes,
+            timeCapMinutes: block.timeCapMinutes,
+            rounds: block.rounds,
+            instructions: block.instructions,
+            order: block.order,
+          });
+        }
+      }
+
+      // Bulk insert workout blocks
+      const createdWorkoutBlocks = await tx.insert(workoutBlocks).values(workoutBlocksData).returning();
+
+      // Prepare exercise data with workout block IDs
+      let blockIndex = 0;
+      for (let i = 0; i < workoutPlan.length; i++) {
+        for (let j = 0; j < workoutPlan[i].blocks.length; j++) {
+          const block = workoutPlan[i].blocks[j];
+          const workoutBlock = createdWorkoutBlocks[blockIndex];
+          
+          for (let exerciseIndex = 0; exerciseIndex < block.exercises.length; exerciseIndex++) {
+            const exercise = block.exercises[exerciseIndex];
+            const exerciseDetails = exerciseDetailsMap.get(exercise.exerciseName);
+            
+            if (exerciseDetails) {
+              planDayExercisesData.push({
+                workoutBlockId: workoutBlock.id,
+                exerciseId: exerciseDetails.id,
+                sets: exercise.sets,
+                reps: exercise.reps,
+                weight: exercise.weight,
+                duration: exercise.duration,
+                restTime: exercise.restTime,
+                notes: exercise.notes,
+                order: exercise.order,
+              });
+            }
+          }
+          blockIndex++;
+        }
+      }
+
+      // Bulk insert plan day exercises
+      if (planDayExercisesData.length > 0) {
+        await tx.insert(planDayExercises).values(planDayExercisesData).returning();
+      }
+    });
 
     // Option 1: fetch full workout with planDays and exercises, then transform and return
     const generatedWorkout = await this.getWorkoutById(workout.id);
     if (!generatedWorkout) throw new Error("Workout not found");
+    
+    // Emit 100% - Complete
+    emitProgress(userId, 100, true);
+    
     return this.transformWorkout(
       generatedWorkout as unknown as DBWorkoutResult
     );
@@ -1030,7 +1084,7 @@ export class WorkoutService extends BaseService {
       workoutDuration?: number;
       intensityLevel?: number;
       medicalNotes?: string;
-    }
+    },
   ): Promise<WorkoutWithDetails> {
     if (profileData) {
       await profileService.createOrUpdateProfile({
@@ -1097,7 +1151,11 @@ export class WorkoutService extends BaseService {
     regenerationReason: string,
     regenerationStyles?: string[]
   ): Promise<PlanDayWithExercises> {
-    // Get the existing plan day with its exercises
+    try {
+      // Emit 5% - Starting
+      emitProgress(userId, 5);
+
+      // Get the existing plan day with its exercises
     const existingPlanDay = await this.db.query.planDays.findFirst({
       where: eq(planDays.id, planDayId),
       with: {
@@ -1152,13 +1210,22 @@ export class WorkoutService extends BaseService {
       })),
     };
 
+    // Emit 15% - Calling AI
+    emitProgress(userId, 15);
+    
     // Generate new workout for this day
-    const { response } = await promptsService.generateDailyRegenerationPrompt(
+    console.log('[DEBUG] About to call generateDailyRegenerationPrompt');
+    const result = await promptsService.generateDailyRegenerationPrompt(
       userId,
       (existingPlanDay as any).dayNumber || 1,
       previousWorkout,
       regenerationReason
     );
+    console.log('[DEBUG] generateDailyRegenerationPrompt result:', result);
+    const { response } = result;
+
+    // Emit 75% - AI complete, saving to database
+    emitProgress(userId, 75);
 
     // Add any new exercises to the database (with duplicate checking)
     if (response.exercisesToAdd) {
@@ -1254,6 +1321,9 @@ export class WorkoutService extends BaseService {
       })
       .where(eq(workoutBlocks.id, existingPlanDay.blocks[0].id));
 
+    // Emit 100% - Complete
+    emitProgress(userId, 100, true);
+
     // Return the updated plan day with new exercises
     return {
       id: existingPlanDay.id,
@@ -1315,6 +1385,11 @@ export class WorkoutService extends BaseService {
         })),
       })),
     };
+    } catch (error) {
+      // Update progress - daily regeneration failed
+      emitProgress(userId, 0, false, (error as Error).message);
+      throw error;
+    }
   }
 
   /**

@@ -10,6 +10,8 @@ import {
 } from "@/utils/prompt-generator";
 import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "@/utils/logger";
+import { retryWithBackoff, CHUNKED_GENERATION_RETRY_OPTIONS, DEFAULT_API_RETRY_OPTIONS } from "@/utils/retry.utils";
+import { emitProgress } from "@/utils/websocket-progress.utils";
 
 // Utility function to clean JSON responses that may be wrapped in code blocks
 function cleanJsonResponse(response: string): string {
@@ -95,22 +97,32 @@ export class PromptsService extends BaseService {
 
     while (attempts < maxAttempts) {
       try {
-        const response = await anthropic.messages.create({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 8192,
-          messages: [
-            { role: "user" as const, content: prompt },
-            ...(attempts > 0
-              ? [
-                  {
-                    role: "user" as const,
-                    content: `You have only generated the workout plan for ${parsedResponse?.workoutPlan?.length || 1} days. You MUST generate it for all ${profile.availableDays?.length || 7} days. Please regenerate the COMPLETE weekly workout plan.`,
-                  },
-                ]
-              : []),
-          ],
-        });
-        data = (response.content[0] as any).text;
+        const result = await retryWithBackoff(
+          async () => {
+            const response = await anthropic.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 8192,
+              messages: [
+                { role: "user" as const, content: prompt },
+                ...(attempts > 0
+                  ? [
+                      {
+                        role: "user" as const,
+                        content: `You have only generated the workout plan for ${parsedResponse?.workoutPlan?.length || 1} days. You MUST generate it for all ${profile.availableDays?.length || 7} days. Please regenerate the COMPLETE weekly workout plan.`,
+                      },
+                    ]
+                  : []),
+              ],
+            });
+            return (response.content[0] as any).text;
+          },
+          DEFAULT_API_RETRY_OPTIONS,
+          {
+            operation: "generatePrompt",
+            userId
+          }
+        );
+        data = result;
 
         // Log raw response for debugging
         logger.debug("Raw AI response received", {
@@ -277,6 +289,10 @@ export class PromptsService extends BaseService {
       const endDay = Math.min(startDay + chunkSize - 1, totalDays);
       const chunkNumber = chunkIndex + 1;
 
+      // Calculate progress percentage (10% to 85% for AI generation)
+      const progressPercentage = 10 + Math.round((chunkIndex / totalChunks) * 75);
+      emitProgress(userId, progressPercentage);
+
       logger.debug("Generating chunk", {
         userId,
         operation: "generateChunkedPrompt",
@@ -294,13 +310,23 @@ export class PromptsService extends BaseService {
       );
 
       try {
-        const response = await anthropic.messages.create({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 8192,
-          messages: [{ role: "user" as const, content: prompt }],
-        });
+        const { response, data } = await retryWithBackoff(
+          async () => {
+            const response = await anthropic.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 8192,
+              messages: [{ role: "user" as const, content: prompt }],
+            });
 
-        const data = (response.content[0] as any).text;
+            const data = (response.content[0] as any).text;
+            return { response, data };
+          },
+          CHUNKED_GENERATION_RETRY_OPTIONS,
+          { 
+            operation: "generateChunkedPrompt",
+            userId 
+          }
+        );
 
         // Log raw chunk response for debugging
         logger.debug("Raw AI chunk response received", {
@@ -401,7 +427,7 @@ export class PromptsService extends BaseService {
 
         // Add a small delay between chunks to avoid rate limiting
         if (chunkIndex < totalChunks - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 250));
         }
       } catch (error: any) {
         logger.error("Error generating chunk", error, {
@@ -423,6 +449,9 @@ export class PromptsService extends BaseService {
       exercisesToAdd: allExercisesToAdd,
     };
 
+    // Emit 85% - AI generation complete
+    emitProgress(userId, 85);
+    
     logger.info("Complete workout plan generated successfully", {
       userId,
       operation: "generateChunkedPrompt",
@@ -499,22 +528,40 @@ export class PromptsService extends BaseService {
     let parsedResponse;
 
     while (attempts < maxAttempts) {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8192,
-        messages: [
-          { role: "user" as const, content: prompt },
-          ...(attempts > 0
-            ? [
-                {
-                  role: "user" as const,
-                  content: `You have only generated the workout plan for ${parsedResponse?.workoutPlan?.length || 1} days. You MUST generate it for all ${updatedProfile.availableDays?.length || 7} days. Please regenerate the COMPLETE weekly workout plan.`,
-                },
-              ]
-            : []),
-        ],
-      });
-      data = (response.content[0] as any).text;
+      try {
+        data = await retryWithBackoff(
+          async () => {
+            const response = await anthropic.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 8192,
+              messages: [
+                { role: "user" as const, content: prompt },
+                ...(attempts > 0
+                  ? [
+                      {
+                        role: "user" as const,
+                        content: `You have only generated the workout plan for ${parsedResponse?.workoutPlan?.length || 1} days. You MUST generate it for all ${updatedProfile.availableDays?.length || 7} days. Please regenerate the COMPLETE weekly workout plan.`,
+                      },
+                    ]
+                  : []),
+              ],
+            });
+            return (response.content[0] as any).text;
+          },
+          DEFAULT_API_RETRY_OPTIONS,
+          {
+            operation: "generateRegenerationPrompt", 
+            userId
+          }
+        );
+      } catch (retryError) {
+        logger.error("Failed to generate regeneration prompt after retries", retryError as Error, {
+          userId,
+          operation: "generateRegenerationPrompt",
+          metadata: { attempts }
+        });
+        throw retryError;
+      }
 
       // Log raw regeneration response for debugging
       logger.debug("Raw AI regeneration response received", {
@@ -653,12 +700,25 @@ export class PromptsService extends BaseService {
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 8192,
-      messages: [{ role: "user" as const, content: prompt }],
-    });
-    const data = (response.content[0] as any).text;
+    
+    const { data, response } = await retryWithBackoff(
+      async () => {
+        const response = await anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 8192,
+          messages: [{ role: "user" as const, content: prompt }],
+        });
+        return {
+          data: (response.content[0] as any).text,
+          response: response
+        };
+      },
+      DEFAULT_API_RETRY_OPTIONS,
+      {
+        operation: "generateDailyRegenerationPrompt",
+        userId
+      }
+    );
 
     // Log raw daily regeneration response for debugging
     logger.debug("Raw AI daily regeneration response received", {

@@ -187,7 +187,10 @@ export class WorkoutController extends Controller {
   @SuccessResponse(200, "Success")
   public async generateWorkoutPlan(
     @Path() userId: number,
-    @Body() requestBody?: { customFeedback?: string; timezone?: string }
+    @Body() requestBody?: { 
+      customFeedback?: string; 
+      timezone?: string;
+    }
   ): Promise<WorkoutResponse> {
     const workout = await workoutService.generateWorkoutPlan(
       userId,
