@@ -155,17 +155,14 @@ router.post("/:userId/regenerate", async (req, res) => {
 
 // Regenerate daily workout
 router.post("/:userId/days/:planDayId/regenerate", async (req, res) => {
-  console.log(`[ROUTE] Daily regeneration called: userId=${req.params.userId}, planDayId=${req.params.planDayId}`, req.body);
   try {
     const response = await controller.regenerateDailyWorkout(
       Number(req.params.userId),
       Number(req.params.planDayId),
       req.body
     );
-    console.log(`[ROUTE] Daily regeneration success:`, response);
     res.json(response);
   } catch (error) {
-    console.log(`[ROUTE] Daily regeneration error:`, error);
     if (error instanceof ZodError) {
       res.status(400).json({ success: false, error: "Invalid request data" });
     } else if (error instanceof Error) {
