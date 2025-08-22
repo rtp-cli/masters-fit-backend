@@ -246,6 +246,9 @@ export class PromptsService extends BaseService {
   }
 
   public async generateChunkedPrompt(userId: number, customFeedback?: string) {
+    // Emit 12% - Loading user profile
+    emitProgress(userId, 12);
+    
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
       throw new Error("Profile not found");
@@ -262,6 +265,9 @@ export class PromptsService extends BaseService {
         "Profile is missing required fields: availableDays, preferredStyles, workoutDuration, or environment"
       );
     }
+
+    // Emit 13% - Loading exercise database
+    emitProgress(userId, 13);
 
     const exercises = await exerciseService.getExercises();
     const exerciseNames = exercises.map((exercise) => exercise.name);

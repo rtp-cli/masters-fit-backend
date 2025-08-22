@@ -769,6 +769,9 @@ export class WorkoutService extends BaseService {
       });
     }
 
+    // Emit 11% - Old workouts deactivated
+    emitProgress(userId, 11);
+
     // Try chunked generation first, fallback to regular generation if it fails
     let response, promptId;
     try {
@@ -1183,8 +1186,8 @@ export class WorkoutService extends BaseService {
     });
 
     try {
-      // Emit 50% - Starting
-      emitProgress(userId, 50);
+      // Emit 60% - Starting
+      emitProgress(userId, 60);
 
       // Get the existing plan day with its exercises
       const existingPlanDay = await this.db.query.planDays.findFirst({
@@ -1269,8 +1272,8 @@ export class WorkoutService extends BaseService {
         }
       });
 
-      // Emit 60% - AI request starting
-      emitProgress(userId, 60);
+      // Emit 70% - AI request starting
+      emitProgress(userId, 70);
 
       const result = await promptsService.generateDailyRegenerationPrompt(
         userId,
