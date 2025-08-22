@@ -1178,6 +1178,19 @@ export class WorkoutService extends BaseService {
     regenerationReason: string,
     regenerationStyles?: string[]
   ): Promise<PlanDayWithExercises> {
+    const startTime = Date.now();
+    
+    logger.info("Starting daily workout regeneration", {
+      userId,
+      planDayId,
+      operation: "regenerateDailyWorkout",
+      metadata: {
+        regenerationReason,
+        stylesCount: regenerationStyles?.length || 0,
+        startTime: new Date().toISOString()
+      }
+    });
+
     try {
       // Emit 15% - Starting
       emitProgress(userId, 15);
@@ -1199,8 +1212,23 @@ export class WorkoutService extends BaseService {
       });
 
       if (!existingPlanDay) {
+        logger.error("Plan day not found for regeneration", new Error("Plan day not found"), {
+          userId,
+          planDayId,
+          operation: "regenerateDailyWorkout"
+        });
         throw new Error("Plan day not found");
       }
+
+      logger.info("Found existing plan day for regeneration", {
+        userId,
+        planDayId,
+        operation: "regenerateDailyWorkout",
+        metadata: {
+          existingBlocks: existingPlanDay.blocks?.length || 0,
+          planDayName: existingPlanDay.name
+        }
+      });
 
       // Get user profile for style determination
       const profile = await profileService.getProfileByUserId(userId);
@@ -1240,6 +1268,18 @@ export class WorkoutService extends BaseService {
       // Emit 50% - Before AI generation
       emitProgress(userId, 50);
 
+      logger.info("Starting AI generation for daily regeneration", {
+        userId,
+        planDayId,
+        operation: "regenerateDailyWorkout",
+        metadata: {
+          dayNumber: (existingPlanDay as any).dayNumber || 1,
+          regenerationReason,
+          previousExerciseCount: previousWorkout.exercises.length,
+          aiCallStartTime: new Date().toISOString()
+        }
+      });
+
       const result = await promptsService.generateDailyRegenerationPrompt(
         userId,
         (existingPlanDay as any).dayNumber || 1,
@@ -1247,6 +1287,17 @@ export class WorkoutService extends BaseService {
         regenerationReason
       );
       const { response } = result;
+
+      logger.info("AI generation completed for daily regeneration", {
+        userId,
+        planDayId,
+        operation: "regenerateDailyWorkout",
+        metadata: {
+          aiResponseReceived: true,
+          newExerciseCount: response.exercises?.length || 0,
+          aiCallCompleteTime: new Date().toISOString()
+        }
+      });
 
       // Emit 99% - AI complete, saving to database
       emitProgress(userId, 99);
@@ -1352,6 +1403,18 @@ export class WorkoutService extends BaseService {
       // Emit 100% - Complete
       emitProgress(userId, 100, true);
 
+      const totalDuration = Date.now() - startTime;
+      logger.info("Daily workout regeneration completed successfully", {
+        userId,
+        planDayId,
+        operation: "regenerateDailyWorkout",
+        metadata: {
+          totalDuration: `${totalDuration}ms`,
+          finalExerciseCount: response.exercises?.length || 0,
+          completedAt: new Date().toISOString()
+        }
+      });
+
       // Return the updated plan day with new exercises
       return {
         id: existingPlanDay.id,
@@ -1415,6 +1478,21 @@ export class WorkoutService extends BaseService {
         })),
       };
     } catch (error) {
+      const totalDuration = Date.now() - startTime;
+      
+      logger.error("Daily workout regeneration failed", error as Error, {
+        userId,
+        planDayId,
+        operation: "regenerateDailyWorkout",
+        metadata: {
+          totalDuration: `${totalDuration}ms`,
+          regenerationReason,
+          errorTime: new Date().toISOString(),
+          errorMessage: (error as Error).message,
+          stackTrace: (error as Error).stack
+        }
+      });
+
       // Update progress - daily regeneration failed
       emitProgress(userId, 0, false, (error as Error).message);
       throw error;

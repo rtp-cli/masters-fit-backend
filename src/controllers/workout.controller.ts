@@ -280,16 +280,57 @@ export class WorkoutController extends Controller {
       limitations?: string[];
     }
   ): Promise<PlanDayResponse> {
-    const planDay = await workoutService.regenerateDailyWorkout(
+    const startTime = Date.now();
+    
+    logger.info("Daily workout regeneration request received", {
       userId,
       planDayId,
-      requestBody.reason,
-      requestBody.styles
-    );
-    return {
-      success: true,
-      planDay,
-    };
+      operation: "regenerateDailyWorkout",
+      metadata: {
+        reason: requestBody.reason,
+        stylesCount: requestBody.styles?.length || 0,
+        limitationsCount: requestBody.limitations?.length || 0,
+        requestTime: new Date().toISOString()
+      }
+    });
+
+    try {
+      const planDay = await workoutService.regenerateDailyWorkout(
+        userId,
+        planDayId,
+        requestBody.reason,
+        requestBody.styles
+      );
+
+      const duration = Date.now() - startTime;
+      logger.info("Daily workout regeneration completed successfully", {
+        userId,
+        planDayId,
+        operation: "regenerateDailyWorkout", 
+        metadata: {
+          duration: `${duration}ms`,
+          completedAt: new Date().toISOString()
+        }
+      });
+
+      return {
+        success: true,
+        planDay,
+      };
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error("Daily workout regeneration failed", error as Error, {
+        userId,
+        planDayId,
+        operation: "regenerateDailyWorkout",
+        metadata: {
+          duration: `${duration}ms`,
+          reason: requestBody.reason,
+          errorTime: new Date().toISOString()
+        }
+      });
+      throw error;
+    }
   }
 
   /**

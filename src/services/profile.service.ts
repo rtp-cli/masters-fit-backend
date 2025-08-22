@@ -22,9 +22,25 @@ export class ProfileService extends BaseService {
     const existingProfile = await this.getProfileByUserId(profileData.userId);
 
     if (existingProfile) {
+      // For updates, only include fields that have meaningful values
+      // Remove undefined, null, empty strings, empty arrays, etc.
+      const updateFields: Partial<InsertProfile> = {};
+      
+      Object.keys(processedData).forEach(key => {
+        const value = processedData[key];
+        
+        // Only include non-empty values
+        if (this.hasValue(value)) {
+          updateFields[key as keyof InsertProfile] = value;
+        }
+      });
+
+      // Always update the timestamp
+      updateFields.updatedAt = createTimestamp();
+
       const result = await this.db
         .update(profiles)
-        .set({ ...processedData, updatedAt: createTimestamp() })
+        .set(updateFields)
         .where(this.eq(profiles.userId, profileData.userId))
         .returning();
       return result[0];
@@ -59,6 +75,36 @@ export class ProfileService extends BaseService {
     }
 
     return processed;
+  }
+
+  /**
+   * Check if a value is meaningful and should be saved to the database
+   * Returns false for undefined, null, empty strings, empty arrays, empty objects
+   */
+  private hasValue(value: any): boolean {
+    // Undefined or null
+    if (value === undefined || value === null) {
+      return false;
+    }
+    
+    // Empty string
+    if (typeof value === 'string' && value.trim() === '') {
+      return false;
+    }
+    
+    // Empty array
+    if (Array.isArray(value) && value.length === 0) {
+      return false;
+    }
+    
+    // Empty object (but not Date objects or other special objects)
+    if (typeof value === 'object' && 
+        !(value instanceof Date) && 
+        Object.keys(value).length === 0) {
+      return false;
+    }
+    
+    return true;
   }
 }
 

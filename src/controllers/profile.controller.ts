@@ -137,31 +137,31 @@ export class ProfileController extends Controller {
     @Path() id: number,
     @Body() requestBody: Partial<Profile>
   ): Promise<ProfileResponse> {
-    const dbProfile = await profileService.createOrUpdateProfile({
+    // Only include fields that are explicitly provided in the request
+    const updateData: any = {
       id,
       userId: requestBody.userId!,
-      height: requestBody.height ?? null,
-      weight: requestBody.weight ?? null,
-      age: requestBody.age ?? null,
-      gender: requestBody.gender ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      goals: requestBody.goals ?? null,
-      fitnessLevel: requestBody.fitnessLevel ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      limitations: requestBody.limitations ?? null,
-      medicalNotes: requestBody.medicalNotes ?? null,
-      environment: requestBody.environment ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      equipment: requestBody.equipment ?? null,
-      otherEquipment: requestBody.otherEquipment ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      preferredStyles: requestBody.preferredStyles ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      availableDays: requestBody.availableDays ?? null,
-      workoutDuration: requestBody.workoutDuration ?? null,
-      intensityLevel: requestBody.intensityLevel ?? null,
       updatedAt: new Date(),
-    });
+    };
+
+    // Only add fields that are explicitly provided (not undefined)
+    if (requestBody.height !== undefined) updateData.height = requestBody.height;
+    if (requestBody.weight !== undefined) updateData.weight = requestBody.weight;
+    if (requestBody.age !== undefined) updateData.age = requestBody.age;
+    if (requestBody.gender !== undefined) updateData.gender = requestBody.gender;
+    if (requestBody.goals !== undefined) updateData.goals = requestBody.goals;
+    if (requestBody.fitnessLevel !== undefined) updateData.fitnessLevel = requestBody.fitnessLevel;
+    if (requestBody.limitations !== undefined) updateData.limitations = requestBody.limitations;
+    if (requestBody.medicalNotes !== undefined) updateData.medicalNotes = requestBody.medicalNotes;
+    if (requestBody.environment !== undefined) updateData.environment = requestBody.environment;
+    if (requestBody.equipment !== undefined) updateData.equipment = requestBody.equipment;
+    if (requestBody.otherEquipment !== undefined) updateData.otherEquipment = requestBody.otherEquipment;
+    if (requestBody.preferredStyles !== undefined) updateData.preferredStyles = requestBody.preferredStyles;
+    if (requestBody.availableDays !== undefined) updateData.availableDays = requestBody.availableDays;
+    if (requestBody.workoutDuration !== undefined) updateData.workoutDuration = requestBody.workoutDuration;
+    if (requestBody.intensityLevel !== undefined) updateData.intensityLevel = requestBody.intensityLevel;
+
+    const dbProfile = await profileService.createOrUpdateProfile(updateData);
     const profile: Profile = {
       id: dbProfile.id,
       userId: dbProfile.userId,
@@ -199,29 +199,30 @@ export class ProfileController extends Controller {
     @Path() userId: number,
     @Body() requestBody: Partial<Profile>
   ): Promise<ProfileResponse> {
-    const dbProfile = await profileService.createOrUpdateProfile({
+    // Only include fields that are explicitly provided in the request
+    const updateData: any = {
       userId,
-      height: requestBody.height ?? null,
-      weight: requestBody.weight ?? null,
-      age: requestBody.age ?? null,
-      gender: requestBody.gender ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      goals: requestBody.goals ?? null,
-      fitnessLevel: requestBody.fitnessLevel ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      limitations: requestBody.limitations ?? null,
-      medicalNotes: requestBody.medicalNotes ?? null,
-      environment: requestBody.environment ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      equipment: requestBody.equipment ?? null,
-      otherEquipment: requestBody.otherEquipment ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      preferredStyles: requestBody.preferredStyles ?? null,
-      // @ts-ignore - TypeScript types mismatch with Drizzle schema
-      availableDays: requestBody.availableDays ?? null,
-      workoutDuration: requestBody.workoutDuration ?? null,
-      intensityLevel: requestBody.intensityLevel ?? null,
-    });
+      updatedAt: new Date(),
+    };
+
+    // Only add fields that are explicitly provided (not undefined)
+    if (requestBody.height !== undefined) updateData.height = requestBody.height;
+    if (requestBody.weight !== undefined) updateData.weight = requestBody.weight;
+    if (requestBody.age !== undefined) updateData.age = requestBody.age;
+    if (requestBody.gender !== undefined) updateData.gender = requestBody.gender;
+    if (requestBody.goals !== undefined) updateData.goals = requestBody.goals;
+    if (requestBody.fitnessLevel !== undefined) updateData.fitnessLevel = requestBody.fitnessLevel;
+    if (requestBody.limitations !== undefined) updateData.limitations = requestBody.limitations;
+    if (requestBody.medicalNotes !== undefined) updateData.medicalNotes = requestBody.medicalNotes;
+    if (requestBody.environment !== undefined) updateData.environment = requestBody.environment;
+    if (requestBody.equipment !== undefined) updateData.equipment = requestBody.equipment;
+    if (requestBody.otherEquipment !== undefined) updateData.otherEquipment = requestBody.otherEquipment;
+    if (requestBody.preferredStyles !== undefined) updateData.preferredStyles = requestBody.preferredStyles;
+    if (requestBody.availableDays !== undefined) updateData.availableDays = requestBody.availableDays;
+    if (requestBody.workoutDuration !== undefined) updateData.workoutDuration = requestBody.workoutDuration;
+    if (requestBody.intensityLevel !== undefined) updateData.intensityLevel = requestBody.intensityLevel;
+
+    const dbProfile = await profileService.createOrUpdateProfile(updateData);
     const profile: Profile = {
       id: dbProfile.id,
       userId: dbProfile.userId,
