@@ -1725,6 +1725,9 @@ export class WorkoutService extends BaseService {
 
     // Get user profile to access available workout days
     const profile = await profileService.getProfileByUserId(userId);
+    
+    // Emit 30% - Retrieved user profile
+    emitProgress(userId, 30);
     const availableDays = profile?.availableDays || [];
 
     // Create new workout with 7-day duration
@@ -1749,6 +1752,9 @@ export class WorkoutService extends BaseService {
         updatedAt: new Date(),
       })
       .returning();
+
+    // Emit 50% - Workout created successfully
+    emitProgress(userId, 50);
 
     // If user has available days configured, distribute workouts accordingly
     if (availableDays.length > 0) {
@@ -1902,6 +1908,9 @@ export class WorkoutService extends BaseService {
       }
     }
 
+    // Emit 70% - Plan days created
+    emitProgress(userId, 70);
+
     // Emit 85% - Copying workout data
     emitProgress(userId, 85);
 
@@ -1931,6 +1940,9 @@ export class WorkoutService extends BaseService {
     if (!createdWorkout) {
       throw new Error("Failed to fetch created workout");
     }
+
+    // Emit 95% - Finalizing workout data
+    emitProgress(userId, 95);
 
     // Emit 100% - Complete
     emitProgress(userId, 100, true);
