@@ -1221,8 +1221,6 @@ export class WorkoutService extends BaseService {
         }
       });
 
-      // Emit 25% - Retrieved existing plan day
-      emitProgress(userId, 25);
 
       // Get user profile for style determination
       const profile = await profileService.getProfileByUserId(userId);
@@ -1259,11 +1257,8 @@ export class WorkoutService extends BaseService {
         })),
       };
 
-      // Emit 35% - Prepared previous workout data
-      emitProgress(userId, 35);
-
-      // Emit 50% - Before AI generation
-      emitProgress(userId, 50);
+      // Emit 90% - AI request initiated (jump immediately - this is where most time is spent)
+      emitProgress(userId, 90);
 
       logger.info("Starting AI generation for daily regeneration", {
         userId,
@@ -1296,8 +1291,6 @@ export class WorkoutService extends BaseService {
         }
       });
 
-      // Emit 90% - Processing new exercises
-      emitProgress(userId, 90);
 
       // Add any new exercises to the database (with duplicate checking)
       if (response.exercisesToAdd) {
@@ -1726,16 +1719,14 @@ export class WorkoutService extends BaseService {
     // Get user profile to access available workout days
     const profile = await profileService.getProfileByUserId(userId);
     
-    // Emit 30% - Retrieved user profile
-    emitProgress(userId, 30);
     const availableDays = profile?.availableDays || [];
+
+    // Emit 90% - Starting workout creation (this is where most time is spent)
+    emitProgress(userId, 90);
 
     // Create new workout with 7-day duration
     const newStart = new Date(newStartDate);
     const newEndDate = addDays(newStartDate, 6); // 7 days total (0-6)
-
-    // Emit 40% - Creating new workout
-    emitProgress(userId, 40);
 
     const [newWorkout] = await this.db
       .insert(workouts)
@@ -1753,13 +1744,8 @@ export class WorkoutService extends BaseService {
       })
       .returning();
 
-    // Emit 50% - Workout created successfully
-    emitProgress(userId, 50);
-
     // If user has available days configured, distribute workouts accordingly
     if (availableDays.length > 0) {
-      // Emit 60% - Scheduling plan days
-      emitProgress(userId, 60);
       
       // Calculate new dates for plan days based on available workout days
       const startDayOfWeek = new Date(newStartDate)
@@ -1908,11 +1894,8 @@ export class WorkoutService extends BaseService {
       }
     }
 
-    // Emit 70% - Plan days created
-    emitProgress(userId, 70);
-
-    // Emit 85% - Copying workout data
-    emitProgress(userId, 85);
+    // Emit 95% - Workout structure created
+    emitProgress(userId, 95);
 
     // Fetch and return the newly created workout with all its details
     const createdWorkout = await this.db.query.workouts.findFirst({
@@ -1940,9 +1923,6 @@ export class WorkoutService extends BaseService {
     if (!createdWorkout) {
       throw new Error("Failed to fetch created workout");
     }
-
-    // Emit 95% - Finalizing workout data
-    emitProgress(userId, 95);
 
     // Emit 100% - Complete
     emitProgress(userId, 100, true);

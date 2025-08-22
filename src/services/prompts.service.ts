@@ -289,8 +289,10 @@ export class PromptsService extends BaseService {
       const endDay = Math.min(startDay + chunkSize - 1, totalDays);
       const chunkNumber = chunkIndex + 1;
 
-      // Calculate progress percentage (20% to 99% for AI generation)
-      const progressPercentage = 20 + Math.round((chunkIndex / totalChunks) * 79);
+      // Calculate progress percentage (20% to 90% for n-1 chunks, final chunk gets 90-100%)
+      const progressPercentage = chunkIndex < totalChunks - 1 
+        ? 20 + Math.round((chunkIndex / (totalChunks - 1)) * 70) // 20% to 90% for first n-1 chunks
+        : 90; // Final chunk stays at 90%, remaining 10% for database operations
       emitProgress(userId, progressPercentage);
 
       logger.debug("Generating chunk", {
@@ -701,8 +703,6 @@ export class PromptsService extends BaseService {
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
     
-    // Emit 65% - AI generation in progress
-    emitProgress(userId, 65);
 
     const { data, response } = await retryWithBackoff(
       async () => {
@@ -795,8 +795,8 @@ export class PromptsService extends BaseService {
         },
       });
 
-      // Emit 80% - AI response received and parsed
-      emitProgress(userId, 80);
+      // Emit 95% - AI response received and parsed
+      emitProgress(userId, 95);
 
       return { response: parsedResponse, promptId: createdPrompt.id };
     } catch (parseError: any) {
