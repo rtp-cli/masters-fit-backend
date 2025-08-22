@@ -289,10 +289,10 @@ export class PromptsService extends BaseService {
       const endDay = Math.min(startDay + chunkSize - 1, totalDays);
       const chunkNumber = chunkIndex + 1;
 
-      // Calculate progress percentage (20% to 90% for n-1 chunks, final chunk gets 90-100%)
+      // Calculate progress percentage (20% to 99% for n-1 chunks, final chunk gets 99-100%)
       const progressPercentage = chunkIndex < totalChunks - 1 
-        ? 20 + Math.round((chunkIndex / (totalChunks - 1)) * 70) // 20% to 90% for first n-1 chunks
-        : 90; // Final chunk stays at 90%, remaining 10% for database operations
+        ? 20 + Math.round((chunkIndex / (totalChunks - 1)) * 79) // 20% to 99% for first n-1 chunks
+        : 99; // Final chunk stays at 99%, remaining 1% for database operations
       emitProgress(userId, progressPercentage);
 
       logger.debug("Generating chunk", {

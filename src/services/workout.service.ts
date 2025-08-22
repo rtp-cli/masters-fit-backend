@@ -1183,8 +1183,8 @@ export class WorkoutService extends BaseService {
     });
 
     try {
-      // Emit 15% - Starting
-      emitProgress(userId, 15);
+      // Emit 50% - Starting
+      emitProgress(userId, 50);
 
       // Get the existing plan day with its exercises
       const existingPlanDay = await this.db.query.planDays.findFirst({
