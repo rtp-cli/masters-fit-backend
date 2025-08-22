@@ -819,9 +819,6 @@ export class WorkoutService extends BaseService {
       : getCurrentDateString();
     const endDate = addDays(startDate, 6);
 
-    // Emit 85% - Starting database creation
-    emitProgress(userId, 85);
-
     const workout = await this.createWorkout({
       userId,
       promptId,
@@ -882,9 +879,6 @@ export class WorkoutService extends BaseService {
       )
       .map((obj) => obj.day);
     const rotatedDays = sortedAvailable;
-
-    // Emit 90% - Scheduling plan days
-    emitProgress(userId, 90);
 
     // Optimize database operations with bulk inserts and transactions
     await this.db.transaction(async (tx) => {
@@ -1014,9 +1008,6 @@ export class WorkoutService extends BaseService {
           .returning();
       }
     });
-
-    // Emit 95% - Copying workout data
-    emitProgress(userId, 95);
 
     // Option 1: fetch full workout with planDays and exercises, then transform and return
     const generatedWorkout = await this.getWorkoutById(workout.id);
