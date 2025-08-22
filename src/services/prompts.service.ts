@@ -289,8 +289,8 @@ export class PromptsService extends BaseService {
       const endDay = Math.min(startDay + chunkSize - 1, totalDays);
       const chunkNumber = chunkIndex + 1;
 
-      // Calculate progress percentage (20% to 90% for AI generation)
-      const progressPercentage = 20 + Math.round((chunkIndex / totalChunks) * 70);
+      // Calculate progress percentage (20% to 80% for AI generation)
+      const progressPercentage = 20 + Math.round((chunkIndex / totalChunks) * 60);
       emitProgress(userId, progressPercentage);
 
       logger.debug("Generating chunk", {
