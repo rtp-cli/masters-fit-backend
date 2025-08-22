@@ -883,6 +883,9 @@ export class WorkoutService extends BaseService {
       .map((obj) => obj.day);
     const rotatedDays = sortedAvailable;
 
+    // Emit 95% - Scheduling plan days
+    emitProgress(userId, 95);
+
     // Optimize database operations with bulk inserts and transactions
     await this.db.transaction(async (tx) => {
       let referenceDate = today;
@@ -1011,6 +1014,9 @@ export class WorkoutService extends BaseService {
           .returning();
       }
     });
+
+    // Emit 99% - Copying workout data
+    emitProgress(userId, 99);
 
     // Option 1: fetch full workout with planDays and exercises, then transform and return
     const generatedWorkout = await this.getWorkoutById(workout.id);
@@ -1173,8 +1179,8 @@ export class WorkoutService extends BaseService {
     regenerationStyles?: string[]
   ): Promise<PlanDayWithExercises> {
     try {
-      // Emit 5% - Starting
-      emitProgress(userId, 5);
+      // Emit 15% - Starting
+      emitProgress(userId, 15);
 
       // Get the existing plan day with its exercises
       const existingPlanDay = await this.db.query.planDays.findFirst({
@@ -1231,8 +1237,8 @@ export class WorkoutService extends BaseService {
         })),
       };
 
-      // Emit 15% - Calling AI
-      emitProgress(userId, 15);
+      // Emit 50% - Before AI generation
+      emitProgress(userId, 50);
 
       const result = await promptsService.generateDailyRegenerationPrompt(
         userId,
@@ -1242,8 +1248,8 @@ export class WorkoutService extends BaseService {
       );
       const { response } = result;
 
-      // Emit 75% - AI complete, saving to database
-      emitProgress(userId, 75);
+      // Emit 99% - AI complete, saving to database
+      emitProgress(userId, 99);
 
       // Add any new exercises to the database (with duplicate checking)
       if (response.exercisesToAdd) {
