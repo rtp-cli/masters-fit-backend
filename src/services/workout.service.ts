@@ -733,8 +733,8 @@ export class WorkoutService extends BaseService {
     customFeedback?: string,
     timezone?: string
   ): Promise<WorkoutWithDetails> {
-    // Emit 5% - Starting
-    emitProgress(userId, 5);
+    // Emit 10% - Starting
+    emitProgress(userId, 10);
 
     // First, find and deactivate the current active workout(s)
     const activeWorkouts = await this.db
@@ -1257,9 +1257,6 @@ export class WorkoutService extends BaseService {
         })),
       };
 
-      // Emit 90% - AI request initiated (jump immediately - this is where most time is spent)
-      emitProgress(userId, 90);
-
       logger.info("Starting AI generation for daily regeneration", {
         userId,
         planDayId,
@@ -1272,12 +1269,18 @@ export class WorkoutService extends BaseService {
         }
       });
 
+      // Emit 60% - AI request starting
+      emitProgress(userId, 60);
+
       const result = await promptsService.generateDailyRegenerationPrompt(
         userId,
         (existingPlanDay as any).dayNumber || 1,
         previousWorkout,
         regenerationReason
       );
+
+      // Emit 85% - AI response received
+      emitProgress(userId, 85);
       const { response } = result;
 
       logger.info("AI generation completed for daily regeneration", {
@@ -1392,6 +1395,15 @@ export class WorkoutService extends BaseService {
           updatedAt: new Date(),
         })
         .where(eq(workoutBlocks.id, existingPlanDay.blocks[0].id));
+
+      // Emit 95% - Database operations starting
+      emitProgress(userId, 95);
+
+      // Small delay to show progress
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Emit 99% - Database operations complete
+      emitProgress(userId, 99);
 
       // Emit 100% - Complete
       emitProgress(userId, 100, true);

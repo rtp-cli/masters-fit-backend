@@ -284,15 +284,33 @@ export class PromptsService extends BaseService {
     let workoutName = "";
     let workoutDescription = "";
 
+    // Emit 15% - LLM API request starting
+    emitProgress(userId, 15);
+
+    // Start gradual progress timer while waiting for first chunk
+    let currentWaitingProgress = 15;
+    const waitingInterval = setInterval(() => {
+      if (currentWaitingProgress < 25) {
+        currentWaitingProgress += 2;
+        emitProgress(userId, Math.min(currentWaitingProgress, 25));
+      } else {
+        clearInterval(waitingInterval);
+      }
+    }, 1000); // Increment 2% every second
+
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      // Clear waiting timer when first chunk starts
+      if (chunkIndex === 0) {
+        clearInterval(waitingInterval);
+      }
       const startDay = chunkIndex * chunkSize + 1;
       const endDay = Math.min(startDay + chunkSize - 1, totalDays);
       const chunkNumber = chunkIndex + 1;
 
-      // Calculate progress percentage (20% to 99% for n-1 chunks, final chunk gets 99-100%)
+      // Calculate progress percentage (25% to 90% for n-1 chunks, final chunk gets 90%)
       const progressPercentage = chunkIndex < totalChunks - 1 
-        ? 20 + Math.round((chunkIndex / (totalChunks - 1)) * 79) // 20% to 99% for first n-1 chunks
-        : 99; // Final chunk stays at 99%, remaining 1% for database operations
+        ? 25 + Math.round((chunkIndex / (totalChunks - 1)) * 65) // 25% to 90% for first n-1 chunks
+        : 90; // Final chunk stays at 90%, remaining 10% for database operations
       emitProgress(userId, progressPercentage);
 
       logger.debug("Generating chunk", {
@@ -451,8 +469,8 @@ export class PromptsService extends BaseService {
       exercisesToAdd: allExercisesToAdd,
     };
 
-    // Emit 85% - AI generation complete
-    emitProgress(userId, 85);
+    // Emit 95% - AI generation complete
+    emitProgress(userId, 95);
     
     logger.info("Complete workout plan generated successfully", {
       userId,
@@ -467,6 +485,9 @@ export class PromptsService extends BaseService {
       prompt: combinedPromptText,
       response: JSON.stringify(finalResponse),
     });
+
+    // Emit 99% - Database operations complete
+    emitProgress(userId, 99);
 
     return { response: finalResponse, promptId: createdPrompt.id };
   }
