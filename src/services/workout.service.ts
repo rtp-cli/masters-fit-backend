@@ -1230,6 +1230,9 @@ export class WorkoutService extends BaseService {
         }
       });
 
+      // Emit 25% - Retrieved existing plan day
+      emitProgress(userId, 25);
+
       // Get user profile for style determination
       const profile = await profileService.getProfileByUserId(userId);
 
@@ -1265,6 +1268,9 @@ export class WorkoutService extends BaseService {
         })),
       };
 
+      // Emit 35% - Prepared previous workout data
+      emitProgress(userId, 35);
+
       // Emit 50% - Before AI generation
       emitProgress(userId, 50);
 
@@ -1299,8 +1305,8 @@ export class WorkoutService extends BaseService {
         }
       });
 
-      // Emit 99% - AI complete, saving to database
-      emitProgress(userId, 99);
+      // Emit 90% - Processing new exercises
+      emitProgress(userId, 90);
 
       // Add any new exercises to the database (with duplicate checking)
       if (response.exercisesToAdd) {
@@ -1367,6 +1373,9 @@ export class WorkoutService extends BaseService {
           }
         }
       }
+
+      // Emit 99% - Saving to database
+      emitProgress(userId, 99);
 
       // Update the plan day with new instructions, name, and description from response
       // Reset isComplete to false since this is a new regenerated workout

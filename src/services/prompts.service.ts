@@ -701,6 +701,9 @@ export class PromptsService extends BaseService {
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
     
+    // Emit 65% - AI generation in progress
+    emitProgress(userId, 65);
+
     const { data, response } = await retryWithBackoff(
       async () => {
         const response = await anthropic.messages.create({
@@ -791,6 +794,9 @@ export class PromptsService extends BaseService {
             : null,
         },
       });
+
+      // Emit 80% - AI response received and parsed
+      emitProgress(userId, 80);
 
       return { response: parsedResponse, promptId: createdPrompt.id };
     } catch (parseError: any) {
