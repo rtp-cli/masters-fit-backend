@@ -3,6 +3,11 @@ import { logger } from "./utils/logger";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { setSocketIOInstance } from "./utils/websocket-progress.utils";
+import { initializeRedis, closeRedis } from "./utils/redis";
+import { workoutGenerationQueue, closeWorkoutGenerationQueue } from "./queues/workout-generation.queue";
+import { processWorkoutGenerationJob } from "./jobs/workout-generation.job";
+import { processWorkoutRegenerationJob } from "./jobs/workout-regeneration.job";
+import { processDailyRegenerationJob } from "./jobs/daily-regeneration.job";
 
 const port = parseInt(process.env.PORT || "5000", 10);
 
@@ -35,7 +40,52 @@ export { io };
 // Set up progress utility with io instance
 setSocketIOInstance(io);
 
-server.listen(port, "0.0.0.0", () => {
+// Initialize services
+async function initializeServices() {
+  try {
+    // Initialize Redis
+    await initializeRedis();
+    logger.info('Redis initialized successfully');
+
+    // Set up queue processors
+    workoutGenerationQueue.process('generate-workout', 10, processWorkoutGenerationJob);
+    workoutGenerationQueue.process('regenerate-workout', 10, processWorkoutRegenerationJob);
+    workoutGenerationQueue.process('regenerate-daily-workout', 10, processDailyRegenerationJob);
+    logger.info('Workout generation queue processors started');
+    
+  } catch (error) {
+    logger.error('Failed to initialize services', error as Error);
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown
+async function gracefulShutdown() {
+  logger.info('Graceful shutdown initiated');
+  
+  try {
+    // Close queue
+    await closeWorkoutGenerationQueue();
+    
+    // Close Redis
+    await closeRedis();
+    
+    // Close HTTP server
+    server.close(() => {
+      logger.info('Server closed successfully');
+      process.exit(0);
+    });
+  } catch (error) {
+    logger.error('Error during shutdown', error as Error);
+    process.exit(1);
+  }
+}
+
+// Handle shutdown signals
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
+server.listen(port, "0.0.0.0", async () => {
   logger.info("Server started successfully", {
     operation: "serverStart",
     metadata: {
@@ -45,6 +95,9 @@ server.listen(port, "0.0.0.0", () => {
       websocket: "enabled"
     },
   });
+  
+  // Initialize background services
+  await initializeServices();
 });
 
 export default app;

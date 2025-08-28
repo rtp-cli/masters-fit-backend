@@ -135,6 +135,25 @@ router.post("/:userId/generate", async (req, res) => {
   }
 });
 
+// Generate workout plan asynchronously
+router.post("/:userId/generate-async", async (req, res) => {
+  try {
+    const response = await controller.generateWorkoutPlanAsync(
+      Number(req.params.userId),
+      req.body
+    );
+    res.status(202).json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
 router.post("/:userId/regenerate", async (req, res) => {
   try {
     const response = await controller.regenerateWorkoutPlan(
@@ -142,6 +161,25 @@ router.post("/:userId/regenerate", async (req, res) => {
       req.body
     );
     res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Regenerate workout plan asynchronously
+router.post("/:userId/regenerate-async", async (req, res) => {
+  try {
+    const response = await controller.regenerateWorkoutPlanAsync(
+      Number(req.params.userId),
+      req.body
+    );
+    res.status(202).json(response);
   } catch (error) {
     if (error instanceof ZodError) {
       res.status(400).json({ success: false, error: "Invalid request data" });
@@ -162,6 +200,26 @@ router.post("/:userId/days/:planDayId/regenerate", async (req, res) => {
       req.body
     );
     res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Regenerate daily workout asynchronously
+router.post("/:userId/days/:planDayId/regenerate-async", async (req, res) => {
+  try {
+    const response = await controller.regenerateDailyWorkoutAsync(
+      Number(req.params.userId),
+      Number(req.params.planDayId),
+      req.body
+    );
+    res.status(202).json(response);
   } catch (error) {
     if (error instanceof ZodError) {
       res.status(400).json({ success: false, error: "Invalid request data" });
@@ -245,6 +303,43 @@ router.post("/:userId/repeat-week/:originalWorkoutId", async (req, res) => {
       res.status(400).json({ success: false, error: "Invalid request data" });
     } else if (error instanceof Error) {
       res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Register push notification token
+router.post("/:userId/register-push-token", async (req, res) => {
+  try {
+    const response = await controller.registerPushToken(
+      Number(req.params.userId),
+      req.body
+    );
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Get job status
+router.get("/jobs/:jobId/status", async (req, res) => {
+  try {
+    const response = await controller.getJobStatus(
+      Number(req.params.jobId)
+    );
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(404).json({ success: false, error: "Job not found" });
     } else {
       res.status(500).json({ success: false, error: "Internal server error" });
     }

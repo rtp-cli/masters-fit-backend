@@ -12,3 +12,7 @@ export * from "@/services/search.service";
 export * from "@/services/metrics-calculation.service";
 export * from "@/services/workout-analytics.service";
 export * from "@/services/goal-progress.service";
+
+// Background jobs and notifications
+export * from "@/services/jobs.service";
+export * from "@/services/notification.service";

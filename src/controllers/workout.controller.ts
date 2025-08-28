@@ -25,9 +25,10 @@ import {
   CreatePlanDayExerciseRequest,
 } from "@/types/workout/requests";
 import { ApiResponse } from "@/types/common/responses";
-import { workoutService } from "@/services";
-import { InsertWorkout, InsertPlanDay, InsertPlanDayExercise } from "@/models";
+import { workoutService, jobsService, notificationService } from "@/services";
+import { InsertWorkout, InsertPlanDay, InsertPlanDayExercise, WorkoutGenerationJobData, WorkoutRegenerationJobData, DailyRegenerationJobData, JobType } from "@/models";
 import { logger } from "@/utils/logger";
+import { workoutGenerationQueue } from "@/queues/workout-generation.queue";
 
 @Route("workouts")
 @Tags("Workouts")
@@ -246,6 +247,87 @@ export class WorkoutController extends Controller {
   }
 
   /**
+   * Regenerate workout plan asynchronously (returns job ID immediately)
+   * @param userId User ID
+   * @param requestBody Regeneration data
+   */
+  @Post("/{userId}/regenerate-async")
+  @Response<{ success: boolean; jobId: number; message: string }>(400, "Bad Request")
+  @SuccessResponse(202, "Job queued successfully")
+  public async regenerateWorkoutPlanAsync(
+    @Path() userId: number,
+    @Body()
+    requestBody: {
+      customFeedback?: string;
+      profileData?: {
+        age?: number;
+        height?: number;
+        weight?: number;
+        gender?: string;
+        goals?: string[];
+        limitations?: string[];
+        fitnessLevel?: string;
+        environment?: string[];
+        equipment?: string[];
+        workoutStyles?: string[];
+        availableDays?: string[];
+        workoutDuration?: number;
+        intensityLevel?: number;
+        medicalNotes?: string;
+      };
+    }
+  ): Promise<{ success: boolean; jobId: number; message: string }> {
+    logger.info('Async workout regeneration requested', {
+      userId,
+      operation: 'regenerateWorkoutPlanAsync',
+      metadata: {
+        hasCustomFeedback: !!requestBody?.customFeedback,
+        hasProfileData: !!requestBody?.profileData,
+      }
+    });
+
+    try {
+      // Create job record in database
+      const job = await jobsService.createJob(
+        userId,
+        JobType.WORKOUT_REGENERATION,
+        requestBody || {}
+      );
+
+      // Queue the job for processing
+      const jobData: WorkoutRegenerationJobData & { userId: number; jobId: number } = {
+        userId,
+        jobId: job.id,
+        customFeedback: requestBody?.customFeedback,
+        profileData: requestBody?.profileData,
+      };
+
+      await workoutGenerationQueue.add('regenerate-workout', jobData, {
+        jobId: job.id.toString(),
+        delay: 1000, // Small delay to ensure database transaction is committed
+      });
+
+      logger.info('Workout regeneration job queued successfully', {
+        userId,
+        jobId: job.id,
+        operation: 'regenerateWorkoutPlanAsync',
+      });
+
+      return {
+        success: true,
+        jobId: job.id,
+        message: 'Workout regeneration started. You will receive a notification when complete.',
+      };
+    } catch (error) {
+      logger.error('Failed to queue workout regeneration job', error as Error, {
+        userId,
+        operation: 'regenerateWorkoutPlanAsync',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Fetch active workout
    * @param userId User ID
    */
@@ -334,6 +416,84 @@ export class WorkoutController extends Controller {
   }
 
   /**
+   * Regenerate a single day's workout asynchronously
+   * @param userId User ID
+   * @param planDayId Plan day ID
+   * @param requestBody Regeneration reason and optional styles
+   */
+  @Post("/{userId}/days/{planDayId}/regenerate-async")
+  @Response<{ success: boolean; jobId: number; message: string }>(400, "Bad Request")
+  @SuccessResponse(202, "Job queued successfully")
+  public async regenerateDailyWorkoutAsync(
+    @Path() userId: number,
+    @Path() planDayId: number,
+    @Body()
+    requestBody: {
+      reason: string;
+      styles?: string[];
+      limitations?: string[];
+    }
+  ): Promise<{ success: boolean; jobId: number; message: string }> {
+    logger.info('Async daily workout regeneration requested', {
+      userId,
+      planDayId,
+      operation: 'regenerateDailyWorkoutAsync',
+      metadata: {
+        reason: requestBody.reason,
+        stylesCount: requestBody.styles?.length || 0,
+        limitationsCount: requestBody.limitations?.length || 0,
+      }
+    });
+
+    try {
+      // Create job record in database
+      const job = await jobsService.createJob(
+        userId,
+        JobType.DAILY_REGENERATION,
+        {
+          planDayId,
+          regenerationReason: requestBody.reason,
+          regenerationStyles: requestBody.styles,
+        }
+      );
+
+      // Queue the job for processing
+      const jobData: DailyRegenerationJobData & { userId: number; jobId: number } = {
+        userId,
+        jobId: job.id,
+        planDayId,
+        regenerationReason: requestBody.reason,
+        regenerationStyles: requestBody.styles,
+      };
+
+      await workoutGenerationQueue.add('regenerate-daily-workout', jobData, {
+        jobId: job.id.toString(),
+        delay: 500, // Smaller delay for daily regeneration (faster operation)
+      });
+
+      logger.info('Daily workout regeneration job queued successfully', {
+        userId,
+        planDayId,
+        jobId: job.id,
+        operation: 'regenerateDailyWorkoutAsync',
+      });
+
+      return {
+        success: true,
+        jobId: job.id,
+        message: 'Daily workout regeneration started. You will receive a notification when complete.',
+      };
+    } catch (error) {
+      logger.error('Failed to queue daily workout regeneration job', error as Error, {
+        userId,
+        planDayId,
+        operation: 'regenerateDailyWorkoutAsync',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Get workout history for a user
    * @param userId User ID
    */
@@ -416,6 +576,204 @@ export class WorkoutController extends Controller {
         metadata: { userId },
       });
       throw new Error("Failed to fetch active workouts");
+    }
+  }
+
+  /**
+   * Generate workout plan asynchronously (returns job ID immediately)
+   * @param userId User ID
+   * @param requestBody Generation options including timezone and profile data
+   */
+  @Post("/{userId}/generate-async")
+  @Response<{ success: boolean; jobId: number; message: string }>(400, "Bad Request")
+  @SuccessResponse(202, "Job queued successfully")
+  public async generateWorkoutPlanAsync(
+    @Path() userId: number,
+    @Body() 
+    requestBody?: {
+      customFeedback?: string;
+      timezone?: string;
+      profileData?: {
+        age?: number;
+        height?: number;
+        weight?: number;
+        gender?: string;
+        goals?: string[];
+        limitations?: string[];
+        fitnessLevel?: string;
+        environment?: string[];
+        equipment?: string[];
+        workoutStyles?: string[];
+        availableDays?: string[];
+        workoutDuration?: number;
+        intensityLevel?: number;
+        medicalNotes?: string;
+      };
+    }
+  ): Promise<{ success: boolean; jobId: number; message: string }> {
+    logger.info('Async workout generation requested', {
+      userId,
+      operation: 'generateWorkoutPlanAsync',
+      metadata: {
+        hasCustomFeedback: !!requestBody?.customFeedback,
+        hasProfileData: !!requestBody?.profileData,
+        timezone: requestBody?.timezone,
+      }
+    });
+
+    try {
+      // Create job record in database
+      const job = await jobsService.createJob(
+        userId,
+        'workout_generation',
+        requestBody || {}
+      );
+
+      // Queue the job for processing
+      const jobData: WorkoutGenerationJobData & { userId: number; jobId: number } = {
+        userId,
+        jobId: job.id,
+        customFeedback: requestBody?.customFeedback,
+        timezone: requestBody?.timezone,
+        profileData: requestBody?.profileData,
+      };
+
+      await workoutGenerationQueue.add('generate-workout', jobData, {
+        jobId: job.id.toString(),
+        delay: 1000, // Small delay to ensure database transaction is committed
+      });
+
+      logger.info('Workout generation job queued successfully', {
+        userId,
+        jobId: job.id,
+        operation: 'generateWorkoutPlanAsync',
+      });
+
+      return {
+        success: true,
+        jobId: job.id,
+        message: 'Workout generation started. You will receive a notification when complete.',
+      };
+    } catch (error) {
+      logger.error('Failed to queue workout generation job', error as Error, {
+        userId,
+        operation: 'generateWorkoutPlanAsync',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get job status by job ID
+   * @param jobId Job ID
+   */
+  @Get("/jobs/{jobId}/status")
+  @Response<{ success: boolean; error: string }>(404, "Job not found")
+  @SuccessResponse(200, "Success")
+  public async getJobStatus(
+    @Path() jobId: number
+  ): Promise<{ 
+    success: boolean; 
+    job: {
+      id: number;
+      status: string;
+      progress: number;
+      error?: string;
+      workoutId?: number;
+      createdAt: string;
+      completedAt?: string;
+    } 
+  }> {
+    const job = await jobsService.getJob(jobId);
+    
+    if (!job) {
+      this.setStatus(404);
+      throw new Error('Job not found');
+    }
+
+    return {
+      success: true,
+      job: {
+        id: job.id,
+        status: job.status,
+        progress: job.progress || 0,
+        error: job.error || undefined,
+        workoutId: job.workoutId || undefined,
+        createdAt: job.createdAt.toISOString(),
+        completedAt: job.completedAt?.toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Get user's job history
+   * @param userId User ID
+   */
+  @Get("/{userId}/jobs")
+  @SuccessResponse(200, "Success")
+  public async getUserJobs(
+    @Path() userId: number
+  ): Promise<{
+    success: boolean;
+    jobs: Array<{
+      id: number;
+      status: string;
+      progress: number;
+      error?: string;
+      workoutId?: number;
+      createdAt: string;
+      completedAt?: string;
+    }>;
+  }> {
+    const jobs = await jobsService.getUserJobs(userId, 'workout_generation', 20);
+    
+    return {
+      success: true,
+      jobs: jobs.map(job => ({
+        id: job.id,
+        status: job.status,
+        progress: job.progress || 0,
+        error: job.error || undefined,
+        workoutId: job.workoutId || undefined,
+        createdAt: job.createdAt.toISOString(),
+        completedAt: job.completedAt?.toISOString(),
+      })),
+    };
+  }
+
+  /**
+   * Register push notification token for user
+   * @param userId User ID
+   * @param requestBody Push token data
+   */
+  @Post("/{userId}/register-push-token")
+  @Response<{ success: boolean; error: string }>(400, "Bad Request")
+  @SuccessResponse(200, "Token registered successfully")
+  public async registerPushToken(
+    @Path() userId: number,
+    @Body() requestBody: { pushToken: string }
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const success = await notificationService.registerPushToken(
+        userId,
+        requestBody.pushToken
+      );
+
+      if (!success) {
+        this.setStatus(400);
+        throw new Error('Invalid push token format');
+      }
+
+      return {
+        success: true,
+        message: 'Push notification token registered successfully',
+      };
+    } catch (error) {
+      logger.error('Failed to register push token', error as Error, {
+        userId,
+        operation: 'registerPushToken',
+      });
+      throw error;
     }
   }
 }

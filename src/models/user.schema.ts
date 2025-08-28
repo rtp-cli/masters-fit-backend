@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   emailVerified: boolean("email_verified").default(false),
+  pushNotificationToken: text("push_notification_token"), // Expo push token
   createdAt: timestamp("created_at").defaultNow(),
   needsOnboarding: boolean("needs_onboarding").default(true),
 }, (table) => ({
@@ -25,6 +26,7 @@ export const updateUserSchema = createInsertSchema(users).pick({
   email: true,
   name: true,
   needsOnboarding: true,
+  pushNotificationToken: true,
 });
 
 // Types - Explicit interface for TSOA compatibility
@@ -33,6 +35,7 @@ export interface User {
   email: string;
   name: string;
   emailVerified: boolean | null;
+  pushNotificationToken: string | null;
   createdAt: Date | null;
   needsOnboarding: boolean | null;
 }
