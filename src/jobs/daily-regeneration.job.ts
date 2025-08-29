@@ -94,7 +94,9 @@ export async function processDailyRegenerationJob(
 
   } catch (error) {
     const generationTime = Date.now() - startTime;
-    const isLastAttempt = job.attemptsMade >= (job.opts.attempts || 3);
+    // Bull queue attemptsMade: 1=first attempt, 2=first retry, 3=second retry (final)  
+    const maxAttempts = job.opts.attempts || 3;
+    const isLastAttempt = job.attemptsMade === maxAttempts;
     
     logger.error('Daily workout regeneration job failed', error as Error, {
       operation: 'dailyRegenerationJob',
@@ -124,6 +126,15 @@ export async function processDailyRegenerationJob(
         (error as Error).message
       );
 
+      logger.info(`Daily workout regeneration job marked as FAILED after final attempt`, {
+        operation: 'dailyRegenerationJob',
+        jobId: job.id,
+        userId,
+        planDayId,
+        finalAttempt: job.attemptsMade,
+        maxAttempts: job.opts.attempts || 3,
+      });
+
       // Emit error progress
       emitProgress(userId, 0, false, (error as Error).message);
 
@@ -132,6 +143,14 @@ export async function processDailyRegenerationJob(
         userId,
         `Daily workout regeneration failed: ${(error as Error).message}`
       );
+
+      // Return error result instead of throwing to avoid Bull queue overriding the FAILED status
+      return {
+        planDayId: 0,
+        planDayName: 'Failed Daily Regeneration',
+        totalExercises: 0,
+        generationTimeMs: Date.now() - startTime,
+      } as DailyRegenerationJobResult;
     } else {
       logger.info(`Daily workout regeneration job will retry (attempt ${job.attemptsMade}/${job.opts.attempts || 3})`, {
         operation: 'dailyRegenerationJob',
@@ -139,8 +158,9 @@ export async function processDailyRegenerationJob(
         userId,
         planDayId,
       });
+      
+      // Only throw error for retry attempts
+      throw error;
     }
-
-    throw error;
   }
 }

@@ -103,7 +103,9 @@ export async function processWorkoutGenerationJob(
 
   } catch (error) {
     const generationTime = Date.now() - startTime;
-    const isLastAttempt = job.attemptsMade >= (job.opts.attempts || 3);
+    // Bull queue attemptsMade: 1=first attempt, 2=first retry, 3=second retry (final)
+    const maxAttempts = job.opts.attempts || 3;
+    const isLastAttempt = job.attemptsMade === maxAttempts;
     
     logger.error('Workout generation job failed', error as Error, {
       operation: 'workoutGenerationJob',
@@ -114,15 +116,17 @@ export async function processWorkoutGenerationJob(
         errorMessage: (error as Error).message,
         failedAt: new Date().toISOString(),
         attemptsMade: job.attemptsMade,
-        maxAttempts: job.opts.attempts || 3,
+        maxAttempts,
         isLastAttempt,
+        attemptsMadeGTEMaxAttempts: job.attemptsMade >= maxAttempts,
+        attemptsMadeEqualsMaxAttempts: job.attemptsMade === maxAttempts,
       }
     });
 
     // Only update to failed status and send notifications on the final attempt
     if (isLastAttempt) {
       // Update job status to failed
-      await jobsService.updateJobStatus(
+      const updatedJob = await jobsService.updateJobStatus(
         jobId, 
         JobStatus.FAILED, 
         0, 
@@ -130,6 +134,19 @@ export async function processWorkoutGenerationJob(
         undefined,
         (error as Error).message
       );
+
+      // Verify the update worked
+      const verifyJob = await jobsService.getJob(jobId);
+      
+      logger.info(`Workout generation job marked as FAILED after final attempt`, {
+        operation: 'workoutGenerationJob',
+        jobId: job.id,
+        userId,
+        finalAttempt: job.attemptsMade,
+        maxAttempts: job.opts.attempts || 3,
+        dbStatusAfterUpdate: verifyJob?.status,
+        updateResult: updatedJob?.status,
+      });
 
       // Emit error progress
       emitProgress(userId, 0, false, (error as Error).message);
@@ -139,14 +156,30 @@ export async function processWorkoutGenerationJob(
         userId,
         (error as Error).message
       );
+
+      // Return error result instead of throwing to avoid Bull queue overriding the FAILED status
+      return {
+        workoutId: 0,
+        workoutName: 'Failed Generation',
+        planDaysCount: 0,
+        totalExercises: 0,
+        generationTimeMs: Date.now() - startTime,
+      } as WorkoutGenerationJobResult;
     } else {
       logger.info(`Workout generation job will retry (attempt ${job.attemptsMade}/${job.opts.attempts || 3})`, {
         operation: 'workoutGenerationJob',
         jobId: job.id,
         userId,
       });
+      
+      // Keep job status as PROCESSING during retries
+      await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 10);
+      
+      // Emit retry progress update (not error)
+      emitProgress(userId, 10, false, undefined);
+      
+      // Only throw error for retry attempts
+      throw error;
     }
-
-    throw error;
   }
 }

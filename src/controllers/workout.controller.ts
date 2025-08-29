@@ -691,6 +691,13 @@ export class WorkoutController extends Controller {
       throw new Error('Job not found');
     }
 
+    // Disable caching for active jobs to ensure fresh status
+    if (job.status === 'pending' || job.status === 'processing') {
+      this.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      this.setHeader('Pragma', 'no-cache');
+      this.setHeader('Expires', '0');
+    }
+
     return {
       success: true,
       job: {

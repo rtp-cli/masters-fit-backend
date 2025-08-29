@@ -108,7 +108,9 @@ export async function processWorkoutRegenerationJob(
 
   } catch (error) {
     const generationTime = Date.now() - startTime;
-    const isLastAttempt = job.attemptsMade >= (job.opts.attempts || 3);
+    // Bull queue attemptsMade: 1=first attempt, 2=first retry, 3=second retry (final)
+    const maxAttempts = job.opts.attempts || 3;
+    const isLastAttempt = job.attemptsMade === maxAttempts;
     
     logger.error('Workout regeneration job failed', error as Error, {
       operation: 'workoutRegenerationJob',
@@ -136,6 +138,14 @@ export async function processWorkoutRegenerationJob(
         (error as Error).message
       );
 
+      logger.info(`Workout regeneration job marked as FAILED after final attempt`, {
+        operation: 'workoutRegenerationJob',
+        jobId: job.id,
+        userId,
+        finalAttempt: job.attemptsMade,
+        maxAttempts: job.opts.attempts || 3,
+      });
+
       // Emit error progress
       emitProgress(userId, 0, false, (error as Error).message);
 
@@ -144,14 +154,24 @@ export async function processWorkoutRegenerationJob(
         userId,
         `Workout regeneration failed: ${(error as Error).message}`
       );
+
+      // Return error result instead of throwing to avoid Bull queue overriding the FAILED status
+      return {
+        workoutId: 0,
+        workoutName: 'Failed Regeneration',
+        planDaysCount: 0,
+        totalExercises: 0,
+        generationTimeMs: Date.now() - startTime,
+      } as WorkoutRegenerationJobResult;
     } else {
       logger.info(`Workout regeneration job will retry (attempt ${job.attemptsMade}/${job.opts.attempts || 3})`, {
         operation: 'workoutRegenerationJob',
         jobId: job.id,
         userId,
       });
+      
+      // Only throw error for retry attempts
+      throw error;
     }
-
-    throw error;
   }
 }
