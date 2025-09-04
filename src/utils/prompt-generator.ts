@@ -656,6 +656,8 @@ const getCriticalConstraints = (
 ): string => {
   const dayReference = context === "weekly" ? "every day" : "this day";
   const daysReference = context === "weekly" ? "all days" : "this day";
+  const scopeReference =
+    context === "weekly" ? "Generate full week" : "Generate complete workout";
 
   return `
 ## CRITICAL CONSTRAINTS
@@ -663,9 +665,14 @@ const getCriticalConstraints = (
 1. **DURATION COMPLIANCE FIRST**: Every workout must meet target duration ±5 minutes - ignore token limits
 2. **Include blockDurationMinutes**: Calculate and include duration for each block
 3. **Valid JSON format only** - no markdown or explanations
-4. **Generate full week** as requested
-5. **Minimum blocks**: 45+ min = 3 blocks, 70+ min = 4 blocks
-6. **Respect user limitations** and available equipment
+4. **${scopeReference}** as requested
+5. **MANDATORY MINIMUM BLOCKS**: 
+   - 30+ min = minimum 3 blocks (warmup + main + cooldown)
+   - 45+ min = minimum 4 blocks (warmup + 2 main + cooldown)
+   - 60+ min = minimum 5 blocks (warmup + 3 main + cooldown)
+   - NEVER create workouts with just 1-2 blocks unless under 20 minutes
+6. **BLOCK BALANCE REQUIRED**: No single block should contain more than 8 exercises
+7. **Respect user limitations** and available equipment
 `;
 };
 
