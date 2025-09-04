@@ -309,6 +309,25 @@ router.post("/:userId/repeat-week/:originalWorkoutId", async (req, res) => {
   }
 });
 
+// Generate rest day workout
+router.post("/:userId/rest-day-workout", async (req, res) => {
+  try {
+    const response = await controller.generateRestDayWorkoutAsync(
+      Number(req.params.userId),
+      req.body
+    );
+    res.status(202).json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
 // Register push notification token
 router.post("/:userId/register-push-token", async (req, res) => {
   try {

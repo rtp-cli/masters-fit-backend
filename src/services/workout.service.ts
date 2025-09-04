@@ -1173,7 +1173,7 @@ export class WorkoutService extends BaseService {
     regenerationStyles?: string[]
   ): Promise<PlanDayWithExercises> {
     const startTime = Date.now();
-    
+
     logger.info("Starting daily workout regeneration", {
       userId,
       planDayId,
@@ -1181,8 +1181,8 @@ export class WorkoutService extends BaseService {
       metadata: {
         regenerationReason,
         stylesCount: regenerationStyles?.length || 0,
-        startTime: new Date().toISOString()
-      }
+        startTime: new Date().toISOString(),
+      },
     });
 
     try {
@@ -1206,11 +1206,15 @@ export class WorkoutService extends BaseService {
       });
 
       if (!existingPlanDay) {
-        logger.error("Plan day not found for regeneration", new Error("Plan day not found"), {
-          userId,
-          planDayId,
-          operation: "regenerateDailyWorkout"
-        });
+        logger.error(
+          "Plan day not found for regeneration",
+          new Error("Plan day not found"),
+          {
+            userId,
+            planDayId,
+            operation: "regenerateDailyWorkout",
+          }
+        );
         throw new Error("Plan day not found");
       }
 
@@ -1220,10 +1224,30 @@ export class WorkoutService extends BaseService {
         operation: "regenerateDailyWorkout",
         metadata: {
           existingBlocks: existingPlanDay.blocks?.length || 0,
-          planDayName: existingPlanDay.name
-        }
+          planDayName: existingPlanDay.name,
+        },
       });
 
+      // Ensure at least one block exists for this plan day (rest-day insert creates none)
+      let primaryBlockId: number | null =
+        existingPlanDay.blocks?.[0]?.id ?? null;
+      let previousBlockExercises = existingPlanDay.blocks?.[0]?.exercises || [];
+      if (!primaryBlockId) {
+        const newBlock = await this.createWorkoutBlock({
+          planDayId: existingPlanDay.id,
+          blockType: "traditional",
+          blockName: "Auto-generated",
+          blockDurationMinutes: null,
+          timeCapMinutes: null,
+          rounds: 1,
+          instructions: null,
+          order: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as any);
+        primaryBlockId = newBlock.id;
+        previousBlockExercises = [];
+      }
 
       // Get user profile for style determination
       const profile = await profileService.getProfileByUserId(userId);
@@ -1249,7 +1273,7 @@ export class WorkoutService extends BaseService {
       // Format the previous workout for the AI prompt
       const previousWorkout = {
         day: (existingPlanDay as any).dayNumber || 1,
-        exercises: existingPlanDay.blocks[0].exercises.map((ex) => ({
+        exercises: (previousBlockExercises || []).map((ex) => ({
           exerciseName: ex.exercise.name,
           sets: ex.sets || 0,
           reps: ex.reps || 0,
@@ -1268,18 +1292,23 @@ export class WorkoutService extends BaseService {
           dayNumber: (existingPlanDay as any).dayNumber || 1,
           regenerationReason,
           previousExerciseCount: previousWorkout.exercises.length,
-          aiCallStartTime: new Date().toISOString()
-        }
+          aiCallStartTime: new Date().toISOString(),
+        },
       });
 
       // Emit 70% - AI request starting
       emitProgress(userId, 70);
 
+      const isRestDayContext =
+        (existingPlanDay.name || "").toLowerCase().includes("rest day") ||
+        (previousBlockExercises || []).length === 0;
+
       const result = await promptsService.generateDailyRegenerationPrompt(
         userId,
         (existingPlanDay as any).dayNumber || 1,
         previousWorkout,
-        regenerationReason
+        regenerationReason,
+        isRestDayContext
       );
 
       // Emit 85% - AI response received
@@ -1293,10 +1322,9 @@ export class WorkoutService extends BaseService {
         metadata: {
           aiResponseReceived: true,
           newExerciseCount: response.exercises?.length || 0,
-          aiCallCompleteTime: new Date().toISOString()
-        }
+          aiCallCompleteTime: new Date().toISOString(),
+        },
       });
-
 
       // Add any new exercises to the database (with duplicate checking)
       if (response.exercisesToAdd) {
@@ -1314,7 +1342,7 @@ export class WorkoutService extends BaseService {
       }
 
       // First, delete all exercise logs that reference these plan day exercises
-      const planDayExerciseIds = existingPlanDay.blocks[0].exercises.map(
+      const planDayExerciseIds = (previousBlockExercises || []).map(
         (ex) => ex.id
       );
       if (planDayExerciseIds.length > 0) {
@@ -1331,9 +1359,7 @@ export class WorkoutService extends BaseService {
       // Then delete all existing exercises for this plan day
       await this.db
         .delete(planDayExercises)
-        .where(
-          eq(planDayExercises.workoutBlockId, existingPlanDay.blocks[0].id)
-        );
+        .where(eq(planDayExercises.workoutBlockId, primaryBlockId!));
 
       // Create new exercises for this plan day
       const newExercises: any[] = [];
@@ -1347,7 +1373,7 @@ export class WorkoutService extends BaseService {
               );
               if (exerciseDetails) {
                 const newExercise = await this.createPlanDayExercise({
-                  workoutBlockId: existingPlanDay.blocks[0].id,
+                  workoutBlockId: primaryBlockId!,
                   exerciseId: exerciseDetails.id,
                   sets: exercise.sets,
                   reps: exercise.reps,
@@ -1397,13 +1423,13 @@ export class WorkoutService extends BaseService {
           instructions: responseBlock?.instructions || null,
           updatedAt: new Date(),
         })
-        .where(eq(workoutBlocks.id, existingPlanDay.blocks[0].id));
+        .where(eq(workoutBlocks.id, primaryBlockId!));
 
       // Emit 95% - Database operations starting
       emitProgress(userId, 95);
 
       // Small delay to show progress
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       // Emit 99% - Database operations complete
       emitProgress(userId, 99);
@@ -1419,8 +1445,8 @@ export class WorkoutService extends BaseService {
         metadata: {
           totalDuration: `${totalDuration}ms`,
           finalExerciseCount: response.exercises?.length || 0,
-          completedAt: new Date().toISOString()
-        }
+          completedAt: new Date().toISOString(),
+        },
       });
 
       // Return the updated plan day with new exercises
@@ -1435,7 +1461,22 @@ export class WorkoutService extends BaseService {
         dayNumber: existingPlanDay.dayNumber || 1,
         created_at: new Date(existingPlanDay.createdAt ?? Date.now()),
         updated_at: new Date(),
-        blocks: existingPlanDay.blocks.map((block, index) => ({
+        blocks: (existingPlanDay.blocks && existingPlanDay.blocks.length > 0
+          ? existingPlanDay.blocks
+          : [
+              {
+                id: primaryBlockId!,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                blockType: null,
+                blockName: null,
+                blockDurationMinutes: null,
+                timeCapMinutes: null,
+                rounds: null,
+                instructions: null,
+              } as any,
+            ]
+        ).map((block, index) => ({
           id: block.id,
           blockType: responseBlock?.blockType || (block.blockType ?? undefined),
           blockName: responseBlock?.blockName || (block.blockName ?? undefined),
@@ -1487,7 +1528,7 @@ export class WorkoutService extends BaseService {
       };
     } catch (error) {
       const totalDuration = Date.now() - startTime;
-      
+
       logger.error("Daily workout regeneration failed", error as Error, {
         userId,
         planDayId,
@@ -1497,8 +1538,8 @@ export class WorkoutService extends BaseService {
           regenerationReason,
           errorTime: new Date().toISOString(),
           errorMessage: (error as Error).message,
-          stackTrace: (error as Error).stack
-        }
+          stackTrace: (error as Error).stack,
+        },
       });
 
       // Update progress - daily regeneration failed
@@ -1733,7 +1774,7 @@ export class WorkoutService extends BaseService {
 
     // Get user profile to access available workout days
     const profile = await profileService.getProfileByUserId(userId);
-    
+
     const availableDays = profile?.availableDays || [];
 
     // Emit 90% - Starting workout creation (this is where most time is spent)
@@ -1761,7 +1802,6 @@ export class WorkoutService extends BaseService {
 
     // If user has available days configured, distribute workouts accordingly
     if (availableDays.length > 0) {
-      
       // Calculate new dates for plan days based on available workout days
       const startDayOfWeek = new Date(newStartDate)
         .toLocaleDateString("en-US", { weekday: "long" })
@@ -1943,6 +1983,63 @@ export class WorkoutService extends BaseService {
     emitProgress(userId, 100, true);
 
     return this.transformWorkout(createdWorkout as unknown as DBWorkoutResult);
+  }
+
+  /**
+   * Create a new plan day for a rest day and renumber subsequent days
+   */
+  async createPlanDayForRestDay(
+    workoutId: number,
+    date: string
+  ): Promise<PlanDay> {
+    // Get all existing plan days for this workout, ordered by date
+    const existingDays = await this.db.query.planDays.findMany({
+      where: eq(planDays.workoutId, workoutId),
+      orderBy: [asc(planDays.date)],
+    });
+
+    // Determine where this date fits in the sequence
+    const insertPosition =
+      existingDays.filter((day) => day.date < date).length + 1;
+
+    // Update dayNumber for all days that come after the insert position
+    for (const day of existingDays) {
+      if ((day.dayNumber || 0) >= insertPosition) {
+        await this.db
+          .update(planDays)
+          .set({
+            dayNumber: (day.dayNumber || 0) + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(planDays.id, day.id));
+      }
+    }
+
+    // Create the new plan day
+    const [newPlanDay] = await this.db
+      .insert(planDays)
+      .values({
+        workoutId,
+        date: sql`${new Date(date)}::date`,
+        dayNumber: insertPosition,
+        name: "Rest Day Workout",
+        description: "Optional workout for rest day",
+        instructions: null,
+        isComplete: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    logger.info("Rest day plan day created with renumbering", {
+      workoutId,
+      date,
+      newPlanDayId: newPlanDay.id,
+      insertPosition,
+      totalDaysAfter: existingDays.length + 1,
+    });
+
+    return newPlanDay;
   }
 }
 

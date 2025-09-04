@@ -749,6 +749,98 @@ export class WorkoutController extends Controller {
   }
 
   /**
+   * Generate a rest day workout
+   * @param userId User ID
+   * @param requestBody Rest day workout parameters
+   */
+  @Post("/{userId}/rest-day-workout")
+  @Response<{ success: boolean; jobId: number; message: string }>(400, "Bad Request")
+  @SuccessResponse(202, "Job queued successfully")
+  public async generateRestDayWorkoutAsync(
+    @Path() userId: number,
+    @Body()
+    requestBody: {
+      date: string;
+      reason: string;
+    }
+  ): Promise<{ success: boolean; jobId: number; message: string }> {
+    logger.info('Rest day workout generation requested', {
+      userId,
+      operation: 'generateRestDayWorkoutAsync',
+      metadata: {
+        date: requestBody.date,
+        hasReason: !!requestBody.reason,
+      }
+    });
+    
+    try {
+      // Get active workout to check if date is available
+      const activeWorkout = await workoutService.fetchActiveWorkout(userId);
+      if (!activeWorkout) {
+        this.setStatus(400);
+        throw new Error("No active workout found");
+      }
+
+      // Check if this date already has a workout
+      const existingPlanDay = activeWorkout.planDays?.find(day => day.date === requestBody.date);
+      if (existingPlanDay) {
+        this.setStatus(400);
+        throw new Error("This date already has a workout scheduled");
+      }
+
+      // Create a new plan day for the rest day
+      const newPlanDay = await workoutService.createPlanDayForRestDay(
+        activeWorkout.id,
+        requestBody.date
+      );
+
+      // Create job record in database
+      const job = await jobsService.createJob(
+        userId,
+        JobType.DAILY_REGENERATION,
+        {
+          planDayId: newPlanDay.id,
+          regenerationReason: requestBody.reason,
+          isRestDayGeneration: true
+        }
+      );
+
+      // Queue the job for processing
+      const jobData = {
+        userId,
+        jobId: job.id,
+        planDayId: newPlanDay.id,
+        regenerationReason: requestBody.reason,
+        isRestDayGeneration: true
+      };
+
+      await workoutGenerationQueue.add('regenerate-daily-workout', jobData, {
+        jobId: job.id.toString(),
+        delay: 500,
+      });
+
+      logger.info('Rest day workout generation job queued successfully', {
+        userId,
+        planDayId: newPlanDay.id,
+        jobId: job.id,
+        operation: 'generateRestDayWorkoutAsync',
+      });
+
+      return {
+        success: true,
+        jobId: job.id,
+        message: 'Rest day workout generation started. You will receive a notification when complete.',
+      };
+    } catch (error) {
+      logger.error('Failed to queue rest day workout generation job', error as Error, {
+        userId,
+        operation: 'generateRestDayWorkoutAsync',
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Register push notification token for user
    * @param userId User ID
    * @param requestBody Push token data

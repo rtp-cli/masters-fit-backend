@@ -10,7 +10,11 @@ import {
 } from "@/utils/prompt-generator";
 import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "@/utils/logger";
-import { retryWithBackoff, CHUNKED_GENERATION_RETRY_OPTIONS, DEFAULT_API_RETRY_OPTIONS } from "@/utils/retry.utils";
+import {
+  retryWithBackoff,
+  CHUNKED_GENERATION_RETRY_OPTIONS,
+  DEFAULT_API_RETRY_OPTIONS,
+} from "@/utils/retry.utils";
 import { emitProgress } from "@/utils/websocket-progress.utils";
 
 // Utility function to clean JSON responses that may be wrapped in code blocks
@@ -119,7 +123,7 @@ export class PromptsService extends BaseService {
           DEFAULT_API_RETRY_OPTIONS,
           {
             operation: "generatePrompt",
-            userId
+            userId,
           }
         );
         data = result;
@@ -248,7 +252,7 @@ export class PromptsService extends BaseService {
   public async generateChunkedPrompt(userId: number, customFeedback?: string) {
     // Emit 12% - Loading user profile
     emitProgress(userId, 12);
-    
+
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
       throw new Error("Profile not found");
@@ -314,9 +318,10 @@ export class PromptsService extends BaseService {
       const chunkNumber = chunkIndex + 1;
 
       // Calculate progress percentage (25% to 90% for n-1 chunks, final chunk gets 90%)
-      const progressPercentage = chunkIndex < totalChunks - 1 
-        ? 25 + Math.round((chunkIndex / (totalChunks - 1)) * 65) // 25% to 90% for first n-1 chunks
-        : 90; // Final chunk stays at 90%, remaining 10% for database operations
+      const progressPercentage =
+        chunkIndex < totalChunks - 1
+          ? 25 + Math.round((chunkIndex / (totalChunks - 1)) * 65) // 25% to 90% for first n-1 chunks
+          : 90; // Final chunk stays at 90%, remaining 10% for database operations
       emitProgress(userId, progressPercentage);
 
       logger.debug("Generating chunk", {
@@ -348,9 +353,9 @@ export class PromptsService extends BaseService {
             return { response, data };
           },
           CHUNKED_GENERATION_RETRY_OPTIONS,
-          { 
+          {
             operation: "generateChunkedPrompt",
-            userId 
+            userId,
           }
         );
 
@@ -477,7 +482,7 @@ export class PromptsService extends BaseService {
 
     // Emit 95% - AI generation complete
     emitProgress(userId, 95);
-    
+
     logger.info("Complete workout plan generated successfully", {
       userId,
       operation: "generateChunkedPrompt",
@@ -579,16 +584,20 @@ export class PromptsService extends BaseService {
           },
           DEFAULT_API_RETRY_OPTIONS,
           {
-            operation: "generateRegenerationPrompt", 
-            userId
+            operation: "generateRegenerationPrompt",
+            userId,
           }
         );
       } catch (retryError) {
-        logger.error("Failed to generate regeneration prompt after retries", retryError as Error, {
-          userId,
-          operation: "generateRegenerationPrompt",
-          metadata: { attempts }
-        });
+        logger.error(
+          "Failed to generate regeneration prompt after retries",
+          retryError as Error,
+          {
+            userId,
+            operation: "generateRegenerationPrompt",
+            metadata: { attempts },
+          }
+        );
         throw retryError;
       }
 
@@ -708,7 +717,8 @@ export class PromptsService extends BaseService {
     userId: number,
     dayNumber: number,
     previousWorkout: any,
-    regenerationReason: string
+    regenerationReason: string,
+    isRestDay: boolean = false
   ) {
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
@@ -723,13 +733,13 @@ export class PromptsService extends BaseService {
       exerciseNames,
       dayNumber,
       previousWorkout,
-      regenerationReason
+      regenerationReason,
+      isRestDay
     );
 
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
-    
 
     const { data, response } = await retryWithBackoff(
       async () => {
@@ -740,13 +750,13 @@ export class PromptsService extends BaseService {
         });
         return {
           data: (response.content[0] as any).text,
-          response: response
+          response: response,
         };
       },
       DEFAULT_API_RETRY_OPTIONS,
       {
         operation: "generateDailyRegenerationPrompt",
-        userId
+        userId,
       }
     );
 
