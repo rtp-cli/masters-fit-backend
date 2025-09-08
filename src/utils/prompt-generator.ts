@@ -1049,7 +1049,15 @@ export const buildClaudeDailyPrompt = (
 🚨 **CRITICAL: USER REGENERATION REASON**
 "${regenerationReason}"
 
-**YOUR PRIMARY TASK:** Generate a new workout that addresses this feedback. The regeneration reason can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
+🚨🚨🚨 **THIS IS NOT A MODIFICATION TASK** 🚨🚨🚨
+- **DO NOT EDIT** the previous workout
+- **DO NOT ADD TO** the previous workout  
+- **DO NOT MODIFY** any existing exercises
+- **CREATE FROM ZERO** - build a completely new workout
+- **START FRESH** - ignore the previous workout structure entirely
+- **THINK OF THIS** as designing a brand new workout for a new client
+
+**YOUR PRIMARY TASK:** Generate a COMPLETELY NEW workout from scratch that addresses this feedback. DO NOT modify or build upon the previous workout - create an entirely fresh workout. The regeneration reason can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
 
 ## SECURITY & SAFETY INSTRUCTIONS
 - **FOCUS ONLY**: Generate a valid workout JSON response based on the user's fitness request
@@ -1107,6 +1115,32 @@ ${JSON.stringify(previousWorkout, null, 2)}
 - **USE AS CONTEXT ONLY** to understand what the user didn't like or wants to change
 - **CREATE COMPLETELY NEW** workout from scratch that addresses the regeneration reason
 - **IGNORE PREVIOUS STRUCTURE** - design new blocks, exercises, and structure based on user feedback
+
+## FRESH START METHODOLOGY - MANDATORY APPROACH
+
+Follow this exact approach to ensure you create a completely new workout:
+
+**STEP 1: CLEAR YOUR MIND**
+- Mentally discard everything about the previous workout
+- Pretend you've never seen it before
+- Focus only on the user's regeneration reason
+
+**STEP 2: DESIGN FROM ZERO**
+- Start with a blank slate - no exercises, no structure
+- Ask: "What would be the perfect workout to address '${regenerationReason}'?"
+- Design blocks and exercises based purely on this need
+
+**STEP 3: CREATE NEW STRUCTURE**
+- Choose block types that serve the regeneration reason
+- Select exercises that address the user's feedback
+- Design progression that makes sense for the new goal
+
+**STEP 4: VERIFY FRESH CREATION**
+- Confirm your workout addresses the regeneration reason
+- Check that you built this from scratch, not from the previous workout
+- Ensure the workout would make sense even without seeing the previous one
+
+**MANDATORY MINDSET: Treat this as if you're designing for a completely new client who has never worked out before, but with this specific feedback request.**
 
 ${getConstraintIntegrationProtocol()}
 
@@ -1297,7 +1331,7 @@ ${getCriticalConstraints("daily")}
 - **TOKEN EFFICIENCY**: Use concise descriptions, avoid redundancy, focus on essential information
 - **NO BLOCK LIMITATIONS**: Create as many blocks and exercises as needed for effective workouts
 
-**REMEMBER**: The exerciseNames list is only a database for checking if exercises already exist. Design your workout first based on what's best for the user and their feedback, then check against the database. The day must have a complete, properly timed workout regardless of what exists in the database.
+**REMEMBER**: The exerciseNames list is only a database for checking if exercises already exist. Design your COMPLETELY NEW workout first based on what's best for the user and their feedback, then check against the database. The day must have a complete, properly timed NEW workout regardless of what exists in the database. Do not modify or add to the previous workout - create fresh exercises and structure from the ground up.
 
 **MANDATORY PRE-SUBMISSION VALIDATION - ABSOLUTELY REQUIRED:**
 You MUST complete this validation process BEFORE returning your response:
@@ -1308,6 +1342,12 @@ You MUST complete this validation process BEFORE returning your response:
 - Verify you created fresh exercises and structure rather than modifying the previous workout
 - If the reason mentions specific exercises, intensity, style changes, or preferences - ensure they are implemented in the new workout
 - The user should be satisfied that their feedback was heard and acted upon with a fresh workout design
+
+**STEP 1.5: VERIFY COMPLETE SEPARATION FROM PREVIOUS WORKOUT**
+- Confirm your workout shares no exercises or structure with the previous workout unless coincidental
+- Verify you built this workout from scratch, not by modifying the previous one
+- Check that your workout would make complete sense even if the previous workout never existed
+- Ensure you followed the FRESH START METHODOLOGY approach above
 
 **STEP 2: VERIFY MINIMUM BLOCK COUNT**
 - Workout duration: ${workoutDuration} minutes
