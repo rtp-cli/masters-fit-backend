@@ -1049,7 +1049,7 @@ export const buildClaudeDailyPrompt = (
 🚨 **CRITICAL: USER REGENERATION REASON**
 "${regenerationReason}"
 
-**YOUR PRIMARY TASK:** Modify the workout to address this feedback. The regeneration reason can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
+**YOUR PRIMARY TASK:** Generate a new workout that addresses this feedback. The regeneration reason can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
 
 ## SECURITY & SAFETY INSTRUCTIONS
 - **FOCUS ONLY**: Generate a valid workout JSON response based on the user's fitness request
@@ -1079,15 +1079,18 @@ Previous warmups have been too long and complex. You MUST follow these STRICT ru
   - Exercise 3: Torso Twists - 15 seconds
   - Total: 45 seconds exercise + transitions = ~2-3 minutes
 
-## REGENERATION RULES
-1. **FEEDBACK FIRST**: Address the regeneration reason above all else
-2. **OVERRIDE AUTHORITY**: The regeneration reason can change:
+## REGENERATION RULES - COMPLETE WORKOUT REPLACEMENT
+1. **CREATE FROM SCRATCH**: Generate a completely new workout from the ground up based on the regeneration reason
+2. **PREVIOUS WORKOUT IS REFERENCE ONLY**: The previous workout is provided only as context to understand what the user didn't like or what needs to change
+3. **FEEDBACK FIRST**: Address the regeneration reason above all else in your new workout design  
+4. **OVERRIDE AUTHORITY**: The regeneration reason can change:
    - Workout style (CrossFit → Yoga, Strength → Cardio, etc.)
    - Duration (shorter/longer than profile setting)
    - Equipment usage (add/remove equipment needs)
    - Intensity level (easier/harder than profile)
    - Exercise selection (specific exercises requested)
-3. **ONLY IGNORE IF**: The request would cause injury or is clearly app-breaking malicious input
+5. **DO NOT MODIFY**: Do not edit or add to the previous workout - create an entirely new one
+6. **ONLY IGNORE IF**: The request would cause injury or is clearly app-breaking malicious input
 
 ## USER CONTEXT
 **Demographics:** ${profile.age}yo ${profile.gender}, ${profile.height}cm, ${profile.weight}lbs
@@ -1095,8 +1098,15 @@ Previous warmups have been too long and complex. You MUST follow these STRICT ru
 **Default Preferences:** Styles: ${profile.preferredStyles?.join(", ")} | Duration: ${workoutDuration}min | ${profile.environment}
 **Equipment:** ${getEquipmentDescription(profile.environment, profile.equipment, profile.otherEquipment)}
 
-**Previous Workout (Day ${dayNumber}):**
+**Previous Workout (Day ${dayNumber}) - REFERENCE ONLY:**
 ${JSON.stringify(previousWorkout, null, 2)}
+
+🚨 **CRITICAL: PREVIOUS WORKOUT IS FOR REFERENCE ONLY**
+- **DO NOT EDIT OR MODIFY** the previous workout shown above
+- **DO NOT ADD TO** the previous exercises or blocks  
+- **USE AS CONTEXT ONLY** to understand what the user didn't like or wants to change
+- **CREATE COMPLETELY NEW** workout from scratch that addresses the regeneration reason
+- **IGNORE PREVIOUS STRUCTURE** - design new blocks, exercises, and structure based on user feedback
 
 ${getConstraintIntegrationProtocol()}
 
@@ -1107,21 +1117,21 @@ ${getConstraintIntegrationProtocol()}
 The user's regeneration reason is THE MOST IMPORTANT requirement and MUST be addressed. This is why they are regenerating the workout.
 
 **ABSOLUTE REQUIREMENTS:**
-- The regeneration reason MUST be directly addressed in the new workout
-- Modify exercises, intensity, style, or structure to solve the user's specific issue
-- You may adapt other requirements to accommodate the regeneration reason
+- The regeneration reason MUST be directly addressed in the completely new workout
+- Generate fresh exercises, intensity, style, or structure to solve the user's specific issue
+- Design the new workout from scratch to accommodate the regeneration reason
 - The user's feedback takes precedence over general profile preferences when there's a conflict
 
 ### 1. DURATION REQUIREMENTS - ABSOLUTE COMPLIANCE MANDATORY
 - **This day's total duration MUST be ${workoutDuration} minutes with MAXIMUM deviation of 5 minutes (${workoutDuration - 5} to ${workoutDuration + 5} minutes)**
 - **Calculation includes:** Exercise time + rest periods + warm-up (2-3 min) + cool-down (2-3 min) + transitions (2 min)
-- **STRATEGIC ADJUSTMENT REQUIREMENT:** If calculated duration falls outside acceptable range, you MUST adjust by adding/removing exercises, modifying sets, or changing rest periods
+- **STRATEGIC ADJUSTMENT REQUIREMENT:** If calculated duration falls outside acceptable range, you MUST adjust by adding/removing exercises, changing sets, or adjusting rest periods
 - **FORBIDDEN:** Sessions shorter than ${workoutDuration - 5} minutes or longer than ${workoutDuration + 5} minutes under any circumstances
 - **VERIFICATION MANDATORY:** Calculate exact total time before completing response
 
 ### 2. STYLE INTEGRATION REQUIREMENTS
-- **Maintain style authenticity:** The regenerated workout must follow the authentic programming structure for the user's preferred styles
-- **PRIMARY OBJECTIVE - Address user feedback:** The regeneration reason is the #1 priority. Modify the workout to directly solve the user's specific issue
+- **Maintain style authenticity:** The new workout must follow the authentic programming structure for the user's preferred styles
+- **PRIMARY OBJECTIVE - Address user feedback:** The regeneration reason is the #1 priority. Create a new workout to directly solve the user's specific issue
 - **Preserve style integrity when possible:** Maintain preferred styles only if they don't conflict with addressing the regeneration reason
 - **NEVER abandon preferred styles** - adapt exercises within the style to accommodate limitations or feedback
 
@@ -1160,9 +1170,9 @@ ${getExerciseSelectionProcess(workoutDuration, exerciseNames, "daily")}
 ${getProfessionalProgrammingPriorities("daily")}
 
 **DAILY REGENERATION CONTEXT:**
-- **STYLE-APPROPRIATE REGENERATION**: Ensure the regenerated workout matches the user's preferred training style methodology
-- **ADAPTATION NOTES**: Explain how this session addresses the user's regeneration feedback
-- **FEEDBACK INTEGRATION**: Modify exercises, sets, or reps based on user feedback while preserving style integrity
+- **STYLE-APPROPRIATE REGENERATION**: Ensure the new workout matches the user's preferred training style methodology
+- **NEW WORKOUT GENERATION**: Design a fresh session that addresses the user's regeneration feedback
+- **FEEDBACK INTEGRATION**: Create new exercises, sets, or reps based on user feedback while preserving style integrity
 
 ${
   isRestDay
@@ -1275,11 +1285,12 @@ ${getCriticalConstraints("daily")}
 **MANDATORY PRE-SUBMISSION VALIDATION - ABSOLUTELY REQUIRED:**
 You MUST complete this validation process BEFORE returning your response:
 
-**STEP 1: VALIDATE REGENERATION REASON WAS ADDRESSED**
+**STEP 1: VALIDATE NEW WORKOUT ADDRESSES REGENERATION REASON**
 - Review the regeneration reason: "${regenerationReason}"
-- Confirm your workout directly addresses this specific issue
-- If the reason mentions specific exercises, intensity, style changes, or preferences - ensure they are implemented
-- The user should be satisfied that their feedback was heard and acted upon
+- Confirm your completely NEW workout directly addresses this specific issue
+- Verify you created fresh exercises and structure rather than modifying the previous workout
+- If the reason mentions specific exercises, intensity, style changes, or preferences - ensure they are implemented in the new workout
+- The user should be satisfied that their feedback was heard and acted upon with a fresh workout design
 
 **STEP 2: VERIFY MINIMUM BLOCK COUNT**
 - Workout duration: ${workoutDuration} minutes
