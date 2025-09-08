@@ -1228,25 +1228,14 @@ export class WorkoutService extends BaseService {
         },
       });
 
-      // Ensure at least one block exists for this plan day (rest-day insert creates none)
-      let primaryBlockId: number | null =
-        existingPlanDay.blocks?.[0]?.id ?? null;
-      let previousBlockExercises = existingPlanDay.blocks?.[0]?.exercises || [];
-      if (!primaryBlockId) {
-        const newBlock = await this.createWorkoutBlock({
-          planDayId: existingPlanDay.id,
-          blockType: "traditional",
-          blockName: "Auto-generated",
-          blockDurationMinutes: null,
-          timeCapMinutes: null,
-          rounds: 1,
-          instructions: null,
-          order: 1,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as any);
-        primaryBlockId = newBlock.id;
-        previousBlockExercises = [];
+      // Get existing exercises for log cleanup (we'll delete all blocks anyway)
+      let allExistingExercises: any[] = [];
+      if (existingPlanDay.blocks) {
+        for (const block of existingPlanDay.blocks) {
+          if (block.exercises) {
+            allExistingExercises.push(...block.exercises);
+          }
+        }
       }
 
       // Get user profile for style determination
@@ -1255,25 +1244,11 @@ export class WorkoutService extends BaseService {
       // Use regeneration styles if provided, otherwise fall back to user's preferred styles
       const stylesToUse = regenerationStyles || profile?.preferredStyles;
 
-      // Programmatically determine block characteristics based on styles
-      const determinedBlockType = this.determineBlockType(stylesToUse);
-      const determinedBlockName = this.generateBlockName(
-        determinedBlockType,
-        stylesToUse
-      );
-      const determinedTimeCap = this.determineTimeCap(
-        determinedBlockType,
-        profile?.workoutDuration || 30
-      );
-      const determinedRounds = this.determineRounds(
-        determinedBlockType,
-        profile?.workoutDuration || 30
-      );
 
       // Format the previous workout for the AI prompt
       const previousWorkout = {
         day: (existingPlanDay as any).dayNumber || 1,
-        exercises: (previousBlockExercises || []).map((ex) => ({
+        exercises: (allExistingExercises || []).map((ex) => ({
           exerciseName: ex.exercise.name,
           sets: ex.sets || 0,
           reps: ex.reps || 0,
@@ -1301,7 +1276,7 @@ export class WorkoutService extends BaseService {
 
       const isRestDayContext =
         (existingPlanDay.name || "").toLowerCase().includes("rest day") ||
-        (previousBlockExercises || []).length === 0;
+        (allExistingExercises || []).length === 0;
 
       const result = await promptsService.generateDailyRegenerationPrompt(
         userId,
@@ -1342,7 +1317,7 @@ export class WorkoutService extends BaseService {
       }
 
       // First, delete all exercise logs that reference these plan day exercises
-      const planDayExerciseIds = (previousBlockExercises || []).map(
+      const planDayExerciseIds = (allExistingExercises || []).map(
         (ex) => ex.id
       );
       if (planDayExerciseIds.length > 0) {
@@ -1356,16 +1331,38 @@ export class WorkoutService extends BaseService {
           );
       }
 
-      // Then delete all existing exercises for this plan day
-      await this.db
-        .delete(planDayExercises)
-        .where(eq(planDayExercises.workoutBlockId, primaryBlockId!));
+      // First delete all exercises for all blocks of this plan day to respect foreign key constraints
+      const blockIds = existingPlanDay.blocks?.map(b => b.id) || [];
+      if (blockIds.length > 0) {
+        await this.db
+          .delete(planDayExercises)
+          .where(sql`workout_block_id IN (${sql.join(blockIds, sql`, `)})`);
+      }
 
-      // Create new exercises for this plan day
+      // Now delete all blocks for this plan day (no foreign key violations since exercises are gone)
+      await this.db
+        .delete(workoutBlocks)
+        .where(eq(workoutBlocks.planDayId, planDayId));
+
+      // Create new blocks and exercises from AI response
       const newExercises: any[] = [];
-      // The response structure has exercises nested inside blocks
       if (response.blocks && response.blocks.length > 0) {
-        for (const block of response.blocks) {
+        for (const [blockIndex, block] of response.blocks.entries()) {
+          // Create the new block
+          const newBlock = await this.createWorkoutBlock({
+            planDayId,
+            blockType: block.blockType,
+            blockName: block.blockName,
+            blockDurationMinutes: block.blockDurationMinutes,
+            timeCapMinutes: block.timeCapMinutes,
+            rounds: block.rounds,
+            instructions: block.instructions,
+            order: blockIndex + 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+          
+          // Add exercises to this specific block
           if (block.exercises) {
             for (const exercise of block.exercises) {
               const exerciseDetails = await exerciseService.getExerciseByName(
@@ -1373,7 +1370,7 @@ export class WorkoutService extends BaseService {
               );
               if (exerciseDetails) {
                 const newExercise = await this.createPlanDayExercise({
-                  workoutBlockId: primaryBlockId!,
+                  workoutBlockId: newBlock.id, // Use the NEW block ID!
                   exerciseId: exerciseDetails.id,
                   sets: exercise.sets,
                   reps: exercise.reps,
@@ -1406,24 +1403,6 @@ export class WorkoutService extends BaseService {
         })
         .where(eq(planDays.id, planDayId));
 
-      // Update the workout block with programmatically determined block info
-      // Get block info from the response if available
-      const responseBlock =
-        response.blocks && response.blocks.length > 0
-          ? response.blocks[0]
-          : null;
-      await this.db
-        .update(workoutBlocks)
-        .set({
-          blockType: responseBlock?.blockType || determinedBlockType,
-          blockName: responseBlock?.blockName || determinedBlockName,
-          blockDurationMinutes: responseBlock?.blockDurationMinutes || null,
-          timeCapMinutes: responseBlock?.timeCapMinutes || determinedTimeCap,
-          rounds: responseBlock?.rounds || determinedRounds,
-          instructions: responseBlock?.instructions || null,
-          updatedAt: new Date(),
-        })
-        .where(eq(workoutBlocks.id, primaryBlockId!));
 
       // Emit 95% - Database operations starting
       emitProgress(userId, 95);
@@ -1450,82 +1429,28 @@ export class WorkoutService extends BaseService {
       });
 
       // Return the updated plan day with new exercises
-      return {
-        id: existingPlanDay.id,
-        workoutId: existingPlanDay.workoutId,
-        date: existingPlanDay.date, // Keep as string to avoid timezone conversion
-        instructions: response.instructions ?? undefined,
-        name: response.name || existingPlanDay.name || "",
-        description:
-          response.description || (existingPlanDay.description ?? undefined),
-        dayNumber: existingPlanDay.dayNumber || 1,
-        created_at: new Date(existingPlanDay.createdAt ?? Date.now()),
-        updated_at: new Date(),
-        blocks: (existingPlanDay.blocks && existingPlanDay.blocks.length > 0
-          ? existingPlanDay.blocks
-          : [
-              {
-                id: primaryBlockId!,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                blockType: null,
-                blockName: null,
-                blockDurationMinutes: null,
-                timeCapMinutes: null,
-                rounds: null,
-                instructions: null,
-              } as any,
-            ]
-        ).map((block, index) => ({
-          id: block.id,
-          blockType: responseBlock?.blockType || (block.blockType ?? undefined),
-          blockName: responseBlock?.blockName || (block.blockName ?? undefined),
-          blockDurationMinutes:
-            responseBlock?.blockDurationMinutes ||
-            (block.blockDurationMinutes ?? undefined),
-          timeCapMinutes:
-            responseBlock?.timeCapMinutes ||
-            (block.timeCapMinutes ?? undefined),
-          rounds: responseBlock?.rounds || (block.rounds ?? undefined),
-          instructions:
-            responseBlock?.instructions || (block.instructions ?? undefined),
-          order: index,
-          created_at: new Date(block.createdAt ?? Date.now()),
-          updated_at: new Date(),
-          exercises: newExercises.map((ex, exIndex) => ({
-            id: ex.id,
-            workoutBlockId: ex.workoutBlockId,
-            exerciseId: ex.exerciseId,
-            sets: ex.sets ?? undefined,
-            reps: ex.reps ?? undefined,
-            weight: ex.weight ?? undefined,
-            duration: ex.duration ?? undefined,
-            restTime: ex.restTime ?? undefined,
-            completed: ex.completed ?? false,
-            notes: ex.notes ?? undefined,
-            order: ex.order ?? undefined,
-            created_at: new Date(ex.createdAt ?? Date.now()),
-            updated_at: new Date(ex.updatedAt ?? Date.now()),
-            exercise: {
-              id: ex.exercise.id,
-              name: ex.exercise.name,
-              description: ex.exercise.description ?? undefined,
-              category:
-                ex.exercise.muscleGroups && ex.exercise.muscleGroups.length > 0
-                  ? ex.exercise.muscleGroups[0]
-                  : "general",
-              difficulty: ex.exercise.difficulty || "beginner",
-              equipment: Array.isArray(ex.exercise.equipment)
-                ? ex.exercise.equipment.join(", ")
-                : (ex.exercise.equipment ?? undefined),
-              link: ex.exercise.link ?? undefined,
-              muscles_targeted: ex.exercise.muscleGroups || [],
-              created_at: new Date(ex.exercise.createdAt ?? Date.now()),
-              updated_at: new Date(ex.exercise.updatedAt ?? Date.now()),
+      // Fetch the updated plan day with all new blocks and exercises
+      const updatedPlanDay = await this.db.query.planDays.findFirst({
+        where: eq(planDays.id, planDayId),
+        with: {
+          blocks: {
+            with: {
+              exercises: {
+                with: {
+                  exercise: true,
+                },
+              },
             },
-          })),
-        })),
-      };
+          },
+        },
+      });
+      
+      if (!updatedPlanDay) {
+        throw new Error("Failed to fetch updated plan day after regeneration");
+      }
+      
+      // Return the fetched plan day (it should match the expected PlanDayWithExercises type)
+      return updatedPlanDay as PlanDayWithExercises;
     } catch (error) {
       const totalDuration = Date.now() - startTime;
 
