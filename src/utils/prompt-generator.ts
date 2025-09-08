@@ -1178,10 +1178,10 @@ ${
   isRestDay
     ? `
 ## REST-DAY SPECIFIC RULES (ENFORCED)
-- This is a rest-day optional session. Keep intensity moderate to low unless the user explicitly asked for higher intensity.
+- This is a rest-day workout session. Use normal workout intensity and challenge level unless the user specifically requests low intensity or recovery focus.
 - NEVER place the full workout inside the warmup block. Warmup must be short and separate from the main work.
 - The main workload MUST be in standard blocks (traditional/circuit/AMRAP/EMOM/etc.) with clear sets/reps/durations.
-- Total time REQUIREMENT still applies (${workoutDuration} ± 5 minutes). Keep it achievable and recoverable.
+- Total time REQUIREMENT still applies (${workoutDuration} ± 5 minutes). Maintain normal workout standards and appropriate challenge level.
 - **BALANCED BLOCKS REQUIRED:**
   - Do NOT overload a single block with too many exercises
   - Target 2-4 primary blocks for the main work (plus short warmup/cooldown)
@@ -1192,6 +1192,23 @@ ${
   - NEVER put more than 6 exercises in any single main work block unless absolutely necessary
   - Workouts should be holistic, so try to break them up into blocks where it makes sense so its easier for the user to perform them too.
   - NEVER create a single block containing the entire workout
+- **REST DAY WORKOUT QUALITY STANDARDS:**
+  - Create engaging, varied workouts that users will actually want to do
+  - Include diverse exercise selection across different movement patterns
+  - Balance different training modalities (strength, cardio, flexibility, etc.)
+  - Make workouts feel like complete, satisfying training sessions
+  - Avoid repetitive or boring exercise combinations
+  - Include exercises that target different muscle groups and movement planes
+  - Ensure workouts have clear progression and flow between blocks
+- **REST DAY EXERCISE SELECTION GUIDELINES:**
+  - Mix compound and isolation movements for variety
+  - Include both bilateral and unilateral exercises
+  - Vary rep ranges and time domains across blocks (strength reps, endurance reps, time-based)
+  - Include different planes of movement (sagittal, frontal, transverse)
+  - Balance pushing, pulling, squatting, hinging, and carrying movements
+  - Add variety in equipment usage if available (don't use the same equipment for every exercise)
+  - Include at least one challenging or skill-building exercise to keep it interesting
+  - Consider alternating upper/lower body exercises within blocks for active recovery
 - **TIME CALCULATION CLARITY:**
   - blockDurationMinutes = actual time this block takes including rest between exercises
   - timeCapMinutes = only for AMRAP/EMOM formats (time limit for the work), set to null for traditional/circuit blocks
