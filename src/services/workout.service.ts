@@ -1244,7 +1244,6 @@ export class WorkoutService extends BaseService {
       // Use regeneration styles if provided, otherwise fall back to user's preferred styles
       const stylesToUse = regenerationStyles || profile?.preferredStyles;
 
-
       // Format the previous workout for the AI prompt
       const previousWorkout = {
         day: (existingPlanDay as any).dayNumber || 1,
@@ -1332,7 +1331,7 @@ export class WorkoutService extends BaseService {
       }
 
       // First delete all exercises for all blocks of this plan day to respect foreign key constraints
-      const blockIds = existingPlanDay.blocks?.map(b => b.id) || [];
+      const blockIds = existingPlanDay.blocks?.map((b) => b.id) || [];
       if (blockIds.length > 0) {
         await this.db
           .delete(planDayExercises)
@@ -1361,7 +1360,7 @@ export class WorkoutService extends BaseService {
             createdAt: new Date(),
             updatedAt: new Date(),
           });
-          
+
           // Add exercises to this specific block
           if (block.exercises) {
             for (const exercise of block.exercises) {
@@ -1403,7 +1402,6 @@ export class WorkoutService extends BaseService {
         })
         .where(eq(planDays.id, planDayId));
 
-
       // Emit 95% - Database operations starting
       emitProgress(userId, 95);
 
@@ -1444,11 +1442,11 @@ export class WorkoutService extends BaseService {
           },
         },
       });
-      
+
       if (!updatedPlanDay) {
         throw new Error("Failed to fetch updated plan day after regeneration");
       }
-      
+
       // Return the fetched plan day (it should match the expected PlanDayWithExercises type)
       return updatedPlanDay as PlanDayWithExercises;
     } catch (error) {
