@@ -48,6 +48,8 @@ export class ProfileController extends Controller {
       availableDays: dbProfile.availableDays ?? undefined,
       workoutDuration: dbProfile.workoutDuration ?? undefined,
       intensityLevel: dbProfile.intensityLevel ?? undefined,
+      includeWarmup: dbProfile.includeWarmup ?? true,
+      includeCooldown: dbProfile.includeCooldown ?? true,
       created_at: dbProfile.updatedAt ?? new Date(),
       updated_at: dbProfile.updatedAt ?? new Date(),
     };
@@ -88,6 +90,8 @@ export class ProfileController extends Controller {
       availableDays: requestBody.availableDays ?? null,
       workoutDuration: requestBody.workoutDuration ?? null,
       intensityLevel: requestBody.intensityLevel ?? null,
+      includeWarmup: requestBody.includeWarmup ?? true,
+      includeCooldown: requestBody.includeCooldown ?? true,
     });
     const profile: Profile = {
       id: dbProfile.id,
@@ -107,6 +111,8 @@ export class ProfileController extends Controller {
       availableDays: dbProfile.availableDays ?? undefined,
       workoutDuration: dbProfile.workoutDuration ?? undefined,
       intensityLevel: dbProfile.intensityLevel ?? undefined,
+      includeWarmup: dbProfile.includeWarmup ?? true,
+      includeCooldown: dbProfile.includeCooldown ?? true,
       created_at: dbProfile.updatedAt ?? new Date(),
       updated_at: dbProfile.updatedAt ?? new Date(),
     };
@@ -160,6 +166,8 @@ export class ProfileController extends Controller {
     if (requestBody.availableDays !== undefined) updateData.availableDays = requestBody.availableDays;
     if (requestBody.workoutDuration !== undefined) updateData.workoutDuration = requestBody.workoutDuration;
     if (requestBody.intensityLevel !== undefined) updateData.intensityLevel = requestBody.intensityLevel;
+    if (requestBody.includeWarmup !== undefined) updateData.includeWarmup = requestBody.includeWarmup;
+    if (requestBody.includeCooldown !== undefined) updateData.includeCooldown = requestBody.includeCooldown;
 
     const dbProfile = await profileService.createOrUpdateProfile(updateData);
     const profile: Profile = {
@@ -180,6 +188,8 @@ export class ProfileController extends Controller {
       availableDays: dbProfile.availableDays ?? undefined,
       workoutDuration: dbProfile.workoutDuration ?? undefined,
       intensityLevel: dbProfile.intensityLevel ?? undefined,
+      includeWarmup: dbProfile.includeWarmup ?? true,
+      includeCooldown: dbProfile.includeCooldown ?? true,
       created_at: dbProfile.updatedAt ?? new Date(),
       updated_at: dbProfile.updatedAt ?? new Date(),
     };
@@ -221,6 +231,8 @@ export class ProfileController extends Controller {
     if (requestBody.availableDays !== undefined) updateData.availableDays = requestBody.availableDays;
     if (requestBody.workoutDuration !== undefined) updateData.workoutDuration = requestBody.workoutDuration;
     if (requestBody.intensityLevel !== undefined) updateData.intensityLevel = requestBody.intensityLevel;
+    if (requestBody.includeWarmup !== undefined) updateData.includeWarmup = requestBody.includeWarmup;
+    if (requestBody.includeCooldown !== undefined) updateData.includeCooldown = requestBody.includeCooldown;
 
     const dbProfile = await profileService.createOrUpdateProfile(updateData);
     const profile: Profile = {
@@ -241,6 +253,8 @@ export class ProfileController extends Controller {
       availableDays: dbProfile.availableDays ?? undefined,
       workoutDuration: dbProfile.workoutDuration ?? undefined,
       intensityLevel: dbProfile.intensityLevel ?? undefined,
+      includeWarmup: dbProfile.includeWarmup ?? true,
+      includeCooldown: dbProfile.includeCooldown ?? true,
       created_at: dbProfile.updatedAt ?? new Date(),
       updated_at: dbProfile.updatedAt ?? new Date(),
     };

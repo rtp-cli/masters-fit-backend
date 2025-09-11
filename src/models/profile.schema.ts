@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createInsertSchema } from "drizzle-zod";
-import { pgTable, text, serial, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, index, boolean } from "drizzle-orm/pg-core";
 
 import {
   FitnessGoal,
@@ -46,6 +46,8 @@ export const profiles = pgTable("profiles", {
   workoutDuration: integer("workout_duration"),
   intensityLevel: text("intensity_level").$type<IntensityLevel>(),
   medicalNotes: text("medical_notes"),
+  includeWarmup: boolean("include_warmup").default(true),
+  includeCooldown: boolean("include_cooldown").default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => ({
   userIdIdx: index("idx_profiles_user_id").on(table.userId),
@@ -76,6 +78,8 @@ export interface Profile {
   workoutDuration: number | null;
   intensityLevel: IntensityLevel | null;
   medicalNotes: string | null;
+  includeWarmup: boolean | null;
+  includeCooldown: boolean | null;
   updatedAt: Date | null;
 }
 
@@ -106,6 +110,8 @@ export const onboardingSchema = z.object({
   workoutDuration: z.number().min(10).max(120),
   intensityLevel: z.nativeEnum(IntensityLevelsEnum),
   medicalNotes: z.string().optional(),
+  includeWarmup: z.boolean().default(true),
+  includeCooldown: z.boolean().default(true),
 });
 
 export type OnboardingData = z.infer<typeof onboardingSchema>;

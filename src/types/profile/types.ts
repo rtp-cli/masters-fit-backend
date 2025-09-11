@@ -46,6 +46,8 @@ export interface Profile {
   availableDays?: PreferredDay[];
   workoutDuration?: number;
   intensityLevel?: IntensityLevel;
+  includeWarmup?: boolean;
+  includeCooldown?: boolean;
   created_at: Date;
   updated_at: Date;
 }

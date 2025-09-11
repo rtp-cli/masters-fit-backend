@@ -205,9 +205,11 @@ const getBlockTypeGuide = (): string => {
 - **"warmup"**: Simple dynamic warm-up movements to prepare the body for exercise. Set rounds (1), use sets=1, specify movement duration (10-15s) or reps (3-5), minimal restTime (0-10s). Instructions explain warm-up flow and purpose. Weight is typically 0 for bodyweight movements.
   * **Duration Calculation:** Sum of all movement durations + transitions (maximum 3 minutes total)
   - **WARMUP CONSTRAINT:** Maximum 2-3 exercises only. Keep warmups simple and realistic.
+  - DO NOT USE WARMUP BLOCKS IF THE USER HAS DISABLED WARMUPS
 
 - **"cooldown"**: Static stretches and recovery movements to end the session. Set rounds (1), use sets=1, specify hold duration (20-30s), minimal restTime. Instructions explain cool-down sequence and breathing. Weight is 0 for stretching/mobility work.
   * **Duration Calculation:** Sum of all stretch hold durations + transitions (typically 2-3 minutes total)
+  - DO NOT USE COOL-DOWN BLOCKS IF THE USER HAS DISABLED COOLDOWNS
 
 **WARM-UP AND COOL-DOWN REQUIREMENTS:**
 
@@ -219,6 +221,7 @@ const getBlockTypeGuide = (): string => {
   - EXACTLY 2-3 exercises only (NO MORE)
   - 10-15 seconds each or 3-5 reps per exercise
   - Total duration: 2-3 minutes MAXIMUM
+  - DO NOT USE WARMUP BLOCKS IF THE USER HAS DISABLED WARMUPS
 - **FORBIDDEN:**
   - More than 3 exercises in warmup
   - Complex movements or equipment use
@@ -234,6 +237,7 @@ const getBlockTypeGuide = (): string => {
 - **Focus:** Target muscles used in main workout
 - **Total duration:** 2-3 minutes
 - **Breathing:** Include breathing cues and relaxation guidance
+- DO NOT USE COOL-DOWN BLOCKS IF THE USER HAS DISABLED COOLDOWNS
 
 **CRITICAL DURATION AWARENESS:**
 When selecting block types, always consider their duration implications. A 40-minute workout might use:
@@ -315,13 +319,12 @@ EVERY exercise you add to the workout plan MUST be a valid exercise with actual 
 
 const getDurationRequirements = (
   workoutDuration: number,
-  context: "weekly" | "daily" = "weekly"
+  context: "weekly" | "daily" = "weekly",
+  includeWarmup: boolean = true,
+  includeCooldown: boolean = true
 ): string => {
-  const dayReference = context === "weekly" ? "each day" : "this day";
   const sessionReference =
     context === "weekly" ? "Each workout session" : "This workout session";
-  const finalReference = context === "weekly" ? "any day" : "this day";
-  const everyReference = context === "weekly" ? "every day" : "this day";
 
   return `
 ## DURATION REQUIREMENTS - MANDATORY COMPLIANCE
@@ -345,46 +348,27 @@ For EVERY workout session, calculate total time as follows:
 **MANDATORY WORKOUT STRUCTURE AND ORGANIZATION:**
 
 **CRITICAL BLOCK ORDERING REQUIREMENTS:**
-1. **FIRST BLOCK:** MUST be "warmup" type (2-3 minutes, 2-3 exercises ONLY)
+1. **FIRST BLOCK:** ${includeWarmup ? 'MUST be "warmup" type (2-3 minutes, 2-3 exercises ONLY)' : "Start with main workout blocks (user has disabled warmups)"}
 2. **MIDDLE BLOCKS:** Main workout content in logical progression
    - Compound/complex movements before isolation
    - Higher intensity before lower intensity
    - Skill work before fatigue work
-3. **LAST BLOCK:** MUST be "cooldown" type (2-3 minutes)
+3. **LAST BLOCK:** ${includeCooldown ? 'MUST be "cooldown" type (2-3 minutes)' : "Last block should be a main workout block (user has disabled cooldowns)"}
 
 **MANDATORY MINIMUM BLOCK REQUIREMENTS:**
-- **All workouts:** MUST include warm-up block (2-3 minutes) and cool-down block (2-3 minutes)
-- **Under 45 minutes:** Minimum 4 blocks (warm-up + 2 main blocks + cool-down)
-- **45+ minutes:** MINIMUM 5 blocks (warm-up + 3 main blocks + cool-down)
-- **70+ minutes:** MINIMUM 6 blocks (warm-up + 4 main blocks + cool-down)
-- **MANDATORY:** Every workout must start with "warmup" block and end with "cooldown" block
-- **WARMUP SIMPLICITY:** Keep warmup blocks simple with EXACTLY 2-3 exercises.
+- **User Warmup Preference:** ${includeWarmup ? "MUST include warm-up block (2-3 minutes)" : "User has disabled warmups - DO NOT include warmup blocks"}
+- **User Cooldown Preference:** ${includeCooldown ? "MUST include cool-down block (2-3 minutes)" : "User has disabled cooldowns - DO NOT include cooldown blocks"}
+- **Under 45 minutes:** Minimum ${includeWarmup && includeCooldown ? "4" : includeWarmup || includeCooldown ? "3" : "2"} blocks (${includeWarmup ? "warm-up + " : ""}${includeWarmup && includeCooldown ? "2" : includeWarmup || includeCooldown ? "2" : "2"} main blocks${includeCooldown ? " + cool-down" : ""})
+- **45+ minutes:** MINIMUM ${includeWarmup && includeCooldown ? "5" : includeWarmup || includeCooldown ? "4" : "3"} blocks (${includeWarmup ? "warm-up + " : ""}${includeWarmup && includeCooldown ? "3" : includeWarmup || includeCooldown ? "3" : "3"} main blocks${includeCooldown ? " + cool-down" : ""})
+- **70+ minutes:** MINIMUM ${includeWarmup && includeCooldown ? "6" : includeWarmup || includeCooldown ? "5" : "4"} blocks (${includeWarmup ? "warm-up + " : ""}${includeWarmup && includeCooldown ? "4" : includeWarmup || includeCooldown ? "4" : "4"} main blocks${includeCooldown ? " + cool-down" : ""})
+- **BLOCK ORDER:** ${includeWarmup ? 'First block must be "warmup"' : "Start with main workout blocks"}${includeWarmup && includeCooldown ? ', last block must be "cooldown"' : includeCooldown ? ', last block must be "cooldown"' : ""}
+- **WARMUP SIMPLICITY:** ${includeWarmup ? "Keep warmup blocks simple with EXACTLY 2-3 exercises." : "No warmup blocks needed - user preference disabled."}
 - **LOGICAL FLOW:** Main blocks should progress logically based on style:
   - Strength: Heavy compounds → Accessories → Core/conditioning
   - CrossFit: Skill/strength → MetCon → Accessories
   - HIIT: Moderate intensity → High intensity → Recovery
 - Blocks should be evenly defined with an appropriate amount of exercises for the required workout time duration.
 
-**EXPLICIT EXAMPLES - LONGER WORKOUTS REQUIRED:**
-You MUST create workouts that reach the target duration. Here are mandatory examples:
-
-**50-minute workout MUST have:**
-- Block 1: Warm-up (3 minutes) 
-- Block 2: Strength (22 minutes) 
-- Block 3: Conditioning (18 minutes)
-- Block 4: Accessory (5 minutes)
-- Block 5: Cool-down (2 minutes)
-- Total: 50 minutes ✓
-
-**60-minute workout MUST have:**
-- Block 1: Warm-up (3 minutes)
-- Block 2: Strength (28 minutes)
-- Block 3: HIIT (20 minutes) 
-- Block 4: Accessory (7 minutes)
-- Block 5: Cool-down (2 minutes)
-- Total: 60 minutes ✓
-
-**DO NOT create 40-minute workouts for 50+ minute requests**
 **STRATEGIC DURATION MANAGEMENT:**
 If calculated duration falls outside acceptable range, apply these corrections in order:
 
@@ -427,8 +411,6 @@ If calculated duration falls outside acceptable range, apply these corrections i
 3. **Third Priority - Adjust Sets/Reps:**
    * Reduce sets while maintaining training stimulus
    * Adjust rep ranges to maintain intensity while reducing volume
-
-
 
 **PROHIBITED DURATION SHORTCUTS:**
 1. **FORBIDDEN:** Sessions shorter than ${workoutDuration - 5} minutes under any circumstances
@@ -527,10 +509,10 @@ Prioritize coaching quality over token efficiency:
   * For extended workouts (70+ min): MINIMUM 4 blocks (e.g., strength + conditioning + accessory + mobility)
   * Warm-up and cool-down are handled as overhead time, not separate blocks
   * **MANDATORY:** Meet minimum block requirements and calculate total duration before submission
-- **BLOCK PROGRESSION**: Structure blocks to flow logically (warm-up → main work → conditioning/cool-down)
+- **BLOCK PROGRESSION**: Structure blocks to flow logically (warm-up → main work → conditioning/cool-down OR main work only if warmups/cooldowns are disabled)
 - **VARIED BLOCK TYPES**: Use different block types within the same day to create comprehensive sessions
 - **DAY-LEVEL INSTRUCTIONS**: Provide comprehensive coaching instructions for ${dayLevelReference}. As a certified trainer, your instructions should include:
-  * **WORKOUT STRUCTURE**: Explain the overall flow (warm-up approach, main work format, cool-down)
+  * **WORKOUT STRUCTURE**: Explain the overall flow (warm-up approach, main work format, cool-down) if warmups/cooldowns are enabled, otherwise just the main work format
   * **INTENSITY GUIDANCE**: Provide effort level cues and how to gauge appropriate intensity
   * **FORM EMPHASIS**: Highlight key movement patterns or safety considerations for the session
   * **TIMING/TEMPO**: Include pacing, rest periods, and transitions between exercises
@@ -656,8 +638,6 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
 const getCriticalConstraints = (
   context: "weekly" | "daily" = "weekly"
 ): string => {
-  const dayReference = context === "weekly" ? "every day" : "this day";
-  const daysReference = context === "weekly" ? "all days" : "this day";
   const scopeReference =
     context === "weekly" ? "Generate full week" : "Generate complete workout";
 
@@ -669,11 +649,11 @@ const getCriticalConstraints = (
 3. **Valid JSON format only** - no markdown or explanations
 4. **${scopeReference}** as requested
 5. **MANDATORY MINIMUM BLOCKS**: 
-   - 30+ min = minimum 3 blocks (warmup + main + cooldown)
-   - 45+ min = minimum 4 blocks (warmup + 2 main + cooldown)
-   - 60+ min = minimum 5 blocks (warmup + 3 main + cooldown)
+   - 30+ min = minimum 3 blocks (warmup (ONLY if enabled) + main + cooldown (ONLY if enabled))
+   - 45+ min = minimum 4 blocks (warmup (ONLY if enabled) + 2 main + cooldown (ONLY if enabled))
+   - 60+ min = minimum 5 blocks (warmup (ONLY if enabled) + 3 main + cooldown (ONLY if enabled))
    - NEVER create workouts with just 1-2 blocks unless under 20 minutes
-6. **BLOCK BALANCE REQUIRED**: Main workout blocks should contain 3-6 exercises (warmup: 2-3, cooldown: 2-3)
+6. **BLOCK BALANCE REQUIRED**: Main workout blocks should contain 3-6 exercises (warmup: 2-3 (ONLY if enabled), cooldown: 2-3 (ONLY if enabled))
 7. **Respect user limitations** and available equipment
 `;
 };
@@ -683,15 +663,15 @@ const getStyleMixingExamples = (): string => {
 ## EXAMPLES OF STYLE MIXING
 
 **CrossFit + HIIT Day:**
-- Block 1: Dynamic Warm-up (5 min)
+- Block 1: Dynamic Warm-up (5 min) (ONLY if enabled)
 - Block 2: HIIT Tabata (20 min)
 - Block 3: CrossFit AMRAP (15 min)
-- Block 4: Cool-down (5 min)
+- Block 4: Cool-down (5 min) (ONLY if enabled)
 
 **Strength + HIIT Day:**
 - Block 1: Strength (Traditional sets/reps, 25 min)
 - Block 2: HIIT Circuit (15 min)
-- Block 3: Cool-down (5 min)
+- Block 3: Cool-down (5 min) (ONLY if enabled)
 `;
 };
 
@@ -713,6 +693,8 @@ export const buildClaudePrompt = (
   }
 
   const workoutDuration = profile.workoutDuration;
+  const includeWarmup = profile.includeWarmup ?? true;
+  const includeCooldown = profile.includeCooldown ?? true;
 
   const prompt = `
 # PROFESSIONAL FITNESS PROGRAMMING ASSISTANT
@@ -728,10 +710,10 @@ This is a WEEKLY workout plan generator. You MUST:
 **ABSOLUTE DURATION COMPLIANCE REQUIREMENT - READ THIS CAREFULLY**
 You have a tendency to create workouts that are too short. For a ${workoutDuration}-minute request, you MUST create ${workoutDuration}-minute workouts, NOT 30-40 minute workouts. Every single workout session MUST be ${workoutDuration} minutes with MAXIMUM deviation of 5 minutes (${workoutDuration - 5} to ${workoutDuration + 5} minutes total). 
 
-**SPECIFIC INSTRUCTION:** If the target is 50+ minutes, DO NOT create a 40-minute workout. If the target is 60+ minutes, DO NOT create a 40-50 minute workout. Add more blocks and exercises until you reach the target duration.
-
-**CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE**
-Previous warmups have been too long and complex. You MUST follow these STRICT rules:
+**${includeWarmup ? "CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE" : "USER HAS DISABLED WARMUPS - IMPORTANT"}**
+${
+  includeWarmup
+    ? `Previous warmups have been too long and complex. You MUST follow these STRICT rules:
 - **EXACTLY 2-3 exercises per warmup block (NO MORE)**
 - **MAXIMUM 3 minutes total warmup duration (STRICT LIMIT)**
 - **Simple movements ONLY:** 
@@ -748,7 +730,11 @@ Previous warmups have been too long and complex. You MUST follow these STRICT ru
   - Exercise 1: Arm Circles - 15 seconds
   - Exercise 2: Leg Swings - 15 seconds
   - Exercise 3: Torso Twists - 15 seconds
-  - Total: 45 seconds exercise + transitions = ~2-3 minutes
+  - Total: 45 seconds exercise + transitions = ~2-3 minutes`
+    : `User has disabled warmup blocks in their preferences. DO NOT include any warmup blocks in the workout:
+- **NO WARMUP BLOCKS**: Do not include any "warmup" type blocks
+- **START WITH MAIN BLOCKS**: Begin workouts directly with main exercise blocks`
+}
 
 You are an experienced fitness trainer and certified fitness professional. Your role is to design complete, professional-quality workout programs that are authentic to the user's preferred training styles while respecting their limitations and constraints.
 
@@ -809,7 +795,7 @@ ${getStyleInterpretationGuide()}
 
 ${getRecoveryEnhancementGuide()}
 
-${getDurationRequirements(workoutDuration, "weekly")}
+${getDurationRequirements(workoutDuration, "weekly", includeWarmup, includeCooldown)}
 
 ${getEquipmentUsageGuidelines()}
 
@@ -858,6 +844,8 @@ export const buildClaudeChunkedPrompt = (
   }
 
   const workoutDuration = profile.workoutDuration;
+  const includeWarmup = profile.includeWarmup ?? true;
+  const includeCooldown = profile.includeCooldown ?? true;
   const daysInChunk = endDay - startDay + 1;
 
   const prompt = `
@@ -876,8 +864,10 @@ You have a tendency to create workouts that are too short. For a ${workoutDurati
 
 **SPECIFIC INSTRUCTION:** If the target is 50+ minutes, DO NOT create a 40-minute workout. If the target is 60+ minutes, DO NOT create a 40-50 minute workout. Add more blocks and exercises until you reach the target duration.
 
-**CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE**
-Previous warmups have been too long and complex. You MUST follow these STRICT rules:
+**${includeWarmup ? "CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE" : "USER HAS DISABLED WARMUPS - IMPORTANT"}**
+${
+  includeWarmup
+    ? `Previous warmups have been too long and complex. You MUST follow these STRICT rules:
 - **EXACTLY 2-3 exercises per warmup block (NO MORE)**
 - **MAXIMUM 3 minutes total warmup duration (STRICT LIMIT)**
 - **Simple movements ONLY:** 
@@ -894,7 +884,11 @@ Previous warmups have been too long and complex. You MUST follow these STRICT ru
   - Exercise 1: Arm Circles - 15 seconds
   - Exercise 2: Leg Swings - 15 seconds
   - Exercise 3: Torso Twists - 15 seconds
-  - Total: 45 seconds exercise + transitions = ~2-3 minutes
+  - Total: 45 seconds exercise + transitions = ~2-3 minutes`
+    : `User has disabled warmup blocks in their preferences. DO NOT include any warmup blocks in the workout:
+- **NO WARMUP BLOCKS**: Do not include any "warmup" type blocks
+- **START WITH MAIN BLOCKS**: Begin workouts directly with main exercise blocks`
+}
 
 You are an experienced fitness trainer and certified fitness professional. Your role is to design complete, professional-quality workout programs that are authentic to the user's preferred training styles while respecting their limitations and constraints.
 
@@ -951,7 +945,7 @@ ${getStyleInterpretationGuide()}
 
 ${getRecoveryEnhancementGuide()}
 
-${getDurationRequirements(workoutDuration, "weekly")}
+${getDurationRequirements(workoutDuration, "weekly", includeWarmup, includeCooldown)}
 
 ${getEquipmentUsageGuidelines()}
 
@@ -962,13 +956,6 @@ ${getProfessionalProgrammingPriorities("weekly")}
 ## OUTPUT FORMAT
 
 Your response MUST be a **valid JSON object** with **exactly** the following structure and keys:
-
-**TOKEN EFFICIENCY GUIDELINES:**
-- **Response must be under 8,000 tokens total**
-- **Use concise but descriptive names and descriptions**
-- **Avoid redundant or verbose instructions**
-- **Focus on essential information only**
-- **Prioritize quality over quantity in descriptions**
 
 \`\`\`json
 {
@@ -1044,6 +1031,8 @@ export const buildClaudeDailyPrompt = (
   isRestDay: boolean = false
 ) => {
   const workoutDuration = profile.workoutDuration || 30;
+  const includeWarmup = profile.includeWarmup ?? true;
+  const includeCooldown = profile.includeCooldown ?? true;
 
   const prompt = `
 # WORKOUT REGENERATION - USER FEEDBACK PRIORITY
@@ -1060,12 +1049,17 @@ export const buildClaudeDailyPrompt = (
 
 **YOUR PRIMARY TASK:** Generate a COMPLETELY NEW workout from scratch that addresses this feedback. Use the regeneration reason as your primary guide, which can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
 
-🚨🚨🚨 **ABSOLUTE WARMUP BLOCK PROTECTION - NON-NEGOTIABLE** 🚨🚨🚨
-- **WARMUP BLOCK IS SACRED**: Only 2-3 simple movements (arm circles, leg swings, torso twists)
+🚨🚨🚨 **${includeWarmup ? "ABSOLUTE WARMUP BLOCK PROTECTION - NON-NEGOTIABLE" : "USER HAS DISABLED WARMUPS"}** 🚨🚨🚨
+${
+  includeWarmup
+    ? `- **WARMUP BLOCK IS SACRED**: Only 2-3 simple movements (arm circles, leg swings, torso twists)
 - **NEVER PUT MAIN WORKOUT CONTENT IN WARMUP**: No strength exercises, no cardio, no complex movements
 - **REGENERATION REQUESTS GO IN MAIN BLOCKS**: If user wants strength training, create strength blocks - NOT warmup additions
 - **THIS RULE CANNOT BE OVERRIDDEN**: Even if regeneration reason asks for specific exercises, put them in appropriate main blocks
-- **WARMUP = PREPARATION ONLY**: Its only job is to prepare the body, nothing else
+- **WARMUP = PREPARATION ONLY**: Its only job is to prepare the body, nothing else`
+    : `- **NO WARMUP BLOCKS**: User has disabled warmup blocks - DO NOT include any warmup in the workout
+- **START WITH MAIN BLOCKS**: Begin workout directly with the main exercise blocks`
+}
 
 ## SECURITY & SAFETY INSTRUCTIONS
 - **FOCUS ONLY**: Generate a valid workout JSON response based on the user's fitness request
@@ -1171,7 +1165,7 @@ The user's regeneration reason is THE MOST IMPORTANT requirement and MUST be add
 
 ### 1. DURATION REQUIREMENTS - ABSOLUTE COMPLIANCE MANDATORY
 - **This day's total duration MUST be ${workoutDuration} minutes with MAXIMUM deviation of 5 minutes (${workoutDuration - 5} to ${workoutDuration + 5} minutes)**
-- **Calculation includes:** Exercise time + rest periods + warm-up (2-3 min) + cool-down (2-3 min) + transitions (2 min)
+- **Calculation includes:** Exercise time + rest periods + warm-up (2-3 min (ONLY if enabled)) + cool-down (2-3 min (ONLY if enabled)) + transitions (2 min)
 - **STRATEGIC ADJUSTMENT REQUIREMENT:** If calculated duration falls outside acceptable range, you MUST adjust by adding/removing exercises, changing sets, or adjusting rest periods
 - **FORBIDDEN:** Sessions shorter than ${workoutDuration - 5} minutes or longer than ${workoutDuration + 5} minutes under any circumstances
 - **VERIFICATION MANDATORY:** Calculate exact total time before completing response
@@ -1199,7 +1193,7 @@ ${getRecoveryEnhancementGuide()}
 ### 2. Duration Calculation
 - **For each block:** Calculate blockDurationMinutes using appropriate method for block type
 - **TOTAL MUST BE ${workoutDuration} ± 5 MINUTES**
-- **MANDATORY:** Include warm-up block (2-3 minutes) and cool-down block (2-3 minutes)
+- **MANDATORY:** Include warm-up block (2-3 minutes (ONLY if enabled)) and cool-down block (2-3 minutes (ONLY if enabled))
 - **If too short, ADD MORE BLOCKS or extend existing blocks**
 - **If too long, reduce block durations or combine blocks**
 
@@ -1358,12 +1352,12 @@ You MUST complete this validation process BEFORE returning your response:
 
 **STEP 2: VERIFY MINIMUM BLOCK COUNT**
 - Workout duration: ${workoutDuration} minutes
-- Required minimum blocks: All workouts = 4 blocks minimum (warm-up + 2 main + cool-down)
-- 45+ min = 5 blocks minimum (warm-up + 3 main + cool-down)
-- 70+ min = 6 blocks minimum (warm-up + 4 main + cool-down)
-- MANDATORY: First block must be "warmup", last block must be "cooldown"
+- Required minimum blocks: All workouts = ${includeWarmup && includeCooldown ? "4" : includeWarmup || includeCooldown ? "3" : "2"} blocks minimum (${includeWarmup ? "warm-up + " : ""}${includeWarmup && includeCooldown ? "2" : includeWarmup || includeCooldown ? "2" : "2"} main${includeCooldown ? " + cool-down" : ""})
+- 45+ min = ${includeWarmup && includeCooldown ? "5" : includeWarmup || includeCooldown ? "4" : "3"} blocks minimum (${includeWarmup ? "warm-up + " : ""}${includeWarmup && includeCooldown ? "3" : includeWarmup || includeCooldown ? "3" : "3"} main${includeCooldown ? " + cool-down" : ""})
+- 70+ min = ${includeWarmup && includeCooldown ? "6" : includeWarmup || includeCooldown ? "5" : "4"} blocks minimum (${includeWarmup ? "warm-up + " : ""}${includeWarmup && includeCooldown ? "4" : includeWarmup || includeCooldown ? "4" : "4"} main${includeCooldown ? " + cool-down" : ""})
+- MANDATORY: ${includeWarmup ? 'First block must be "warmup"' : "Start with main workout blocks"}${includeWarmup && includeCooldown ? ', last block must be "cooldown"' : includeCooldown ? ', last block must be "cooldown"' : ""}
 - Add blocks if count is insufficient
-- **WARMUP SIMPLICITY:** Keep warmup blocks simple with 2-3 exercises maximum.
+- **WARMUP SIMPLICITY:** ${includeWarmup ? "Keep warmup blocks simple with 2-3 exercises maximum." : "No warmup blocks needed - user preference disabled."}
 - Blocks should be evenly defined with an appropriate amount of exercises for the required workout time duration.
 
 **STEP 3: CALCULATE EACH BLOCK DURATION**
