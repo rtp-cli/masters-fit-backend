@@ -217,6 +217,7 @@ export class WorkoutController extends Controller {
     @Body()
     requestBody: {
       customFeedback?: string;
+      threadId?: string;
       profileData?: {
         age?: number;
         height?: number;
@@ -238,7 +239,8 @@ export class WorkoutController extends Controller {
     const workout = await workoutService.regenerateWorkoutPlan(
       userId,
       requestBody.customFeedback,
-      requestBody.profileData
+      requestBody.profileData,
+      requestBody.threadId
     );
     return {
       success: true,
@@ -360,6 +362,7 @@ export class WorkoutController extends Controller {
       reason: string;
       styles?: string[];
       limitations?: string[];
+      threadId?: string;
     }
   ): Promise<PlanDayResponse> {
     const startTime = Date.now();
@@ -381,7 +384,8 @@ export class WorkoutController extends Controller {
         userId,
         planDayId,
         requestBody.reason,
-        requestBody.styles
+        requestBody.styles,
+        requestBody.threadId
       );
 
       const duration = Date.now() - startTime;
@@ -432,6 +436,7 @@ export class WorkoutController extends Controller {
       reason: string;
       styles?: string[];
       limitations?: string[];
+      threadId?: string;
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
     logger.info('Async daily workout regeneration requested', {
@@ -454,6 +459,7 @@ export class WorkoutController extends Controller {
           planDayId,
           regenerationReason: requestBody.reason,
           regenerationStyles: requestBody.styles,
+          threadId: requestBody.threadId,
         }
       );
 
@@ -762,6 +768,9 @@ export class WorkoutController extends Controller {
     requestBody: {
       date: string;
       reason: string;
+      styles?: string[];
+      limitations?: string[];
+      threadId?: string;
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
     logger.info('Rest day workout generation requested', {
@@ -801,6 +810,8 @@ export class WorkoutController extends Controller {
         {
           planDayId: newPlanDay.id,
           regenerationReason: requestBody.reason,
+          regenerationStyles: requestBody.styles,
+          threadId: requestBody.threadId,
           isRestDayGeneration: true
         }
       );

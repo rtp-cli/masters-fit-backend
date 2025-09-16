@@ -731,7 +731,8 @@ export class WorkoutService extends BaseService {
   async generateWorkoutPlan(
     userId: number,
     customFeedback?: string,
-    timezone?: string
+    timezone?: string,
+    threadId?: string
   ): Promise<WorkoutWithDetails> {
     // Emit 10% - Starting
     emitProgress(userId, 10);
@@ -793,7 +794,8 @@ export class WorkoutService extends BaseService {
       try {
         const result = await promptsService.generatePrompt(
           userId,
-          customFeedback
+          customFeedback,
+          threadId
         );
         response = result.response;
         promptId = result.promptId;
@@ -1105,7 +1107,8 @@ export class WorkoutService extends BaseService {
       workoutDuration?: number;
       intensityLevel?: number;
       medicalNotes?: string;
-    }
+    },
+    threadId?: string
   ): Promise<WorkoutWithDetails> {
     if (profileData) {
       await profileService.createOrUpdateProfile({
@@ -1162,7 +1165,7 @@ export class WorkoutService extends BaseService {
       );
     }
 
-    const workout = await this.generateWorkoutPlan(userId, customFeedback);
+    const workout = await this.generateWorkoutPlan(userId, customFeedback, undefined, threadId);
     return workout;
   }
 
@@ -1170,7 +1173,8 @@ export class WorkoutService extends BaseService {
     userId: number,
     planDayId: number,
     regenerationReason: string,
-    regenerationStyles?: string[]
+    regenerationStyles?: string[],
+    threadId?: string
   ): Promise<PlanDayWithExercises> {
     const startTime = Date.now();
 
@@ -1282,7 +1286,8 @@ export class WorkoutService extends BaseService {
         (existingPlanDay as any).dayNumber || 1,
         previousWorkout,
         regenerationReason,
-        isRestDayContext
+        isRestDayContext,
+        threadId
       );
 
       // Emit 85% - AI response received

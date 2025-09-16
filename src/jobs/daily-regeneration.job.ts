@@ -14,7 +14,7 @@ export async function processDailyRegenerationJob(
   job: Job<DailyRegenerationJobData & { userId: number; jobId: number }>
 ): Promise<DailyRegenerationJobResult> {
   const startTime = Date.now();
-  const { userId, jobId, planDayId, regenerationReason, regenerationStyles } = job.data;
+  const { userId, jobId, planDayId, regenerationReason, regenerationStyles, threadId } = job.data;
   
   logger.info('Starting daily workout regeneration job processing', {
     operation: 'dailyRegenerationJob',
@@ -41,7 +41,8 @@ export async function processDailyRegenerationJob(
       userId,
       planDayId,
       regenerationReason,
-      regenerationStyles
+      regenerationStyles,
+      threadId
     );
 
     const generationTime = Date.now() - startTime;

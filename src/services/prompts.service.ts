@@ -1,7 +1,7 @@
 import { InsertPrompt, Prompt, prompts } from "@/models";
 import { BaseService } from "./base.service";
 import { profileService } from "./profile.service";
-import { eq } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { exerciseService } from "./exercise.service";
 import {
   buildClaudePrompt,
@@ -16,6 +16,7 @@ import {
   DEFAULT_API_RETRY_OPTIONS,
 } from "@/utils/retry.utils";
 import { emitProgress } from "@/utils/websocket-progress.utils";
+import { WorkoutAgentService } from "./workout-agent.service";
 
 // Utility function to clean JSON responses that may be wrapped in code blocks
 function cleanJsonResponse(response: string): string {
@@ -56,6 +57,13 @@ function cleanJsonResponse(response: string): string {
 }
 
 export class PromptsService extends BaseService {
+  private workoutAgent: WorkoutAgentService;
+
+  constructor() {
+    super();
+    this.workoutAgent = new WorkoutAgentService();
+  }
+
   public async getUserPrompts(userId: number): Promise<Prompt[]> {
     const result = await this.db
       .select()
@@ -69,7 +77,7 @@ export class PromptsService extends BaseService {
     return result[0];
   }
 
-  public async generatePrompt(userId: number, customFeedback?: string) {
+  public async generatePrompt(userId: number, customFeedback?: string, threadId?: string) {
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
       throw new Error("Profile not found");
@@ -89,6 +97,37 @@ export class PromptsService extends BaseService {
 
     const exercises = await exerciseService.getExercises();
     const exerciseNames = exercises.map((exercise) => exercise.name);
+
+    if (threadId && customFeedback) {
+      // Use agent for weekly generation with feedback and conversation memory
+      try {
+        const workout = await this.workoutAgent.regenerateWorkout(
+          userId,
+          profile,
+          exerciseNames,
+          threadId,
+          customFeedback
+        );
+
+        const createdPrompt = await this.createPrompt({
+          userId,
+          prompt: customFeedback || "Generate weekly workout",
+          response: JSON.stringify(workout),
+          threadId
+        });
+
+        return { response: workout, promptId: createdPrompt.id };
+      } catch (error) {
+        logger.warn("Agent failed for weekly generation, falling back to traditional generation", {
+          error: (error as Error).message,
+          userId,
+          threadId,
+          operation: "generatePrompt"
+        });
+        // Fall through to existing implementation
+      }
+    }
+
     const prompt = buildClaudePrompt(profile, exerciseNames, customFeedback);
     const anthropic = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
@@ -101,7 +140,7 @@ export class PromptsService extends BaseService {
 
     while (attempts < maxAttempts) {
       try {
-        const result = await retryWithBackoff(
+        const { data: result, response } = await retryWithBackoff(
           async () => {
             const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
@@ -118,7 +157,10 @@ export class PromptsService extends BaseService {
                   : []),
               ],
             });
-            return (response.content[0] as any).text;
+            return {
+              data: (response.content[0] as any).text,
+              response: response,
+            };
           },
           DEFAULT_API_RETRY_OPTIONS,
           {
@@ -563,7 +605,7 @@ export class PromptsService extends BaseService {
 
     while (attempts < maxAttempts) {
       try {
-        data = await retryWithBackoff(
+        const { data: result, response } = await retryWithBackoff(
           async () => {
             const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
@@ -580,7 +622,10 @@ export class PromptsService extends BaseService {
                   : []),
               ],
             });
-            return (response.content[0] as any).text;
+            return {
+              data: (response.content[0] as any).text,
+              response: response,
+            };
           },
           DEFAULT_API_RETRY_OPTIONS,
           {
@@ -588,6 +633,7 @@ export class PromptsService extends BaseService {
             userId,
           }
         );
+        data = result;
       } catch (retryError) {
         logger.error(
           "Failed to generate regeneration prompt after retries",
@@ -718,7 +764,8 @@ export class PromptsService extends BaseService {
     dayNumber: number,
     previousWorkout: any,
     regenerationReason: string,
-    isRestDay: boolean = false
+    isRestDay: boolean = false,
+    threadId?: string
   ) {
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
@@ -727,6 +774,39 @@ export class PromptsService extends BaseService {
 
     const exercises = await exerciseService.getExercises();
     const exerciseNames = exercises.map((exercise) => exercise.name);
+
+    if (threadId) {
+      // Use agent for daily regeneration with conversation memory
+      try {
+        const workout = await this.workoutAgent.regenerateWorkout(
+          userId,
+          profile,
+          exerciseNames,
+          threadId,
+          regenerationReason,
+          dayNumber,
+          isRestDay
+        );
+
+        const createdPrompt = await this.createPrompt({
+          userId,
+          prompt: regenerationReason,
+          response: JSON.stringify(workout),
+          threadId
+        });
+
+        return { response: workout, promptId: createdPrompt.id };
+      } catch (error) {
+        logger.warn("Agent failed for daily regeneration, falling back to traditional generation", {
+          error: (error as Error).message,
+          userId,
+          threadId,
+          dayNumber,
+          operation: "generateDailyRegenerationPrompt"
+        });
+        // Fall through to existing implementation
+      }
+    }
 
     const prompt = buildClaudeDailyPrompt(
       profile,

@@ -160,6 +160,7 @@ export interface DailyRegenerationJobData {
   planDayId: number;
   regenerationReason: string;
   regenerationStyles?: string[];
+  threadId?: string;
 }
 
 export interface DailyRegenerationJobResult {

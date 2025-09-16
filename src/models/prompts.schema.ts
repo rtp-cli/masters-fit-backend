@@ -10,6 +10,7 @@ export const prompts = pgTable("prompts", {
     .references(() => users.id),
   prompt: text("prompt").notNull(),
   response: text("response").notNull(),
+  threadId: text("thread_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -22,6 +23,7 @@ export const insertPromptSchema = createInsertSchema(prompts).pick({
   userId: true,
   prompt: true,
   response: true,
+  threadId: true,
 });
 
 // Types - Explicit interface for TSOA compatibility
@@ -30,6 +32,7 @@ export interface Prompt {
   userId: number;
   prompt: string;
   response: string;
+  threadId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
