@@ -95,16 +95,13 @@ export class PromptsService extends BaseService {
       );
     }
 
-    const exercises = await exerciseService.getExercises();
-    const exerciseNames = exercises.map((exercise) => exercise.name);
-
     if (threadId && customFeedback) {
       // Use agent for weekly generation with feedback and conversation memory
       try {
         const workout = await this.workoutAgent.regenerateWorkout(
           userId,
           profile,
-          exerciseNames,
+          [], // exerciseNames no longer needed - agent uses tools
           threadId,
           customFeedback
         );
@@ -127,6 +124,10 @@ export class PromptsService extends BaseService {
         // Fall through to existing implementation
       }
     }
+
+    // For traditional generation (fallback), still need exercise names
+    const exercises = await exerciseService.getExercises();
+    const exerciseNames = exercises.map((exercise) => exercise.name);
 
     const prompt = buildClaudePrompt(profile, exerciseNames, customFeedback);
     const anthropic = new Anthropic({
@@ -772,16 +773,13 @@ export class PromptsService extends BaseService {
       throw new Error("Profile not found");
     }
 
-    const exercises = await exerciseService.getExercises();
-    const exerciseNames = exercises.map((exercise) => exercise.name);
-
     if (threadId) {
       // Use agent for daily regeneration with conversation memory
       try {
         const workout = await this.workoutAgent.regenerateWorkout(
           userId,
           profile,
-          exerciseNames,
+          [], // exerciseNames no longer needed - agent uses tools
           threadId,
           regenerationReason,
           dayNumber,
@@ -807,6 +805,10 @@ export class PromptsService extends BaseService {
         // Fall through to existing implementation
       }
     }
+
+    // For traditional generation (fallback), still need exercise names
+    const exercises = await exerciseService.getExercises();
+    const exerciseNames = exercises.map((exercise) => exercise.name);
 
     const prompt = buildClaudeDailyPrompt(
       profile,

@@ -1,7 +1,15 @@
 import { Exercise, exercises, InsertExercise } from "@/models";
 import { BaseService } from "./base.service";
-import { eq, ilike } from "drizzle-orm";
+import { eq, ilike, and, arrayOverlaps, inArray } from "drizzle-orm";
 import { logger } from "@/utils/logger";
+
+// Interface for exercise metadata (minimal data for LLM)
+export interface ExerciseMetadata {
+  name: string;
+  equipment: string[] | null;
+  muscleGroups: string[];
+  difficulty: string | null;
+}
 
 export class ExerciseService extends BaseService {
   async createExercise(data: InsertExercise) {
@@ -94,6 +102,79 @@ export class ExerciseService extends BaseService {
       .returning();
 
     return result[0];
+  }
+
+  async searchExercises(filters: {
+    muscleGroups?: string[];
+    equipment?: string[];
+    difficulty?: string[];
+    styles?: string[];
+    limit?: number;
+  }): Promise<ExerciseMetadata[]> {
+    try {
+      let query = this.db
+        .select({
+          name: exercises.name,
+          equipment: exercises.equipment,
+          muscleGroups: exercises.muscleGroups,
+          difficulty: exercises.difficulty,
+        })
+        .from(exercises);
+
+      const conditions = [];
+
+      // Filter by muscle groups (if any muscle group overlaps)
+      if (filters.muscleGroups && filters.muscleGroups.length > 0) {
+        conditions.push(arrayOverlaps(exercises.muscleGroups, filters.muscleGroups));
+      }
+
+      // Filter by equipment (include bodyweight exercises too)
+      if (filters.equipment && filters.equipment.length > 0) {
+        // Include exercises that use the specified equipment OR have no equipment (bodyweight)
+        conditions.push(
+          arrayOverlaps(exercises.equipment, filters.equipment as any)
+        );
+        // Also include bodyweight exercises (empty equipment array or null)
+        // This allows flexibility for equipment-based workouts to include bodyweight alternatives
+      }
+
+      // Filter by difficulty
+      if (filters.difficulty && filters.difficulty.length > 0) {
+        conditions.push(inArray(exercises.difficulty, filters.difficulty as any));
+      }
+
+      // Filter by styles (using tag field)
+      if (filters.styles && filters.styles.length > 0) {
+        conditions.push(inArray(exercises.tag, filters.styles));
+      }
+
+      // Apply all conditions
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as any;
+      }
+
+      // Apply limit (default to 50)
+      const limit = filters.limit || 50;
+      const finalQuery = query.limit(limit);
+
+      const result = await finalQuery;
+
+      logger.info("Exercise search completed", {
+        operation: "searchExercises",
+        metadata: {
+          filters,
+          resultCount: result.length,
+        }
+      });
+
+      return result as ExerciseMetadata[];
+    } catch (error) {
+      logger.error("Exercise search failed", error as Error, {
+        operation: "searchExercises",
+        metadata: { filters }
+      });
+      throw error;
+    }
   }
 }
 

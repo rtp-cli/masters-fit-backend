@@ -1,8 +1,9 @@
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatMessageHistory } from "langchain/stores/message/in_memory";
-import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { Profile } from "@/models";
 import { logger } from "@/utils/logger";
+import { exerciseService, ExerciseMetadata } from "./exercise.service";
 
 // Import helper functions from prompt-generator
 const getEquipmentDescription = (
@@ -235,9 +236,119 @@ export class WorkoutAgentService {
     });
   }
 
+
+  private async callExerciseSearchTool(filters: any): Promise<ExerciseMetadata[]> {
+    try {
+      const exercises = await exerciseService.searchExercises(filters);
+
+      logger.info("Exercise search tool called", {
+        operation: "searchExercises",
+        metadata: {
+          filters,
+          resultCount: exercises.length,
+        }
+      });
+
+      return exercises;
+    } catch (error) {
+      logger.error("Exercise search tool failed", error as Error, {
+        operation: "searchExercises",
+        metadata: { filters }
+      });
+      throw error;
+    }
+  }
+
+  private async processWithTools(
+    userMessage: HumanMessage,
+    systemMessage: SystemMessage,
+    existingMessages: any[],
+    userId: number,
+    threadId: string
+  ): Promise<any> {
+    // Enhanced system message that explains tool calling
+    const enhancedSystemContent = `${systemMessage.content}
+
+## TOOL USAGE INSTRUCTIONS
+
+You have access to an exercise search capability. When you need to find exercises for your workout design:
+
+1. **Think about what exercises you need**: Consider muscle groups, equipment, difficulty, and style
+2. **Request exercises**: In your response, include a special section like this:
+
+EXERCISE_SEARCH_REQUEST:
+{
+  "muscleGroups": ["chest", "triceps"],
+  "equipment": ["dumbbells"],
+  "difficulty": ["moderate"],
+  "limit": 30
+}
+
+3. **I will provide the results** and you can then complete your workout design
+4. **Use the returned exercises** to create your final JSON workout plan
+
+Remember: You don't call the tool directly. Just include EXERCISE_SEARCH_REQUEST sections in your response when you need exercises.`;
+
+    const enhancedSystemMessage = new SystemMessage(enhancedSystemContent);
+
+    // Combine all messages for the LLM call
+    const messages = [
+      enhancedSystemMessage,
+      ...existingMessages,
+      userMessage
+    ];
+
+    // First LLM call to get initial response
+    const initialResponse = await this.llm.invoke(messages);
+    let responseContent = initialResponse.content as string;
+
+    // Check if the response contains exercise search requests
+    const searchRequestPattern = /EXERCISE_SEARCH_REQUEST:\s*({[\s\S]*?})/g;
+    let match;
+    const searchRequests = [];
+
+    while ((match = searchRequestPattern.exec(responseContent)) !== null) {
+      try {
+        const searchRequest = JSON.parse(match[1]);
+        searchRequests.push(searchRequest);
+      } catch (e) {
+        logger.warn("Failed to parse exercise search request", {
+          operation: "processWithTools",
+          match: match[1]
+        });
+      }
+    }
+
+    // If there are search requests, execute them and provide results
+    if (searchRequests.length > 0) {
+      let exerciseResults = "";
+
+      for (const request of searchRequests) {
+        const exercises = await this.callExerciseSearchTool(request);
+        exerciseResults += `\nEXERCISE_SEARCH_RESULTS for ${JSON.stringify(request)}:\n${JSON.stringify(exercises, null, 2)}\n`;
+      }
+
+      // Second LLM call with exercise results
+      const toolResultMessage = new HumanMessage(`Here are the exercise search results:${exerciseResults}\n\nNow please complete the workout design using these exercises and respond with the final JSON workout plan.`);
+
+      const finalMessages = [
+        enhancedSystemMessage,
+        ...existingMessages,
+        userMessage,
+        initialResponse,
+        toolResultMessage
+      ];
+
+      const finalResponse = await this.llm.invoke(finalMessages);
+      return finalResponse;
+    }
+
+    // No tools needed, return initial response
+    return initialResponse;
+  }
+
   private buildSystemMessage(
     profile: Profile,
-    exerciseNames: string[],
     context: "weekly" | "daily" = "daily"
   ): SystemMessage {
     const workoutDuration = profile.workoutDuration || 30;
@@ -262,27 +373,37 @@ ${getDurationRequirements(workoutDuration, context, includeWarmup, includeCooldo
 
 ## EXERCISE SELECTION PROCESS
 
-Follow this exact sequence:
+You have access to a **searchExercises** tool to find appropriate exercises. Follow this process:
 
-**STEP 1: DESIGN THE COMPLETE WORKOUT**
-- First, design the complete workout based on the user's profile, goals, limitations, and equipment
-- Choose the most appropriate exercises to meet the user's fitness objectives
+**STEP 1: DESIGN WORKOUT STRUCTURE**
+- Plan the complete workout structure based on the user's profile, goals, and requirements
+- Determine what muscle groups, equipment, and difficulty levels you need for each block
 - Focus on creating effective, balanced workouts that achieve the target duration of ${workoutDuration} minutes
-- DO NOT reference the provided exercise list during this design phase
 
-**STEP 2: CHECK AGAINST EXERCISE DATABASE**
-- The provided exercise list is your reference database: ${exerciseNames.slice(0, 20).join(", ")}... (${exerciseNames.length} total exercises)
-- For each exercise you designed in Step 1, check if it exists in this database
-- If the exercise name exists in the database, use the exact name from the database in your workout plan
-- If the exercise does not exist in the database, add it to 'exercisesToAdd' with full details
+**STEP 2: SEARCH FOR EXERCISES**
+- For each workout block, use the searchExercises tool to find appropriate exercises
+- Use specific filters based on your design needs:
+  - muscleGroups: Target specific muscle groups (e.g., ["chest", "triceps"])
+  - equipment: Filter by available equipment (merge profile + any regeneration overrides)
+  - difficulty: Match user's fitness level and workout intensity
+  - styles: Filter by workout style tags (e.g., ["crossfit", "strength", "hiit"])
+  - limit: Control how many exercises you get back (default 50)
 
-**STEP 3: POPULATE THE OUTPUT**
-- Include exercises from the database using their exact database names
-- Include new exercises in 'exercisesToAdd' with complete details
-- Any new exercise MUST be included in 'exercisesToAdd'
-- The "tag" field in each new exercise should be a string from: ["hiit", "strength", "cardio", "rehab", "crossfit", "functional", "pilates", "yoga", "balance", "mobility"]
-- New exercises MUST only use the user's available equipment
-- Duration goal takes priority - if you need 10+ new exercises to reach ${workoutDuration} minutes, add them
+**STEP 3: SMART EXERCISE SELECTION**
+- From the search results, select exercises that best fit your workout design
+- Prioritize exercises that match the user's available equipment
+- Consider variety, progression, and workout flow
+- If you can't find suitable exercises, create new ones and add to 'exercisesToAdd'
+
+**STEP 4: HANDLE REGENERATION OVERRIDES**
+- If the regeneration reason mentions specific equipment (e.g., "add dumbbells"), include that in your search filters
+- If user wants different styles temporarily, search with those style tags
+- Profile settings are the baseline, regeneration reason takes priority for overrides
+
+**TOOL USAGE EXAMPLES:**
+- searchExercises({"muscleGroups": ["chest", "triceps"], "equipment": ["dumbbells"], "difficulty": ["moderate"]})
+- searchExercises({"styles": ["hiit"], "muscleGroups": ["legs"], "limit": 20})
+- searchExercises({"equipment": [], "difficulty": ["low"]}) // bodyweight only
 
 ## PROFESSIONAL PROGRAMMING PRIORITIES
 
@@ -359,7 +480,7 @@ Generate the workout now.`;
   async regenerateWorkout(
     userId: number,
     profile: Profile,
-    exerciseNames: string[],
+    exerciseNames: string[], // This parameter is now unused but kept for compatibility
     threadId: string,
     regenerationReason: string,
     dayNumber?: number,
@@ -373,29 +494,28 @@ Generate the workout now.`;
 
       const messageHistory = this.messageHistories.get(threadId)!;
 
-      // Build messages
-      const systemMessage = this.buildSystemMessage(profile, exerciseNames, dayNumber ? "daily" : "weekly");
+      // Build messages (no longer need exerciseNames)
+      const systemMessage = this.buildSystemMessage(profile, dayNumber ? "daily" : "weekly");
       const userMessage = this.buildUserMessage(profile, regenerationReason, dayNumber, isRestDay);
 
       // Get existing messages from history
       const existingMessages = await messageHistory.getMessages();
 
-      // Combine all messages
-      const messages = [
-        systemMessage,
-        ...existingMessages,
-        userMessage
-      ];
-
-      logger.info("Calling LLM with agent for workout generation", {
+      logger.info("Calling LLM with tool support for workout generation", {
         userId,
         threadId,
-        messageCount: messages.length,
+        messageCount: existingMessages.length,
         operation: "regenerateWorkout"
       });
 
-      // Call LLM directly with full message context
-      const response = await this.llm.invoke(messages);
+      // Process with tools
+      const response = await this.processWithTools(
+        userMessage,
+        systemMessage,
+        existingMessages,
+        userId,
+        threadId
+      );
 
       // Add the exchange to history
       await messageHistory.addMessage(userMessage);
