@@ -5,7 +5,10 @@ export const redisClient = createClient({
   url: process.env.REDIS_URL || 'redis://localhost:6379',
   socket: {
     connectTimeout: 60000,
-    lazyConnect: true,
+    ...(process.env.REDIS_URL?.startsWith('rediss://') && {
+      tls: true,
+      rejectUnauthorized: false,
+    }),
   },
 });
 
