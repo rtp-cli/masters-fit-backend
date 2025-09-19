@@ -4,12 +4,7 @@ import { WorkoutGenerationJobData, WorkoutGenerationJobResult } from '@/models/j
 
 // Create the workout generation queue
 export const workoutGenerationQueue = new Queue<WorkoutGenerationJobData>('workout generation', {
-  redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379'),
-    password: process.env.REDIS_PASSWORD,
-    db: parseInt(process.env.REDIS_DB || '0'),
-  },
+  redis: process.env.REDIS_URL || 'redis://localhost:6379',
   defaultJobOptions: {
     removeOnComplete: 50, // Keep last 50 completed jobs
     removeOnFail: 20,     // Keep last 20 failed jobs
