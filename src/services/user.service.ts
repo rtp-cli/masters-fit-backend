@@ -41,6 +41,12 @@ export class UserService extends BaseService {
         ...(data.pushNotificationToken !== undefined && {
             pushNotificationToken: data.pushNotificationToken,
           }),
+        ...(data.waiverAcceptedAt !== undefined && {
+            waiverAcceptedAt: data.waiverAcceptedAt,
+          }),
+        ...(data.waiverVersion !== undefined && {
+            waiverVersion: data.waiverVersion,
+          }),
       })
       .where(this.eq(users.id, id))
       .returning();
@@ -60,10 +66,42 @@ export class UserService extends BaseService {
         ...(data.pushNotificationToken !== undefined && {
             pushNotificationToken: data.pushNotificationToken,
           }),
+        ...(data.waiverAcceptedAt !== undefined && {
+            waiverAcceptedAt: data.waiverAcceptedAt,
+          }),
+        ...(data.waiverVersion !== undefined && {
+            waiverVersion: data.waiverVersion,
+          }),
       })
       .where(this.eq(users.email, data.email!))
       .returning();
     return result[0];
+  }
+
+  async acceptWaiver(userId: number, version: string): Promise<User> {
+    const result = await this.db
+      .update(users)
+      .set({
+        waiverAcceptedAt: new Date(),
+        waiverVersion: version,
+      })
+      .where(this.eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
+  async hasAcceptedWaiver(userId: number, requiredVersion?: string): Promise<boolean> {
+    const user = await this.getUser(userId);
+    if (!user || !user.waiverAcceptedAt) {
+      return false;
+    }
+
+    // If a specific version is required, check if user accepted that version or later
+    if (requiredVersion && user.waiverVersion !== requiredVersion) {
+      return false;
+    }
+
+    return true;
   }
 }
 

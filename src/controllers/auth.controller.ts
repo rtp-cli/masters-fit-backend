@@ -7,6 +7,8 @@ import {
   SuccessResponse,
   Tags,
   Example,
+  Security,
+  Request,
 } from "@tsoa/runtime";
 import { randomBytes } from "crypto";
 import {
@@ -17,6 +19,7 @@ import {
   AuthLoginResponse,
   AuthSignupResponse,
   SignUpRequest,
+  AcceptWaiverRequest,
 } from "@/types";
 import { userService, authService } from "@/services";
 import { emailService } from "@/services/email.service";
@@ -69,8 +72,11 @@ export class AuthController extends Controller {
         id: user.id,
         email: user.email,
         name: user.name,
+        needsOnboarding: user.needsOnboarding,
+        waiverAcceptedAt: user.waiverAcceptedAt,
+        waiverVersion: user.waiverVersion,
       },
-      needsOnboarding: false,
+      needsOnboarding: user.needsOnboarding ?? false,
       token: token,
     };
   }
@@ -165,6 +171,9 @@ export class AuthController extends Controller {
         id: user.id,
         email: user.email,
         name: user.name,
+        needsOnboarding: user.needsOnboarding,
+        waiverAcceptedAt: user.waiverAcceptedAt,
+        waiverVersion: user.waiverVersion,
       },
       needsOnboarding: user?.needsOnboarding ?? true,
     };
@@ -214,6 +223,60 @@ export class AuthController extends Controller {
     return {
       success: true,
     };
+  }
+
+  /**
+   * Accept waiver for authenticated user
+   * @param requestBody Waiver version to accept
+   */
+  @Post("accept-waiver")
+  @Security("bearerAuth")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async acceptWaiver(
+    @Request() request: any,
+    @Body() requestBody: AcceptWaiverRequest
+  ): Promise<ApiResponse> {
+    const { version } = requestBody;
+
+    if (!version) {
+      return {
+        success: false,
+        error: "Waiver version is required",
+      };
+    }
+
+    const userId = request.userId;
+
+    if (!userId) {
+      return {
+        success: false,
+        error: "User authentication required",
+      };
+    }
+
+    try {
+      await userService.acceptWaiver(userId, version);
+
+      logger.info("Waiver accepted successfully", {
+        operation: "acceptWaiver",
+        metadata: { userId, version },
+      });
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      logger.error("Failed to accept waiver", error as Error, {
+        operation: "acceptWaiver",
+        metadata: { userId, version },
+      });
+
+      return {
+        success: false,
+        error: "Failed to accept waiver",
+      };
+    }
   }
 
   /**
@@ -283,6 +346,9 @@ export class AuthController extends Controller {
         id: user.id,
         email: user.email,
         name: user.name,
+        needsOnboarding: user.needsOnboarding,
+        waiverAcceptedAt: user.waiverAcceptedAt,
+        waiverVersion: user.waiverVersion,
       },
       needsOnboarding: user.needsOnboarding ?? false,
       token: token,

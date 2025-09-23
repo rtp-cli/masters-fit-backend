@@ -5,6 +5,9 @@ export interface AuthUserResponse {
   id: number;
   email: string;
   name: string;
+  needsOnboarding: boolean | null;
+  waiverAcceptedAt: Date | null;
+  waiverVersion: string | null;
 }
 
 /**

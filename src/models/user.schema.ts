@@ -11,6 +11,8 @@ export const users = pgTable("users", {
   pushNotificationToken: text("push_notification_token"), // Expo push token
   createdAt: timestamp("created_at").defaultNow(),
   needsOnboarding: boolean("needs_onboarding").default(true),
+  waiverAcceptedAt: timestamp("waiver_accepted_at"),
+  waiverVersion: text("waiver_version"),
 }, (table) => ({
   emailIdx: index("idx_users_email").on(table.email),
 }));
@@ -27,6 +29,8 @@ export const updateUserSchema = createInsertSchema(users).pick({
   name: true,
   needsOnboarding: true,
   pushNotificationToken: true,
+  waiverAcceptedAt: true,
+  waiverVersion: true,
 });
 
 // Types - Explicit interface for TSOA compatibility
@@ -38,6 +42,8 @@ export interface User {
   pushNotificationToken: string | null;
   createdAt: Date | null;
   needsOnboarding: boolean | null;
+  waiverAcceptedAt: Date | null;
+  waiverVersion: string | null;
 }
 
 export type InsertUser = z.infer<typeof insertUserSchema>;

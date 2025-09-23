@@ -10,3 +10,7 @@ export interface SignUpRequest {
 export interface AuthCodeRequest {
   authCode: string;
 }
+
+export interface AcceptWaiverRequest {
+  version: string;
+}
