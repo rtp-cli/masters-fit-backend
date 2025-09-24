@@ -116,9 +116,8 @@ export class ProfileController extends Controller {
       created_at: dbProfile.updatedAt ?? new Date(),
       updated_at: dbProfile.updatedAt ?? new Date(),
     };
-    const user = await userService.getUser(requestBody.userId!);
-    await userService.updateUser({
-      email: user?.email,
+    // Update user to set needsOnboarding = false after profile creation
+    await userService.updateUser(requestBody.userId!, {
       needsOnboarding: false,
     });
 
@@ -170,6 +169,15 @@ export class ProfileController extends Controller {
     if (requestBody.includeCooldown !== undefined) updateData.includeCooldown = requestBody.includeCooldown;
 
     const dbProfile = await profileService.createOrUpdateProfile(updateData);
+
+    // Update user to set needsOnboarding = false after profile creation/update
+    await userService.updateUser(requestBody.userId || userId, {
+      needsOnboarding: false,
+    });
+
+    // Get the updated user with needsOnboarding: false
+    const updatedUser = await userService.getUser(requestBody.userId || userId);
+
     const profile: Profile = {
       id: dbProfile.id,
       userId: dbProfile.userId,
@@ -235,6 +243,15 @@ export class ProfileController extends Controller {
     if (requestBody.includeCooldown !== undefined) updateData.includeCooldown = requestBody.includeCooldown;
 
     const dbProfile = await profileService.createOrUpdateProfile(updateData);
+
+    // Update user to set needsOnboarding = false after profile creation/update
+    await userService.updateUser(userId, {
+      needsOnboarding: false,
+    });
+
+    // Get the updated user with needsOnboarding: false
+    const updatedUser = await userService.getUser(userId);
+
     const profile: Profile = {
       id: dbProfile.id,
       userId: dbProfile.userId,
@@ -261,6 +278,8 @@ export class ProfileController extends Controller {
     return {
       success: true,
       profile,
+      user: updatedUser,
+      needsOnboarding: false,
     };
   }
 }
