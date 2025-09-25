@@ -1,6 +1,7 @@
 import { BaseService } from "@/services/base.service";
 import { users } from "@/models";
 import type { UpdateUser, User } from "@/models";
+import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
 
 export class UserService extends BaseService {
   async getUserByEmail(email: string): Promise<User | undefined> {
@@ -79,6 +80,11 @@ export class UserService extends BaseService {
   }
 
   async acceptWaiver(userId: number, version: string): Promise<User> {
+    // Validate version before updating
+    if (version !== CURRENT_WAIVER_VERSION) {
+      throw new Error(`Invalid waiver version. Expected ${CURRENT_WAIVER_VERSION}, received ${version}`);
+    }
+
     const result = await this.db
       .update(users)
       .set({
@@ -96,12 +102,19 @@ export class UserService extends BaseService {
       return false;
     }
 
-    // If a specific version is required, check if user accepted that version or later
-    if (requiredVersion && user.waiverVersion !== requiredVersion) {
+    // Use the required version or default to current version
+    const versionToCheck = requiredVersion || CURRENT_WAIVER_VERSION;
+
+    // Check if user has accepted the specific version (exact match required)
+    if (user.waiverVersion !== versionToCheck) {
       return false;
     }
 
     return true;
+  }
+
+  async hasAcceptedCurrentWaiver(userId: number): Promise<boolean> {
+    return this.hasAcceptedWaiver(userId, CURRENT_WAIVER_VERSION);
   }
 }
 

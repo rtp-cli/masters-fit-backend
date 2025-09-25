@@ -26,6 +26,7 @@ import { emailService } from "@/services/email.service";
 import { emailAuthSchema, InsertUser, insertUserSchema } from "@/models";
 import jwt from "jsonwebtoken";
 import { logger } from "@/utils/logger";
+import { CURRENT_WAIVER_VERSION, hasAcceptedCurrentWaiver } from "@/constants/waiver";
 
 // Simulating sessions for passwordless auth (in production, use a proper session store)
 // const authCodes = new Map<string, { email: string; expires: number }>();
@@ -77,6 +78,7 @@ export class AuthController extends Controller {
         waiverVersion: user.waiverVersion,
       },
       needsOnboarding: user.needsOnboarding ?? false,
+      needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
       token: token,
     };
   }
@@ -246,6 +248,14 @@ export class AuthController extends Controller {
       };
     }
 
+    // Validate that the version matches the current version
+    if (version !== CURRENT_WAIVER_VERSION) {
+      return {
+        success: false,
+        error: `Invalid waiver version. Current version is ${CURRENT_WAIVER_VERSION}`,
+      };
+    }
+
     const userId = request.userId;
 
     if (!userId) {
@@ -351,6 +361,7 @@ export class AuthController extends Controller {
         waiverVersion: user.waiverVersion,
       },
       needsOnboarding: user.needsOnboarding ?? false,
+      needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
       token: token,
     };
   }

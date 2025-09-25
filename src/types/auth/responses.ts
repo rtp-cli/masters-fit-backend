@@ -17,6 +17,7 @@ export interface AuthVerifyResponse {
   success: boolean;
   error?: string;
   needsOnboarding?: boolean;
+  needsWaiverUpdate?: boolean;
   user?: AuthUserResponse;
   email?: string;
   token?: string;
