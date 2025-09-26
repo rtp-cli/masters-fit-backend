@@ -13,6 +13,18 @@ import { emitProgress } from '@/utils/websocket-progress.utils';
 export async function processWorkoutGenerationJob(
   job: Job<WorkoutGenerationJobData & { userId: number; jobId: number }>
 ): Promise<WorkoutGenerationJobResult> {
+  logger.info('Weekly workout generation job picked up by worker', {
+    operation: 'processWorkoutGenerationJob',
+    bullJobId: job.id,
+    jobId: (job.data as any).jobId,
+    userId: (job.data as any).userId,
+    metadata: {
+      attemptsMade: job.attemptsMade,
+      timestamp: new Date().toISOString(),
+      processId: process.pid
+    }
+  });
+
   const startTime = Date.now();
   const { userId, jobId, customFeedback, timezone, profileData } = job.data;
   
@@ -30,8 +42,27 @@ export async function processWorkoutGenerationJob(
 
   try {
     // Update job status to processing
-    await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 5);
-    
+    logger.info('Updating job status to PROCESSING', {
+      operation: 'processWorkoutGenerationJob',
+      jobId,
+      userId
+    });
+
+    try {
+      await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 5);
+      logger.info('Job status updated to PROCESSING successfully', {
+        operation: 'processWorkoutGenerationJob',
+        jobId
+      });
+    } catch (dbError) {
+      logger.error('Failed to update job status to PROCESSING', dbError as Error, {
+        operation: 'processWorkoutGenerationJob',
+        jobId,
+        userId
+      });
+      // Continue processing even if database update fails
+    }
+
     // Emit initial progress
     emitProgress(userId, 5);
     

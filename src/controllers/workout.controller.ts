@@ -632,7 +632,7 @@ export class WorkoutController extends Controller {
       // Create job record in database
       const job = await jobsService.createJob(
         userId,
-        'workout_generation',
+        JobType.WORKOUT_GENERATION,
         requestBody || {}
       );
 

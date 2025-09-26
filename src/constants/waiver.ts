@@ -7,7 +7,7 @@
  * 3. All users will be prompted to re-accept the waiver
  * 4. Consider legal review before deployment
  */
-export const CURRENT_WAIVER_VERSION = "1.0";
+export const CURRENT_WAIVER_VERSION = "1.3";
 
 /**
  * Check if user has accepted the current waiver version

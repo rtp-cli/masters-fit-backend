@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   Post,
   Route,
   Response,
@@ -26,7 +27,7 @@ import { emailService } from "@/services/email.service";
 import { emailAuthSchema, InsertUser, insertUserSchema } from "@/models";
 import jwt from "jsonwebtoken";
 import { logger } from "@/utils/logger";
-import { CURRENT_WAIVER_VERSION, hasAcceptedCurrentWaiver } from "@/constants/waiver";
+import { CURRENT_WAIVER_VERSION, hasAcceptedCurrentWaiver, isWaiverUpdate } from "@/constants/waiver";
 
 // Simulating sessions for passwordless auth (in production, use a proper session store)
 // const authCodes = new Map<string, { email: string; expires: number }>();
@@ -225,6 +226,89 @@ export class AuthController extends Controller {
     return {
       success: true,
     };
+  }
+
+  /**
+   * Check waiver status for authenticated user
+   * @param request Authenticated request
+   */
+  @Get("waiver-status")
+  @Security("bearerAuth")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async getWaiverStatus(
+    @Request() request: any
+  ): Promise<{
+    success: boolean;
+    waiverInfo: {
+      currentVersion: string;
+      userVersion: string | null;
+      hasAccepted: boolean;
+      isUpdate: boolean;
+      needsAcceptance: boolean;
+    };
+  }> {
+    const userId = request.userId;
+
+    if (!userId) {
+      return {
+        success: false,
+        waiverInfo: {
+          currentVersion: CURRENT_WAIVER_VERSION,
+          userVersion: null,
+          hasAccepted: false,
+          isUpdate: false,
+          needsAcceptance: true,
+        },
+      } as any;
+    }
+
+    try {
+      const user = await userService.getUser(userId);
+
+      if (!user) {
+        return {
+          success: false,
+          waiverInfo: {
+            currentVersion: CURRENT_WAIVER_VERSION,
+            userVersion: null,
+            hasAccepted: false,
+            isUpdate: false,
+            needsAcceptance: true,
+          },
+        } as any;
+      }
+
+      const hasValidWaiver = hasAcceptedCurrentWaiver(user);
+      const isUpdate = isWaiverUpdate(user.waiverVersion);
+
+      return {
+        success: true,
+        waiverInfo: {
+          currentVersion: CURRENT_WAIVER_VERSION,
+          userVersion: user.waiverVersion,
+          hasAccepted: user.waiverAcceptedAt !== null,
+          isUpdate,
+          needsAcceptance: !hasValidWaiver,
+        },
+      };
+    } catch (error) {
+      logger.error("Failed to get waiver status", error as Error, {
+        operation: "getWaiverStatus",
+        metadata: { userId },
+      });
+
+      return {
+        success: false,
+        waiverInfo: {
+          currentVersion: CURRENT_WAIVER_VERSION,
+          userVersion: null,
+          hasAccepted: false,
+          isUpdate: false,
+          needsAcceptance: true,
+        },
+      } as any;
+    }
   }
 
   /**
