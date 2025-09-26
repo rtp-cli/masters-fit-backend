@@ -13,6 +13,19 @@ import { emitProgress } from '@/utils/websocket-progress.utils';
 export async function processDailyRegenerationJob(
   job: Job<DailyRegenerationJobData & { userId: number; jobId: number }>
 ): Promise<DailyRegenerationJobResult> {
+  logger.info('Daily regeneration job picked up by worker', {
+    operation: 'processDailyRegenerationJob',
+    bullJobId: job.id,
+    jobId: (job.data as any).jobId,
+    userId: (job.data as any).userId,
+    planDayId: (job.data as any).planDayId,
+    metadata: {
+      attemptsMade: job.attemptsMade,
+      timestamp: new Date().toISOString(),
+      processId: process.pid
+    }
+  });
+
   const startTime = Date.now();
   const { userId, jobId, planDayId, regenerationReason, regenerationStyles, threadId } = job.data;
   
@@ -30,8 +43,29 @@ export async function processDailyRegenerationJob(
 
   try {
     // Update job status to processing
-    await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 10);
-    
+    logger.info('Updating job status to PROCESSING', {
+      operation: 'processDailyRegenerationJob',
+      jobId,
+      userId,
+      planDayId
+    });
+
+    try {
+      await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 10);
+      logger.info('Job status updated to PROCESSING successfully', {
+        operation: 'processDailyRegenerationJob',
+        jobId
+      });
+    } catch (dbError) {
+      logger.error('Failed to update job status to PROCESSING', dbError as Error, {
+        operation: 'processDailyRegenerationJob',
+        jobId,
+        userId,
+        planDayId
+      });
+      // Continue processing even if database update fails
+    }
+
     // Emit initial progress
     emitProgress(userId, 10);
 
@@ -60,12 +94,35 @@ export async function processDailyRegenerationJob(
     };
 
     // Update job status to completed
-    await jobsService.updateJobStatus(
-      jobId, 
-      JobStatus.COMPLETED, 
-      100, 
+    logger.info('Updating job status to COMPLETED', {
+      operation: 'processDailyRegenerationJob',
+      jobId,
+      userId,
+      planDayId,
       result
-    );
+    });
+
+    try {
+      await jobsService.updateJobStatus(
+        jobId,
+        JobStatus.COMPLETED,
+        100,
+        result
+      );
+      logger.info('Job status updated to COMPLETED successfully', {
+        operation: 'processDailyRegenerationJob',
+        jobId
+      });
+    } catch (dbError) {
+      logger.error('Failed to update job status to COMPLETED', dbError as Error, {
+        operation: 'processDailyRegenerationJob',
+        jobId,
+        userId,
+        planDayId,
+        result
+      });
+      // Continue with notification even if database update fails
+    }
 
     // Send push notification
     await notificationService.sendDailyRegenerationNotification(
@@ -118,14 +175,28 @@ export async function processDailyRegenerationJob(
     // Only update to failed status and send notifications on the final attempt
     if (isLastAttempt) {
       // Update job status to failed
-      await jobsService.updateJobStatus(
-        jobId, 
-        JobStatus.FAILED, 
-        0, 
-        undefined, 
-        undefined,
-        (error as Error).message
-      );
+      try {
+        await jobsService.updateJobStatus(
+          jobId,
+          JobStatus.FAILED,
+          0,
+          undefined,
+          undefined,
+          (error as Error).message
+        );
+        logger.info('Job status updated to FAILED successfully', {
+          operation: 'processDailyRegenerationJob',
+          jobId
+        });
+      } catch (dbError) {
+        logger.error('Failed to update job status to FAILED', dbError as Error, {
+          operation: 'processDailyRegenerationJob',
+          jobId,
+          userId,
+          planDayId,
+          originalError: (error as Error).message
+        });
+      }
 
       logger.info(`Daily workout regeneration job marked as FAILED after final attempt`, {
         operation: 'dailyRegenerationJob',

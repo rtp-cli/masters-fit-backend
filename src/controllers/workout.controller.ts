@@ -470,6 +470,7 @@ export class WorkoutController extends Controller {
         planDayId,
         regenerationReason: requestBody.reason,
         regenerationStyles: requestBody.styles,
+        threadId: requestBody.threadId,
       };
 
       await workoutGenerationQueue.add('regenerate-daily-workout', jobData, {
@@ -817,12 +818,13 @@ export class WorkoutController extends Controller {
       );
 
       // Queue the job for processing
-      const jobData = {
+      const jobData: DailyRegenerationJobData & { userId: number; jobId: number } = {
         userId,
         jobId: job.id,
         planDayId: newPlanDay.id,
         regenerationReason: requestBody.reason,
-        isRestDayGeneration: true
+        regenerationStyles: requestBody.styles,
+        threadId: requestBody.threadId,
       };
 
       await workoutGenerationQueue.add('regenerate-daily-workout', jobData, {

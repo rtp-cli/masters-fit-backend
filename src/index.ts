@@ -51,7 +51,14 @@ async function initializeServices() {
     workoutGenerationQueue.process('generate-workout', 10, processWorkoutGenerationJob);
     workoutGenerationQueue.process('regenerate-workout', 10, processWorkoutRegenerationJob);
     workoutGenerationQueue.process('regenerate-daily-workout', 10, processDailyRegenerationJob);
-    logger.info('Workout generation queue processors started');
+    logger.info('Workout generation queue processors started', {
+      operation: 'initializeServices',
+      metadata: {
+        processors: ['generate-workout', 'regenerate-workout', 'regenerate-daily-workout'],
+        concurrency: 10,
+        queueName: 'workout generation'
+      }
+    });
     
   } catch (error) {
     logger.error('Failed to initialize services', error as Error);
