@@ -5,6 +5,15 @@ import { and, eq, gt } from "drizzle-orm";
 import { logger } from "@/utils/logger";
 
 export class AuthService extends BaseService {
+  private isTestAccount(email: string): boolean {
+    const testAccountsEnabled = process.env.TEST_ACCOUNTS_ENABLED === 'true';
+    if (!testAccountsEnabled) return false;
+
+    const testAccountNew = process.env.TEST_ACCOUNT_NEW;
+    const testAccountExisting = process.env.TEST_ACCOUNT_EXISTING;
+
+    return email === testAccountNew || email === testAccountExisting;
+  }
   async createAuthCode(data: InsertAuthCode) {
     await this.db.insert(authCodes).values({
       email: data.email,
@@ -38,6 +47,31 @@ export class AuthService extends BaseService {
   }
 
   async generateAuthCode(email: string): Promise<string> {
+    // Check if this is a test account
+    if (this.isTestAccount(email)) {
+      const testOtp = process.env.TEST_ACCOUNT_OTP || '1234';
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      logger.info("Generating test OTP for test account", {
+        operation: "generateAuthCode",
+        metadata: { email, isTestAccount: true },
+      });
+
+      // First, delete any existing test OTP codes globally to prevent unique constraint violations
+      await this.db
+        .delete(authCodes)
+        .where(eq(authCodes.code, testOtp));
+
+      await this.createAuthCode({
+        email,
+        code: testOtp,
+        expires_at: expiresAt,
+      });
+
+      return testOtp;
+    }
+
+    // Normal flow for regular accounts
     let authCode: string;
     let attempts = 0;
     const maxAttempts = 10; // Prevent an infinite loop in an edge case

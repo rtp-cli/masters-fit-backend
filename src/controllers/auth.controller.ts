@@ -27,7 +27,11 @@ import { emailService } from "@/services/email.service";
 import { emailAuthSchema, InsertUser, insertUserSchema } from "@/models";
 import jwt from "jsonwebtoken";
 import { logger } from "@/utils/logger";
-import { CURRENT_WAIVER_VERSION, hasAcceptedCurrentWaiver, isWaiverUpdate } from "@/constants/waiver";
+import {
+  CURRENT_WAIVER_VERSION,
+  hasAcceptedCurrentWaiver,
+  isWaiverUpdate,
+} from "@/constants/waiver";
 
 // Simulating sessions for passwordless auth (in production, use a proper session store)
 // const authCodes = new Map<string, { email: string; expires: number }>();
@@ -35,6 +39,15 @@ import { CURRENT_WAIVER_VERSION, hasAcceptedCurrentWaiver, isWaiverUpdate } from
 @Route("auth")
 @Tags("Authentication")
 export class AuthController extends Controller {
+  private isTestAccountEmail(email: string): boolean {
+    const testAccountsEnabled = process.env.TEST_ACCOUNTS_ENABLED;
+    if (testAccountsEnabled !== 'true') return false;
+
+    const testAccountNew = process.env.TEST_ACCOUNT_NEW;
+    const testAccountExisting = process.env.TEST_ACCOUNT_EXISTING;
+
+    return email === testAccountNew || email === testAccountExisting;
+  }
   /**
    * Check if a user exists in the system
    * @param requestBody Email to check
@@ -98,19 +111,26 @@ export class AuthController extends Controller {
     const { email } = validatedData;
     const user = await userService.getUserByEmail(email);
 
+    const isTestAccount = this.isTestAccountEmail(email);
+
     try {
       const authCode = await authService.generateAuthCode(email);
-      await emailService.sendOtpEmail(
-        email,
-        authCode,
-        user?.name ?? email.split("@")[0]
-      );
+
+      // Skip sending email for test accounts to save costs
+      if (!isTestAccount) {
+        await emailService.sendOtpEmail(
+          email,
+          authCode,
+          user?.name ?? email.split("@")[0]
+        );
+      }
 
       if (process.env.NODE_ENV !== "production") {
         logger.info("Auth code generated for login", {
           operation: "login",
           metadata: {
             email,
+            isTestAccount,
             authCode:
               process.env.NODE_ENV === "development" ? authCode : "[REDACTED]",
           },
@@ -119,7 +139,7 @@ export class AuthController extends Controller {
     } catch (error) {
       logger.error("Failed to send OTP email during login", error as Error, {
         operation: "login",
-        metadata: { email },
+        metadata: { email, isTestAccount },
       });
       // Depending on desired behavior, you might want to stop the process here
       // For now, we'll just log it and let the user continue without an email
@@ -146,15 +166,22 @@ export class AuthController extends Controller {
       name,
     });
 
+    const isTestAccount = this.isTestAccountEmail(email);
+
     try {
       const authCode = await authService.generateAuthCode(email);
-      await emailService.sendOtpEmail(email, authCode, name);
+
+      // Skip sending email for test accounts to save costs
+      if (!isTestAccount) {
+        await emailService.sendOtpEmail(email, authCode, name);
+      }
 
       if (process.env.NODE_ENV !== "production") {
         logger.info("Auth code generated for signup", {
           operation: "signup",
           metadata: {
             email,
+            isTestAccount,
             authCode:
               process.env.NODE_ENV === "development" ? authCode : "[REDACTED]",
           },
@@ -163,7 +190,7 @@ export class AuthController extends Controller {
     } catch (error) {
       logger.error("Failed to send OTP email during signup", error as Error, {
         operation: "signup",
-        metadata: { email },
+        metadata: { email, isTestAccount },
       });
     }
 
@@ -174,7 +201,7 @@ export class AuthController extends Controller {
         id: user.id,
         email: user.email,
         name: user.name,
-        needsOnboarding: user.needsOnboarding ?? true,  // New users need onboarding
+        needsOnboarding: user.needsOnboarding ?? true, // New users need onboarding
         waiverAcceptedAt: user.waiverAcceptedAt,
         waiverVersion: user.waiverVersion,
       },
@@ -236,9 +263,7 @@ export class AuthController extends Controller {
   @Security("bearerAuth")
   @Response<ApiResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
-  public async getWaiverStatus(
-    @Request() request: any
-  ): Promise<{
+  public async getWaiverStatus(@Request() request: any): Promise<{
     success: boolean;
     waiverInfo: {
       currentVersion: string;
