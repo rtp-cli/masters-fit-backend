@@ -396,9 +396,11 @@ You have access to a **searchExercises** tool to find appropriate exercises. Fol
 - If you can't find suitable exercises, create new ones and add to 'exercisesToAdd'
 
 **STEP 4: HANDLE REGENERATION OVERRIDES**
-- If the regeneration reason mentions specific equipment (e.g., "add dumbbells"), include that in your search filters
+- **REGENERATION REASON IS KING**: User feedback overrides all default constraints except safety
+- If regeneration reason mentions specific equipment (e.g., "add dumbbells"), include that in your search filters
 - If user wants different styles temporarily, search with those style tags
-- Profile settings are the baseline, regeneration reason takes priority for overrides
+- If user requests warmup/cooldown modifications, honor those requests (e.g., "more intense warmup", "longer cooldown")
+- Profile settings are the baseline, regeneration reason takes absolute priority for overrides
 
 **TOOL USAGE EXAMPLES:**
 - searchExercises({"muscleGroups": ["chest", "triceps"], "equipment": ["dumbbells"], "difficulty": ["moderate"]})

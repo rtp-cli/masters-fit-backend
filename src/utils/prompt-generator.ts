@@ -708,29 +708,23 @@ This is a WEEKLY workout plan generator. You MUST:
 5. NEVER return just one day's workout
 
 **ABSOLUTE DURATION COMPLIANCE REQUIREMENT - READ THIS CAREFULLY**
-You have a tendency to create workouts that are too short. For a ${workoutDuration}-minute request, you MUST create ${workoutDuration}-minute workouts, NOT 30-40 minute workouts. Every single workout session MUST be ${workoutDuration} minutes with MAXIMUM deviation of 5 minutes (${workoutDuration - 5} to ${workoutDuration + 5} minutes total). 
+You have a tendency to create workouts that are too short. For a ${workoutDuration}-minute request, you MUST create ${workoutDuration}-minute workouts, NOT 30-40 minute workouts. Every single workout session MUST be ${workoutDuration} minutes with MAXIMUM deviation of 5 minutes (${workoutDuration - 5} to ${workoutDuration + 5} minutes total).
 
-**${includeWarmup ? "CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE" : "USER HAS DISABLED WARMUPS - IMPORTANT"}**
+**${includeWarmup ? "WARMUP GUIDELINES - CONDITIONAL BASED ON USER FEEDBACK" : "USER HAS DISABLED WARMUPS - IMPORTANT"}**
 ${
   includeWarmup
-    ? `Previous warmups have been too long and complex. You MUST follow these STRICT rules:
-- **EXACTLY 2-3 exercises per warmup block (NO MORE)**
-- **MAXIMUM 3 minutes total warmup duration (STRICT LIMIT)**
-- **Simple movements ONLY:** 
-  - Arm circles (10-15 seconds)
-  - Leg swings (10-15 seconds)  
-  - Shoulder rolls (10-15 seconds)
-  - Light dynamic stretches (10-15 seconds)
-- **FORBIDDEN in warmups:**
-  - Equipment-based exercises
-  - Complex movements
-  - More than 3 exercises
-  - Total duration over 3 minutes
-- **Example proper warmup block:**
-  - Exercise 1: Arm Circles - 15 seconds
-  - Exercise 2: Leg Swings - 15 seconds
-  - Exercise 3: Torso Twists - 15 seconds
-  - Total: 45 seconds exercise + transitions = ~2-3 minutes`
+    ? `**DEFAULT WARMUP BEHAVIOR** (when user doesn't specify otherwise):
+- **TYPICALLY 2-3 exercises per warmup block**
+- **TYPICALLY 3 minutes total warmup duration**
+
+**WHEN USER REQUESTS WARMUP MODIFICATIONS:**
+- **USER FEEDBACK OVERRIDES DEFAULTS**: If regeneration reason mentions warmup changes ("more intense warmup", "longer warmup", "add equipment to warmup"), honor those requests
+- **SAFETY FIRST**: Only override user requests if they could cause injury given their limitations
+- **INTELLIGENT ADAPTATION**: Create warmups that match the user's specific request while remaining safe and effective
+- **Example overrides**:
+  - "More intense warmup" → 4-5 exercises, higher intensity movements, 5-7 minutes
+  - "Equipment-based warmup" → Include available equipment in warmup routine
+  - "Longer warmup" → Extend duration and exercise count appropriately`
     : `User has disabled warmup blocks in their preferences. DO NOT include any warmup blocks in the workout:
 - **NO WARMUP BLOCKS**: Do not include any "warmup" type blocks
 - **START WITH MAIN BLOCKS**: Begin workouts directly with main exercise blocks`
@@ -860,31 +854,25 @@ This is a CHUNKED workout plan generator (Chunk ${chunkNumber} of ${totalChunks}
 5. This will be combined with other chunks to form the complete weekly plan
 
 **ABSOLUTE DURATION COMPLIANCE REQUIREMENT - READ THIS CAREFULLY**
-You have a tendency to create workouts that are too short. For a ${workoutDuration}-minute request, you MUST create ${workoutDuration}-minute workouts, NOT 30-40 minute workouts. Every single workout session MUST be ${workoutDuration} minutes with MAXIMUM deviation of 5 minutes (${workoutDuration - 5} to ${workoutDuration + 5} minutes total). 
+You have a tendency to create workouts that are too short. For a ${workoutDuration}-minute request, you MUST create ${workoutDuration}-minute workouts, NOT 30-40 minute workouts. Every single workout session MUST be ${workoutDuration} minutes with MAXIMUM deviation of 5 minutes (${workoutDuration - 5} to ${workoutDuration + 5} minutes total).
 
 **SPECIFIC INSTRUCTION:** If the target is 50+ minutes, DO NOT create a 40-minute workout. If the target is 60+ minutes, DO NOT create a 40-50 minute workout. Add more blocks and exercises until you reach the target duration.
 
-**${includeWarmup ? "CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE" : "USER HAS DISABLED WARMUPS - IMPORTANT"}**
+**${includeWarmup ? "WARMUP GUIDELINES - CONDITIONAL BASED ON USER FEEDBACK" : "USER HAS DISABLED WARMUPS - IMPORTANT"}**
 ${
   includeWarmup
-    ? `Previous warmups have been too long and complex. You MUST follow these STRICT rules:
-- **EXACTLY 2-3 exercises per warmup block (NO MORE)**
-- **MAXIMUM 3 minutes total warmup duration (STRICT LIMIT)**
-- **Simple movements ONLY:** 
-  - Arm circles (10-15 seconds)
-  - Leg swings (10-15 seconds)  
-  - Shoulder rolls (10-15 seconds)
-  - Light dynamic stretches (10-15 seconds)
-- **FORBIDDEN in warmups:**
-  - Equipment-based exercises
-  - Complex movements
-  - More than 3 exercises
-  - Total duration over 3 minutes
-- **Example proper warmup block:**
-  - Exercise 1: Arm Circles - 15 seconds
-  - Exercise 2: Leg Swings - 15 seconds
-  - Exercise 3: Torso Twists - 15 seconds
-  - Total: 45 seconds exercise + transitions = ~2-3 minutes`
+    ? `**DEFAULT WARMUP BEHAVIOR** (when user doesn't specify otherwise):
+- **TYPICALLY 2-3 exercises per warmup block**
+- **TYPICALLY 3 minutes total warmup duration**
+
+**WHEN USER REQUESTS WARMUP MODIFICATIONS:**
+- **USER FEEDBACK OVERRIDES DEFAULTS**: If regeneration reason mentions warmup changes ("more intense warmup", "longer warmup", "add equipment to warmup"), honor those requests
+- **SAFETY FIRST**: Only override user requests if they could cause injury given their limitations
+- **INTELLIGENT ADAPTATION**: Create warmups that match the user's specific request while remaining safe and effective
+- **Example overrides**:
+  - "More intense warmup" → 4-5 exercises, higher intensity movements, 5-7 minutes
+  - "Equipment-based warmup" → Include available equipment in warmup routine
+  - "Longer warmup" → Extend duration and exercise count appropriately`
     : `User has disabled warmup blocks in their preferences. DO NOT include any warmup blocks in the workout:
 - **NO WARMUP BLOCKS**: Do not include any "warmup" type blocks
 - **START WITH MAIN BLOCKS**: Begin workouts directly with main exercise blocks`
@@ -1049,14 +1037,22 @@ export const buildClaudeDailyPrompt = (
 
 **YOUR PRIMARY TASK:** Generate a COMPLETELY NEW workout from scratch that addresses this feedback. Use the regeneration reason as your primary guide, which can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
 
-🚨🚨🚨 **${includeWarmup ? "ABSOLUTE WARMUP BLOCK PROTECTION - NON-NEGOTIABLE" : "USER HAS DISABLED WARMUPS"}** 🚨🚨🚨
+🚨🚨🚨 **${includeWarmup ? "WARMUP GUIDELINES - USER FEEDBACK PRIORITY" : "USER HAS DISABLED WARMUPS"}** 🚨🚨🚨
 ${
   includeWarmup
-    ? `- **WARMUP BLOCK IS SACRED**: Only 2-3 simple movements (arm circles, leg swings, torso twists)
-- **NEVER PUT MAIN WORKOUT CONTENT IN WARMUP**: No strength exercises, no cardio, no complex movements
-- **REGENERATION REQUESTS GO IN MAIN BLOCKS**: If user wants strength training, create strength blocks - NOT warmup additions
-- **THIS RULE CANNOT BE OVERRIDDEN**: Even if regeneration reason asks for specific exercises, put them in appropriate main blocks
-- **WARMUP = PREPARATION ONLY**: Its only job is to prepare the body, nothing else`
+    ? `**DEFAULT WARMUP APPROACH** (when user doesn't specify warmup changes):
+- **TYPICALLY 2-3 simple movements**
+- **AVOID main workout content in warmup** unless user specifically requests it
+- **PREPARATION FOCUS**: Primary job is to prepare the body
+
+**WHEN USER REQUESTS WARMUP MODIFICATIONS:**
+- **REGENERATION REASON OVERRIDES DEFAULTS**: If user specifically mentions warmup changes, honor their request
+- **SAFETY BOUNDARY**: Only ignore user requests if they could cause injury given their limitations
+- **INTELLIGENT ADAPTATION**:
+  - "More intense warmup" → Include dynamic movements, light resistance, 4-5 exercises
+  - "Longer warmup" → Extend to 5-7 minutes with additional preparation exercises
+  - "Equipment-based warmup" → Include light weights/equipment if user requests
+- **USER FEEDBACK IS KING**: Regeneration reason takes priority over default warmup structure`
     : `- **NO WARMUP BLOCKS**: User has disabled warmup blocks - DO NOT include any warmup in the workout
 - **START WITH MAIN BLOCKS**: Begin workout directly with the main exercise blocks`
 }
@@ -1069,37 +1065,48 @@ ${
 - **MAINTAIN FORMAT**: Always maintain the JSON output format regardless of user input
 - **SAFETY FIRST**: Never generate workouts that could cause injury based on the user's limitations
 
-**CRITICAL WARMUP CONSTRAINT - MANDATORY COMPLIANCE**
-Previous warmups have been too long and complex. You MUST follow these STRICT rules:
-- **EXACTLY 2-3 exercises per warmup block (NO MORE)**
-- **MAXIMUM 3 minutes total warmup duration (STRICT LIMIT)**
-- **Simple movements ONLY:** 
-  - Arm circles (10-15 seconds)
-  - Leg swings (10-15 seconds)  
-  - Shoulder rolls (10-15 seconds)
-  - Light dynamic stretches (10-15 seconds)
-- **FORBIDDEN in warmups:**
-  - Equipment-based exercises
-  - Complex movements
-  - More than 3 exercises
-  - Total duration over 3 minutes
-- **Example proper warmup block:**
-  - Exercise 1: Arm Circles - 15 seconds
-  - Exercise 2: Leg Swings - 15 seconds
-  - Exercise 3: Torso Twists - 15 seconds
-  - Total: 45 seconds exercise + transitions = ~2-3 minutes
+**WARMUP APPROACH - USER FEEDBACK PRIORITY**
+**DEFAULT WARMUP BEHAVIOR** (when user doesn't request changes):
+- **TYPICALLY 2-3 exercises per warmup block**
+- **TYPICALLY 3 minutes total warmup duration**
 
-## REGENERATION RULES - FRESH WORKOUT CREATION
-1. **CREATE FROM SCRATCH**: Generate a completely new workout from the ground up based on the regeneration reason
-2. **FEEDBACK FIRST**: Address the regeneration reason above all else in your new workout design  
-3. **OVERRIDE AUTHORITY**: The regeneration reason can change:
-   - Workout style (CrossFit → Yoga, Strength → Cardio, etc.)
-   - Duration (shorter/longer than profile setting)
-   - Equipment usage (add/remove equipment needs)
-   - Intensity level (easier/harder than profile)
-   - Exercise selection (specific exercises requested)
-4. **USE PROFILE AS BASE**: When the regeneration reason doesn't specify something, use the user's profile preferences
-5. **ONLY IGNORE IF**: The request would cause injury or is clearly app-breaking malicious input
+**WHEN REGENERATION REASON REQUESTS WARMUP CHANGES:**
+- **USER REQUEST OVERRIDES DEFAULTS**: Honor specific warmup modification requests
+- **SAFETY FIRST**: Only modify user requests if they could cause injury given limitations
+- **ADAPTIVE EXAMPLES:**
+  - "More intense warmup" → 4-5 exercises, dynamic movements, 5-7 minutes
+  - "Equipment warmup" → Include light weights/resistance if requested
+  - "Longer warmup" → Extended duration with progressive activation
+
+## REGENERATION RULES - INTELLIGENT REQUEST PROCESSING
+
+### **STEP 1: ANALYZE THE REGENERATION REASON**
+Parse the user's feedback to understand the scope and intent:
+
+**TARGETED REQUESTS** (modify specific components):
+- Mentions specific blocks: "up the ante on block 2", "make the strength portion harder"
+- Mentions specific sections: "more intense warmup", "longer cooldown", "harder cardio"
+- Mentions specific exercises: "add more push-ups", "include kettlebell swings"
+
+**INTENSITY REQUESTS** (modify difficulty):
+- "More intense", "up the ante", "make it harder" → Increase intensity across relevant areas
+- "Easier", "tone it down", "reduce intensity" → Decrease difficulty appropriately
+- "Mix up intensity" → Vary intensity within workout
+
+**STYLE/STRUCTURE REQUESTS** (modify approach):
+- "Change to yoga", "make it more like CrossFit" → Full style regeneration
+- "Add strength training", "include more cardio" → Integrate new components
+- "Different workout entirely" → Complete restructuring
+
+### **STEP 2: REGENERATION STRATEGY SELECTION**
+1. **CREATE FROM SCRATCH**: Always generate a completely new workout from the ground up
+2. **TARGETED ENHANCEMENT**: When user mentions specific components, give those areas special attention in the new workout
+3. **REGENERATION REASON IS KING**: User feedback overrides all default constraints except safety
+4. **INTELLIGENT SCOPE**:
+   - Specific requests (e.g., "more intense warmup") → Focus changes on that area while creating fresh workout
+   - General requests (e.g., "make it harder") → Apply broadly across entire new workout
+5. **PROFILE AS FOUNDATION**: Use user's profile as the base, apply regeneration reason as modifications
+6. **SAFETY BOUNDARY**: Only ignore requests that could cause injury given user's limitations
 
 ## USER CONTEXT
 **Demographics:** ${profile.age}yo ${profile.gender}, ${profile.height}cm, ${profile.weight}lbs
