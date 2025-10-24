@@ -1,6 +1,6 @@
 import { Exercise, exercises, InsertExercise } from "@/models";
 import { BaseService } from "./base.service";
-import { eq, ilike, and, arrayOverlaps, inArray } from "drizzle-orm";
+import { eq, ilike, and, arrayOverlaps, inArray, or, isNull } from "drizzle-orm";
 import { logger } from "@/utils/logger";
 
 // Interface for exercise metadata (minimal data for LLM)
@@ -128,14 +128,33 @@ export class ExerciseService extends BaseService {
         conditions.push(arrayOverlaps(exercises.muscleGroups, filters.muscleGroups));
       }
 
-      // Filter by equipment (include bodyweight exercises too)
+      // Filter by equipment with strict enforcement
       if (filters.equipment && filters.equipment.length > 0) {
-        // Include exercises that use the specified equipment OR have no equipment (bodyweight)
-        conditions.push(
-          arrayOverlaps(exercises.equipment, filters.equipment as any)
-        );
-        // Also include bodyweight exercises (empty equipment array or null)
-        // This allows flexibility for equipment-based workouts to include bodyweight alternatives
+        // Check if this is a bodyweight-only request
+        const isBodyweightOnly = filters.equipment.length === 1 &&
+          (filters.equipment[0].toLowerCase().includes('bodyweight') ||
+           filters.equipment[0].toLowerCase().includes('none'));
+
+        if (isBodyweightOnly) {
+          // For bodyweight-only: include exercises with null, empty, or "bodyweight" equipment
+          conditions.push(
+            or(
+              isNull(exercises.equipment),
+              eq(exercises.equipment, []),
+              arrayOverlaps(exercises.equipment, ["bodyweight"])
+            )
+          );
+        } else {
+          // For specific equipment: include exercises that use ANY of the specified equipment
+          // AND also include bodyweight exercises as alternatives
+          conditions.push(
+            or(
+              arrayOverlaps(exercises.equipment, filters.equipment as any),
+              isNull(exercises.equipment),
+              eq(exercises.equipment, [])
+            )
+          );
+        }
       }
 
       // Filter by difficulty

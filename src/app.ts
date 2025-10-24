@@ -82,6 +82,32 @@ app.use("/api/logs", logsRouter);
 app.use("/api/search", searchRouter);
 app.use("/api/dashboard", dashboardRouter);
 
+// Health check endpoint
+app.get("/api/health", async (req, res) => {
+  try {
+    // Test database connection
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+
+    res.json({
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      database: "connected",
+      uptime: process.uptime(),
+    });
+  } catch (error) {
+    logger.error("Health check failed", error);
+    res.status(503).json({
+      status: "unhealthy",
+      timestamp: new Date().toISOString(),
+      database: "disconnected",
+      uptime: process.uptime(),
+      error: process.env.NODE_ENV === "development" ? error.message : "Database connection failed"
+    });
+  }
+});
+
 // API Info route
 app.get("/api", (req, res) => {
   const routes = extractRoutes(app);
@@ -90,8 +116,22 @@ app.get("/api", (req, res) => {
     version: "1.0.0",
     description: "Fitness tracking application API",
     documentation: "/api/docs",
+    health: "/api/health",
     endpoints: routes,
   });
+});
+
+// Global error handlers for unhandled promise rejections and uncaught exceptions
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Promise Rejection', new Error(String(reason)), {
+    metadata: { promise: promise.toString() }
+  });
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception', error);
+  // Gracefully close server and database connections
+  process.exit(1);
 });
 
 // Error handling
