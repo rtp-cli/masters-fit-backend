@@ -63,6 +63,7 @@ export const PhysicalLimitations = {
 } as const;
 
 export const AvailableEquipment = {
+  BODYWEIGHT: "bodyweight",
   BARBELLS: "barbells",
   BENCH: "bench",
   INCLINE_DECLINE_BENCH: "incline_decline_bench",

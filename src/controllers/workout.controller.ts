@@ -179,6 +179,28 @@ export class WorkoutController extends Controller {
   }
 
   /**
+   * Replace exercise in plan day
+   * @param id Plan day exercise ID
+   * @param requestBody New exercise data
+   */
+  @Put("/exercise/{id}/replace")
+  @Response<WorkoutBlockExerciseResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async replaceExercise(
+    @Path() id: number,
+    @Body() requestBody: { newExerciseId: number }
+  ): Promise<WorkoutBlockExerciseResponse> {
+    const exercise = await workoutService.replaceExercise(
+      id,
+      requestBody.newExerciseId
+    );
+    return {
+      success: true,
+      workoutBlockExercise: exercise,
+    };
+  }
+
+  /**
    * Generate workout plan
    * @param userId User ID
    * @param requestBody Generation options including timezone

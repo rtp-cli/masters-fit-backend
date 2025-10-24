@@ -56,7 +56,7 @@ export class SearchController extends Controller {
   }
 
   /**
-   * Search exercises by name or muscle group
+   * Search exercises by name or muscle group (legacy endpoint)
    * @param query Search query
    */
   @Get("/exercises")
@@ -69,6 +69,77 @@ export class SearchController extends Controller {
     return {
       success: true,
       exercises,
+    };
+  }
+
+  /**
+   * Enhanced search exercises with filtering options
+   * @param userId User ID for equipment filtering
+   * @param query Search query (optional)
+   * @param muscleGroups Muscle groups filter (optional)
+   * @param equipment Equipment filter (optional)
+   * @param difficulty Difficulty filter (optional)
+   * @param excludeId Exercise ID to exclude (optional)
+   * @param userEquipmentOnly Auto-filter by user's equipment (default: true)
+   * @param limit Maximum number of results (default: 20)
+   */
+  @Get("/exercises/filtered/{userId}")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async searchExercisesWithFilters(
+    @Path() userId: number,
+    @Query() query?: string,
+    @Query() muscleGroups?: string,
+    @Query() equipment?: string,
+    @Query() difficulty?: string,
+    @Query() excludeId?: number,
+    @Query() userEquipmentOnly?: boolean,
+    @Query() limit?: number
+  ): Promise<{
+    success: boolean;
+    exercises: any[];
+    appliedFilters: {
+      equipment?: string[];
+      difficulty?: string;
+      userEquipmentOnly?: boolean;
+    };
+  }> {
+    const options = {
+      query,
+      muscleGroups: muscleGroups ? muscleGroups.split(",").map(g => g.trim()).filter(g => g.length > 0) : undefined,
+      equipment: equipment ? equipment.split(",").map(e => e.trim()).filter(e => e.length > 0) : undefined,
+      difficulty,
+      excludeId,
+      userEquipmentOnly: userEquipmentOnly ?? true,
+      limit: limit ?? 20,
+    };
+
+    const result = await searchService.searchExercisesWithFilters(userId, options);
+    return {
+      success: true,
+      exercises: result.exercises,
+      appliedFilters: result.appliedFilters,
+    };
+  }
+
+  /**
+   * Get available filter options for exercise search
+   */
+  @Get("/filters")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async getFilterOptions(): Promise<{
+    success: boolean;
+    equipment: string[];
+    muscleGroups: string[];
+    difficulty: string[];
+  }> {
+    const result = await searchService.getFilterOptions();
+    return {
+      success: true,
+      equipment: result.equipment,
+      muscleGroups: result.muscleGroups,
+      difficulty: result.difficulty,
     };
   }
 }

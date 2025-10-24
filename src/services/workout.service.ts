@@ -272,6 +272,7 @@ export class WorkoutService extends BaseService {
               equipment: Array.isArray(exercise.exercise.equipment)
                 ? exercise.exercise.equipment.join(", ")
                 : (exercise.exercise.equipment ?? undefined),
+              instructions: exercise.exercise.instructions ?? undefined,
               link: exercise.exercise.link ?? undefined,
               muscles_targeted: exercise.exercise.muscleGroups || [],
               created_at: new Date(exercise.exercise.createdAt ?? Date.now()),
@@ -625,6 +626,7 @@ export class WorkoutService extends BaseService {
         equipment: Array.isArray(exercise.equipment)
           ? exercise.equipment.join(", ")
           : (exercise.equipment ?? undefined),
+        instructions: exercise.instructions ?? undefined,
         link: exercise.link ?? undefined,
         muscles_targeted: exercise.muscleGroups || [],
         created_at: new Date(exercise.createdAt ?? Date.now()),
@@ -698,10 +700,93 @@ export class WorkoutService extends BaseService {
         equipment: Array.isArray(exerciseDetails.equipment)
           ? exerciseDetails.equipment.join(", ")
           : (exerciseDetails.equipment ?? undefined),
+        instructions: exerciseDetails.instructions ?? undefined,
         link: exerciseDetails.link ?? undefined,
         muscles_targeted: exerciseDetails.muscleGroups || [],
         created_at: new Date(exerciseDetails.createdAt ?? Date.now()),
         updated_at: new Date(exerciseDetails.updatedAt ?? Date.now()),
+      },
+    };
+  }
+
+  async replaceExercise(
+    planDayExerciseId: number,
+    newExerciseId: number
+  ): Promise<PlanDayWithExercise> {
+    // First, validate that the new exercise exists
+    const newExercise = await this.db.query.exercises.findFirst({
+      where: eq(exercises.id, newExerciseId),
+    });
+
+    if (!newExercise) {
+      throw new Error("New exercise not found");
+    }
+
+    // Get the current plan day exercise to validate it exists
+    const currentExercise = await this.db.query.planDayExercises.findFirst({
+      where: eq(planDayExercises.id, planDayExerciseId),
+    });
+
+    if (!currentExercise) {
+      throw new Error("Plan day exercise not found");
+    }
+
+    // Update the exercise ID while preserving all other workout parameters
+    const [updatedExercise] = await this.db
+      .update(planDayExercises)
+      .set({
+        exerciseId: newExerciseId,
+        updatedAt: new Date(),
+      })
+      .where(eq(planDayExercises.id, planDayExerciseId))
+      .returning();
+
+    if (!updatedExercise) {
+      throw new Error("Failed to update exercise");
+    }
+
+    // Get the workout block to find the planDayId
+    const workoutBlock = await this.db.query.workoutBlocks.findFirst({
+      where: eq(workoutBlocks.id, updatedExercise.workoutBlockId),
+    });
+
+    if (!workoutBlock) {
+      throw new Error("Workout block not found");
+    }
+
+    // Return the updated exercise with full details
+    return {
+      id: updatedExercise.id,
+      workoutBlockId: updatedExercise.workoutBlockId,
+      planDayId: workoutBlock.planDayId,
+      exerciseId: updatedExercise.exerciseId,
+      sets: updatedExercise.sets ?? undefined,
+      reps: updatedExercise.reps ?? undefined,
+      weight: updatedExercise.weight ?? undefined,
+      duration: updatedExercise.duration ?? undefined,
+      restTime: updatedExercise.restTime ?? undefined,
+      completed: updatedExercise.completed ?? false,
+      notes: updatedExercise.notes ?? undefined,
+      order: updatedExercise.order ?? undefined,
+      created_at: new Date(updatedExercise.createdAt ?? Date.now()),
+      updated_at: new Date(updatedExercise.updatedAt ?? Date.now()),
+      exercise: {
+        id: newExercise.id,
+        name: newExercise.name,
+        description: newExercise.description ?? undefined,
+        category:
+          newExercise.muscleGroups && newExercise.muscleGroups.length > 0
+            ? newExercise.muscleGroups[0]
+            : "general",
+        difficulty: newExercise.difficulty || "beginner",
+        equipment: Array.isArray(newExercise.equipment)
+          ? newExercise.equipment.join(", ")
+          : (newExercise.equipment ?? undefined),
+        instructions: newExercise.instructions ?? undefined,
+        link: newExercise.link ?? undefined,
+        muscles_targeted: newExercise.muscleGroups || [],
+        created_at: new Date(newExercise.createdAt ?? Date.now()),
+        updated_at: new Date(newExercise.updatedAt ?? Date.now()),
       },
     };
   }
@@ -1065,6 +1150,7 @@ export class WorkoutService extends BaseService {
         });
         return null;
       }
+
 
       logger.info("Active workout found", {
         operation: "fetchActiveWorkout",
