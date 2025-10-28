@@ -5,13 +5,36 @@ import { eq, and, asc } from "drizzle-orm";
 import { logger } from "@/utils/logger";
 import { emitProgress } from "@/utils/websocket-progress.utils";
 import { WorkoutAgentService } from "./workout-agent.service";
+import { DEFAULT_AI_PROVIDER, DEFAULT_AI_MODEL } from "@/constants/ai-providers";
 
 export class PromptsService extends BaseService {
-  private workoutAgent: WorkoutAgentService;
-
   constructor() {
     super();
-    this.workoutAgent = new WorkoutAgentService();
+  }
+
+  // Create user-specific workout agent based on their AI provider preferences
+  private async createUserWorkoutAgent(userId: number): Promise<WorkoutAgentService> {
+    const profile = await profileService.getProfileByUserId(userId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    // Use user's AI provider preferences if available, otherwise fallback to defaults
+    const provider = profile.aiProvider || DEFAULT_AI_PROVIDER;
+    const model = profile.aiModel || DEFAULT_AI_MODEL;
+
+    logger.info('Creating user-specific WorkoutAgentService', {
+      userId,
+      provider,
+      model,
+      operation: 'createUserWorkoutAgent'
+    });
+
+    return WorkoutAgentService.createForUser({
+      ...profile,
+      aiProvider: provider,
+      aiModel: model
+    });
   }
 
   public async getUserPrompts(userId: number): Promise<Prompt[]> {
@@ -45,11 +68,14 @@ export class PromptsService extends BaseService {
       );
     }
 
+    // Create user-specific workout agent
+    const workoutAgent = await this.createUserWorkoutAgent(userId);
+
     // Generate a thread ID if not provided to enable conversation memory for all users
     const workoutThreadId = threadId || `workout_${userId}_${Date.now()}`;
 
     try {
-      const workout = await this.workoutAgent.regenerateWorkout(
+      const workout = await workoutAgent.regenerateWorkout(
         userId,
         profile,
         [], // exerciseNames no longer needed - agent uses tools
@@ -133,6 +159,9 @@ export class PromptsService extends BaseService {
       throw new Error("Profile not found");
     }
 
+    // Create user-specific workout agent
+    const workoutAgent = await this.createUserWorkoutAgent(userId);
+
     // Merge current profile with regeneration data
     const updatedProfile = {
       ...profile,
@@ -155,7 +184,7 @@ export class PromptsService extends BaseService {
     const workoutThreadId = `workout_regen_${userId}_${Date.now()}`;
 
     try {
-      const workout = await this.workoutAgent.regenerateWorkout(
+      const workout = await workoutAgent.regenerateWorkout(
         userId,
         updatedProfile,
         [], // exerciseNames no longer needed - agent uses tools
@@ -199,11 +228,14 @@ export class PromptsService extends BaseService {
       throw new Error("Profile not found");
     }
 
+    // Create user-specific workout agent
+    const workoutAgent = await this.createUserWorkoutAgent(userId);
+
     // Generate a thread ID if not provided to enable conversation memory for all users
     const workoutThreadId = threadId || `workout_daily_${userId}_${Date.now()}`;
 
     try {
-      const workout = await this.workoutAgent.regenerateWorkout(
+      const workout = await workoutAgent.regenerateWorkout(
         userId,
         profile,
         [], // exerciseNames no longer needed - agent uses tools

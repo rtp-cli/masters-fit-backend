@@ -9,8 +9,11 @@ import { exerciseRouter } from "@/routes/exercise.routes";
 import { logsRouter } from "@/routes/logs.routes";
 import { promptsRouter } from "@/routes/prompts.routes";
 import { searchRouter } from "@/routes/search.routes";
+import { aiProviderRouter } from "@/routes/ai-provider.routes";
 import dashboardRouter from "@/routes/dashboard.routes";
 import { errorHandler } from "@/middleware/error.middleware";
+import { pool } from "@/config/database.js";
+import { logger } from "@/utils/logger.js";
 // Import the auto-generated swagger spec
 import swaggerJson from "../generated/swagger.json";
 import path from "path";
@@ -80,6 +83,7 @@ app.use("/api/exercises", exerciseRouter);
 app.use("/api/prompts", promptsRouter);
 app.use("/api/logs", logsRouter);
 app.use("/api/search", searchRouter);
+app.use("/api/ai-providers", aiProviderRouter);
 app.use("/api/dashboard", dashboardRouter);
 
 // Health check endpoint

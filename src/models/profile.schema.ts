@@ -24,6 +24,7 @@ import {
   IntensityLevels as IntensityLevelsEnum,
 } from "@/constants/profile";
 import { users } from "@/models/user.schema";
+import { AIProvider, DEFAULT_AI_PROVIDER, DEFAULT_AI_MODEL } from "@/constants/ai-providers";
 
 // User profile data table
 export const profiles = pgTable("profiles", {
@@ -48,9 +49,13 @@ export const profiles = pgTable("profiles", {
   medicalNotes: text("medical_notes"),
   includeWarmup: boolean("include_warmup").default(true),
   includeCooldown: boolean("include_cooldown").default(true),
+  aiProvider: text("ai_provider").$type<AIProvider>().default(DEFAULT_AI_PROVIDER),
+  aiModel: text("ai_model").default(DEFAULT_AI_MODEL),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => ({
   userIdIdx: index("idx_profiles_user_id").on(table.userId),
+  aiProviderIdx: index("idx_profiles_ai_provider").on(table.aiProvider),
+  aiModelIdx: index("idx_profiles_ai_model").on(table.aiModel),
 }));
 
 // Schema for insert operations
@@ -80,6 +85,8 @@ export interface Profile {
   medicalNotes: string | null;
   includeWarmup: boolean | null;
   includeCooldown: boolean | null;
+  aiProvider: AIProvider | null;
+  aiModel: string | null;
   updatedAt: Date | null;
 }
 

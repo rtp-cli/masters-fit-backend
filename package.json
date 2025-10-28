@@ -21,6 +21,8 @@
     "@langchain/anthropic": "^0.3.28",
     "@langchain/community": "^0.3.56",
     "@langchain/core": "^0.3.76",
+    "@langchain/openai": "^0.3.0",
+    "@langchain/google-genai": "^0.1.0",
     "@tsoa/runtime": "^5.0.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",

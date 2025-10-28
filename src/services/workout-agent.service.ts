@@ -1,4 +1,5 @@
 import { ChatAnthropic } from "@langchain/anthropic";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { ChatMessageHistory } from "langchain/stores/message/in_memory";
 import {
   SystemMessage,
@@ -13,23 +14,38 @@ import {
   buildClaudeDailyPrompt,
   getEquipmentDescription,
 } from "@/utils/prompt-generator";
+import { aiProviderService } from "./ai-provider.service";
+import { AIProvider } from "@/constants/ai-providers";
 
 export class WorkoutAgentService {
-  private llm: ChatAnthropic;
+  private llm: BaseChatModel;
+  private currentProvider: AIProvider;
+  private currentModel: string;
   private messageHistories: Map<string, ChatMessageHistory> = new Map();
   private activeGenerations: Map<string, AbortController> = new Map();
 
-  constructor() {
-    this.llm = new ChatAnthropic({
-      modelName: "claude-sonnet-4-20250514",
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      maxTokens: 30000,
-      temperature: 0.1,
-      streaming: true,
-      invocationKwargs: {
-        top_p: undefined,
-      },
+  constructor(provider: AIProvider, model: string) {
+    this.currentProvider = provider;
+    this.currentModel = model;
+    this.llm = aiProviderService.createLLMInstance(provider, model);
+
+    logger.info('WorkoutAgentService initialized', {
+      provider: this.currentProvider,
+      model: this.currentModel
     });
+  }
+
+  public getCurrentProvider(): AIProvider {
+    return this.currentProvider;
+  }
+
+  public getCurrentModel(): string {
+    return this.currentModel;
+  }
+
+  // Create instance with user's preferred provider/model
+  public static createForUser(profile: Profile): WorkoutAgentService {
+    return new WorkoutAgentService(profile.aiProvider!, profile.aiModel!);
   }
 
   private async getFilteredExercises(

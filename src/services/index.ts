@@ -7,6 +7,7 @@ export * from "@/services/auth.service";
 export * from "@/services/logs.service";
 export * from "@/services/dashboard.service";
 export * from "@/services/search.service";
+export * from "@/services/ai-provider.service";
 
 // New modular services
 export * from "@/services/metrics-calculation.service";
