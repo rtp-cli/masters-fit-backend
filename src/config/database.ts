@@ -33,43 +33,49 @@ export const pool = new Pool({
 });
 
 // Add connection event handlers for monitoring and logging
-pool.on('connect', (client) => {
-  logger.info('New database client connected', {
-    metadata: { totalCount: pool.totalCount, idleCount: pool.idleCount, waitingCount: pool.waitingCount }
+pool.on("connect", (client) => {
+  logger.info("New database client connected", {
+    metadata: {
+      totalCount: pool.totalCount,
+      idleCount: pool.idleCount,
+      waitingCount: pool.waitingCount,
+    },
   });
 });
 
-pool.on('error', (err, client) => {
-  logger.error('Unexpected error on idle database client', err, {
-    metadata: { totalCount: pool.totalCount, idleCount: pool.idleCount, waitingCount: pool.waitingCount }
+pool.on("error", (err, client) => {
+  logger.error("Unexpected error on idle database client", err, {
+    metadata: {
+      totalCount: pool.totalCount,
+      idleCount: pool.idleCount,
+      waitingCount: pool.waitingCount,
+    },
   });
 });
 
-pool.on('acquire', (client) => {
-  logger.debug('Database client acquired from pool', {
-    metadata: { totalCount: pool.totalCount, idleCount: pool.idleCount, waitingCount: pool.waitingCount }
-  });
-});
-
-pool.on('remove', (client) => {
-  logger.info('Database client removed from pool', {
-    metadata: { totalCount: pool.totalCount, idleCount: pool.idleCount, waitingCount: pool.waitingCount }
+pool.on("remove", (client) => {
+  logger.info("Database client removed from pool", {
+    metadata: {
+      totalCount: pool.totalCount,
+      idleCount: pool.idleCount,
+      waitingCount: pool.waitingCount,
+    },
   });
 });
 
 export const db = drizzle(pool, { schema });
 
 // Add graceful shutdown handler
-process.on('SIGINT', async () => {
-  logger.info('Received SIGINT, closing database connections...');
+process.on("SIGINT", async () => {
+  logger.info("Received SIGINT, closing database connections...");
   await pool.end();
-  logger.info('Database connections closed');
+  logger.info("Database connections closed");
   process.exit(0);
 });
 
-process.on('SIGTERM', async () => {
-  logger.info('Received SIGTERM, closing database connections...');
+process.on("SIGTERM", async () => {
+  logger.info("Received SIGTERM, closing database connections...");
   await pool.end();
-  logger.info('Database connections closed');
+  logger.info("Database connections closed");
   process.exit(0);
 });

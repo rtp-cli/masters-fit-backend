@@ -2,37 +2,47 @@ import { LogsController } from "@/controllers/logs.controller";
 import { logsService } from "@/services";
 import { Router } from "express";
 import { ZodError } from "zod";
+import { expressAuthentication } from "@/middleware/auth.middleware";
 
 const router = Router();
 const controller = new LogsController();
 
+// Helper function for consistent error handling
+const handleError = (error: unknown, res: any) => {
+  if (error instanceof Error && error.message === "Invalid or expired token") {
+    res.status(401).json({ success: false, error: error.message });
+  } else if (error instanceof Error && error.message === "Unauthorized") {
+    res.status(401).json({ success: false, error: "Unauthorized" });
+  } else if (error instanceof ZodError) {
+    res.status(400).json({ success: false, error: "Invalid request data" });
+  } else if (error instanceof Error) {
+    res.status(400).json({ success: false, error: error.message });
+  } else {
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+};
+
 // Create exercise log
 router.post("/exercise", async (req, res) => {
   try {
+    await expressAuthentication(req, "bearerAuth");
     const exerciseLog = await logsService.createExerciseLog(req.body);
     res.status(201).json(exerciseLog);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
 // Get exercise logs for a plan day
 router.get("/exercise/:planDayId", async (req, res) => {
   try {
+    await expressAuthentication(req, "bearerAuth");
     const response = await controller.getExerciseLogsForPlanDay(
       Number(req.params.planDayId)
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -42,11 +52,7 @@ router.post("/workout", async (req, res) => {
     const response = await controller.createWorkoutLog(req.body);
     res.status(201).json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -58,11 +64,7 @@ router.get("/workout/:workoutId", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -74,11 +76,7 @@ router.get("/workout/:workoutId/existing", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -91,11 +89,7 @@ router.put("/workout/:workoutId", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -107,11 +101,7 @@ router.get("/workout/:workoutId/all", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -123,11 +113,7 @@ router.get("/workout/:workoutId/completed", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -200,11 +186,7 @@ router.post("/workout/:workoutId/complete", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -217,11 +199,7 @@ router.post("/workout/day/:planDayId/complete", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -233,11 +211,7 @@ router.get("/plan-day/plan-day/:planDayId", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 
@@ -248,11 +222,7 @@ router.get("/plan-day/plan-day/:planDayId/latest", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    }
+    handleError(error, res);
   }
 });
 

@@ -14,3 +14,7 @@ export interface AuthCodeRequest {
 export interface AcceptWaiverRequest {
   version: string;
 }
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}

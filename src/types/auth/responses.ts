@@ -21,6 +21,7 @@ export interface AuthVerifyResponse {
   user?: AuthUserResponse;
   email?: string;
   token?: string;
+  refreshToken?: string;
 }
 
 /**
@@ -41,4 +42,14 @@ export interface AuthSignupResponse {
   message?: string;
   user?: AuthUserResponse;
   needsOnboarding?: boolean;
+}
+
+/**
+ * @description Response type for token refresh endpoint
+ */
+export interface AuthRefreshResponse {
+  success: boolean;
+  error?: string;
+  token?: string;
+  refreshToken?: string;
 }

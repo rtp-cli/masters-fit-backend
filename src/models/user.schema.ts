@@ -1,4 +1,4 @@
-import { pgTable, text, serial, boolean, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, boolean, timestamp, index, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -15,6 +15,20 @@ export const users = pgTable("users", {
   waiverVersion: text("waiver_version"),
 }, (table) => ({
   emailIdx: index("idx_users_email").on(table.email),
+}));
+
+// Refresh tokens table
+export const refreshTokens = pgTable("refresh_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  isRevoked: boolean("is_revoked").default(false),
+}, (table) => ({
+  userIdIdx: index("idx_refresh_tokens_user_id").on(table.userId),
+  tokenHashIdx: index("idx_refresh_tokens_token_hash").on(table.tokenHash),
+  expiresAtIdx: index("idx_refresh_tokens_expires_at").on(table.expiresAt),
 }));
 
 // Schema for insert operations
@@ -55,3 +69,22 @@ export const emailAuthSchema = z.object({
 });
 
 export type EmailAuthData = z.infer<typeof emailAuthSchema>;
+
+// Refresh token schemas
+export const insertRefreshTokenSchema = createInsertSchema(refreshTokens).pick({
+  userId: true,
+  tokenHash: true,
+  expiresAt: true,
+});
+
+// Refresh token types
+export interface RefreshToken {
+  id: number;
+  userId: number;
+  tokenHash: string;
+  expiresAt: Date;
+  createdAt: Date | null;
+  isRevoked: boolean | null;
+}
+
+export type InsertRefreshToken = z.infer<typeof insertRefreshTokenSchema>;

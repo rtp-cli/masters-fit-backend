@@ -1,13 +1,30 @@
 import { Router } from "express";
 import { DashboardController } from "@/controllers/dashboard.controller";
 import { ZodError } from "zod";
+import { expressAuthentication } from "@/middleware/auth.middleware";
 
 const router = Router();
 const controller = new DashboardController();
 
+// Helper function for consistent error handling
+const handleError = (error: unknown, res: any) => {
+  if (error instanceof Error && error.message === "Invalid or expired token") {
+    res.status(401).json({ success: false, error: error.message });
+  } else if (error instanceof Error && error.message === "Unauthorized") {
+    res.status(401).json({ success: false, error: "Unauthorized" });
+  } else if (error instanceof ZodError) {
+    res.status(400).json({ success: false, error: "Invalid request data" });
+  } else if (error instanceof Error) {
+    res.status(400).json({ success: false, error: error.message });
+  } else {
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+};
+
 // Get comprehensive dashboard metrics
 router.get("/:userId/metrics", async (req, res) => {
   try {
+    await expressAuthentication(req, "bearerAuth");
     const { startDate, endDate, timeRange } = req.query;
     const response = await controller.getDashboardMetrics(
       Number(req.params.userId),
@@ -17,31 +34,20 @@ router.get("/:userId/metrics", async (req, res) => {
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
-    }
+    handleError(error, res);
   }
 });
 
 // Get weekly summary
 router.get("/:userId/weekly-summary", async (req, res) => {
   try {
+    await expressAuthentication(req, "bearerAuth");
     const response = await controller.getWeeklySummary(
       Number(req.params.userId)
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
-    }
+    handleError(error, res);
   }
 });
 

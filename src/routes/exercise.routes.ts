@@ -1,41 +1,47 @@
 import { Router } from "express";
 import { ExerciseController } from "@/controllers/exercise.controller";
 import { ZodError } from "zod";
+import { expressAuthentication } from "@/middleware/auth.middleware";
 
 const router = Router();
 const controller = new ExerciseController();
 
+// Helper function for consistent error handling
+const handleError = (error: unknown, res: any) => {
+  if (error instanceof Error && error.message === "Invalid or expired token") {
+    res.status(401).json({ success: false, error: error.message });
+  } else if (error instanceof Error && error.message === "Unauthorized") {
+    res.status(401).json({ success: false, error: "Unauthorized" });
+  } else if (error instanceof ZodError) {
+    res.status(400).json({ success: false, error: "Invalid request data" });
+  } else if (error instanceof Error) {
+    res.status(400).json({ success: false, error: error.message });
+  } else {
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+};
+
 // Get all exercises
 router.get("/", async (req, res) => {
   try {
+    await expressAuthentication(req, "bearerAuth");
     const response = await controller.getExercises();
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
-    }
+    handleError(error, res);
   }
 });
 
 // Get exercise by ID
 router.get("/:exerciseId", async (req, res) => {
   try {
+    await expressAuthentication(req, "bearerAuth");
     const response = await controller.getExercise(
       Number(req.params.exerciseId)
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
-    }
+    handleError(error, res);
   }
 });
 

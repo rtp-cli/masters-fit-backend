@@ -142,4 +142,47 @@ router.post("/accept-waiver", async (req, res) => {
   }
 });
 
+// Token refresh endpoint
+router.post("/refresh", async (req, res) => {
+  try {
+    const response = await controller.refreshToken(req.body);
+    if (response.success) {
+      res.json(response);
+    } else {
+      // Check error type to set appropriate status
+      if (response.error?.includes("Invalid or expired")) {
+        res.status(401).json(response);
+      } else if (response.error?.includes("required")) {
+        res.status(400).json(response);
+      } else {
+        res.status(500).json(response);
+      }
+    }
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Logout endpoint
+router.post("/logout", async (req, res) => {
+  try {
+    const response = await controller.logout(req.body);
+    res.json(response);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
 export const authRouter = router;

@@ -13,7 +13,15 @@ router.get("/available", async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Error getting available providers:", error);
-    res.status(500).json({ success: false, error: "Internal server error" });
+
+    // Check if it's an authentication error
+    if (error instanceof Error && error.message === "Invalid or expired token") {
+      res.status(401).json({ success: false, error: error.message });
+    } else if (error instanceof Error && error.message === "Unauthorized") {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
   }
 });
 
@@ -28,7 +36,15 @@ router.put("/user/:userId/provider", async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Error updating user provider:", error);
-    res.status(500).json({ success: false, error: "Internal server error" });
+
+    // Check if it's an authentication error
+    if (error instanceof Error && error.message === "Invalid or expired token") {
+      res.status(401).json({ success: false, error: error.message });
+    } else if (error instanceof Error && error.message === "Unauthorized") {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
   }
 });
 
@@ -42,7 +58,15 @@ router.get("/user/:userId/provider", async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error("Error getting user provider:", error);
-    res.status(500).json({ success: false, error: "Internal server error" });
+
+    // Check if it's an authentication error
+    if (error instanceof Error && error.message === "Invalid or expired token") {
+      res.status(401).json({ success: false, error: error.message });
+    } else if (error instanceof Error && error.message === "Unauthorized") {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
   }
 });
 

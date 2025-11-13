@@ -19,10 +19,12 @@ import {
   AuthVerifyResponse,
   AuthLoginResponse,
   AuthSignupResponse,
+  AuthRefreshResponse,
   SignUpRequest,
   AcceptWaiverRequest,
+  RefreshTokenRequest,
 } from "@/types";
-import { userService, authService } from "@/services";
+import { userService, authService, refreshTokenService } from "@/services";
 import { emailService } from "@/services/email.service";
 import { emailAuthSchema, InsertUser, insertUserSchema } from "@/models";
 import jwt from "jsonwebtoken";
@@ -41,7 +43,7 @@ import {
 export class AuthController extends Controller {
   private isTestAccountEmail(email: string): boolean {
     const testAccountsEnabled = process.env.TEST_ACCOUNTS_ENABLED;
-    if (testAccountsEnabled !== 'true') return false;
+    if (testAccountsEnabled !== "true") return false;
 
     const testAccountNew = process.env.TEST_ACCOUNT_NEW;
     const testAccountExisting = process.env.TEST_ACCOUNT_EXISTING;
@@ -81,6 +83,9 @@ export class AuthController extends Controller {
       }
     );
 
+    // Generate refresh token
+    const refreshToken = await refreshTokenService.createRefreshToken(user.id);
+
     return {
       success: true,
       user: {
@@ -94,6 +99,7 @@ export class AuthController extends Controller {
       needsOnboarding: user.needsOnboarding ?? false,
       needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
       token: token,
+      refreshToken: refreshToken,
     };
   }
 
@@ -431,14 +437,14 @@ export class AuthController extends Controller {
     const user = await userService.getUserByEmail(codeInfo.email);
 
     if (!user) {
-      // Generate a token for the pending user
+      // Generate a token for the pending user (keep 1h for onboarding)
       const token = jwt.sign(
         {
           email: codeInfo.email,
           isOnboarding: true,
         },
         process.env.JWT_SECRET!,
-        { expiresIn: "1h" }
+        { expiresIn: "7d" }
       );
 
       return {
@@ -459,6 +465,9 @@ export class AuthController extends Controller {
       { expiresIn: "7d" }
     );
 
+    // Generate refresh token
+    const refreshToken = await refreshTokenService.createRefreshToken(user.id);
+
     return {
       success: true,
       user: {
@@ -472,6 +481,141 @@ export class AuthController extends Controller {
       needsOnboarding: user.needsOnboarding ?? false,
       needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
       token: token,
+      refreshToken: refreshToken,
     };
+  }
+
+  /**
+   * Refresh access token using refresh token
+   * @param requestBody Refresh token request
+   */
+  @Post("refresh")
+  @Response<AuthRefreshResponse>(400, "Bad Request")
+  @Response<AuthRefreshResponse>(401, "Invalid refresh token")
+  @SuccessResponse(200, "Success")
+  public async refreshToken(
+    @Body() requestBody: RefreshTokenRequest
+  ): Promise<AuthRefreshResponse> {
+    const { refreshToken } = requestBody;
+
+    if (!refreshToken) {
+      return {
+        success: false,
+        error: "Refresh token is required",
+      };
+    }
+
+    try {
+      const userId =
+        await refreshTokenService.validateRefreshToken(refreshToken);
+
+      if (!userId) {
+        this.setStatus(401);
+        return {
+          success: false,
+          error: "Invalid or expired refresh token",
+        };
+      }
+
+      // Get user data
+      const user = await userService.getUser(userId);
+      if (!user) {
+        this.setStatus(401);
+        return {
+          success: false,
+          error: "User not found",
+        };
+      }
+
+      // Generate new access token
+      const newAccessToken = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "7d" }
+      );
+
+      // Rotate the refresh token for security
+      const newRefreshToken =
+        await refreshTokenService.rotateRefreshToken(refreshToken);
+
+      if (!newRefreshToken) {
+        this.setStatus(500);
+        return {
+          success: false,
+          error: "Failed to rotate refresh token",
+        };
+      }
+
+      logger.info("Token refreshed successfully", {
+        operation: "refreshToken",
+        metadata: { userId },
+      });
+
+      return {
+        success: true,
+        token: newAccessToken,
+        refreshToken: newRefreshToken,
+      };
+    } catch (error) {
+      logger.error("Failed to refresh token", error as Error, {
+        operation: "refreshToken",
+      });
+
+      this.setStatus(500);
+      return {
+        success: false,
+        error: "Failed to refresh token",
+      };
+    }
+  }
+
+  /**
+   * Logout user and revoke refresh token
+   * @param requestBody Refresh token to revoke
+   */
+  @Post("logout")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async logout(
+    @Body() requestBody: RefreshTokenRequest
+  ): Promise<ApiResponse> {
+    const { refreshToken } = requestBody;
+
+    if (!refreshToken) {
+      return {
+        success: false,
+        error: "Refresh token is required",
+      };
+    }
+
+    try {
+      const userId =
+        await refreshTokenService.validateRefreshToken(refreshToken);
+
+      if (userId) {
+        await refreshTokenService.revokeAllUserTokens(userId);
+
+        logger.info("User logged out successfully", {
+          operation: "logout",
+          metadata: { userId },
+        });
+      }
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      logger.error("Failed to logout user", error as Error, {
+        operation: "logout",
+      });
+
+      return {
+        success: false,
+        error: "Failed to logout",
+      };
+    }
   }
 }
