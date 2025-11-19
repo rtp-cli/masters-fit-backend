@@ -17,9 +17,6 @@ import { logger } from "@/utils/logger.js";
 // Import the auto-generated swagger spec
 import swaggerJson from "../generated/swagger.json";
 import path from "path";
-import { fileURLToPath } from "url";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 function extractRoutes(app: express.Application) {
   const routes: Record<string, string[]> = {};
@@ -94,7 +91,7 @@ app.get("/api/health", async (req, res) => {
   try {
     // Test database connection
     const client = await pool.connect();
-    await client.query("SELECT 1");
+    await client.query('SELECT 1');
     client.release();
 
     res.json({
@@ -110,10 +107,7 @@ app.get("/api/health", async (req, res) => {
       timestamp: new Date().toISOString(),
       database: "disconnected",
       uptime: process.uptime(),
-      error:
-        process.env.NODE_ENV === "development"
-          ? error.message
-          : "Database connection failed",
+      error: process.env.NODE_ENV === "development" ? error.message : "Database connection failed"
     });
   }
 });
@@ -132,14 +126,14 @@ app.get("/api", (req, res) => {
 });
 
 // Global error handlers for unhandled promise rejections and uncaught exceptions
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled Promise Rejection", new Error(String(reason)), {
-    metadata: { promise: promise.toString() },
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Promise Rejection', new Error(String(reason)), {
+    metadata: { promise: promise.toString() }
   });
 });
 
-process.on("uncaughtException", (error) => {
-  logger.error("Uncaught Exception", error);
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception', error);
   // Gracefully close server and database connections
   process.exit(1);
 });
