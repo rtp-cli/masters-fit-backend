@@ -12,6 +12,7 @@ import {
   Tags,
   Example,
   Security,
+  Request,
 } from "@tsoa/runtime";
 import {
   WorkoutsResponse,
@@ -25,10 +26,17 @@ import {
   CreatePlanDayExerciseRequest,
 } from "@/types/workout/requests";
 import { ApiResponse } from "@/types/common/responses";
-import { workoutService, jobsService, notificationService } from "@/services";
+import { workoutService, jobsService, notificationService, userService } from "@/services";
+import { eventTrackingService } from "@/services/event-tracking.service";
 import { InsertWorkout, InsertPlanDay, InsertPlanDayExercise, WorkoutGenerationJobData, WorkoutRegenerationJobData, DailyRegenerationJobData, JobType } from "@/models";
 import { logger } from "@/utils/logger";
 import { workoutGenerationQueue } from "@/queues/workout-generation.queue";
+
+// Helper function to get client IP from request
+function getClientIP(req: any): string | undefined {
+  if (!req) return undefined;
+  return req.clientIP || req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || undefined;
+}
 
 @Route("workouts")
 @Tags("Workouts")
@@ -188,15 +196,61 @@ export class WorkoutController extends Controller {
   @SuccessResponse(200, "Success")
   public async replaceExercise(
     @Path() id: number,
-    @Body() requestBody: { newExerciseId: number }
+    @Body() requestBody: { newExerciseId: number },
+    @Request() request: any
   ): Promise<WorkoutBlockExerciseResponse> {
-    const exercise = await workoutService.replaceExercise(
+    // Get current exercise info before replacement for tracking
+    const currentExercise = await workoutService.getPlanDayExercise(id);
+
+    if (!currentExercise) {
+      throw new Error("Exercise not found");
+    }
+
+    // Get the workout to get user info - we have workoutId from the enhanced getPlanDayExercise
+    const workout = await workoutService.getWorkoutById((currentExercise as any).workoutId);
+
+    if (!workout) {
+      throw new Error("Workout not found");
+    }
+
+    // Get user to get UUID for tracking
+    const user = await userService.getUser(workout.userId);
+
+    if (!user || !user.uuid) {
+      throw new Error("User not found");
+    }
+
+    // Perform the replacement
+    const newExercise = await workoutService.replaceExercise(
       id,
       requestBody.newExerciseId
     );
+
+    // Track the exercise replacement
+    try {
+      const clientIP = getClientIP(request);
+      await eventTrackingService.trackExerciseReplaced(user.uuid, {
+        previous_exercise_id: currentExercise.exerciseId,
+        previous_exercise_name: currentExercise.exercise?.name || "Unknown Exercise",
+        current_exercise_id: newExercise.exerciseId,
+        current_exercise_name: newExercise.exercise?.name || "Unknown Exercise",
+        workout_id: (currentExercise as any).workoutId,
+        plan_day_id: currentExercise.planDayId,
+        workout_block_id: currentExercise.workoutBlockId,
+      }, clientIP);
+    } catch (trackingError) {
+      logger.error("Failed to track exercise replacement", trackingError as Error, {
+        userId: workout.userId,
+        exerciseId: id,
+        previousExerciseId: currentExercise.exerciseId,
+        newExerciseId: requestBody.newExerciseId,
+      });
+      // Don't throw here - replacement was successful, just tracking failed
+    }
+
     return {
       success: true,
-      workoutBlockExercise: exercise,
+      workoutBlockExercise: newExercise,
     };
   }
 

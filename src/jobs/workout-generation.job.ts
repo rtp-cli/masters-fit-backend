@@ -1,35 +1,38 @@
-import { Job } from 'bull';
-import { logger } from '@/utils/logger';
-import { workoutService } from '@/services/workout.service';
-import { jobsService } from '@/services/jobs.service';
-import { notificationService } from '@/services/notification.service';
-import { 
-  WorkoutGenerationJobData, 
-  WorkoutGenerationJobResult, 
-  JobStatus 
-} from '@/models/jobs.schema';
-import { emitProgress } from '@/utils/websocket-progress.utils';
+import { Job } from "bull";
+import { logger } from "@/utils/logger";
+import { workoutService } from "@/services/workout.service";
+import { jobsService } from "@/services/jobs.service";
+import { notificationService } from "@/services/notification.service";
+import { eventTrackingService } from "@/services/event-tracking.service";
+import { userService } from "@/services/user.service";
+import { profileService } from "@/services/profile.service";
+import {
+  WorkoutGenerationJobData,
+  WorkoutGenerationJobResult,
+  JobStatus,
+} from "@/models/jobs.schema";
+import { emitProgress } from "@/utils/websocket-progress.utils";
 
 export async function processWorkoutGenerationJob(
   job: Job<WorkoutGenerationJobData & { userId: number; jobId: number }>
 ): Promise<WorkoutGenerationJobResult> {
-  logger.info('Weekly workout generation job picked up by worker', {
-    operation: 'processWorkoutGenerationJob',
+  logger.info("Weekly workout generation job picked up by worker", {
+    operation: "processWorkoutGenerationJob",
     bullJobId: job.id,
     jobId: (job.data as any).jobId,
     userId: (job.data as any).userId,
     metadata: {
       attemptsMade: job.attemptsMade,
       timestamp: new Date().toISOString(),
-      processId: process.pid
-    }
+      processId: process.pid,
+    },
   });
 
   const startTime = Date.now();
   const { userId, jobId, customFeedback, timezone, profileData } = job.data;
-  
-  logger.info('Starting workout generation job processing', {
-    operation: 'workoutGenerationJob',
+
+  logger.info("Starting workout generation job processing", {
+    operation: "workoutGenerationJob",
     jobId: job.id,
     userId,
     metadata: {
@@ -37,35 +40,39 @@ export async function processWorkoutGenerationJob(
       hasProfileData: !!profileData,
       timezone,
       startTime: new Date().toISOString(),
-    }
+    },
   });
 
   try {
     // Update job status to processing
-    logger.info('Updating job status to PROCESSING', {
-      operation: 'processWorkoutGenerationJob',
+    logger.info("Updating job status to PROCESSING", {
+      operation: "processWorkoutGenerationJob",
       jobId,
-      userId
+      userId,
     });
 
     try {
       await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 5);
-      logger.info('Job status updated to PROCESSING successfully', {
-        operation: 'processWorkoutGenerationJob',
-        jobId
+      logger.info("Job status updated to PROCESSING successfully", {
+        operation: "processWorkoutGenerationJob",
+        jobId,
       });
     } catch (dbError) {
-      logger.error('Failed to update job status to PROCESSING', dbError as Error, {
-        operation: 'processWorkoutGenerationJob',
-        jobId,
-        userId
-      });
+      logger.error(
+        "Failed to update job status to PROCESSING",
+        dbError as Error,
+        {
+          operation: "processWorkoutGenerationJob",
+          jobId,
+          userId,
+        }
+      );
       // Continue processing even if database update fails
     }
 
     // Emit initial progress
     emitProgress(userId, 5);
-    
+
     // Update profile if provided
     if (profileData) {
       await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 10);
@@ -75,18 +82,21 @@ export async function processWorkoutGenerationJob(
     // Generate workout using existing service
     // The service already handles progress updates via emitProgress
     const workout = await workoutService.generateWorkoutPlan(
-      userId, 
-      customFeedback, 
+      userId,
+      customFeedback,
       timezone
     );
 
     const generationTime = Date.now() - startTime;
-    
+
     // Count total exercises
     const totalExercises = workout.planDays.reduce((total, day) => {
-      return total + day.blocks.reduce((blockTotal, block) => {
-        return blockTotal + block.exercises.length;
-      }, 0);
+      return (
+        total +
+        day.blocks.reduce((blockTotal, block) => {
+          return blockTotal + block.exercises.length;
+        }, 0)
+      );
     }, 0);
 
     const result: WorkoutGenerationJobResult = {
@@ -99,9 +109,9 @@ export async function processWorkoutGenerationJob(
 
     // Update job status to completed
     await jobsService.updateJobStatus(
-      jobId, 
-      JobStatus.COMPLETED, 
-      100, 
+      jobId,
+      JobStatus.COMPLETED,
+      100,
       result,
       workout.id
     );
@@ -116,8 +126,23 @@ export async function processWorkoutGenerationJob(
     // Final progress update
     emitProgress(userId, 100, true);
 
-    logger.info('Workout generation job completed successfully', {
-      operation: 'workoutGenerationJob',
+    // Get user and profile data for tracking
+    const user = await userService.getUser(userId);
+    const userProfile = await profileService.getProfileByUserId(userId);
+
+    // Track successful workout generation
+    await eventTrackingService.trackWorkoutGenerated(user?.uuid || "", {
+      generation_scope: "week",
+      workout_style:
+        userProfile?.preferredStyles?.join(", ") || "Not specified",
+      days_per_week: workout.planDays.length,
+      equipment_profile: userProfile?.environment || "Not specified",
+      llm_model: userProfile?.aiModel || "",
+      regeneration_reason: customFeedback,
+    });
+
+    logger.info("Workout generation job completed successfully", {
+      operation: "workoutGenerationJob",
       jobId: job.id,
       userId,
       metadata: {
@@ -127,19 +152,18 @@ export async function processWorkoutGenerationJob(
         totalExercises,
         planDaysCount: workout.planDays.length,
         completedAt: new Date().toISOString(),
-      }
+      },
     });
 
     return result;
-
   } catch (error) {
     const generationTime = Date.now() - startTime;
     // Bull queue attemptsMade: 1=first attempt, 2=first retry, 3=second retry (final)
     const maxAttempts = job.opts.attempts || 3;
     const isLastAttempt = job.attemptsMade === maxAttempts;
-    
-    logger.error('Workout generation job failed', error as Error, {
-      operation: 'workoutGenerationJob',
+
+    logger.error("Workout generation job failed", error as Error, {
+      operation: "workoutGenerationJob",
       jobId: job.id,
       userId,
       metadata: {
@@ -151,33 +175,50 @@ export async function processWorkoutGenerationJob(
         isLastAttempt,
         attemptsMadeGTEMaxAttempts: job.attemptsMade >= maxAttempts,
         attemptsMadeEqualsMaxAttempts: job.attemptsMade === maxAttempts,
-      }
+      },
     });
 
     // Only update to failed status and send notifications on the final attempt
     if (isLastAttempt) {
+      // Get user and profile data for tracking
+      const user = await userService.getUser(userId);
+      const userProfile = await profileService.getProfileByUserId(userId);
+
+      // Track failed workout generation
+      await eventTrackingService.trackWorkoutGenerationFailed(
+        user?.uuid || "",
+        {
+          generation_scope: "week",
+          error: `${error.constructor.name}: ${(error as Error).message}`,
+          llm_model: userProfile?.aiModel || "",
+        }
+      );
+
       // Update job status to failed
       const updatedJob = await jobsService.updateJobStatus(
-        jobId, 
-        JobStatus.FAILED, 
-        0, 
-        undefined, 
+        jobId,
+        JobStatus.FAILED,
+        0,
+        undefined,
         undefined,
         (error as Error).message
       );
 
       // Verify the update worked
       const verifyJob = await jobsService.getJob(jobId);
-      
-      logger.info(`Workout generation job marked as FAILED after final attempt`, {
-        operation: 'workoutGenerationJob',
-        jobId: job.id,
-        userId,
-        finalAttempt: job.attemptsMade,
-        maxAttempts: job.opts.attempts || 3,
-        dbStatusAfterUpdate: verifyJob?.status,
-        updateResult: updatedJob?.status,
-      });
+
+      logger.info(
+        `Workout generation job marked as FAILED after final attempt`,
+        {
+          operation: "workoutGenerationJob",
+          jobId: job.id,
+          userId,
+          finalAttempt: job.attemptsMade,
+          maxAttempts: job.opts.attempts || 3,
+          dbStatusAfterUpdate: verifyJob?.status,
+          updateResult: updatedJob?.status,
+        }
+      );
 
       // Emit error progress
       emitProgress(userId, 0, false, (error as Error).message);
@@ -191,24 +232,27 @@ export async function processWorkoutGenerationJob(
       // Return error result instead of throwing to avoid Bull queue overriding the FAILED status
       return {
         workoutId: 0,
-        workoutName: 'Failed Generation',
+        workoutName: "Failed Generation",
         planDaysCount: 0,
         totalExercises: 0,
         generationTimeMs: Date.now() - startTime,
       } as WorkoutGenerationJobResult;
     } else {
-      logger.info(`Workout generation job will retry (attempt ${job.attemptsMade}/${job.opts.attempts || 3})`, {
-        operation: 'workoutGenerationJob',
-        jobId: job.id,
-        userId,
-      });
-      
+      logger.info(
+        `Workout generation job will retry (attempt ${job.attemptsMade}/${job.opts.attempts || 3})`,
+        {
+          operation: "workoutGenerationJob",
+          jobId: job.id,
+          userId,
+        }
+      );
+
       // Keep job status as PROCESSING during retries
       await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 10);
-      
+
       // Emit retry progress update (not error)
       emitProgress(userId, 10, false, undefined);
-      
+
       // Only throw error for retry attempts
       throw error;
     }

@@ -1,9 +1,49 @@
 import { Request } from "express";
 import jwt from "jsonwebtoken";
 import { validateCurrentWaiver, WaiverValidationError } from "@/utils/waiver.utils";
+import { userService } from "@/services/user.service";
+import { eventTrackingService } from "@/services/event-tracking.service";
+import { getBestIP } from "@/utils/ip.utils";
+
+// Extend Request interface to include clientIP and user UUID
+interface AuthenticatedRequest extends Request {
+  userId: number;
+  userUuid?: string;
+  clientIP?: string;
+}
+
+/**
+ * Extract client IP address from request headers
+ * Handles various proxy and load balancer scenarios
+ */
+function getClientIP(req: Request): string | undefined {
+  try {
+    // Check for forwarded IP from proxies/load balancers
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      // x-forwarded-for can be a comma-separated list, take the first one
+      const ips = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+      const ip = ips.split(',')[0].trim();
+      if (ip) return ip;
+    }
+
+    // Check for real IP header
+    const realIP = req.headers['x-real-ip'];
+    if (realIP && typeof realIP === 'string') {
+      return realIP;
+    }
+
+    // Fall back to connection remote address
+    return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || undefined;
+  } catch (error) {
+    // If IP extraction fails, return undefined rather than throwing
+    console.warn('Failed to extract client IP:', error);
+    return undefined;
+  }
+}
 
 export async function expressAuthentication(
-  request: Request,
+  request: AuthenticatedRequest,
   securityName: string,
   scopes?: string[]
 ): Promise<any> {
@@ -23,6 +63,28 @@ export async function expressAuthentication(
 
     // Set userId in request for logging context
     request.userId = parseInt(decoded.id);
+
+    // Capture and enhance client IP for analytics
+    const rawIP = getClientIP(request);
+    const bestIP = await getBestIP(rawIP);
+    // Always set clientIP, even if undefined, to avoid property access errors
+    request.clientIP = bestIP;
+
+    // Fetch user information and store UUID in request for analytics
+    try {
+      const user = await userService.getUser(parseInt(decoded.id));
+      if (user?.uuid) {
+        // Store UUID in request for analytics controllers
+        request.userUuid = user.uuid;
+
+        // Don't await this - let it run in background
+        eventTrackingService.ensureUserProfileExists(user, bestIP).catch(() => {
+          // Silently handle errors to not affect authentication
+        });
+      }
+    } catch (error) {
+      // Ignore profile sync errors - don't affect authentication
+    }
 
     // Skip waiver validation for auth endpoints (to avoid circular dependency)
     const isAuthEndpoint = request.path.startsWith('/api/auth');

@@ -24,6 +24,14 @@ export class UserService extends BaseService {
     return this.getUser(id);
   }
 
+  async getUserByUuid(uuid: string): Promise<User | undefined> {
+    const result = await this.db
+      .select()
+      .from(users)
+      .where(this.eq(users.uuid, uuid));
+    return result[0];
+  }
+
   async createUser(data: { email: string; name: string }): Promise<User> {
     const result = await this.db.insert(users).values(data).returning();
     return result[0];
@@ -40,14 +48,14 @@ export class UserService extends BaseService {
             needsOnboarding: data.needsOnboarding,
           }),
         ...(data.pushNotificationToken !== undefined && {
-            pushNotificationToken: data.pushNotificationToken,
-          }),
+          pushNotificationToken: data.pushNotificationToken,
+        }),
         ...(data.waiverAcceptedAt !== undefined && {
-            waiverAcceptedAt: data.waiverAcceptedAt,
-          }),
+          waiverAcceptedAt: data.waiverAcceptedAt,
+        }),
         ...(data.waiverVersion !== undefined && {
-            waiverVersion: data.waiverVersion,
-          }),
+          waiverVersion: data.waiverVersion,
+        }),
       })
       .where(this.eq(users.id, id))
       .returning();
@@ -65,14 +73,14 @@ export class UserService extends BaseService {
             needsOnboarding: data.needsOnboarding,
           }),
         ...(data.pushNotificationToken !== undefined && {
-            pushNotificationToken: data.pushNotificationToken,
-          }),
+          pushNotificationToken: data.pushNotificationToken,
+        }),
         ...(data.waiverAcceptedAt !== undefined && {
-            waiverAcceptedAt: data.waiverAcceptedAt,
-          }),
+          waiverAcceptedAt: data.waiverAcceptedAt,
+        }),
         ...(data.waiverVersion !== undefined && {
-            waiverVersion: data.waiverVersion,
-          }),
+          waiverVersion: data.waiverVersion,
+        }),
       })
       .where(this.eq(users.email, data.email!))
       .returning();
@@ -82,7 +90,9 @@ export class UserService extends BaseService {
   async acceptWaiver(userId: number, version: string): Promise<User> {
     // Validate version before updating
     if (version !== CURRENT_WAIVER_VERSION) {
-      throw new Error(`Invalid waiver version. Expected ${CURRENT_WAIVER_VERSION}, received ${version}`);
+      throw new Error(
+        `Invalid waiver version. Expected ${CURRENT_WAIVER_VERSION}, received ${version}`
+      );
     }
 
     const result = await this.db
@@ -96,7 +106,10 @@ export class UserService extends BaseService {
     return result[0];
   }
 
-  async hasAcceptedWaiver(userId: number, requiredVersion?: string): Promise<boolean> {
+  async hasAcceptedWaiver(
+    userId: number,
+    requiredVersion?: string
+  ): Promise<boolean> {
     const user = await this.getUser(userId);
     if (!user || !user.waiverAcceptedAt) {
       return false;

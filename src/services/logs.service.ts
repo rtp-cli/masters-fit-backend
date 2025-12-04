@@ -22,7 +22,9 @@ import {
   planDays,
   workouts,
 } from "@/models/workout.schema";
+import { users } from "@/models/user.schema";
 import { BaseService } from "./base.service";
+import { eventTrackingService } from "./event-tracking.service";
 import { eq, and, inArray, desc, count, sum } from "drizzle-orm";
 
 // Helper function to convert decimal string to number
@@ -860,6 +862,13 @@ export class LogsService extends BaseService {
       notes?: string;
     }
   ): Promise<void> {
+    console.log('🐛 markWorkoutDayComplete called:', {
+      planDayId,
+      completionData,
+      hasCompletionData: !!completionData,
+      totalTimeSeconds: completionData?.totalTimeSeconds,
+      typeOfTotalTime: typeof completionData?.totalTimeSeconds
+    });
     // First, get the plan day to find the workout ID
     const planDay = await this.db
       .select()
@@ -907,6 +916,48 @@ export class LogsService extends BaseService {
         // Create new log
         await this.db.insert(planDayLogs).values(logData);
       }
+    }
+
+    // Track workout completion analytics for this plan day
+    try {
+      const workout = await this.db.query.workouts.findFirst({
+        where: eq(workouts.id, workoutId),
+      });
+
+      if (workout && workout.userId) {
+        // Get user UUID for analytics
+        const user = await this.db.query.users.findFirst({
+          where: eq(users.id, workout.userId),
+        });
+
+        if (user?.uuid) {
+          // Calculate actual completion percentage based on exercises completed
+          const totalExercises = await this.getTotalExercisesForPlanDay(planDayId);
+          const completedExercises = completionData?.exercisesCompleted || 0;
+          const completion_percentage = totalExercises > 0
+            ? Math.min(100, Math.round((completedExercises / totalExercises) * 100))
+            : 100;
+
+          const duration_ms = (completionData?.totalTimeSeconds || 0) * 1000;
+
+          console.log('🐛 Analytics data being sent:', {
+            workout_id: workoutId,
+            plan_day_id: planDayId,
+            duration_ms,
+            completion_percentage,
+            originalTotalTimeSeconds: completionData?.totalTimeSeconds
+          });
+
+          await eventTrackingService.trackWorkoutCompleted(user.uuid, {
+            workout_id: workoutId,
+            plan_day_id: planDayId,
+            duration_ms,
+            completion_percentage,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to track workout completion analytics:', error);
     }
 
     // Check if all plan days in the workout are now complete

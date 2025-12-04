@@ -709,6 +709,72 @@ export class WorkoutService extends BaseService {
     };
   }
 
+  /**
+   * Get a plan day exercise with full details for tracking
+   */
+  async getPlanDayExercise(
+    planDayExerciseId: number
+  ): Promise<PlanDayWithExercise | null> {
+    const planDayExercise = await this.db.query.planDayExercises.findFirst({
+      where: eq(planDayExercises.id, planDayExerciseId),
+      with: {
+        exercise: true,
+      },
+    });
+
+    if (!planDayExercise) {
+      return null;
+    }
+
+    // Get the workout block to find the planDayId
+    const workoutBlock = await this.db.query.workoutBlocks.findFirst({
+      where: eq(workoutBlocks.id, planDayExercise.workoutBlockId),
+    });
+
+    if (!workoutBlock) {
+      throw new Error("Workout block not found");
+    }
+
+    // Get the plan day to find the workoutId
+    const planDay = await this.db.query.planDays.findFirst({
+      where: eq(planDays.id, workoutBlock.planDayId),
+    });
+
+    if (!planDay) {
+      throw new Error("Plan day not found");
+    }
+
+    return {
+      id: planDayExercise.id,
+      workoutBlockId: planDayExercise.workoutBlockId,
+      planDayId: workoutBlock.planDayId,
+      workoutId: planDay.workoutId, // Add workout ID for tracking
+      exerciseId: planDayExercise.exerciseId,
+      sets: planDayExercise.sets ?? undefined,
+      reps: planDayExercise.reps ?? undefined,
+      weight: planDayExercise.weight ?? undefined,
+      duration: planDayExercise.duration ?? undefined,
+      restTime: planDayExercise.restTime ?? undefined,
+      completed: planDayExercise.completed ?? false,
+      notes: planDayExercise.notes ?? undefined,
+      order: planDayExercise.order ?? undefined,
+      created_at: new Date(planDayExercise.createdAt ?? Date.now()),
+      updated_at: new Date(planDayExercise.updatedAt ?? Date.now()),
+      exercise: planDayExercise.exercise ? {
+        id: planDayExercise.exercise.id,
+        name: planDayExercise.exercise.name,
+        description: planDayExercise.exercise.description ?? undefined,
+        muscleGroups: planDayExercise.exercise.muscleGroups ?? undefined,
+        equipment: planDayExercise.exercise.equipment ?? undefined,
+        difficulty: planDayExercise.exercise.difficulty ?? undefined,
+        instructions: planDayExercise.exercise.instructions ?? undefined,
+        tips: planDayExercise.exercise.tips ?? undefined,
+        created_at: new Date(planDayExercise.exercise.createdAt ?? Date.now()),
+        updated_at: new Date(planDayExercise.exercise.updatedAt ?? Date.now()),
+      } : undefined,
+    };
+  }
+
   async replaceExercise(
     planDayExerciseId: number,
     newExerciseId: number

@@ -1,4 +1,5 @@
 import { profileService, userService } from "@/services";
+import { eventTrackingService } from "@/services/event-tracking.service";
 import { Profile, ProfileResponse } from "@/types/profile/types";
 import { ApiResponse } from "@/types/common/responses";
 import {
@@ -14,7 +15,14 @@ import {
   Response,
   Example,
   Security,
+  Request,
 } from "@tsoa/runtime";
+
+// Helper function to get client IP from request
+function getClientIP(req: any): string | undefined {
+  if (!req) return undefined;
+  return req.clientIP || req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || undefined;
+}
 
 @Route("profile")
 @Tags("Profile")
@@ -66,7 +74,8 @@ export class ProfileController extends Controller {
   @Response<ApiResponse>(400, "Bad Request")
   @SuccessResponse(201, "Created")
   public async createProfile(
-    @Body() requestBody: Partial<Profile>
+    @Body() requestBody: Partial<Profile>,
+    @Request() request: any
   ): Promise<ProfileResponse> {
     const dbProfile = await profileService.createOrUpdateProfile({
       userId: requestBody.userId!,
@@ -116,10 +125,25 @@ export class ProfileController extends Controller {
       created_at: dbProfile.updatedAt ?? new Date(),
       updated_at: dbProfile.updatedAt ?? new Date(),
     };
+    // Get current user to check if onboarding is being completed
+    const currentUser = await userService.getUser(requestBody.userId!);
+
     // Update user to set needsOnboarding = false after profile creation
     await userService.updateUser(requestBody.userId!, {
       needsOnboarding: false,
     });
+
+    // Track onboarding completed if this was the first time setting it to false
+    if (currentUser?.needsOnboarding === true && currentUser.uuid) {
+      const clientIP = getClientIP(request);
+      await eventTrackingService.trackOnboardingCompleted(currentUser.uuid, clientIP);
+      // Clear profile cache to ensure updated profile gets synced
+      eventTrackingService.clearProfileCache(currentUser.uuid);
+      // Update user profile with onboarding completion status
+      await eventTrackingService.updateUserProfile(currentUser.uuid, {
+        onboarding_complete: true,
+      }, clientIP);
+    }
 
     // Get the updated user with needsOnboarding: false
     const updatedUser = await userService.getUser(requestBody.userId!);
@@ -140,7 +164,8 @@ export class ProfileController extends Controller {
   @SuccessResponse(200, "Success")
   public async updateProfile(
     @Path() id: number,
-    @Body() requestBody: Partial<Profile>
+    @Body() requestBody: Partial<Profile>,
+    @Request() request: any
   ): Promise<ProfileResponse> {
     // Only include fields that are explicitly provided in the request
     const updateData: any = {
@@ -170,13 +195,28 @@ export class ProfileController extends Controller {
 
     const dbProfile = await profileService.createOrUpdateProfile(updateData);
 
+    // Get current user to check if onboarding is being completed
+    const currentUser = await userService.getUser(requestBody.userId || id);
+
     // Update user to set needsOnboarding = false after profile creation/update
-    await userService.updateUser(requestBody.userId || userId, {
+    await userService.updateUser(requestBody.userId || id, {
       needsOnboarding: false,
     });
 
+    // Track onboarding completed if this was the first time setting it to false
+    if (currentUser?.needsOnboarding === true && currentUser.uuid) {
+      const clientIP = getClientIP(request);
+      await eventTrackingService.trackOnboardingCompleted(currentUser.uuid, clientIP);
+      // Clear profile cache to ensure updated profile gets synced
+      eventTrackingService.clearProfileCache(currentUser.uuid);
+      // Update user profile with onboarding completion status
+      await eventTrackingService.updateUserProfile(currentUser.uuid, {
+        onboarding_complete: true,
+      }, clientIP);
+    }
+
     // Get the updated user with needsOnboarding: false
-    const updatedUser = await userService.getUser(requestBody.userId || userId);
+    const updatedUser = await userService.getUser(requestBody.userId || id);
 
     const profile: Profile = {
       id: dbProfile.id,
@@ -215,7 +255,8 @@ export class ProfileController extends Controller {
   @SuccessResponse(200, "Success")
   public async updateProfileByUserId(
     @Path() userId: number,
-    @Body() requestBody: Partial<Profile>
+    @Body() requestBody: Partial<Profile>,
+    @Request() request: any
   ): Promise<ProfileResponse> {
     // Only include fields that are explicitly provided in the request
     const updateData: any = {
@@ -244,10 +285,25 @@ export class ProfileController extends Controller {
 
     const dbProfile = await profileService.createOrUpdateProfile(updateData);
 
+    // Get current user to check if onboarding is being completed
+    const currentUser = await userService.getUser(userId);
+
     // Update user to set needsOnboarding = false after profile creation/update
     await userService.updateUser(userId, {
       needsOnboarding: false,
     });
+
+    // Track onboarding completed if this was the first time setting it to false
+    if (currentUser?.needsOnboarding === true && currentUser.uuid) {
+      const clientIP = getClientIP(request);
+      await eventTrackingService.trackOnboardingCompleted(currentUser.uuid, clientIP);
+      // Clear profile cache to ensure updated profile gets synced
+      eventTrackingService.clearProfileCache(currentUser.uuid);
+      // Update user profile with onboarding completion status
+      await eventTrackingService.updateUserProfile(currentUser.uuid, {
+        onboarding_complete: true,
+      }, clientIP);
+    }
 
     // Get the updated user with needsOnboarding: false
     const updatedUser = await userService.getUser(userId);

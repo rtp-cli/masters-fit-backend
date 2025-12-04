@@ -1,14 +1,15 @@
-import { pgTable, text, serial, boolean, timestamp, index, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, index, uuid, serial, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// User table
+// User table - Integer primary key (original structure + uuid for analytics)
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
+  uuid: uuid("uuid").notNull().unique().defaultRandom(), // UUID for analytics - auto-generated
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   emailVerified: boolean("email_verified").default(false),
-  pushNotificationToken: text("push_notification_token"), // Expo push token
+  pushNotificationToken: text("push_notification_token"),
   createdAt: timestamp("created_at").defaultNow(),
   needsOnboarding: boolean("needs_onboarding").default(true),
   waiverAcceptedAt: timestamp("waiver_accepted_at"),
@@ -50,6 +51,7 @@ export const updateUserSchema = createInsertSchema(users).pick({
 // Types - Explicit interface for TSOA compatibility
 export interface User {
   id: number;
+  uuid: string; // UUID for analytics - required
   email: string;
   name: string;
   emailVerified: boolean | null;

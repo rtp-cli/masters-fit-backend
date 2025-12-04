@@ -17,6 +17,24 @@ interface LogContext {
   responseSize?: string;
   metadata?: Record<string, any>;
   error?: string;
+  query?: any;
+  timestamp?: string;
+  hasBody?: boolean;
+  bodyKeys?: string[];
+  body?: any;
+  response?: any;
+  errorType?: string;
+  errorMessage?: string;
+  stack?: string;
+  validationIssues?: any;
+  statusCode?: number;
+  routeName?: string;
+  hasAuthHeader?: boolean;
+  authType?: string;
+  clientIP?: string;
+  headers?: any;
+  bodySize?: number;
+  url?: string;
 }
 
 interface LogEntry {
