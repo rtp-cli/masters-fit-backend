@@ -302,10 +302,13 @@ export class WorkoutService extends BaseService {
       where: eq(workouts.id, workout.id),
       with: {
         planDays: {
+          orderBy: [asc(planDays.date)],
           with: {
             blocks: {
+              orderBy: [asc(workoutBlocks.order)],
               with: {
                 exercises: {
+                  orderBy: [asc(planDayExercises.order)],
                   with: {
                     exercise: true,
                   },
@@ -334,10 +337,13 @@ export class WorkoutService extends BaseService {
       where: eq(workouts.userId, userId),
       with: {
         planDays: {
+          orderBy: [asc(planDays.date)],
           with: {
             blocks: {
+              orderBy: [asc(workoutBlocks.order)],
               with: {
                 exercises: {
+                  orderBy: [asc(planDayExercises.order)],
                   with: {
                     exercise: true,
                   },
@@ -427,10 +433,13 @@ export class WorkoutService extends BaseService {
       ),
       with: {
         planDays: {
+          orderBy: [asc(planDays.date)],
           with: {
             blocks: {
+              orderBy: [asc(workoutBlocks.order)],
               with: {
                 exercises: {
+                  orderBy: [asc(planDayExercises.order)],
                   with: {
                     exercise: true,
                   },
@@ -538,10 +547,13 @@ export class WorkoutService extends BaseService {
       where: eq(workouts.id, workout.id),
       with: {
         planDays: {
+          orderBy: [asc(planDays.date)],
           with: {
             blocks: {
+              orderBy: [asc(workoutBlocks.order)],
               with: {
                 exercises: {
+                  orderBy: [asc(planDayExercises.order)],
                   with: {
                     exercise: true,
                   },
@@ -862,10 +874,13 @@ export class WorkoutService extends BaseService {
       where: eq(workouts.id, id),
       with: {
         planDays: {
+          orderBy: [asc(planDays.date)],
           with: {
             blocks: {
+              orderBy: [asc(workoutBlocks.order)],
               with: {
                 exercises: {
+                  orderBy: [asc(planDayExercises.order)],
                   with: {
                     exercise: true,
                   },
@@ -1194,10 +1209,13 @@ export class WorkoutService extends BaseService {
         ),
         with: {
           planDays: {
+            orderBy: [asc(planDays.date)],
             with: {
               blocks: {
+                orderBy: [asc(workoutBlocks.order)],
                 with: {
                   exercises: {
+                    orderBy: [asc(planDayExercises.order)],
                     with: {
                       exercise: true,
                     },
@@ -1350,8 +1368,10 @@ export class WorkoutService extends BaseService {
         where: eq(planDays.id, planDayId),
         with: {
           blocks: {
+            orderBy: [asc(workoutBlocks.order)],
             with: {
               exercises: {
+                orderBy: [asc(planDayExercises.order)],
                 with: {
                   exercise: true,
                 },
@@ -1589,8 +1609,10 @@ export class WorkoutService extends BaseService {
         where: eq(planDays.id, planDayId),
         with: {
           blocks: {
+            orderBy: [asc(workoutBlocks.order)],
             with: {
               exercises: {
+                orderBy: [asc(planDayExercises.order)],
                 with: {
                   exercise: true,
                 },
