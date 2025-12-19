@@ -35,6 +35,10 @@ interface LogContext {
   headers?: any;
   bodySize?: number;
   url?: string;
+  bullJobId?: string;
+  jobId?: number;
+  planDayId?: number;
+  result?: any;
 }
 
 interface LogEntry {

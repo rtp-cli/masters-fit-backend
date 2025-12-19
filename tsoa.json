@@ -11,7 +11,8 @@
         "scheme": "bearer",
         "bearerFormat": "JWT"
       }
-    }
+    },
+    "basePath": "/api"
   },
   "routes": {
     "routesDir": "generated",
