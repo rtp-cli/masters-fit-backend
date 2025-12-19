@@ -6,6 +6,200 @@
 		"requestBodies": {},
 		"responses": {},
 		"schemas": {
+			"ModelConfig": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"displayName": {
+						"type": "string"
+					},
+					"maxTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"costTier": {
+						"type": "string",
+						"enum": [
+							"low",
+							"medium",
+							"high"
+						]
+					},
+					"description": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"displayName",
+					"maxTokens",
+					"costTier",
+					"description"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ProviderAvailabilityResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"providers": {
+						"properties": {
+							"anthropic": {
+								"properties": {
+									"defaultModel": {
+										"type": "string"
+									},
+									"models": {
+										"items": {
+											"$ref": "#/components/schemas/ModelConfig"
+										},
+										"type": "array"
+									},
+									"displayName": {
+										"type": "string"
+									},
+									"available": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"defaultModel",
+									"models",
+									"displayName",
+									"available"
+								],
+								"type": "object"
+							},
+							"openai": {
+								"properties": {
+									"defaultModel": {
+										"type": "string"
+									},
+									"models": {
+										"items": {
+											"$ref": "#/components/schemas/ModelConfig"
+										},
+										"type": "array"
+									},
+									"displayName": {
+										"type": "string"
+									},
+									"available": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"defaultModel",
+									"models",
+									"displayName",
+									"available"
+								],
+								"type": "object"
+							},
+							"google": {
+								"properties": {
+									"defaultModel": {
+										"type": "string"
+									},
+									"models": {
+										"items": {
+											"$ref": "#/components/schemas/ModelConfig"
+										},
+										"type": "array"
+									},
+									"displayName": {
+										"type": "string"
+									},
+									"available": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"defaultModel",
+									"models",
+									"displayName",
+									"available"
+								],
+								"type": "object"
+							}
+						},
+						"type": "object"
+					}
+				},
+				"required": [
+					"success",
+					"providers"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {}
+				},
+				"required": [
+					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIProvider": {
+				"enum": [
+					"anthropic",
+					"openai",
+					"google"
+				],
+				"type": "string"
+			},
+			"UpdateProviderRequest": {
+				"properties": {
+					"provider": {
+						"$ref": "#/components/schemas/AIProvider"
+					},
+					"model": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"provider",
+					"model"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UserProviderResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"provider": {
+						"$ref": "#/components/schemas/AIProvider"
+					},
+					"model": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"success",
+					"provider",
+					"model"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"AuthUserResponse": {
 				"properties": {
 					"id": {
@@ -17,12 +211,28 @@
 					},
 					"name": {
 						"type": "string"
+					},
+					"needsOnboarding": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"waiverAcceptedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"waiverVersion": {
+						"type": "string",
+						"nullable": true
 					}
 				},
 				"required": [
 					"id",
 					"email",
-					"name"
+					"name",
+					"needsOnboarding",
+					"waiverAcceptedAt",
+					"waiverVersion"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -36,6 +246,9 @@
 						"type": "string"
 					},
 					"needsOnboarding": {
+						"type": "boolean"
+					},
+					"needsWaiverUpdate": {
 						"type": "boolean"
 					},
 					"user": {
@@ -133,18 +346,14 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"ApiResponse": {
+			"AcceptWaiverRequest": {
 				"properties": {
-					"success": {
-						"type": "boolean"
-					},
-					"error": {
+					"version": {
 						"type": "string"
-					},
-					"data": {}
+					}
 				},
 				"required": [
-					"success"
+					"version"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -853,32 +1062,7 @@
 						"type": "number",
 						"format": "double"
 					},
-					"setsCompleted": {
-						"type": "number",
-						"format": "double",
-						"nullable": true
-					},
-					"repsCompleted": {
-						"type": "number",
-						"format": "double",
-						"nullable": true
-					},
-					"weightUsed": {
-						"type": "number",
-						"format": "double",
-						"nullable": true
-					},
 					"durationCompleted": {
-						"type": "number",
-						"format": "double",
-						"nullable": true
-					},
-					"roundsCompleted": {
-						"type": "number",
-						"format": "double",
-						"nullable": true
-					},
-					"restTimeTaken": {
 						"type": "number",
 						"format": "double",
 						"nullable": true
@@ -919,12 +1103,7 @@
 				"required": [
 					"id",
 					"planDayExerciseId",
-					"setsCompleted",
-					"repsCompleted",
-					"weightUsed",
 					"durationCompleted",
-					"roundsCompleted",
-					"restTimeTaken",
 					"timeTaken",
 					"isComplete",
 					"isSkipped",
@@ -1635,6 +1814,7 @@
 			"AvailableEquipment": {
 				"type": "string",
 				"enum": [
+					"bodyweight",
 					"barbells",
 					"bench",
 					"incline_decline_bench",
@@ -1768,6 +1948,12 @@
 					"intensityLevel": {
 						"$ref": "#/components/schemas/IntensityLevel"
 					},
+					"includeWarmup": {
+						"type": "boolean"
+					},
+					"includeCooldown": {
+						"type": "boolean"
+					},
 					"created_at": {
 						"type": "string",
 						"format": "date-time"
@@ -1802,6 +1988,10 @@
 						"type": "boolean",
 						"nullable": true
 					},
+					"pushNotificationToken": {
+						"type": "string",
+						"nullable": true
+					},
 					"createdAt": {
 						"type": "string",
 						"format": "date-time",
@@ -1810,6 +2000,15 @@
 					"needsOnboarding": {
 						"type": "boolean",
 						"nullable": true
+					},
+					"waiverAcceptedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"waiverVersion": {
+						"type": "string",
+						"nullable": true
 					}
 				},
 				"required": [
@@ -1817,8 +2016,11 @@
 					"email",
 					"name",
 					"emailVerified",
+					"pushNotificationToken",
 					"createdAt",
-					"needsOnboarding"
+					"needsOnboarding",
+					"waiverAcceptedAt",
+					"waiverVersion"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -1925,6 +2127,12 @@
 					},
 					"intensityLevel": {
 						"$ref": "#/components/schemas/IntensityLevel"
+					},
+					"includeWarmup": {
+						"type": "boolean"
+					},
+					"includeCooldown": {
+						"type": "boolean"
 					},
 					"created_at": {
 						"type": "string",
@@ -2872,7 +3080,8 @@
 					"restTime": {},
 					"notes": {
 						"type": "string"
-					}
+					},
+					"isSkipped": {}
 				},
 				"type": "object",
 				"description": "Make all properties in T optional"
@@ -2894,6 +3103,163 @@
 	},
 	"openapi": "3.0.0",
 	"paths": {
+		"/ai-providers/available": {
+			"get": {
+				"operationId": "GetAvailableProviders",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ProviderAvailabilityResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get available AI providers and their models",
+				"tags": [
+					"AI Providers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/ai-providers/user/{userId}/provider": {
+			"put": {
+				"operationId": "UpdateUserProvider",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "User not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update user's AI provider and model preference",
+				"tags": [
+					"AI Providers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateProviderRequest"
+							}
+						}
+					}
+				}
+			},
+			"get": {
+				"operationId": "GetUserProvider",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/UserProviderResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "User not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get user's current AI provider and model",
+				"tags": [
+					"AI Providers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/auth/check-email": {
 			"post": {
 				"operationId": "CheckEmail",
@@ -3062,6 +3428,129 @@
 						"application/json": {
 							"schema": {
 								"$ref": "#/components/schemas/EmailAuthRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/waiver-status": {
+			"get": {
+				"operationId": "GetWaiverStatus",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"waiverInfo": {
+											"properties": {
+												"needsAcceptance": {
+													"type": "boolean"
+												},
+												"isUpdate": {
+													"type": "boolean"
+												},
+												"hasAccepted": {
+													"type": "boolean"
+												},
+												"userVersion": {
+													"type": "string",
+													"nullable": true
+												},
+												"currentVersion": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"needsAcceptance",
+												"isUpdate",
+												"hasAccepted",
+												"userVersion",
+												"currentVersion"
+											],
+											"type": "object"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"waiverInfo",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Check waiver status for authenticated user",
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/auth/accept-waiver": {
+			"post": {
+				"operationId": "AcceptWaiver",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Accept waiver for authenticated user",
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"description": "Waiver version to accept",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AcceptWaiverRequest",
+								"description": "Waiver version to accept"
 							}
 						}
 					}
@@ -4604,7 +5093,7 @@
 						}
 					}
 				},
-				"description": "Create a new exercise log entry",
+				"description": "Create a new exercise log entry with set-level data",
 				"tags": [
 					"Logs"
 				],
@@ -4630,17 +5119,7 @@
 									"notes": {
 										"type": "string"
 									},
-									"isSkipped": {
-										"type": "boolean"
-									},
-									"isComplete": {
-										"type": "boolean"
-									},
 									"timeTaken": {
-										"type": "number",
-										"format": "double"
-									},
-									"restTimeTaken": {
 										"type": "number",
 										"format": "double"
 									},
@@ -4648,21 +5127,39 @@
 										"type": "number",
 										"format": "double"
 									},
-									"weightUsed": {
-										"type": "number",
-										"format": "double"
-									},
-									"roundsCompleted": {
-										"type": "number",
-										"format": "double"
-									},
-									"repsCompleted": {
-										"type": "number",
-										"format": "double"
-									},
-									"setsCompleted": {
-										"type": "number",
-										"format": "double"
+									"sets": {
+										"items": {
+											"properties": {
+												"restAfter": {
+													"type": "number",
+													"format": "double"
+												},
+												"reps": {
+													"type": "number",
+													"format": "double"
+												},
+												"weight": {
+													"type": "number",
+													"format": "double"
+												},
+												"setNumber": {
+													"type": "number",
+													"format": "double"
+												},
+												"roundNumber": {
+													"type": "number",
+													"format": "double"
+												}
+											},
+											"required": [
+												"reps",
+												"weight",
+												"setNumber",
+												"roundNumber"
+											],
+											"type": "object"
+										},
+										"type": "array"
 									},
 									"planDayExerciseId": {
 										"type": "number",
@@ -4670,6 +5167,7 @@
 									}
 								},
 								"required": [
+									"sets",
 									"planDayExerciseId"
 								],
 								"type": "object"
@@ -6041,6 +6539,122 @@
 				]
 			}
 		},
+		"/logs/workout/{workoutId}/exercise/{planDayExerciseId}/skip": {
+			"post": {
+				"operationId": "SkipExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Skip an exercise",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Plan day exercise ID",
+						"in": "path",
+						"name": "planDayExerciseId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/logs/workout/{workoutId}/block/{workoutBlockId}/skip": {
+			"post": {
+				"operationId": "SkipBlock",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Skip a workout block",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Workout block ID",
+						"in": "path",
+						"name": "workoutBlockId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/logs/workout/{workoutId}/completed": {
 			"get": {
 				"operationId": "GetCompletedExercisesForWorkout",
@@ -6155,6 +6769,83 @@
 								],
 								"type": "object",
 								"description": "Total exercise IDs"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/logs/workout/day/{planDayId}/complete": {
+			"post": {
+				"operationId": "MarkWorkoutDayComplete",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Mark workout day as complete",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Workout completion data",
+					"required": false,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"notes": {
+										"type": "string"
+									},
+									"blocksCompleted": {
+										"type": "number",
+										"format": "double"
+									},
+									"exercisesCompleted": {
+										"type": "number",
+										"format": "double"
+									},
+									"totalTimeSeconds": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"type": "object",
+								"description": "Workout completion data"
 							}
 						}
 					}
@@ -6639,7 +7330,7 @@
 						}
 					}
 				},
-				"description": "Search exercises by name or muscle group",
+				"description": "Search exercises by name or muscle group (legacy endpoint)",
 				"tags": [
 					"Search"
 				],
@@ -6659,6 +7350,216 @@
 						}
 					}
 				]
+			}
+		},
+		"/search/exercises/filtered/{userId}": {
+			"get": {
+				"operationId": "SearchExercisesWithFilters",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"appliedFilters": {
+											"properties": {
+												"userEquipmentOnly": {
+													"type": "boolean"
+												},
+												"difficulty": {
+													"type": "string"
+												},
+												"equipment": {
+													"items": {
+														"type": "string"
+													},
+													"type": "array"
+												}
+											},
+											"type": "object"
+										},
+										"exercises": {
+											"items": {},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"appliedFilters",
+										"exercises",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Enhanced search exercises with filtering options",
+				"tags": [
+					"Search"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID for equipment filtering",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Search query (optional)",
+						"in": "query",
+						"name": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Muscle groups filter (optional)",
+						"in": "query",
+						"name": "muscleGroups",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Equipment filter (optional)",
+						"in": "query",
+						"name": "equipment",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Difficulty filter (optional)",
+						"in": "query",
+						"name": "difficulty",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"description": "Exercise ID to exclude (optional)",
+						"in": "query",
+						"name": "excludeId",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Auto-filter by user's equipment (default: true)",
+						"in": "query",
+						"name": "userEquipmentOnly",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"description": "Maximum number of results (default: 20)",
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/search/filters": {
+			"get": {
+				"operationId": "GetFilterOptions",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"difficulty": {
+											"items": {
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"muscleGroups": {
+											"items": {
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"equipment": {
+											"items": {
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"difficulty",
+										"muscleGroups",
+										"equipment",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get available filter options for exercise search",
+				"tags": [
+					"Search"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/workouts/{userId}": {
@@ -7052,6 +7953,75 @@
 				}
 			}
 		},
+		"/workouts/exercise/{id}/replace": {
+			"put": {
+				"operationId": "ReplaceExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Replace exercise in plan day",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Plan day exercise ID",
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "New exercise data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"newExerciseId": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"newExerciseId"
+								],
+								"type": "object",
+								"description": "New exercise data"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/workouts/{userId}/generate": {
 			"post": {
 				"operationId": "GenerateWorkoutPlan",
@@ -7146,6 +8116,178 @@
 					}
 				},
 				"description": "Regenerate workout plan with custom preferences and feedback",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Regeneration data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"profileData": {
+										"properties": {
+											"medicalNotes": {
+												"type": "string"
+											},
+											"intensityLevel": {
+												"type": "number",
+												"format": "double"
+											},
+											"workoutDuration": {
+												"type": "number",
+												"format": "double"
+											},
+											"availableDays": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"workoutStyles": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"equipment": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"environment": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"fitnessLevel": {
+												"type": "string"
+											},
+											"limitations": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"goals": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"gender": {
+												"type": "string"
+											},
+											"weight": {
+												"type": "number",
+												"format": "double"
+											},
+											"height": {
+												"type": "number",
+												"format": "double"
+											},
+											"age": {
+												"type": "number",
+												"format": "double"
+											}
+										},
+										"type": "object"
+									},
+									"threadId": {
+										"type": "string"
+									},
+									"customFeedback": {
+										"type": "string"
+									}
+								},
+								"type": "object",
+								"description": "Regeneration data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/{userId}/regenerate-async": {
+			"post": {
+				"operationId": "RegenerateWorkoutPlanAsync",
+				"responses": {
+					"202": {
+						"description": "Job queued successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"jobId": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"jobId",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"jobId": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"jobId",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Regenerate workout plan asynchronously (returns job ID immediately)",
 				"tags": [
 					"Workouts"
 				],
@@ -7356,6 +8498,9 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"threadId": {
+										"type": "string"
+									},
 									"limitations": {
 										"items": {
 											"type": "string"
@@ -7377,6 +8522,333 @@
 								],
 								"type": "object",
 								"description": "Regeneration reason and optional styles"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/{userId}/days/{planDayId}/regenerate-async": {
+			"post": {
+				"operationId": "RegenerateDailyWorkoutAsync",
+				"responses": {
+					"202": {
+						"description": "Job queued successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"jobId": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"jobId",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"jobId": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"jobId",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Regenerate a single day's workout asynchronously",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Plan day ID",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Regeneration reason and optional styles",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"threadId": {
+										"type": "string"
+									},
+									"limitations": {
+										"items": {
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"styles": {
+										"items": {
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"reason": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"reason"
+								],
+								"type": "object",
+								"description": "Regeneration reason and optional styles"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/{userId}/history": {
+			"get": {
+				"operationId": "GetWorkoutHistory",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutsResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutsResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get workout history for a user",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/workouts/{userId}/previous-workouts": {
+			"get": {
+				"operationId": "GetPreviousWorkouts",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"workouts": {
+											"items": {},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"workouts",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"workouts": {
+											"items": {},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"workouts",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get list of previous workouts with flexible time filtering",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/workouts/{userId}/repeat-week/{originalWorkoutId}": {
+			"post": {
+				"operationId": "RepeatPreviousWeekWorkout",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Repeat a previous week's workout with a new start date",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Original workout ID to repeat",
+						"in": "path",
+						"name": "originalWorkoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "New start date and optional modifications",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"newStartDate": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"newStartDate"
+								],
+								"type": "object",
+								"description": "New start date and optional modifications"
 							}
 						}
 					}
@@ -7460,11 +8932,585 @@
 					}
 				]
 			}
+		},
+		"/workouts/{userId}/generate-async": {
+			"post": {
+				"operationId": "GenerateWorkoutPlanAsync",
+				"responses": {
+					"202": {
+						"description": "Job queued successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"jobId": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"jobId",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"jobId": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"jobId",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Generate workout plan asynchronously (returns job ID immediately)",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Generation options including timezone and profile data",
+					"required": false,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"profileData": {
+										"properties": {
+											"medicalNotes": {
+												"type": "string"
+											},
+											"intensityLevel": {
+												"type": "number",
+												"format": "double"
+											},
+											"workoutDuration": {
+												"type": "number",
+												"format": "double"
+											},
+											"availableDays": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"workoutStyles": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"equipment": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"environment": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"fitnessLevel": {
+												"type": "string"
+											},
+											"limitations": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"goals": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"gender": {
+												"type": "string"
+											},
+											"weight": {
+												"type": "number",
+												"format": "double"
+											},
+											"height": {
+												"type": "number",
+												"format": "double"
+											},
+											"age": {
+												"type": "number",
+												"format": "double"
+											}
+										},
+										"type": "object"
+									},
+									"timezone": {
+										"type": "string"
+									},
+									"customFeedback": {
+										"type": "string"
+									}
+								},
+								"type": "object",
+								"description": "Generation options including timezone and profile data"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/jobs/{jobId}/status": {
+			"get": {
+				"operationId": "GetJobStatus",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"job": {
+											"properties": {
+												"completedAt": {
+													"type": "string"
+												},
+												"createdAt": {
+													"type": "string"
+												},
+												"workoutId": {
+													"type": "number",
+													"format": "double"
+												},
+												"error": {
+													"type": "string"
+												},
+												"progress": {
+													"type": "number",
+													"format": "double"
+												},
+												"status": {
+													"type": "string"
+												},
+												"id": {
+													"type": "number",
+													"format": "double"
+												}
+											},
+											"required": [
+												"createdAt",
+												"progress",
+												"status",
+												"id"
+											],
+											"type": "object"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"job",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Job not found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"error": {
+											"type": "string"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"error",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get job status by job ID",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Job ID",
+						"in": "path",
+						"name": "jobId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/workouts/{userId}/jobs": {
+			"get": {
+				"operationId": "GetUserJobs",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"jobs": {
+											"items": {
+												"properties": {
+													"completedAt": {
+														"type": "string"
+													},
+													"createdAt": {
+														"type": "string"
+													},
+													"workoutId": {
+														"type": "number",
+														"format": "double"
+													},
+													"error": {
+														"type": "string"
+													},
+													"progress": {
+														"type": "number",
+														"format": "double"
+													},
+													"status": {
+														"type": "string"
+													},
+													"id": {
+														"type": "number",
+														"format": "double"
+													}
+												},
+												"required": [
+													"createdAt",
+													"progress",
+													"status",
+													"id"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"jobs",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get user's job history",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/workouts/{userId}/rest-day-workout": {
+			"post": {
+				"operationId": "GenerateRestDayWorkoutAsync",
+				"responses": {
+					"202": {
+						"description": "Job queued successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"jobId": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"jobId",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"jobId": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"jobId",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Generate a rest day workout",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Rest day workout parameters",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"threadId": {
+										"type": "string"
+									},
+									"limitations": {
+										"items": {
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"styles": {
+										"items": {
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"reason": {
+										"type": "string"
+									},
+									"date": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"reason",
+									"date"
+								],
+								"type": "object",
+								"description": "Rest day workout parameters"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/{userId}/register-push-token": {
+			"post": {
+				"operationId": "RegisterPushToken",
+				"responses": {
+					"200": {
+						"description": "Token registered successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"error": {
+											"type": "string"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"error",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Register push notification token for user",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Push token data",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"pushToken": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"pushToken"
+								],
+								"type": "object",
+								"description": "Push token data"
+							}
+						}
+					}
+				}
+			}
 		}
 	},
 	"servers": [
 		{
-			"url": "/"
+			"url": "/api"
 		}
 	]
 }

@@ -3,6 +3,8 @@
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { Controller, ValidationService, FieldErrors, ValidateError, TsoaRoute, HttpStatusCodeLiteral, TsoaResponse, fetchMiddlewares } from '@tsoa/runtime';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { AIProviderController } from './../src/controllers/ai-provider.controller';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { AuthController } from './../src/controllers/auth.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { DashboardController } from './../src/controllers/dashboard.controller';
@@ -26,12 +28,71 @@ import type { RequestHandler, Router } from 'express';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 
 const models: TsoaRoute.Models = {
+    "ModelConfig": {
+        "dataType": "refObject",
+        "properties": {
+            "id": {"dataType":"string","required":true},
+            "name": {"dataType":"string","required":true},
+            "displayName": {"dataType":"string","required":true},
+            "maxTokens": {"dataType":"double","required":true},
+            "costTier": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["low"]},{"dataType":"enum","enums":["medium"]},{"dataType":"enum","enums":["high"]}],"required":true},
+            "description": {"dataType":"string","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "ProviderAvailabilityResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"boolean","required":true},
+            "providers": {"dataType":"nestedObjectLiteral","nestedProperties":{"anthropic":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}},"openai":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}},"google":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}}},"required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "ApiResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"boolean","required":true},
+            "error": {"dataType":"string"},
+            "data": {"dataType":"void"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "AIProvider": {
+        "dataType": "refEnum",
+        "enums": ["anthropic","openai","google"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "UpdateProviderRequest": {
+        "dataType": "refObject",
+        "properties": {
+            "provider": {"ref":"AIProvider","required":true},
+            "model": {"dataType":"string","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "UserProviderResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"boolean","required":true},
+            "provider": {"ref":"AIProvider","required":true},
+            "model": {"dataType":"string","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AuthUserResponse": {
         "dataType": "refObject",
         "properties": {
             "id": {"dataType":"double","required":true},
             "email": {"dataType":"string","required":true},
             "name": {"dataType":"string","required":true},
+            "needsOnboarding": {"dataType":"union","subSchemas":[{"dataType":"boolean"},{"dataType":"enum","enums":[null]}],"required":true},
+            "waiverAcceptedAt": {"dataType":"union","subSchemas":[{"dataType":"datetime"},{"dataType":"enum","enums":[null]}],"required":true},
+            "waiverVersion": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
         },
         "additionalProperties": false,
     },
@@ -42,6 +103,7 @@ const models: TsoaRoute.Models = {
             "success": {"dataType":"boolean","required":true},
             "error": {"dataType":"string"},
             "needsOnboarding": {"dataType":"boolean"},
+            "needsWaiverUpdate": {"dataType":"boolean"},
             "user": {"ref":"AuthUserResponse"},
             "email": {"dataType":"string"},
             "token": {"dataType":"string"},
@@ -91,12 +153,10 @@ const models: TsoaRoute.Models = {
         "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "ApiResponse": {
+    "AcceptWaiverRequest": {
         "dataType": "refObject",
         "properties": {
-            "success": {"dataType":"boolean","required":true},
-            "error": {"dataType":"string"},
-            "data": {"dataType":"void"},
+            "version": {"dataType":"string","required":true},
         },
         "additionalProperties": false,
     },
@@ -362,12 +422,7 @@ const models: TsoaRoute.Models = {
         "properties": {
             "id": {"dataType":"double","required":true},
             "planDayExerciseId": {"dataType":"double","required":true},
-            "setsCompleted": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
-            "repsCompleted": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
-            "weightUsed": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "durationCompleted": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
-            "roundsCompleted": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
-            "restTimeTaken": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "timeTaken": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "isComplete": {"dataType":"boolean","required":true},
             "isSkipped": {"dataType":"boolean","required":true},
@@ -635,7 +690,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AvailableEquipment": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["barbells"]},{"dataType":"enum","enums":["bench"]},{"dataType":"enum","enums":["incline_decline_bench"]},{"dataType":"enum","enums":["pull_up_bar"]},{"dataType":"enum","enums":["bike"]},{"dataType":"enum","enums":["medicine_balls"]},{"dataType":"enum","enums":["plyo_box"]},{"dataType":"enum","enums":["rings"]},{"dataType":"enum","enums":["resistance_bands"]},{"dataType":"enum","enums":["stability_ball"]},{"dataType":"enum","enums":["dumbbells"]},{"dataType":"enum","enums":["kettlebells"]},{"dataType":"enum","enums":["squat_rack"]},{"dataType":"enum","enums":["dip_bar"]},{"dataType":"enum","enums":["rowing_machine"]},{"dataType":"enum","enums":["slam_balls"]},{"dataType":"enum","enums":["cable_machine"]},{"dataType":"enum","enums":["jump_rope"]},{"dataType":"enum","enums":["foam_roller"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["bodyweight"]},{"dataType":"enum","enums":["barbells"]},{"dataType":"enum","enums":["bench"]},{"dataType":"enum","enums":["incline_decline_bench"]},{"dataType":"enum","enums":["pull_up_bar"]},{"dataType":"enum","enums":["bike"]},{"dataType":"enum","enums":["medicine_balls"]},{"dataType":"enum","enums":["plyo_box"]},{"dataType":"enum","enums":["rings"]},{"dataType":"enum","enums":["resistance_bands"]},{"dataType":"enum","enums":["stability_ball"]},{"dataType":"enum","enums":["dumbbells"]},{"dataType":"enum","enums":["kettlebells"]},{"dataType":"enum","enums":["squat_rack"]},{"dataType":"enum","enums":["dip_bar"]},{"dataType":"enum","enums":["rowing_machine"]},{"dataType":"enum","enums":["slam_balls"]},{"dataType":"enum","enums":["cable_machine"]},{"dataType":"enum","enums":["jump_rope"]},{"dataType":"enum","enums":["foam_roller"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreferredStyles": {
@@ -674,6 +729,8 @@ const models: TsoaRoute.Models = {
             "availableDays": {"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredDay"}},
             "workoutDuration": {"dataType":"double"},
             "intensityLevel": {"ref":"IntensityLevel"},
+            "includeWarmup": {"dataType":"boolean"},
+            "includeCooldown": {"dataType":"boolean"},
             "created_at": {"dataType":"datetime","required":true},
             "updated_at": {"dataType":"datetime","required":true},
         },
@@ -687,8 +744,11 @@ const models: TsoaRoute.Models = {
             "email": {"dataType":"string","required":true},
             "name": {"dataType":"string","required":true},
             "emailVerified": {"dataType":"union","subSchemas":[{"dataType":"boolean"},{"dataType":"enum","enums":[null]}],"required":true},
+            "pushNotificationToken": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "createdAt": {"dataType":"union","subSchemas":[{"dataType":"datetime"},{"dataType":"enum","enums":[null]}],"required":true},
             "needsOnboarding": {"dataType":"union","subSchemas":[{"dataType":"boolean"},{"dataType":"enum","enums":[null]}],"required":true},
+            "waiverAcceptedAt": {"dataType":"union","subSchemas":[{"dataType":"datetime"},{"dataType":"enum","enums":[null]}],"required":true},
+            "waiverVersion": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
         },
         "additionalProperties": false,
     },
@@ -708,7 +768,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_Profile_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"id":{"dataType":"double"},"userId":{"dataType":"double"},"email":{"dataType":"string"},"height":{"dataType":"double"},"weight":{"dataType":"double"},"age":{"dataType":"double"},"gender":{"ref":"Gender"},"goals":{"dataType":"array","array":{"dataType":"refAlias","ref":"FitnessGoal"}},"fitnessLevel":{"ref":"FitnessLevel"},"limitations":{"dataType":"array","array":{"dataType":"refAlias","ref":"PhysicalLimitation"}},"medicalNotes":{"dataType":"string"},"environment":{"ref":"WorkoutEnvironment"},"equipment":{"dataType":"array","array":{"dataType":"refAlias","ref":"AvailableEquipment"}},"otherEquipment":{"dataType":"string"},"preferredStyles":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredStyles"}},"availableDays":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredDay"}},"workoutDuration":{"dataType":"double"},"intensityLevel":{"ref":"IntensityLevel"},"created_at":{"dataType":"datetime"},"updated_at":{"dataType":"datetime"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"id":{"dataType":"double"},"userId":{"dataType":"double"},"email":{"dataType":"string"},"height":{"dataType":"double"},"weight":{"dataType":"double"},"age":{"dataType":"double"},"gender":{"ref":"Gender"},"goals":{"dataType":"array","array":{"dataType":"refAlias","ref":"FitnessGoal"}},"fitnessLevel":{"ref":"FitnessLevel"},"limitations":{"dataType":"array","array":{"dataType":"refAlias","ref":"PhysicalLimitation"}},"medicalNotes":{"dataType":"string"},"environment":{"ref":"WorkoutEnvironment"},"equipment":{"dataType":"array","array":{"dataType":"refAlias","ref":"AvailableEquipment"}},"otherEquipment":{"dataType":"string"},"preferredStyles":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredStyles"}},"availableDays":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredDay"}},"workoutDuration":{"dataType":"double"},"intensityLevel":{"ref":"IntensityLevel"},"includeWarmup":{"dataType":"boolean"},"includeCooldown":{"dataType":"boolean"},"created_at":{"dataType":"datetime"},"updated_at":{"dataType":"datetime"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Prompt": {
@@ -1047,7 +1107,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_InsertPlanDayExercise_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"weight":{"dataType":"any"},"order":{"dataType":"any"},"createdAt":{"dataType":"any"},"updatedAt":{"dataType":"any"},"completed":{"dataType":"any"},"workoutBlockId":{"dataType":"any"},"exerciseId":{"dataType":"any"},"sets":{"dataType":"any"},"reps":{"dataType":"any"},"duration":{"dataType":"any"},"restTime":{"dataType":"any"},"notes":{"dataType":"string"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"weight":{"dataType":"any"},"order":{"dataType":"any"},"createdAt":{"dataType":"any"},"updatedAt":{"dataType":"any"},"completed":{"dataType":"any"},"workoutBlockId":{"dataType":"any"},"exerciseId":{"dataType":"any"},"sets":{"dataType":"any"},"reps":{"dataType":"any"},"duration":{"dataType":"any"},"restTime":{"dataType":"any"},"notes":{"dataType":"string"},"isSkipped":{"dataType":"any"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 };
@@ -1060,6 +1120,84 @@ export function RegisterRoutes(app: Router) {
     //  NOTE: If you do not see routes for all of your controllers in this file, then you might not have informed tsoa of where to look
     //      Please look into the "controllerPathGlobs" config option described in the readme: https://github.com/lukeautry/tsoa
     // ###########################################################################################################
+        app.get('/ai-providers/available',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(AIProviderController)),
+            ...(fetchMiddlewares<RequestHandler>(AIProviderController.prototype.getAvailableProviders)),
+
+            function AIProviderController_getAvailableProviders(request: any, response: any, next: any) {
+            const args = {
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new AIProviderController();
+
+
+              const promise = controller.getAvailableProviders.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, undefined, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.put('/ai-providers/user/:userId/provider',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(AIProviderController)),
+            ...(fetchMiddlewares<RequestHandler>(AIProviderController.prototype.updateUserProvider)),
+
+            function AIProviderController_updateUserProvider(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    request: {"in":"body","name":"request","required":true,"ref":"UpdateProviderRequest"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new AIProviderController();
+
+
+              const promise = controller.updateUserProvider.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, undefined, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/ai-providers/user/:userId/provider',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(AIProviderController)),
+            ...(fetchMiddlewares<RequestHandler>(AIProviderController.prototype.getUserProvider)),
+
+            function AIProviderController_getUserProvider(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new AIProviderController();
+
+
+              const promise = controller.getUserProvider.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, undefined, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         app.post('/auth/check-email',
             ...(fetchMiddlewares<RequestHandler>(AuthController)),
             ...(fetchMiddlewares<RequestHandler>(AuthController.prototype.checkEmail)),
@@ -1154,6 +1292,59 @@ export function RegisterRoutes(app: Router) {
 
 
               const promise = controller.generateAuthCode.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/auth/waiver-status',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(AuthController)),
+            ...(fetchMiddlewares<RequestHandler>(AuthController.prototype.getWaiverStatus)),
+
+            function AuthController_getWaiverStatus(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new AuthController();
+
+
+              const promise = controller.getWaiverStatus.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/auth/accept-waiver',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(AuthController)),
+            ...(fetchMiddlewares<RequestHandler>(AuthController.prototype.acceptWaiver)),
+
+            function AuthController_acceptWaiver(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"ref":"AcceptWaiverRequest"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new AuthController();
+
+
+              const promise = controller.acceptWaiver.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 200, next);
             } catch (err) {
                 return next(err);
@@ -1667,7 +1858,7 @@ export function RegisterRoutes(app: Router) {
 
             function LogsController_createExerciseLog(request: any, response: any, next: any) {
             const args = {
-                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"rating":{"dataType":"double"},"difficulty":{"dataType":"string"},"notes":{"dataType":"string"},"isSkipped":{"dataType":"boolean"},"isComplete":{"dataType":"boolean"},"timeTaken":{"dataType":"double"},"restTimeTaken":{"dataType":"double"},"durationCompleted":{"dataType":"double"},"weightUsed":{"dataType":"double"},"roundsCompleted":{"dataType":"double"},"repsCompleted":{"dataType":"double"},"setsCompleted":{"dataType":"double"},"planDayExerciseId":{"dataType":"double","required":true}}},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"rating":{"dataType":"double"},"difficulty":{"dataType":"string"},"notes":{"dataType":"string"},"timeTaken":{"dataType":"double"},"durationCompleted":{"dataType":"double"},"sets":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"restAfter":{"dataType":"double"},"reps":{"dataType":"double","required":true},"weight":{"dataType":"double","required":true},"setNumber":{"dataType":"double","required":true},"roundNumber":{"dataType":"double","required":true}}},"required":true},"planDayExerciseId":{"dataType":"double","required":true}}},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -2395,6 +2586,60 @@ export function RegisterRoutes(app: Router) {
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/logs/workout/:workoutId/exercise/:planDayExerciseId/skip',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LogsController)),
+            ...(fetchMiddlewares<RequestHandler>(LogsController.prototype.skipExercise)),
+
+            function LogsController_skipExercise(request: any, response: any, next: any) {
+            const args = {
+                    workoutId: {"in":"path","name":"workoutId","required":true,"dataType":"double"},
+                    planDayExerciseId: {"in":"path","name":"planDayExerciseId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new LogsController();
+
+
+              const promise = controller.skipExercise.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/logs/workout/:workoutId/block/:workoutBlockId/skip',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LogsController)),
+            ...(fetchMiddlewares<RequestHandler>(LogsController.prototype.skipBlock)),
+
+            function LogsController_skipBlock(request: any, response: any, next: any) {
+            const args = {
+                    workoutId: {"in":"path","name":"workoutId","required":true,"dataType":"double"},
+                    workoutBlockId: {"in":"path","name":"workoutBlockId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new LogsController();
+
+
+              const promise = controller.skipBlock.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         app.get('/logs/workout/:workoutId/completed',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(LogsController)),
@@ -2442,6 +2687,33 @@ export function RegisterRoutes(app: Router) {
 
 
               const promise = controller.markWorkoutComplete.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/logs/workout/day/:planDayId/complete',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LogsController)),
+            ...(fetchMiddlewares<RequestHandler>(LogsController.prototype.markWorkoutDayComplete)),
+
+            function LogsController_markWorkoutDayComplete(request: any, response: any, next: any) {
+            const args = {
+                    planDayId: {"in":"path","name":"planDayId","required":true,"dataType":"double"},
+                    requestBody: {"in":"body","name":"requestBody","dataType":"nestedObjectLiteral","nestedProperties":{"notes":{"dataType":"string"},"blocksCompleted":{"dataType":"double"},"exercisesCompleted":{"dataType":"double"},"totalTimeSeconds":{"dataType":"double"}}},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new LogsController();
+
+
+              const promise = controller.markWorkoutDayComplete.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 200, next);
             } catch (err) {
                 return next(err);
@@ -2686,6 +2958,64 @@ export function RegisterRoutes(app: Router) {
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/search/exercises/filtered/:userId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SearchController)),
+            ...(fetchMiddlewares<RequestHandler>(SearchController.prototype.searchExercisesWithFilters)),
+
+            function SearchController_searchExercisesWithFilters(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    query: {"in":"query","name":"query","dataType":"string"},
+                    muscleGroups: {"in":"query","name":"muscleGroups","dataType":"string"},
+                    equipment: {"in":"query","name":"equipment","dataType":"string"},
+                    difficulty: {"in":"query","name":"difficulty","dataType":"string"},
+                    excludeId: {"in":"query","name":"excludeId","dataType":"double"},
+                    userEquipmentOnly: {"in":"query","name":"userEquipmentOnly","dataType":"boolean"},
+                    limit: {"in":"query","name":"limit","dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new SearchController();
+
+
+              const promise = controller.searchExercisesWithFilters.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/search/filters',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SearchController)),
+            ...(fetchMiddlewares<RequestHandler>(SearchController.prototype.getFilterOptions)),
+
+            function SearchController_getFilterOptions(request: any, response: any, next: any) {
+            const args = {
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new SearchController();
+
+
+              const promise = controller.getFilterOptions.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         app.get('/workouts/:userId',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
@@ -2873,6 +3203,33 @@ export function RegisterRoutes(app: Router) {
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.put('/workouts/exercise/:id/replace',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.replaceExercise)),
+
+            function WorkoutController_replaceExercise(request: any, response: any, next: any) {
+            const args = {
+                    id: {"in":"path","name":"id","required":true,"dataType":"double"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"newExerciseId":{"dataType":"double","required":true}}},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.replaceExercise.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         app.post('/workouts/:userId/generate',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
@@ -2908,7 +3265,7 @@ export function RegisterRoutes(app: Router) {
             function WorkoutController_regenerateWorkoutPlan(request: any, response: any, next: any) {
             const args = {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
-                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"profileData":{"dataType":"nestedObjectLiteral","nestedProperties":{"medicalNotes":{"dataType":"string"},"intensityLevel":{"dataType":"double"},"workoutDuration":{"dataType":"double"},"availableDays":{"dataType":"array","array":{"dataType":"string"}},"workoutStyles":{"dataType":"array","array":{"dataType":"string"}},"equipment":{"dataType":"array","array":{"dataType":"string"}},"environment":{"dataType":"array","array":{"dataType":"string"}},"fitnessLevel":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"goals":{"dataType":"array","array":{"dataType":"string"}},"gender":{"dataType":"string"},"weight":{"dataType":"double"},"height":{"dataType":"double"},"age":{"dataType":"double"}}},"customFeedback":{"dataType":"string"}}},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"profileData":{"dataType":"nestedObjectLiteral","nestedProperties":{"medicalNotes":{"dataType":"string"},"intensityLevel":{"dataType":"double"},"workoutDuration":{"dataType":"double"},"availableDays":{"dataType":"array","array":{"dataType":"string"}},"workoutStyles":{"dataType":"array","array":{"dataType":"string"}},"equipment":{"dataType":"array","array":{"dataType":"string"}},"environment":{"dataType":"array","array":{"dataType":"string"}},"fitnessLevel":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"goals":{"dataType":"array","array":{"dataType":"string"}},"gender":{"dataType":"string"},"weight":{"dataType":"double"},"height":{"dataType":"double"},"age":{"dataType":"double"}}},"threadId":{"dataType":"string"},"customFeedback":{"dataType":"string"}}},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -2922,6 +3279,33 @@ export function RegisterRoutes(app: Router) {
 
               const promise = controller.regenerateWorkoutPlan.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/workouts/:userId/regenerate-async',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.regenerateWorkoutPlanAsync)),
+
+            function WorkoutController_regenerateWorkoutPlanAsync(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"profileData":{"dataType":"nestedObjectLiteral","nestedProperties":{"medicalNotes":{"dataType":"string"},"intensityLevel":{"dataType":"double"},"workoutDuration":{"dataType":"double"},"availableDays":{"dataType":"array","array":{"dataType":"string"}},"workoutStyles":{"dataType":"array","array":{"dataType":"string"}},"equipment":{"dataType":"array","array":{"dataType":"string"}},"environment":{"dataType":"array","array":{"dataType":"string"}},"fitnessLevel":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"goals":{"dataType":"array","array":{"dataType":"string"}},"gender":{"dataType":"string"},"weight":{"dataType":"double"},"height":{"dataType":"double"},"age":{"dataType":"double"}}},"customFeedback":{"dataType":"string"}}},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.regenerateWorkoutPlanAsync.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 202, next);
             } catch (err) {
                 return next(err);
             }
@@ -2962,7 +3346,7 @@ export function RegisterRoutes(app: Router) {
             const args = {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
                     planDayId: {"in":"path","name":"planDayId","required":true,"dataType":"double"},
-                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"limitations":{"dataType":"array","array":{"dataType":"string"}},"styles":{"dataType":"array","array":{"dataType":"string"}},"reason":{"dataType":"string","required":true}}},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"threadId":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"styles":{"dataType":"array","array":{"dataType":"string"}},"reason":{"dataType":"string","required":true}}},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -2975,6 +3359,114 @@ export function RegisterRoutes(app: Router) {
 
 
               const promise = controller.regenerateDailyWorkout.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/workouts/:userId/days/:planDayId/regenerate-async',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.regenerateDailyWorkoutAsync)),
+
+            function WorkoutController_regenerateDailyWorkoutAsync(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    planDayId: {"in":"path","name":"planDayId","required":true,"dataType":"double"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"threadId":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"styles":{"dataType":"array","array":{"dataType":"string"}},"reason":{"dataType":"string","required":true}}},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.regenerateDailyWorkoutAsync.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 202, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/workouts/:userId/history',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.getWorkoutHistory)),
+
+            function WorkoutController_getWorkoutHistory(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.getWorkoutHistory.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/workouts/:userId/previous-workouts',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.getPreviousWorkouts)),
+
+            function WorkoutController_getPreviousWorkouts(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.getPreviousWorkouts.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/workouts/:userId/repeat-week/:originalWorkoutId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.repeatPreviousWeekWorkout)),
+
+            function WorkoutController_repeatPreviousWeekWorkout(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    originalWorkoutId: {"in":"path","name":"originalWorkoutId","required":true,"dataType":"double"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"newStartDate":{"dataType":"string","required":true}}},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.repeatPreviousWeekWorkout.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 200, next);
             } catch (err) {
                 return next(err);
@@ -3002,6 +3494,139 @@ export function RegisterRoutes(app: Router) {
 
               const promise = controller.getActiveWorkoutsDebug.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, undefined, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/workouts/:userId/generate-async',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.generateWorkoutPlanAsync)),
+
+            function WorkoutController_generateWorkoutPlanAsync(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    requestBody: {"in":"body","name":"requestBody","dataType":"nestedObjectLiteral","nestedProperties":{"profileData":{"dataType":"nestedObjectLiteral","nestedProperties":{"medicalNotes":{"dataType":"string"},"intensityLevel":{"dataType":"double"},"workoutDuration":{"dataType":"double"},"availableDays":{"dataType":"array","array":{"dataType":"string"}},"workoutStyles":{"dataType":"array","array":{"dataType":"string"}},"equipment":{"dataType":"array","array":{"dataType":"string"}},"environment":{"dataType":"array","array":{"dataType":"string"}},"fitnessLevel":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"goals":{"dataType":"array","array":{"dataType":"string"}},"gender":{"dataType":"string"},"weight":{"dataType":"double"},"height":{"dataType":"double"},"age":{"dataType":"double"}}},"timezone":{"dataType":"string"},"customFeedback":{"dataType":"string"}}},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.generateWorkoutPlanAsync.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 202, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/workouts/jobs/:jobId/status',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.getJobStatus)),
+
+            function WorkoutController_getJobStatus(request: any, response: any, next: any) {
+            const args = {
+                    jobId: {"in":"path","name":"jobId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.getJobStatus.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/workouts/:userId/jobs',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.getUserJobs)),
+
+            function WorkoutController_getUserJobs(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.getUserJobs.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/workouts/:userId/rest-day-workout',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.generateRestDayWorkoutAsync)),
+
+            function WorkoutController_generateRestDayWorkoutAsync(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"threadId":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"styles":{"dataType":"array","array":{"dataType":"string"}},"reason":{"dataType":"string","required":true},"date":{"dataType":"string","required":true}}},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.generateRestDayWorkoutAsync.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 202, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/workouts/:userId/register-push-token',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
+            ...(fetchMiddlewares<RequestHandler>(WorkoutController.prototype.registerPushToken)),
+
+            function WorkoutController_registerPushToken(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"pushToken":{"dataType":"string","required":true}}},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new WorkoutController();
+
+
+              const promise = controller.registerPushToken.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
             } catch (err) {
                 return next(err);
             }
