@@ -9,6 +9,7 @@ export interface SignUpRequest {
 
 export interface AuthCodeRequest {
   authCode: string;
+  email?: string; // Optional email for bypass OTP validation
 }
 
 export interface AcceptWaiverRequest {

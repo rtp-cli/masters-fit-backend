@@ -3,16 +3,36 @@ import { authCodes } from "@/models";
 import type { AuthCode, InsertAuthCode } from "@/models";
 import { and, eq, gt } from "drizzle-orm";
 import { logger } from "@/utils/logger";
+import { systemConfigService } from "./system-config.service";
 
 export class AuthService extends BaseService {
-  private isTestAccount(email: string): boolean {
-    const testAccountsEnabled = process.env.TEST_ACCOUNTS_ENABLED === 'true';
+  /**
+   * Check if an email is a test account
+   * First checks system_config, then falls back to environment variables
+   */
+  private async isTestAccount(email: string): Promise<boolean> {
+    // First check system_config for test emails
+    const isSystemConfigTestEmail = await systemConfigService.isTestEmail(email);
+    if (isSystemConfigTestEmail) {
+      return true;
+    }
+
+    // Fall back to environment variables for backward compatibility
+    const testAccountsEnabled = process.env.TEST_ACCOUNTS_ENABLED === "true";
     if (!testAccountsEnabled) return false;
 
     const testAccountNew = process.env.TEST_ACCOUNT_NEW;
     const testAccountExisting = process.env.TEST_ACCOUNT_EXISTING;
 
     return email === testAccountNew || email === testAccountExisting;
+  }
+
+  /**
+   * Check if an email should use bypass OTP (9876)
+   * This checks system_config for test emails
+   */
+  private async isBypassEmail(email: string): Promise<boolean> {
+    return await systemConfigService.isTestEmail(email);
   }
   async createAuthCode(data: InsertAuthCode) {
     await this.db.insert(authCodes).values({
@@ -47,9 +67,33 @@ export class AuthService extends BaseService {
   }
 
   async generateAuthCode(email: string): Promise<string> {
-    // Check if this is a test account
-    if (this.isTestAccount(email)) {
-      const testOtp = process.env.TEST_ACCOUNT_OTP || '1234';
+    // Check if this is a bypass email (from system_config)
+    const isBypass = await this.isBypassEmail(email);
+    if (isBypass) {
+      const bypassOtp = "9876";
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      logger.info("Generating bypass OTP for test email", {
+        operation: "generateAuthCode",
+        metadata: { email, isBypassEmail: true, bypassOtp },
+      });
+
+      // First, delete any existing bypass OTP codes globally to prevent unique constraint violations
+      await this.db.delete(authCodes).where(eq(authCodes.code, bypassOtp));
+
+      await this.createAuthCode({
+        email,
+        code: bypassOtp,
+        expires_at: expiresAt,
+      });
+
+      return bypassOtp;
+    }
+
+    // Check if this is a test account (from environment variables)
+    const isTest = await this.isTestAccount(email);
+    if (isTest) {
+      const testOtp = process.env.TEST_ACCOUNT_OTP || "1234";
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       logger.info("Generating test OTP for test account", {
@@ -58,9 +102,7 @@ export class AuthService extends BaseService {
       });
 
       // First, delete any existing test OTP codes globally to prevent unique constraint violations
-      await this.db
-        .delete(authCodes)
-        .where(eq(authCodes.code, testOtp));
+      await this.db.delete(authCodes).where(eq(authCodes.code, testOtp));
 
       await this.createAuthCode({
         email,

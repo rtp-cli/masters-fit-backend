@@ -6,3 +6,4 @@ export * from "@/models/prompts.schema";
 export * from "@/models/auth.schema";
 export * from "@/models/logs.schema";
 export * from "@/models/jobs.schema";
+export * from "@/models/system-config.schema";

@@ -25,6 +25,7 @@ import {
   RefreshTokenRequest,
 } from "@/types";
 import { userService, authService, refreshTokenService } from "@/services";
+import { systemConfigService } from "@/services/system-config.service";
 import { emailService } from "@/services/email.service";
 import { emailAuthSchema, InsertUser, insertUserSchema } from "@/models";
 import jwt from "jsonwebtoken";
@@ -63,7 +64,6 @@ export class AuthController extends Controller {
     const validatedData = emailAuthSchema.parse(requestBody);
     const { email } = validatedData;
     const user = await userService.getUserByEmail(email);
-
     if (!user) {
       return {
         success: true,
@@ -414,7 +414,7 @@ export class AuthController extends Controller {
   public async verify(
     @Body() requestBody: AuthCodeRequest
   ): Promise<AuthVerifyResponse> {
-    const { authCode } = requestBody;
+    const { authCode, email } = requestBody;
 
     if (!authCode) {
       return {
@@ -423,6 +423,89 @@ export class AuthController extends Controller {
       };
     }
 
+    // Handle bypass OTP 9876 for test emails
+    if (authCode === "9876") {
+      // First try to find the code in authCodes table (normal flow)
+      let codeInfo = await authService.getValidAuthCode(authCode);
+      let userEmail: string | undefined;
+
+      if (codeInfo) {
+        // Code exists in database, use the email from there
+        userEmail = codeInfo.email;
+        await authService.invalidateAuthCode(authCode);
+      } else if (email) {
+        // Code not found, but email provided - validate it's a bypass email
+        const isBypassEmail = await systemConfigService.isTestEmail(email);
+        if (!isBypassEmail) {
+          return {
+            success: false,
+            error: "Invalid auth code or email not authorized for bypass",
+          };
+        }
+        userEmail = email;
+      } else {
+        // No code found and no email provided
+        return {
+          success: false,
+          error: "Invalid or expired auth code",
+        };
+      }
+
+      // Authenticate the user
+      const user = await userService.getUserByEmail(userEmail);
+
+      if (!user) {
+        // Generate a token for the pending user (keep 1h for onboarding)
+        const token = jwt.sign(
+          {
+            email: userEmail,
+            isOnboarding: true,
+          },
+          process.env.JWT_SECRET!,
+          { expiresIn: "7d" }
+        );
+
+        return {
+          success: true,
+          needsOnboarding: true,
+          email: userEmail,
+          token: token,
+        };
+      }
+
+      // Generate token for existing user
+      const token = jwt.sign(
+        {
+          id: user.id,
+          email: user.email,
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: "7d" }
+      );
+
+      // Generate refresh token
+      const refreshToken = await refreshTokenService.createRefreshToken(
+        user.id
+      );
+
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          needsOnboarding: user.needsOnboarding ?? false,
+          waiverAcceptedAt: user.waiverAcceptedAt,
+          waiverVersion: user.waiverVersion,
+        },
+        needsOnboarding: user.needsOnboarding ?? false,
+        needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
+        token: token,
+        refreshToken: refreshToken,
+      };
+    }
+
+    // Normal auth code validation flow
     const codeInfo = await authService.getValidAuthCode(authCode);
 
     if (!codeInfo) {
