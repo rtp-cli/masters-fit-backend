@@ -39,6 +39,11 @@ interface LogContext {
   jobId?: number;
   planDayId?: number;
   result?: any;
+  eventId?: string;
+  eventType?: string;
+  appUserId?: string;
+  planId?: string;
+  subscriptionId?: string;
 }
 
 interface LogEntry {
@@ -132,21 +137,21 @@ class Logger {
     }
   }
 
-  error(message: string, error?: Error, context?: LogContext) {
+  error(message: string, error?: Error, context?: any) {
     if (!this.shouldLog(LogLevel.ERROR)) return;
 
     const logEntry = this.formatLog("ERROR", message, context, error);
     this.writeLog(logEntry);
   }
 
-  warn(message: string, context?: LogContext) {
+  warn(message: string, context?: any) {
     if (!this.shouldLog(LogLevel.WARN)) return;
 
     const logEntry = this.formatLog("WARN", message, context);
     this.writeLog(logEntry);
   }
 
-  info(message: string, context?: LogContext) {
+  info(message: string, context?: any) {
     if (!this.shouldLog(LogLevel.INFO)) return;
 
     const logEntry = this.formatLog("INFO", message, context);
