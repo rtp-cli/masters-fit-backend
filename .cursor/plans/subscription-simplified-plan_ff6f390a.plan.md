@@ -65,45 +65,64 @@ todos:
 
 ### Subscription DB Schema (detailed)
 
-*Table: subscription_plans*
+*Table: subscription_plans*| Field | Type | Description | Example Values |
 
-| Field | Type | Description | Example Values |
 | --- | --- | --- | --- |
+
 | id | SERIAL PRIMARY KEY | Internal ID | 1, 2, 3 |
+
 | plan_id | ENUM UNIQUE | RevenueCat product ID | "masters_fit_monthly", "masters_fit_annual" |
+
 | name | VARCHAR(255) | Display name | "Monthly Premium", "Annual Premium" |
+
 | description | TEXT | Plan description | "Unlimited workouts and regenerations" |
+
 | billing_period | ENUM | Billing cycle | "monthly", "annual" |
+
 | price_usd | INTEGER | Price in cents | 999 ($9.99), 7999 ($79.99) |
+
 | is_active | BOOLEAN | Can be purchased | true, false |
+
 | created_at | TIMESTAMP | When created | 2024-01-15 10:00:00Z |
-| updated_at | TIMESTAMP | Last modified | 2024-01-15 10:00:00Z |
 
-*Table: user_subscriptions*
+| updated_at | TIMESTAMP | Last modified | 2024-01-15 10:00:00Z |*Table: user_subscriptions*| Field | Type | Description | Example Values |
 
-| Field | Type | Description | Example Values |
 | --- | --- | --- | --- |
+
 | id | SERIAL PRIMARY KEY | Internal ID | 1, 2, 3 |
+
 | user_id | INTEGER | Reference to users table | 123, 456, 789 |
+
 | revenuecat_customer_id | VARCHAR(255) | RevenueCat customer ID | "app_user_123" |
+
 | revenuecat_subscription_id | VARCHAR(255) | RevenueCat subscription ID | "sub_abc123" (null for trial) |
+
 | plan_id | VARCHAR(255) | Which plan user has | "masters_fit_monthly", null for trial |
+
 | status | ENUM | Current subscription state | "trial", "active", "expired", "cancelled" |
+
 | subscription_start_date | TIMESTAMP | When paid subscription started | 2024-01-20 15:30:00Z |
+
 | subscription_end_date | TIMESTAMP | When subscription expires | 2024-02-20 15:30:00Z |
+
 | created_at | TIMESTAMP | Record created | 2024-01-15 10:00:00Z |
-| updated_at | TIMESTAMP | Last modified | 2024-01-20 15:30:00Z |
 
-*Table: trial_usage*
+| updated_at | TIMESTAMP | Last modified | 2024-01-20 15:30:00Z |*Table: trial_usage*| Field | Type | Description | Example Values |
 
-| Field | Type | Description | Example Values |
 | --- | --- | --- | --- |
+
 | id | SERIAL PRIMARY KEY | Internal ID | 1, 2, 3 |
+
 | user_id | INTEGER | Reference to users table | 123, 456, 789 |
+
 | weekly_generations_count | INTEGER | Workouts generated this week | 0, 1, 2 (max 2 for trial) |
+
 | daily_regenerations_count | INTEGER | Regenerations today | 0, 1, 2, 3, 4, 5 (max 5 for trial) |
+
 | tokens_used | INTEGER | AI tokens used today | 0, 1500, 25000 |
+
 | created_at | TIMESTAMP | Record created | 2024-01-15 10:00:00Z |
+
 | updated_at | TIMESTAMP | Last modified | 2024-01-15 14:20:00Z |
 
 ## Application Logic
@@ -135,5 +154,3 @@ todos:
 - service-logic: Implement subscription service (access level, limit checks, usage increment, upsert trial rows).
 - middleware-guard: Add subscription guard middleware for generation/regeneration endpoints only.
 - controller-hooks: Re-check limits in controllers and increment usage with actual tokens.
-
-- webhook-handler: Add RevenueCat webhook route/controller + idempotency store.
