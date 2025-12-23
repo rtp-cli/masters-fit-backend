@@ -17,3 +17,15 @@ export enum PaywallType {
   TOKEN_LIMIT_EXCEEDED = "token_limit_exceeded",
   SUBSCRIPTION_REQUIRED = "subscription_required",
 }
+
+export enum SubscriptionStatus {
+  TRIAL = "trial",
+  ACTIVE = "active",
+  EXPIRED = "expired",
+  CANCELLED = "cancelled",
+}
+
+export enum BillingPeriod {
+  MONTHLY = "monthly",
+  ANNUAL = "annual",
+}
