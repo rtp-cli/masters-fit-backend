@@ -10,7 +10,6 @@ import {
   Response,
   SuccessResponse,
   Tags,
-  Example,
   Security,
   Request,
 } from "@tsoa/runtime";
@@ -25,17 +24,38 @@ import {
   CreatePlanDayRequest,
   CreatePlanDayExerciseRequest,
 } from "@/types/workout/requests";
-import { ApiResponse } from "@/types/common/responses";
-import { workoutService, jobsService, notificationService, userService } from "@/services";
+import {
+  workoutService,
+  jobsService,
+  notificationService,
+  userService,
+  subscriptionService,
+  getLastTokenUsage,
+  clearLastTokenUsage,
+} from "@/services";
 import { eventTrackingService } from "@/services/event-tracking.service";
-import { InsertWorkout, InsertPlanDay, InsertPlanDayExercise, WorkoutGenerationJobData, WorkoutRegenerationJobData, DailyRegenerationJobData, JobType } from "@/models";
+import {
+  InsertWorkout,
+  InsertPlanDayExercise,
+  WorkoutGenerationJobData,
+  WorkoutRegenerationJobData,
+  DailyRegenerationJobData,
+  JobType,
+} from "@/models";
 import { logger } from "@/utils/logger";
 import { workoutGenerationQueue } from "@/queues/workout-generation.queue";
+import { AccessLevel } from "@/constants";
 
 // Helper function to get client IP from request
 function getClientIP(req: any): string | undefined {
   if (!req) return undefined;
-  return req.clientIP || req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || undefined;
+  return (
+    req.clientIP ||
+    req.ip ||
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    undefined
+  );
 }
 
 @Route("workouts")
@@ -207,7 +227,9 @@ export class WorkoutController extends Controller {
     }
 
     // Get the workout to get user info - we have workoutId from the enhanced getPlanDayExercise
-    const workout = await workoutService.getWorkoutById((currentExercise as any).workoutId);
+    const workout = await workoutService.getWorkoutById(
+      (currentExercise as any).workoutId
+    );
 
     if (!workout) {
       throw new Error("Workout not found");
@@ -229,22 +251,32 @@ export class WorkoutController extends Controller {
     // Track the exercise replacement
     try {
       const clientIP = getClientIP(request);
-      await eventTrackingService.trackExerciseReplaced(user.uuid, {
-        previous_exercise_id: currentExercise.exerciseId,
-        previous_exercise_name: currentExercise.exercise?.name || "Unknown Exercise",
-        current_exercise_id: newExercise.exerciseId,
-        current_exercise_name: newExercise.exercise?.name || "Unknown Exercise",
-        workout_id: (currentExercise as any).workoutId,
-        plan_day_id: currentExercise.planDayId,
-        workout_block_id: currentExercise.workoutBlockId,
-      }, clientIP);
+      await eventTrackingService.trackExerciseReplaced(
+        user.uuid,
+        {
+          previous_exercise_id: currentExercise.exerciseId,
+          previous_exercise_name:
+            currentExercise.exercise?.name || "Unknown Exercise",
+          current_exercise_id: newExercise.exerciseId,
+          current_exercise_name:
+            newExercise.exercise?.name || "Unknown Exercise",
+          workout_id: (currentExercise as any).workoutId,
+          plan_day_id: currentExercise.planDayId,
+          workout_block_id: currentExercise.workoutBlockId,
+        },
+        clientIP
+      );
     } catch (trackingError) {
-      logger.error("Failed to track exercise replacement", trackingError as Error, {
-        userId: workout.userId,
-        exerciseId: id,
-        previousExerciseId: currentExercise.exerciseId,
-        newExerciseId: requestBody.newExerciseId,
-      });
+      logger.error(
+        "Failed to track exercise replacement",
+        trackingError as Error,
+        {
+          userId: workout.userId,
+          exerciseId: id,
+          previousExerciseId: currentExercise.exerciseId,
+          newExerciseId: requestBody.newExerciseId,
+        }
+      );
       // Don't throw here - replacement was successful, just tracking failed
     }
 
@@ -264,16 +296,60 @@ export class WorkoutController extends Controller {
   @SuccessResponse(200, "Success")
   public async generateWorkoutPlan(
     @Path() userId: number,
-    @Body() requestBody?: { 
-      customFeedback?: string; 
+    @Body()
+    requestBody?: {
+      customFeedback?: string;
       timezone?: string;
-    }
+    },
+    @Request() request?: any
   ): Promise<WorkoutResponse> {
+    // Re-check limits in transaction (race condition protection)
+    const accessLevel =
+      await subscriptionService.getEffectiveAccessLevel(userId);
+    const estimatedTokens = (request as any)?.estimatedTokens || 2000;
+
+    if (accessLevel !== AccessLevel.UNLIMITED) {
+      const limitCheck = await subscriptionService.checkTrialLimits(
+        userId,
+        "generation",
+        estimatedTokens,
+        "weekly"
+      );
+      if (!limitCheck.allowed) {
+        throw new Error(limitCheck.reason || "Trial limit exceeded");
+      }
+    }
+
+    // Clear any previous token usage before generation
+    clearLastTokenUsage(userId);
+
     const workout = await workoutService.generateWorkoutPlan(
       userId,
       requestBody?.customFeedback,
       requestBody?.timezone
     );
+
+    // Get real token usage from generation (or fallback to estimate)
+    const tokenUsage = getLastTokenUsage(userId);
+    const actualTokensUsed = tokenUsage?.totalTokens || estimatedTokens;
+
+    logger.info("Workout generation completed with token usage", {
+      userId,
+      operation: "generateWorkoutPlan",
+      tokenUsage: tokenUsage || { estimated: estimatedTokens },
+      actualTokensUsed,
+    });
+
+    // Increment usage after successful generation with real token count
+    if (accessLevel !== AccessLevel.UNLIMITED) {
+      await subscriptionService.incrementTrialUsage(
+        userId,
+        "generation",
+        actualTokensUsed,
+        "weekly"
+      );
+    }
+
     return {
       success: true,
       workout,
@@ -310,14 +386,57 @@ export class WorkoutController extends Controller {
         intensityLevel?: number;
         medicalNotes?: string;
       };
-    }
+    },
+    @Request() request?: any
   ): Promise<WorkoutResponse> {
+    // Re-check limits in transaction (race condition protection)
+    const accessLevel =
+      await subscriptionService.getEffectiveAccessLevel(userId);
+    const estimatedTokens = (request as any)?.estimatedTokens || 2000;
+
+    if (accessLevel !== AccessLevel.UNLIMITED) {
+      const limitCheck = await subscriptionService.checkTrialLimits(
+        userId,
+        "regeneration",
+        estimatedTokens,
+        "weekly"
+      );
+      if (!limitCheck.allowed) {
+        throw new Error(limitCheck.reason || "Trial limit exceeded");
+      }
+    }
+
+    // Clear any previous token usage before regeneration
+    clearLastTokenUsage(userId);
+
     const workout = await workoutService.regenerateWorkoutPlan(
       userId,
       requestBody.customFeedback,
       requestBody.profileData,
       requestBody.threadId
     );
+
+    // Get real token usage from regeneration (or fallback to estimate)
+    const tokenUsage = getLastTokenUsage(userId);
+    const actualTokensUsed = tokenUsage?.totalTokens || estimatedTokens;
+
+    logger.info("Workout regeneration completed with token usage", {
+      userId,
+      operation: "regenerateWorkoutPlan",
+      tokenUsage: tokenUsage || { estimated: estimatedTokens },
+      actualTokensUsed,
+    });
+
+    // Increment usage after successful regeneration with real token count
+    if (accessLevel !== AccessLevel.UNLIMITED) {
+      await subscriptionService.incrementTrialUsage(
+        userId,
+        "regeneration",
+        actualTokensUsed,
+        "weekly"
+      );
+    }
+
     return {
       success: true,
       workout,
@@ -330,7 +449,10 @@ export class WorkoutController extends Controller {
    * @param requestBody Regeneration data
    */
   @Post("/{userId}/regenerate-async")
-  @Response<{ success: boolean; jobId: number; message: string }>(400, "Bad Request")
+  @Response<{ success: boolean; jobId: number; message: string }>(
+    400,
+    "Bad Request"
+  )
   @SuccessResponse(202, "Job queued successfully")
   public async regenerateWorkoutPlanAsync(
     @Path() userId: number,
@@ -355,13 +477,13 @@ export class WorkoutController extends Controller {
       };
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
-    logger.info('Async workout regeneration requested', {
+    logger.info("Async workout regeneration requested", {
       userId,
-      operation: 'regenerateWorkoutPlanAsync',
+      operation: "regenerateWorkoutPlanAsync",
       metadata: {
         hasCustomFeedback: !!requestBody?.customFeedback,
         hasProfileData: !!requestBody?.profileData,
-      }
+      },
     });
 
     try {
@@ -373,33 +495,37 @@ export class WorkoutController extends Controller {
       );
 
       // Queue the job for processing
-      const jobData: WorkoutRegenerationJobData & { userId: number; jobId: number } = {
+      const jobData: WorkoutRegenerationJobData & {
+        userId: number;
+        jobId: number;
+      } = {
         userId,
         jobId: job.id,
         customFeedback: requestBody?.customFeedback,
         profileData: requestBody?.profileData,
       };
 
-      await workoutGenerationQueue.add('regenerate-workout', jobData, {
+      await workoutGenerationQueue.add("regenerate-workout", jobData, {
         jobId: job.id.toString(),
         delay: 1000, // Small delay to ensure database transaction is committed
       });
 
-      logger.info('Workout regeneration job queued successfully', {
+      logger.info("Workout regeneration job queued successfully", {
         userId,
         jobId: job.id,
-        operation: 'regenerateWorkoutPlanAsync',
+        operation: "regenerateWorkoutPlanAsync",
       });
 
       return {
         success: true,
         jobId: job.id,
-        message: 'Workout regeneration started. You will receive a notification when complete.',
+        message:
+          "Workout regeneration started. You will receive a notification when complete.",
       };
     } catch (error) {
-      logger.error('Failed to queue workout regeneration job', error as Error, {
+      logger.error("Failed to queue workout regeneration job", error as Error, {
         userId,
-        operation: 'regenerateWorkoutPlanAsync',
+        operation: "regenerateWorkoutPlanAsync",
       });
       throw error;
     }
@@ -411,10 +537,14 @@ export class WorkoutController extends Controller {
    */
   @Get("/{userId}/active-workout")
   @SuccessResponse(200, "Success")
+  @Response(404, "No active workout found")
   public async fetchActiveWorkout(
     @Path() userId: number
   ): Promise<WorkoutResponse> {
     const workout = await workoutService.fetchActiveWorkout(userId);
+    if (!workout) {
+      throw new Error("No active workout found");
+    }
     return {
       success: true,
       workout,
@@ -439,10 +569,11 @@ export class WorkoutController extends Controller {
       styles?: string[];
       limitations?: string[];
       threadId?: string;
-    }
+    },
+    @Request() request?: any
   ): Promise<PlanDayResponse> {
     const startTime = Date.now();
-    
+
     logger.info("Daily workout regeneration request received", {
       userId,
       planDayId,
@@ -451,11 +582,31 @@ export class WorkoutController extends Controller {
         reason: requestBody.reason,
         stylesCount: requestBody.styles?.length || 0,
         limitationsCount: requestBody.limitations?.length || 0,
-        requestTime: new Date().toISOString()
-      }
+        requestTime: new Date().toISOString(),
+      },
     });
 
     try {
+      // Re-check limits in transaction (race condition protection)
+      const accessLevel =
+        await subscriptionService.getEffectiveAccessLevel(userId);
+      const estimatedTokens = (request as any)?.estimatedTokens || 2000;
+
+      if (accessLevel !== AccessLevel.UNLIMITED) {
+        const limitCheck = await subscriptionService.checkTrialLimits(
+          userId,
+          "regeneration",
+          estimatedTokens,
+          "daily"
+        );
+        if (!limitCheck.allowed) {
+          throw new Error(limitCheck.reason || "Trial limit exceeded");
+        }
+      }
+
+      // Clear any previous token usage before regeneration
+      clearLastTokenUsage(userId);
+
       const planDay = await workoutService.regenerateDailyWorkout(
         userId,
         planDayId,
@@ -464,15 +615,31 @@ export class WorkoutController extends Controller {
         requestBody.threadId
       );
 
+      // Get real token usage from regeneration (or fallback to estimate)
+      const tokenUsage = getLastTokenUsage(userId);
+      const actualTokensUsed = tokenUsage?.totalTokens || estimatedTokens;
+
+      // Increment usage after successful regeneration with real token count
+      if (accessLevel !== AccessLevel.UNLIMITED) {
+        await subscriptionService.incrementTrialUsage(
+          userId,
+          "regeneration",
+          actualTokensUsed,
+          "daily"
+        );
+      }
+
       const duration = Date.now() - startTime;
       logger.info("Daily workout regeneration completed successfully", {
         userId,
         planDayId,
-        operation: "regenerateDailyWorkout", 
+        operation: "regenerateDailyWorkout",
+        tokenUsage: tokenUsage || { estimated: estimatedTokens },
+        actualTokensUsed,
         metadata: {
           duration: `${duration}ms`,
-          completedAt: new Date().toISOString()
-        }
+          completedAt: new Date().toISOString(),
+        },
       });
 
       return {
@@ -488,8 +655,8 @@ export class WorkoutController extends Controller {
         metadata: {
           duration: `${duration}ms`,
           reason: requestBody.reason,
-          errorTime: new Date().toISOString()
-        }
+          errorTime: new Date().toISOString(),
+        },
       });
       throw error;
     }
@@ -502,7 +669,10 @@ export class WorkoutController extends Controller {
    * @param requestBody Regeneration reason and optional styles
    */
   @Post("/{userId}/days/{planDayId}/regenerate-async")
-  @Response<{ success: boolean; jobId: number; message: string }>(400, "Bad Request")
+  @Response<{ success: boolean; jobId: number; message: string }>(
+    400,
+    "Bad Request"
+  )
   @SuccessResponse(202, "Job queued successfully")
   public async regenerateDailyWorkoutAsync(
     @Path() userId: number,
@@ -515,15 +685,15 @@ export class WorkoutController extends Controller {
       threadId?: string;
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
-    logger.info('Async daily workout regeneration requested', {
+    logger.info("Async daily workout regeneration requested", {
       userId,
       planDayId,
-      operation: 'regenerateDailyWorkoutAsync',
+      operation: "regenerateDailyWorkoutAsync",
       metadata: {
         reason: requestBody.reason,
         stylesCount: requestBody.styles?.length || 0,
         limitationsCount: requestBody.limitations?.length || 0,
-      }
+      },
     });
 
     try {
@@ -540,7 +710,10 @@ export class WorkoutController extends Controller {
       );
 
       // Queue the job for processing
-      const jobData: DailyRegenerationJobData & { userId: number; jobId: number } = {
+      const jobData: DailyRegenerationJobData & {
+        userId: number;
+        jobId: number;
+      } = {
         userId,
         jobId: job.id,
         planDayId,
@@ -549,29 +722,34 @@ export class WorkoutController extends Controller {
         threadId: requestBody.threadId,
       };
 
-      await workoutGenerationQueue.add('regenerate-daily-workout', jobData, {
+      await workoutGenerationQueue.add("regenerate-daily-workout", jobData, {
         jobId: job.id.toString(),
         delay: 500, // Smaller delay for daily regeneration (faster operation)
       });
 
-      logger.info('Daily workout regeneration job queued successfully', {
+      logger.info("Daily workout regeneration job queued successfully", {
         userId,
         planDayId,
         jobId: job.id,
-        operation: 'regenerateDailyWorkoutAsync',
+        operation: "regenerateDailyWorkoutAsync",
       });
 
       return {
         success: true,
         jobId: job.id,
-        message: 'Daily workout regeneration started. You will receive a notification when complete.',
+        message:
+          "Daily workout regeneration started. You will receive a notification when complete.",
       };
     } catch (error) {
-      logger.error('Failed to queue daily workout regeneration job', error as Error, {
-        userId,
-        planDayId,
-        operation: 'regenerateDailyWorkoutAsync',
-      });
+      logger.error(
+        "Failed to queue daily workout regeneration job",
+        error as Error,
+        {
+          userId,
+          planDayId,
+          operation: "regenerateDailyWorkoutAsync",
+        }
+      );
       throw error;
     }
   }
@@ -604,7 +782,7 @@ export class WorkoutController extends Controller {
     @Path() userId: number
   ): Promise<{ success: boolean; workouts: any[] }> {
     // For now, let's try 'all' to see if there are any workouts at all
-    const workouts = await workoutService.getPreviousWorkouts(userId, 'all');
+    const workouts = await workoutService.getPreviousWorkouts(userId, "all");
     return {
       success: true,
       workouts,
@@ -668,11 +846,14 @@ export class WorkoutController extends Controller {
    * @param requestBody Generation options including timezone and profile data
    */
   @Post("/{userId}/generate-async")
-  @Response<{ success: boolean; jobId: number; message: string }>(400, "Bad Request")
+  @Response<{ success: boolean; jobId: number; message: string }>(
+    400,
+    "Bad Request"
+  )
   @SuccessResponse(202, "Job queued successfully")
   public async generateWorkoutPlanAsync(
     @Path() userId: number,
-    @Body() 
+    @Body()
     requestBody?: {
       customFeedback?: string;
       timezone?: string;
@@ -694,14 +875,14 @@ export class WorkoutController extends Controller {
       };
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
-    logger.info('Async workout generation requested', {
+    logger.info("Async workout generation requested", {
       userId,
-      operation: 'generateWorkoutPlanAsync',
+      operation: "generateWorkoutPlanAsync",
       metadata: {
         hasCustomFeedback: !!requestBody?.customFeedback,
         hasProfileData: !!requestBody?.profileData,
         timezone: requestBody?.timezone,
-      }
+      },
     });
 
     try {
@@ -713,7 +894,10 @@ export class WorkoutController extends Controller {
       );
 
       // Queue the job for processing
-      const jobData: WorkoutGenerationJobData & { userId: number; jobId: number } = {
+      const jobData: WorkoutGenerationJobData & {
+        userId: number;
+        jobId: number;
+      } = {
         userId,
         jobId: job.id,
         customFeedback: requestBody?.customFeedback,
@@ -721,26 +905,27 @@ export class WorkoutController extends Controller {
         profileData: requestBody?.profileData,
       };
 
-      await workoutGenerationQueue.add('generate-workout', jobData, {
+      await workoutGenerationQueue.add("generate-workout", jobData, {
         jobId: job.id.toString(),
         delay: 1000, // Small delay to ensure database transaction is committed
       });
 
-      logger.info('Workout generation job queued successfully', {
+      logger.info("Workout generation job queued successfully", {
         userId,
         jobId: job.id,
-        operation: 'generateWorkoutPlanAsync',
+        operation: "generateWorkoutPlanAsync",
       });
 
       return {
         success: true,
         jobId: job.id,
-        message: 'Workout generation started. You will receive a notification when complete.',
+        message:
+          "Workout generation started. You will receive a notification when complete.",
       };
     } catch (error) {
-      logger.error('Failed to queue workout generation job', error as Error, {
+      logger.error("Failed to queue workout generation job", error as Error, {
         userId,
-        operation: 'generateWorkoutPlanAsync',
+        operation: "generateWorkoutPlanAsync",
       });
       throw error;
     }
@@ -753,10 +938,8 @@ export class WorkoutController extends Controller {
   @Get("/jobs/{jobId}/status")
   @Response<{ success: boolean; error: string }>(404, "Job not found")
   @SuccessResponse(200, "Success")
-  public async getJobStatus(
-    @Path() jobId: number
-  ): Promise<{ 
-    success: boolean; 
+  public async getJobStatus(@Path() jobId: number): Promise<{
+    success: boolean;
     job: {
       id: number;
       status: string;
@@ -765,20 +948,20 @@ export class WorkoutController extends Controller {
       workoutId?: number;
       createdAt: string;
       completedAt?: string;
-    } 
+    };
   }> {
     const job = await jobsService.getJob(jobId);
-    
+
     if (!job) {
       this.setStatus(404);
-      throw new Error('Job not found');
+      throw new Error("Job not found");
     }
 
     // Disable caching for active jobs to ensure fresh status
-    if (job.status === 'pending' || job.status === 'processing') {
-      this.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      this.setHeader('Pragma', 'no-cache');
-      this.setHeader('Expires', '0');
+    if (job.status === "pending" || job.status === "processing") {
+      this.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      this.setHeader("Pragma", "no-cache");
+      this.setHeader("Expires", "0");
     }
 
     return {
@@ -801,9 +984,7 @@ export class WorkoutController extends Controller {
    */
   @Get("/{userId}/jobs")
   @SuccessResponse(200, "Success")
-  public async getUserJobs(
-    @Path() userId: number
-  ): Promise<{
+  public async getUserJobs(@Path() userId: number): Promise<{
     success: boolean;
     jobs: Array<{
       id: number;
@@ -815,11 +996,15 @@ export class WorkoutController extends Controller {
       completedAt?: string;
     }>;
   }> {
-    const jobs = await jobsService.getUserJobs(userId, 'workout_generation', 20);
-    
+    const jobs = await jobsService.getUserJobs(
+      userId,
+      "workout_generation",
+      20
+    );
+
     return {
       success: true,
-      jobs: jobs.map(job => ({
+      jobs: jobs.map((job) => ({
         id: job.id,
         status: job.status,
         progress: job.progress || 0,
@@ -837,7 +1022,10 @@ export class WorkoutController extends Controller {
    * @param requestBody Rest day workout parameters
    */
   @Post("/{userId}/rest-day-workout")
-  @Response<{ success: boolean; jobId: number; message: string }>(400, "Bad Request")
+  @Response<{ success: boolean; jobId: number; message: string }>(
+    400,
+    "Bad Request"
+  )
   @SuccessResponse(202, "Job queued successfully")
   public async generateRestDayWorkoutAsync(
     @Path() userId: number,
@@ -850,15 +1038,15 @@ export class WorkoutController extends Controller {
       threadId?: string;
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
-    logger.info('Rest day workout generation requested', {
+    logger.info("Rest day workout generation requested", {
       userId,
-      operation: 'generateRestDayWorkoutAsync',
+      operation: "generateRestDayWorkoutAsync",
       metadata: {
         date: requestBody.date,
         hasReason: !!requestBody.reason,
-      }
+      },
     });
-    
+
     try {
       // Get active workout to check if date is available
       const activeWorkout = await workoutService.fetchActiveWorkout(userId);
@@ -868,7 +1056,9 @@ export class WorkoutController extends Controller {
       }
 
       // Check if this date already has a workout
-      const existingPlanDay = activeWorkout.planDays?.find(day => day.date === requestBody.date);
+      const existingPlanDay = activeWorkout.planDays?.find(
+        (day) => day.date === requestBody.date
+      );
       if (existingPlanDay) {
         this.setStatus(400);
         throw new Error("This date already has a workout scheduled");
@@ -889,12 +1079,15 @@ export class WorkoutController extends Controller {
           regenerationReason: requestBody.reason,
           regenerationStyles: requestBody.styles,
           threadId: requestBody.threadId,
-          isRestDayGeneration: true
+          isRestDayGeneration: true,
         }
       );
 
       // Queue the job for processing
-      const jobData: DailyRegenerationJobData & { userId: number; jobId: number } = {
+      const jobData: DailyRegenerationJobData & {
+        userId: number;
+        jobId: number;
+      } = {
         userId,
         jobId: job.id,
         planDayId: newPlanDay.id,
@@ -903,28 +1096,33 @@ export class WorkoutController extends Controller {
         threadId: requestBody.threadId,
       };
 
-      await workoutGenerationQueue.add('regenerate-daily-workout', jobData, {
+      await workoutGenerationQueue.add("regenerate-daily-workout", jobData, {
         jobId: job.id.toString(),
         delay: 500,
       });
 
-      logger.info('Rest day workout generation job queued successfully', {
+      logger.info("Rest day workout generation job queued successfully", {
         userId,
         planDayId: newPlanDay.id,
         jobId: job.id,
-        operation: 'generateRestDayWorkoutAsync',
+        operation: "generateRestDayWorkoutAsync",
       });
 
       return {
         success: true,
         jobId: job.id,
-        message: 'Rest day workout generation started. You will receive a notification when complete.',
+        message:
+          "Rest day workout generation started. You will receive a notification when complete.",
       };
     } catch (error) {
-      logger.error('Failed to queue rest day workout generation job', error as Error, {
-        userId,
-        operation: 'generateRestDayWorkoutAsync',
-      });
+      logger.error(
+        "Failed to queue rest day workout generation job",
+        error as Error,
+        {
+          userId,
+          operation: "generateRestDayWorkoutAsync",
+        }
+      );
       throw error;
     }
   }
@@ -949,17 +1147,17 @@ export class WorkoutController extends Controller {
 
       if (!success) {
         this.setStatus(400);
-        throw new Error('Invalid push token format');
+        throw new Error("Invalid push token format");
       }
 
       return {
         success: true,
-        message: 'Push notification token registered successfully',
+        message: "Push notification token registered successfully",
       };
     } catch (error) {
-      logger.error('Failed to register push token', error as Error, {
+      logger.error("Failed to register push token", error as Error, {
         userId,
-        operation: 'registerPushToken',
+        operation: "registerPushToken",
       });
       throw error;
     }
