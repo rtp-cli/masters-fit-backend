@@ -1,8 +1,4 @@
-export type PaywallType =
-  | "weekly_limit_exceeded"
-  | "daily_regeneration_limit_exceeded"
-  | "token_limit_exceeded"
-  | "subscription_required";
+import { PaywallType } from "@/constants";
 
 export interface PaywallResponse {
   success: false;
