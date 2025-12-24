@@ -158,7 +158,7 @@ class Logger {
     this.writeLog(logEntry);
   }
 
-  debug(message: string, context?: LogContext) {
+  debug(message: string, context?: any) {
     if (!this.shouldLog(LogLevel.DEBUG)) return;
 
     const logEntry = this.formatLog("DEBUG", message, context);
