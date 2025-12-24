@@ -15,10 +15,29 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+// Determine if SSL should be used
+// SSL is required for production databases (Heroku, AWS RDS, etc.)
+// but not for local development databases
+const shouldUseSSL = (): boolean | { rejectUnauthorized: boolean } => {
+  // Check if DATABASE_URL explicitly requires SSL
+  const dbUrl = process.env.DATABASE_URL.toLowerCase();
+  if (dbUrl.includes("sslmode=require") || dbUrl.includes("ssl=true")) {
+    return { rejectUnauthorized: false };
+  }
+
+  // Use SSL in production environments
+  if (process.env.NODE_ENV === "production") {
+    return { rejectUnauthorized: false };
+  }
+
+  // Disable SSL for local development
+  return false;
+};
+
 // Enhanced pool configuration for better connection resilience
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: shouldUseSSL(),
   // Connection pool settings for resilience
   min: 2, // minimum number of connections in pool
   max: 20, // maximum number of connections in pool
