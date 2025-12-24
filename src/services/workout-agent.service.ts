@@ -5,6 +5,7 @@ import {
   SystemMessage,
   HumanMessage,
   AIMessage,
+  type UsageMetadata,
 } from "@langchain/core/messages";
 import { Profile } from "@/models";
 import { logger } from "@/utils/logger";
@@ -12,10 +13,19 @@ import { exerciseService, ExerciseMetadata } from "./exercise.service";
 import {
   buildClaudePrompt,
   buildClaudeDailyPrompt,
-  getEquipmentDescription,
 } from "@/utils/prompt-generator";
 import { aiProviderService } from "./ai-provider.service";
 import { AIProvider } from "@/constants/ai-providers";
+
+// Result type that includes token usage
+export interface WorkoutGenerationResult {
+  workout: any;
+  tokenUsage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
+}
 
 export class WorkoutAgentService {
   private llm: BaseChatModel;
@@ -29,9 +39,9 @@ export class WorkoutAgentService {
     this.currentModel = model;
     this.llm = aiProviderService.createLLMInstance(provider, model);
 
-    logger.info('WorkoutAgentService initialized', {
+    logger.info("WorkoutAgentService initialized", {
       provider: this.currentProvider,
-      model: this.currentModel
+      model: this.currentModel,
     });
   }
 
@@ -241,7 +251,7 @@ Please generate the workout now, addressing this feedback while following all sy
     dayNumber?: number,
     isRestDay: boolean = false,
     signal?: AbortSignal
-  ): Promise<any> {
+  ): Promise<WorkoutGenerationResult> {
     try {
       // Create and store AbortController for this generation
       const abortController = new AbortController();
@@ -302,6 +312,21 @@ Please generate the workout now, addressing this feedback while following all sy
         signal: abortController.signal,
       });
 
+      // Extract token usage from the response
+      const usageMetadata = (response as AIMessage).usage_metadata;
+      const tokenUsage = {
+        inputTokens: usageMetadata?.input_tokens || 0,
+        outputTokens: usageMetadata?.output_tokens || 0,
+        totalTokens: usageMetadata?.total_tokens || 0,
+      };
+
+      logger.info("LLM response received with token usage", {
+        userId,
+        threadId,
+        tokenUsage,
+        operation: "regenerateWorkout",
+      });
+
       // Add the exchange to history
       await messageHistory.addMessage(userMessage);
       await messageHistory.addMessage(response);
@@ -309,11 +334,14 @@ Please generate the workout now, addressing this feedback while following all sy
       // Clean up the active generation
       this.activeGenerations.delete(generationKey);
 
-      // Parse and return the workout
+      // Parse and return the workout with token usage
       const cleanedResponse = this.cleanJsonResponse(
         response.content as string
       );
-      return JSON.parse(cleanedResponse);
+      return {
+        workout: JSON.parse(cleanedResponse),
+        tokenUsage,
+      };
     } catch (error) {
       // Clean up on any error
       const generationKey = `${userId}_${threadId}`;
