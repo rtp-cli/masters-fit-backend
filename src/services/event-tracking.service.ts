@@ -14,7 +14,7 @@ export class EventTrackingService {
       await mixpanelService.identify(userUuid, ip);
       logger.debug("User identified in analytics", { userUuid, hasIP: !!ip });
     } catch (error) {
-      logger.warn("Failed to identify user in analytics", error as Error, {
+      logger.warn("Failed to identify user in analytics", {
         userUuid,
       });
     }
@@ -88,8 +88,15 @@ export class EventTrackingService {
     userUuid: string,
     data: {
       generation_scope: "day" | "week";
-      error: string;
+      error?: string;
       llm_model: string;
+      workout_style?: string;
+      days_per_week?: number;
+      equipment_profile?: string;
+      regeneration_reason?: string;
+      error_type?: string;
+      failure_reason?: string;
+      generation_time_ms?: number;
     },
     ip?: string
   ): Promise<void> {
