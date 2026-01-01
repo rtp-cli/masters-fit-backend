@@ -451,6 +451,11 @@ export class SubscriptionController extends Controller {
         ? SubscriptionStatus.TRIAL
         : SubscriptionStatus.ACTIVE;
 
+    // Ensure subscription exists (creates trial if none exists)
+    // This handles the case where user hasn't used the app yet
+    await subscriptionService.getUserSubscription(userId);
+
+    // Now update with the purchase information
     await subscriptionService.updateUserSubscription(userId, {
       revenuecatCustomerId: event.app_user_id,
       revenuecatSubscriptionId: event.original_transaction_id || null,
@@ -493,6 +498,10 @@ export class SubscriptionController extends Controller {
     const plan = productId
       ? await subscriptionService.getPlanByRevenueCatProductId(productId)
       : null;
+
+    // Ensure subscription exists (creates trial if none exists)
+    // This handles edge cases where renewal happens before initial purchase is processed
+    await subscriptionService.getUserSubscription(userId);
 
     // Update subscription - set to active since they renewed
     await subscriptionService.updateUserSubscription(userId, {
@@ -612,6 +621,10 @@ export class SubscriptionController extends Controller {
     const plan = productId
       ? await subscriptionService.getPlanByRevenueCatProductId(productId)
       : null;
+
+    // Ensure subscription exists (creates trial if none exists)
+    // This handles the case where user makes a non-renewing purchase before using the app
+    await subscriptionService.getUserSubscription(userId);
 
     await subscriptionService.updateUserSubscription(userId, {
       revenuecatCustomerId: event.app_user_id,
