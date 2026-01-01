@@ -26,12 +26,32 @@ router.get("/plans", async (req, res) => {
   }
 });
 
-// RevenueCat webhook endpoint (no auth required - uses signature verification)
+// RevenueCat webhook endpoint (no auth required - uses authorization header verification)
+// @see https://www.revenuecat.com/docs/integrations/webhooks#security-and-best-practices
 router.post("/webhooks/revenuecat", async (req, res) => {
   try {
-    const response = await controller.handleRevenueCatWebhook(req, req.body);
-    res.json(response);
+    const authHeader = req.headers.authorization;
+    const response = await controller.handleRevenueCatWebhook(
+      req,
+      req.body,
+      authHeader
+    );
+
+    // Determine status code from response
+    // RevenueCat expects 200 for success, any other status triggers retry
+    let statusCode = 200;
+    if (!response.success) {
+      if (response.message === "Unauthorized") {
+        statusCode = 401;
+      } else {
+        statusCode = 500; // Will trigger RevenueCat retry
+      }
+    }
+
+    res.status(statusCode).json(response);
   } catch (error) {
+    // Log the actual error for debugging
+    console.error("Webhook error:", error);
     handleError(error, res);
   }
 });

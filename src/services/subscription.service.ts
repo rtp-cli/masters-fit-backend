@@ -86,15 +86,36 @@ export class SubscriptionService extends BaseService {
   async getEffectiveAccessLevel(userId: number): Promise<AccessLevel> {
     const subscription = await this.getUserSubscription(userId);
 
+    // Active subscribers have unlimited access
     if (subscription.status === SubscriptionStatus.ACTIVE) {
       return AccessLevel.UNLIMITED;
     }
 
+    // Grace period users still have access (billing issue but within grace period)
+    if (subscription.status === SubscriptionStatus.GRACE_PERIOD) {
+      return AccessLevel.UNLIMITED;
+    }
+
+    // Cancelled subscriptions: check if still within access period
+    if (subscription.status === SubscriptionStatus.CANCELLED) {
+      const now = new Date();
+      const expirationDate = subscription.subscriptionEndDate;
+
+      // If no expiration date or expired, block access
+      if (!expirationDate || expirationDate <= now) {
+        return AccessLevel.BLOCKED;
+      }
+
+      // Still within access period - grant unlimited access
+      return AccessLevel.UNLIMITED;
+    }
+
+    // Trial users have limited access
     if (subscription.status === SubscriptionStatus.TRIAL) {
       return AccessLevel.TRIAL;
     }
 
-    // expired or cancelled
+    // Expired, paused, or other statuses are blocked
     return AccessLevel.BLOCKED;
   }
 
