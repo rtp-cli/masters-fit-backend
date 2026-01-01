@@ -6,12 +6,18 @@ import { notificationService } from "@/services/notification.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
 import { userService } from "@/services/user.service";
 import { profileService } from "@/services/profile.service";
+import { subscriptionService } from "@/services/subscription.service";
+import {
+  getLastTokenUsage,
+  clearLastTokenUsage,
+} from "@/services/prompts.service";
 import {
   WorkoutRegenerationJobData,
   WorkoutRegenerationJobResult,
   JobStatus,
 } from "@/models/jobs.schema";
 import { emitProgress } from "@/utils/websocket-progress.utils";
+import { AccessLevel } from "@/constants";
 
 export async function processWorkoutRegenerationJob(
   job: Job<WorkoutRegenerationJobData & { userId: number; jobId: number }>
@@ -43,10 +49,65 @@ export async function processWorkoutRegenerationJob(
       emitProgress(userId, 10);
     }
 
+    // Check subscription limits before regeneration
+    const accessLevel =
+      await subscriptionService.getEffectiveAccessLevel(userId);
+    const estimatedTokens = 2000; // Default estimate
+
+    if (accessLevel !== AccessLevel.UNLIMITED) {
+      const limitCheck = await subscriptionService.checkTrialLimits(
+        userId,
+        "regeneration",
+        estimatedTokens,
+        "weekly"
+      );
+      if (!limitCheck.allowed) {
+        const errorMessage =
+          limitCheck.reason || "Daily regeneration limit exceeded";
+        logger.warn("Workout regeneration blocked by subscription limits", {
+          operation: "workoutRegenerationJob",
+          jobId: job.id,
+          userId,
+          reason: errorMessage,
+          limits: limitCheck.limits,
+        });
+
+        // Update job status to failed with paywall reason
+        await jobsService.updateJobStatus(
+          jobId,
+          JobStatus.FAILED,
+          0,
+          undefined,
+          undefined,
+          errorMessage
+        );
+
+        emitProgress(userId, 0, false, errorMessage);
+
+        // Send error notification
+        await notificationService.sendWorkoutErrorNotification(
+          userId,
+          `Workout regeneration failed: ${errorMessage}`
+        );
+
+        // Return error result without consuming retry attempts
+        return {
+          workoutId: 0,
+          workoutName: "Failed Regeneration",
+          planDaysCount: 0,
+          totalExercises: 0,
+          generationTimeMs: Date.now() - startTime,
+        } as WorkoutRegenerationJobResult;
+      }
+    }
+
     // Get current active workout before regeneration (for reference)
     const previousActiveWorkout =
       await workoutService.fetchActiveWorkout(userId);
     const previousWorkoutId = previousActiveWorkout?.id;
+
+    // Clear any previous token usage before regeneration
+    clearLastTokenUsage(userId);
 
     // Regenerate workout using existing service
     // The service internally calls generateWorkoutPlan which handles progress updates
@@ -55,6 +116,28 @@ export async function processWorkoutRegenerationJob(
       customFeedback,
       profileData
     );
+
+    // Get real token usage from regeneration (or fallback to estimate)
+    const tokenUsage = getLastTokenUsage(userId);
+    const actualTokensUsed = tokenUsage?.totalTokens || estimatedTokens;
+
+    logger.info("Workout regeneration job completed with token usage", {
+      userId,
+      jobId,
+      operation: "workoutRegenerationJob",
+      tokenUsage: tokenUsage || { estimated: estimatedTokens },
+      actualTokensUsed,
+    });
+
+    // Increment usage after successful regeneration with real token count
+    if (accessLevel !== AccessLevel.UNLIMITED) {
+      await subscriptionService.incrementTrialUsage(
+        userId,
+        "regeneration",
+        actualTokensUsed,
+        "weekly"
+      );
+    }
 
     const generationTime = Date.now() - startTime;
 
@@ -165,8 +248,10 @@ export async function processWorkoutRegenerationJob(
           equipment_profile: userProfile?.environment || "Not specified",
           llm_model: userProfile?.aiModel || "",
           regeneration_reason: customFeedback || "User requested regeneration",
-          error_type: error.constructor.name,
-          failure_reason: (error as Error).message,
+          error_type:
+            error instanceof Error ? error.constructor.name : typeof error,
+          failure_reason:
+            error instanceof Error ? error.message : String(error),
           generation_time_ms: generationTime,
         }
       );

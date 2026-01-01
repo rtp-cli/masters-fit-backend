@@ -13,5 +13,12 @@ export default defineConfig({
     options.alias = {
       "@": "./src",
     };
+    // Define import.meta.url for CommonJS bundle
+    options.define = {
+      ...options.define,
+      "import.meta.url": JSON.stringify(
+        "file://" + process.cwd() + "/dist/index.cjs"
+      ),
+    };
   },
 });

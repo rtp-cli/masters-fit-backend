@@ -19,3 +19,4 @@ export * from "@/services/goal-progress.service";
 // Background jobs and notifications
 export * from "@/services/jobs.service";
 export * from "@/services/notification.service";
+export * from "@/services/subscription.service";

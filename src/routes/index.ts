@@ -6,3 +6,4 @@ export * from "@/routes/exercise.routes";
 export * from "@/routes/logs.routes";
 export * from "@/routes/dashboard.routes";
 export * from "@/routes/ai-provider.routes";
+export * from "@/routes/subscription.routes";

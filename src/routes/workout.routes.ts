@@ -2,6 +2,7 @@ import { Router } from "express";
 import { WorkoutController } from "@/controllers/workout.controller";
 import { ZodError } from "zod";
 import { expressAuthentication } from "@/middleware/auth.middleware";
+import { subscriptionGuard } from "@/middleware/subscription.middleware";
 
 const router = Router();
 const controller = new WorkoutController();
@@ -24,7 +25,7 @@ const handleError = (error: unknown, res: any) => {
 // Get all workouts for a user
 router.get("/:userId", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.getUserWorkouts(
       Number(req.params.userId)
     );
@@ -37,7 +38,7 @@ router.get("/:userId", async (req, res) => {
 // Create new workout
 router.post("/:userId", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.createWorkout(
       Number(req.params.userId),
       req.body
@@ -127,26 +128,21 @@ router.put("/exercises/:id", async (req, res) => {
 // Replace plan day exercise with a new exercise
 router.put("/exercise/:id/replace", async (req, res) => {
   try {
+    await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.replaceExercise(
       Number(req.params.id),
-      req.body
+      req.body,
+      req
     );
     res.json(response);
   } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
-    }
+    handleError(error, res);
   }
 });
 
-
 router.post("/:userId/generate", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.generateWorkoutPlan(
       Number(req.params.userId)
     );
@@ -159,7 +155,7 @@ router.post("/:userId/generate", async (req, res) => {
 // Generate workout plan asynchronously
 router.post("/:userId/generate-async", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.generateWorkoutPlanAsync(
       Number(req.params.userId),
       req.body
@@ -170,87 +166,111 @@ router.post("/:userId/generate-async", async (req, res) => {
   }
 });
 
-router.post("/:userId/regenerate", async (req, res) => {
-  try {
-    const response = await controller.regenerateWorkoutPlan(
-      Number(req.params.userId),
-      req.body
-    );
-    res.json(response);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
+router.post(
+  "/:userId/regenerate",
+  subscriptionGuard("regeneration", "weekly"),
+  async (req, res) => {
+    try {
+      const response = await controller.regenerateWorkoutPlan(
+        Number(req.params.userId),
+        req.body
+      );
+      res.json(response);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ success: false, error: "Invalid request data" });
+      } else if (error instanceof Error) {
+        res.status(400).json({ success: false, error: error.message });
+      } else {
+        res
+          .status(500)
+          .json({ success: false, error: "Internal server error" });
+      }
     }
   }
-});
+);
 
 // Regenerate workout plan asynchronously
-router.post("/:userId/regenerate-async", async (req, res) => {
-  try {
-    const response = await controller.regenerateWorkoutPlanAsync(
-      Number(req.params.userId),
-      req.body
-    );
-    res.status(202).json(response);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
+router.post(
+  "/:userId/regenerate-async",
+  subscriptionGuard("regeneration", "weekly"),
+  async (req, res) => {
+    try {
+      const response = await controller.regenerateWorkoutPlanAsync(
+        Number(req.params.userId),
+        req.body
+      );
+      res.status(202).json(response);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ success: false, error: "Invalid request data" });
+      } else if (error instanceof Error) {
+        res.status(400).json({ success: false, error: error.message });
+      } else {
+        res
+          .status(500)
+          .json({ success: false, error: "Internal server error" });
+      }
     }
   }
-});
+);
 
 // Regenerate daily workout
-router.post("/:userId/days/:planDayId/regenerate", async (req, res) => {
-  try {
-    const response = await controller.regenerateDailyWorkout(
-      Number(req.params.userId),
-      Number(req.params.planDayId),
-      req.body
-    );
-    res.json(response);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
+router.post(
+  "/:userId/days/:planDayId/regenerate",
+  subscriptionGuard("regeneration", "daily"),
+  async (req, res) => {
+    try {
+      const response = await controller.regenerateDailyWorkout(
+        Number(req.params.userId),
+        Number(req.params.planDayId),
+        req.body
+      );
+      res.json(response);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ success: false, error: "Invalid request data" });
+      } else if (error instanceof Error) {
+        res.status(400).json({ success: false, error: error.message });
+      } else {
+        res
+          .status(500)
+          .json({ success: false, error: "Internal server error" });
+      }
     }
   }
-});
+);
 
 // Regenerate daily workout asynchronously
-router.post("/:userId/days/:planDayId/regenerate-async", async (req, res) => {
-  try {
-    const response = await controller.regenerateDailyWorkoutAsync(
-      Number(req.params.userId),
-      Number(req.params.planDayId),
-      req.body
-    );
-    res.status(202).json(response);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
+router.post(
+  "/:userId/days/:planDayId/regenerate-async",
+  subscriptionGuard("regeneration", "daily"),
+  async (req, res) => {
+    try {
+      const response = await controller.regenerateDailyWorkoutAsync(
+        Number(req.params.userId),
+        Number(req.params.planDayId),
+        req.body
+      );
+      res.status(202).json(response);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ success: false, error: "Invalid request data" });
+      } else if (error instanceof Error) {
+        res.status(400).json({ success: false, error: error.message });
+      } else {
+        res
+          .status(500)
+          .json({ success: false, error: "Internal server error" });
+      }
     }
   }
-});
+);
 
 // Fetch active workout
 router.get("/:userId/active-workout", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.fetchActiveWorkout(
       Number(req.params.userId)
     );
@@ -264,7 +284,7 @@ router.get("/:userId/active-workout", async (req, res) => {
 // Get workout history
 router.get("/:userId/history", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.getWorkoutHistory(
       Number(req.params.userId)
     );
@@ -313,28 +333,34 @@ router.post("/:userId/repeat-week/:originalWorkoutId", async (req, res) => {
 });
 
 // Generate rest day workout
-router.post("/:userId/rest-day-workout", async (req, res) => {
-  try {
-    const response = await controller.generateRestDayWorkoutAsync(
-      Number(req.params.userId),
-      req.body
-    );
-    res.status(202).json(response);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      res.status(400).json({ success: false, error: "Invalid request data" });
-    } else if (error instanceof Error) {
-      res.status(400).json({ success: false, error: error.message });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
+router.post(
+  "/:userId/rest-day-workout",
+  subscriptionGuard("generation"),
+  async (req, res) => {
+    try {
+      const response = await controller.generateRestDayWorkoutAsync(
+        Number(req.params.userId),
+        req.body
+      );
+      res.status(202).json(response);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res.status(400).json({ success: false, error: "Invalid request data" });
+      } else if (error instanceof Error) {
+        res.status(400).json({ success: false, error: error.message });
+      } else {
+        res
+          .status(500)
+          .json({ success: false, error: "Internal server error" });
+      }
     }
   }
-});
+);
 
 // Register push notification token
 router.post("/:userId/register-push-token", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.registerPushToken(
       Number(req.params.userId),
       req.body
@@ -348,9 +374,7 @@ router.post("/:userId/register-push-token", async (req, res) => {
 // Get job status
 router.get("/jobs/:jobId/status", async (req, res) => {
   try {
-    const response = await controller.getJobStatus(
-      Number(req.params.jobId)
-    );
+    const response = await controller.getJobStatus(Number(req.params.jobId));
     res.json(response);
   } catch (error) {
     if (error instanceof ZodError) {
