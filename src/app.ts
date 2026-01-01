@@ -52,10 +52,37 @@ function extractRoutes(app: express.Application) {
 const app = express();
 
 // Create __dirname equivalent for ES modules
+// Handle both ES modules and CommonJS (bundled) environments
+// In bundled CommonJS, import.meta.url is not available, so we use process.cwd()
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+
+// Helper function to safely get __dirname
+function getDirname(): string {
+  try {
+    // Check if we can access import.meta.url (ES modules)
+    // Using a function to avoid ReferenceError in CommonJS
+    const metaUrl = (() => {
+      try {
+        return import.meta.url;
+      } catch {
+        return null;
+      }
+    })();
+
+    if (metaUrl) {
+      const __filename = fileURLToPath(metaUrl);
+      return dirname(__filename);
+    }
+  } catch {
+    // Fall through to fallback
+  }
+
+  // Fallback: use process.cwd() for bundled CommonJS
+  return process.cwd();
+}
+
+const __dirname = getDirname();
 
 // Middleware
 app.use(express.static(path.join(__dirname, "..", "public")));
@@ -116,7 +143,7 @@ app.get("/api/health", async (req, res) => {
       uptime: process.uptime(),
     });
   } catch (error) {
-    logger.error("Health check failed", error);
+    logger.error("Health check failed", error as Error);
     res.status(503).json({
       status: "unhealthy",
       timestamp: new Date().toISOString(),
@@ -124,7 +151,7 @@ app.get("/api/health", async (req, res) => {
       uptime: process.uptime(),
       error:
         process.env.NODE_ENV === "development"
-          ? error.message
+          ? (error as Error).message
           : "Database connection failed",
     });
   }
