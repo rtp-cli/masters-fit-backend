@@ -571,15 +571,22 @@ export class SubscriptionController extends Controller {
     event: RevenueCatWebhookEvent,
     userId: number
   ): Promise<void> {
+    const expiresAt = this.parseTimestamp(
+      event.expiration_at_ms,
+      event.expires_at
+    );
+
     // User re-enabled their subscription before it expired
-    // Ensure status is active
+    // Restore active status and update expiration date
     await subscriptionService.updateUserSubscription(userId, {
       status: SubscriptionStatus.ACTIVE,
+      subscriptionEndDate: expiresAt, // Update expiration date from event
     });
 
     logger.info("Subscription uncancelled", {
       operation: "handleUncancellation",
       userId,
+      expiresAt,
       originalTransactionId: event.original_transaction_id,
     });
   }
@@ -659,29 +666,40 @@ export class SubscriptionController extends Controller {
     userId: number
   ): Promise<void> {
     const expirationReason = event.expiration_reason;
+    const expiresAt =
+      this.parseTimestamp(event.expiration_at_ms, event.expires_at) ||
+      new Date(); // Use event expiration, fallback to now
+
+    // Get current subscription to check if already cancelled
+    const currentSubscription =
+      await subscriptionService.getUserSubscription(userId);
 
     // Determine status based on expiration reason
     let status: SubscriptionStatus;
 
-    switch (expirationReason) {
-      case "SUBSCRIPTION_PAUSED":
-        status = SubscriptionStatus.PAUSED;
-        break;
-      case "BILLING_ERROR":
-        // Could keep in grace period if desired, but likely expired now
-        status = SubscriptionStatus.EXPIRED;
-        break;
-      case "UNSUBSCRIBE":
-      case "DEVELOPER_INITIATED":
-        status = SubscriptionStatus.CANCELLED;
-        break;
-      default:
-        status = SubscriptionStatus.EXPIRED;
+    // If already cancelled, keep it cancelled (don't change to EXPIRED)
+    if (currentSubscription.status === SubscriptionStatus.CANCELLED) {
+      status = SubscriptionStatus.CANCELLED;
+    } else {
+      switch (expirationReason) {
+        case "SUBSCRIPTION_PAUSED":
+          status = SubscriptionStatus.PAUSED;
+          break;
+        case "BILLING_ERROR":
+          status = SubscriptionStatus.EXPIRED;
+          break;
+        case "UNSUBSCRIBE":
+        case "DEVELOPER_INITIATED":
+          status = SubscriptionStatus.CANCELLED;
+          break;
+        default:
+          status = SubscriptionStatus.EXPIRED;
+      }
     }
 
     await subscriptionService.updateUserSubscription(userId, {
       status,
-      subscriptionEndDate: new Date(),
+      subscriptionEndDate: expiresAt, // Use event expiration timestamp
     });
 
     logger.info("Subscription expired", {
@@ -689,6 +707,7 @@ export class SubscriptionController extends Controller {
       userId,
       status,
       expirationReason,
+      expiresAt,
       originalTransactionId: event.original_transaction_id,
     });
   }
@@ -706,8 +725,10 @@ export class SubscriptionController extends Controller {
       : null;
 
     // Set user to grace period status - they still have access but payment failed
+    // Store grace period expiration for access checks
     await subscriptionService.updateUserSubscription(userId, {
       status: SubscriptionStatus.GRACE_PERIOD,
+      subscriptionEndDate: gracePeriodExpiresAt, // Store grace period expiration
     });
 
     logger.warn("Billing issue detected - user in grace period", {

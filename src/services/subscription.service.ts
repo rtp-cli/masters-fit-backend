@@ -91,8 +91,17 @@ export class SubscriptionService extends BaseService {
       return AccessLevel.UNLIMITED;
     }
 
-    // Grace period users still have access (billing issue but within grace period)
+    // Grace period users: check if still within grace period
     if (subscription.status === SubscriptionStatus.GRACE_PERIOD) {
+      const now = new Date();
+      const gracePeriodEnd = subscription.subscriptionEndDate;
+
+      // If no grace period end date or expired, block access
+      if (!gracePeriodEnd || gracePeriodEnd <= now) {
+        return AccessLevel.BLOCKED;
+      }
+
+      // Still within grace period - grant unlimited access
       return AccessLevel.UNLIMITED;
     }
 
