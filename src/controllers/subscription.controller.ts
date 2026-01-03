@@ -15,7 +15,8 @@ import { SubscriptionStatus } from "@/constants";
 import {
   RevenueCatWebhookPayload,
   RevenueCatWebhookEvent,
-  RevenueCatCancelReason,
+  REVENUE_CAT_EVENT_TYPES,
+  REVENUE_CAT_CANCEL_REASONS,
 } from "@/types/subscription/requests";
 import { SubscriptionPlansResponse } from "@/types/subscription/responses";
 import { logger } from "@/utils/logger";
@@ -202,13 +203,13 @@ export class SubscriptionController extends Controller {
     const appUserId = event.app_user_id;
 
     // For TRANSFER events, handle differently since they involve multiple users
-    if (eventType === "TRANSFER") {
+    if (eventType === REVENUE_CAT_EVENT_TYPES.TRANSFER) {
       await this.handleTransfer(event);
       return;
     }
 
     // For SUBSCRIBER_ALIAS, just log - no action needed
-    if (eventType === "SUBSCRIBER_ALIAS") {
+    if (eventType === REVENUE_CAT_EVENT_TYPES.SUBSCRIBER_ALIAS) {
       logger.info("Subscriber alias created", {
         operation: "processWebhookEvent",
         appUserId,
@@ -221,39 +222,39 @@ export class SubscriptionController extends Controller {
     const userId = await this.resolveUserId(appUserId, event);
 
     switch (eventType) {
-      case "INITIAL_PURCHASE":
+      case REVENUE_CAT_EVENT_TYPES.INITIAL_PURCHASE:
         await this.handleInitialPurchase(event, userId);
         break;
 
-      case "RENEWAL":
+      case REVENUE_CAT_EVENT_TYPES.RENEWAL:
         await this.handleRenewal(event, userId);
         break;
 
-      case "CANCELLATION":
+      case REVENUE_CAT_EVENT_TYPES.CANCELLATION:
         await this.handleCancellation(event, userId);
         break;
 
-      case "UNCANCELLATION":
+      case REVENUE_CAT_EVENT_TYPES.UNCANCELLATION:
         await this.handleUncancellation(event, userId);
         break;
 
-      case "NON_RENEWING_PURCHASE":
+      case REVENUE_CAT_EVENT_TYPES.NON_RENEWING_PURCHASE:
         await this.handleNonRenewingPurchase(event, userId);
         break;
 
-      case "SUBSCRIPTION_PAUSED":
+      case REVENUE_CAT_EVENT_TYPES.SUBSCRIPTION_PAUSED:
         await this.handleSubscriptionPaused(event, userId);
         break;
 
-      case "EXPIRATION":
+      case REVENUE_CAT_EVENT_TYPES.EXPIRATION:
         await this.handleExpiration(event, userId);
         break;
 
-      case "BILLING_ISSUE":
+      case REVENUE_CAT_EVENT_TYPES.BILLING_ISSUE:
         await this.handleBillingIssue(event, userId);
         break;
 
-      case "PRODUCT_CHANGE":
+      case REVENUE_CAT_EVENT_TYPES.PRODUCT_CHANGE:
         await this.handleProductChange(event, userId);
         break;
 
@@ -444,12 +445,7 @@ export class SubscriptionController extends Controller {
       // Still create/update subscription but without plan reference
     }
 
-    // Determine status based on period type
-    // If it's a trial period, keep as trial; otherwise, set as active
-    const status =
-      event.period_type === "TRIAL"
-        ? SubscriptionStatus.TRIAL
-        : SubscriptionStatus.ACTIVE;
+    const status = SubscriptionStatus.ACTIVE;
 
     // Ensure subscription exists (creates trial if none exists)
     // This handles the case where user hasn't used the app yet
@@ -539,7 +535,7 @@ export class SubscriptionController extends Controller {
     );
 
     // For refunds (CUSTOMER_SUPPORT), revoke access immediately
-    if (cancelReason === "CUSTOMER_SUPPORT") {
+    if (cancelReason === REVENUE_CAT_CANCEL_REASONS.CUSTOMER_SUPPORT) {
       logger.warn("Subscription refunded", {
         operation: "handleCancellation",
         userId,
@@ -695,14 +691,14 @@ export class SubscriptionController extends Controller {
       status = SubscriptionStatus.CANCELLED;
     } else {
       switch (expirationReason) {
-        case "SUBSCRIPTION_PAUSED":
+        case REVENUE_CAT_CANCEL_REASONS.SUBSCRIPTION_PAUSED:
           status = SubscriptionStatus.PAUSED;
           break;
-        case "BILLING_ERROR":
+        case REVENUE_CAT_CANCEL_REASONS.BILLING_ERROR:
           status = SubscriptionStatus.EXPIRED;
           break;
-        case "UNSUBSCRIBE":
-        case "DEVELOPER_INITIATED":
+        case REVENUE_CAT_CANCEL_REASONS.UNSUBSCRIBE:
+        case REVENUE_CAT_CANCEL_REASONS.DEVELOPER_INITIATED:
           status = SubscriptionStatus.CANCELLED;
           break;
         default:

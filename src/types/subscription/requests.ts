@@ -5,50 +5,67 @@
  * RevenueCat webhook event types
  * @see https://www.revenuecat.com/docs/integrations/webhooks/event-types-and-fields#event-types
  */
+export enum REVENUE_CAT_EVENT_TYPES {
+  TEST = "TEST", // Test event issued through dashboard
+  INITIAL_PURCHASE = "INITIAL_PURCHASE", // New subscription purchased
+  RENEWAL = "RENEWAL", // Subscription renewed or lapsed user resubscribed
+  CANCELLATION = "CANCELLATION", // Subscription cancelled or refunded
+  UNCANCELLATION = "UNCANCELLATION", // Non-expired cancelled subscription re-enabled
+  NON_RENEWING_PURCHASE = "NON_RENEWING_PURCHASE", // Purchase that won't auto-renew
+  SUBSCRIPTION_PAUSED = "SUBSCRIPTION_PAUSED", // Subscription set to pause at end of period (Play Store only)
+  EXPIRATION = "EXPIRATION", // Subscription expired, access should be removed
+  BILLING_ISSUE = "BILLING_ISSUE", // Problem charging subscriber
+  PRODUCT_CHANGE = "PRODUCT_CHANGE", // Subscriber changed products
+  TRANSFER = "TRANSFER", // Subscription transferred between users
+  SUBSCRIBER_ALIAS = "SUBSCRIBER_ALIAS", // New alias created for subscriber
+}
+
 export type RevenueCatEventType =
-  | "TEST" // Test event issued through dashboard
-  | "INITIAL_PURCHASE" // New subscription purchased
-  | "RENEWAL" // Subscription renewed or lapsed user resubscribed
-  | "CANCELLATION" // Subscription cancelled or refunded
-  | "UNCANCELLATION" // Non-expired cancelled subscription re-enabled
-  | "NON_RENEWING_PURCHASE" // Purchase that won't auto-renew
-  | "SUBSCRIPTION_PAUSED" // Subscription set to pause at end of period (Play Store only)
-  | "EXPIRATION" // Subscription expired, access should be removed
-  | "BILLING_ISSUE" // Problem charging subscriber
-  | "PRODUCT_CHANGE" // Subscriber changed products
-  | "TRANSFER" // Subscription transferred between users
-  | "SUBSCRIBER_ALIAS"; // New alias created for subscriber
+  (typeof REVENUE_CAT_EVENT_TYPES)[keyof typeof REVENUE_CAT_EVENT_TYPES];
+
+export enum REVENUE_CAT_CANCEL_REASONS {
+  UNSUBSCRIBE = "UNSUBSCRIBE", // User cancelled voluntarily
+  BILLING_ERROR = "BILLING_ERROR", // Payment method failed
+  DEVELOPER_INITIATED = "DEVELOPER_INITIATED", // Developer cancelled subscription
+  PRICE_INCREASE = "PRICE_INCREASE", // User didn't agree to price increase
+  CUSTOMER_SUPPORT = "CUSTOMER_SUPPORT", // Refund from support
+  UNKNOWN = "UNKNOWN", // Apple didn't provide reason
+  SUBSCRIPTION_PAUSED = "SUBSCRIPTION_PAUSED", // Subscription paused (Play Store)
+}
 
 /**
  * Cancellation and expiration reasons
  * @see https://www.revenuecat.com/docs/integrations/webhooks/event-types-and-fields#cancellation-and-expiration-reasons
  */
 export type RevenueCatCancelReason =
-  | "UNSUBSCRIBE" // User cancelled voluntarily
-  | "BILLING_ERROR" // Payment method failed
-  | "DEVELOPER_INITIATED" // Developer cancelled subscription
-  | "PRICE_INCREASE" // User didn't agree to price increase
-  | "CUSTOMER_SUPPORT" // Refund from support
-  | "UNKNOWN" // Apple didn't provide reason
-  | "SUBSCRIPTION_PAUSED"; // Subscription paused (Play Store)
+  (typeof REVENUE_CAT_CANCEL_REASONS)[keyof typeof REVENUE_CAT_CANCEL_REASONS];
+
+export enum REVENUE_CAT_PERIOD_TYPES {
+  TRIAL = "TRIAL", // Trial period
+  INTRO = "INTRO", // Introductory period
+  NORMAL = "NORMAL", // Normal period
+  PROMOTIONAL = "PROMOTIONAL", // Promotion period
+}
 
 /**
  * Period type for the subscription
  */
-export type RevenueCatPeriodType = "TRIAL" | "INTRO" | "NORMAL" | "PROMOTIONAL";
+export type RevenueCatPeriodType =
+  (typeof REVENUE_CAT_PERIOD_TYPES)[keyof typeof REVENUE_CAT_PERIOD_TYPES];
 
-/**
- * Store where the purchase was made
- */
+export enum REVENUE_CAT_STORES {
+  APP_STORE = "APP_STORE", // App Store
+  MAC_APP_STORE = "MAC_APP_STORE", // Mac App Store
+  PLAY_STORE = "PLAY_STORE", // Play Store
+  AMAZON = "AMAZON", // Amazon
+  STRIPE = "STRIPE", // Stripe
+  RC_BILLING = "RC_BILLING", // RevenueCat billing
+  PROMOTIONAL = "PROMOTIONAL", // Promotion period
+  ROKU = "ROKU", // Roku
+}
+
 export type RevenueCatStore =
-  | "APP_STORE"
-  | "MAC_APP_STORE"
-  | "PLAY_STORE"
-  | "AMAZON"
-  | "STRIPE"
-  | "RC_BILLING"
-  | "PROMOTIONAL"
-  | "ROKU";
+  (typeof REVENUE_CAT_STORES)[keyof typeof REVENUE_CAT_STORES];
 
 /**
  * Environment (sandbox or production)

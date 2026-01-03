@@ -308,7 +308,13 @@ export class WorkoutController extends Controller {
       await subscriptionService.getEffectiveAccessLevel(userId);
     const estimatedTokens = (request as any)?.estimatedTokens || 2000;
 
-    if (accessLevel !== AccessLevel.UNLIMITED) {
+    // Block immediately if access is blocked
+    if (accessLevel === AccessLevel.BLOCKED) {
+      throw new Error("Subscription required for new workout generation");
+    }
+
+    // Only check trial limits for TRIAL users
+    if (accessLevel === AccessLevel.TRIAL) {
       const limitCheck = await subscriptionService.checkTrialLimits(
         userId,
         "generation",
@@ -341,7 +347,8 @@ export class WorkoutController extends Controller {
     });
 
     // Increment usage after successful generation with real token count
-    if (accessLevel !== AccessLevel.UNLIMITED) {
+    // Only increment for TRIAL users (UNLIMITED users don't need tracking)
+    if (accessLevel === AccessLevel.TRIAL) {
       await subscriptionService.incrementTrialUsage(
         userId,
         "generation",
@@ -394,7 +401,13 @@ export class WorkoutController extends Controller {
       await subscriptionService.getEffectiveAccessLevel(userId);
     const estimatedTokens = (request as any)?.estimatedTokens || 2000;
 
-    if (accessLevel !== AccessLevel.UNLIMITED) {
+    // Block immediately if access is blocked
+    if (accessLevel === AccessLevel.BLOCKED) {
+      throw new Error("Subscription required for workout regeneration");
+    }
+
+    // Only check trial limits for TRIAL users
+    if (accessLevel === AccessLevel.TRIAL) {
       const limitCheck = await subscriptionService.checkTrialLimits(
         userId,
         "regeneration",
@@ -428,7 +441,8 @@ export class WorkoutController extends Controller {
     });
 
     // Increment usage after successful regeneration with real token count
-    if (accessLevel !== AccessLevel.UNLIMITED) {
+    // Only increment for TRIAL users (UNLIMITED users don't need tracking)
+    if (accessLevel === AccessLevel.TRIAL) {
       await subscriptionService.incrementTrialUsage(
         userId,
         "regeneration",
@@ -592,7 +606,13 @@ export class WorkoutController extends Controller {
         await subscriptionService.getEffectiveAccessLevel(userId);
       const estimatedTokens = (request as any)?.estimatedTokens || 2000;
 
-      if (accessLevel !== AccessLevel.UNLIMITED) {
+      // Block immediately if access is blocked
+      if (accessLevel === AccessLevel.BLOCKED) {
+        throw new Error("Subscription required for daily workout regeneration");
+      }
+
+      // Only check trial limits for TRIAL users
+      if (accessLevel === AccessLevel.TRIAL) {
         const limitCheck = await subscriptionService.checkTrialLimits(
           userId,
           "regeneration",
@@ -620,7 +640,9 @@ export class WorkoutController extends Controller {
       const actualTokensUsed = tokenUsage?.totalTokens || estimatedTokens;
 
       // Increment usage after successful regeneration with real token count
-      if (accessLevel !== AccessLevel.UNLIMITED) {
+      // Increment usage after successful regeneration with real token count
+      // Only increment for TRIAL users (UNLIMITED users don't need tracking)
+      if (accessLevel === AccessLevel.TRIAL) {
         await subscriptionService.incrementTrialUsage(
           userId,
           "regeneration",

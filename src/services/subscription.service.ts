@@ -69,6 +69,9 @@ export class SubscriptionService extends BaseService {
           .values(trialData)
           .returning();
 
+        // Create trial usage record proactively for consistency
+        await this.getTrialUsage(userId);
+
         logger.info("Trial subscription created", {
           operation: "createTrialSubscription",
           metadata: { userId, subscriptionId: subscription.id },
