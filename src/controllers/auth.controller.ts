@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Post,
   Route,
@@ -698,6 +699,54 @@ export class AuthController extends Controller {
       return {
         success: false,
         error: "Failed to logout",
+      };
+    }
+  }
+
+  /**
+   * Delete user account
+   * Marks the account as inactive and appends _deleted to email to prevent login
+   * @param request Authenticated request
+   */
+  @Delete("delete-account")
+  @Security("bearerAuth")
+  @Response<ApiResponse>(401, "Unauthorized")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async deleteAccount(@Request() request: any): Promise<ApiResponse> {
+    const userId = request.userId;
+
+    if (!userId) {
+      return {
+        success: false,
+        error: "User authentication required",
+      };
+    }
+
+    try {
+      await userService.deleteAccount(userId);
+
+      // Revoke all refresh tokens for the user
+      await refreshTokenService.revokeAllUserTokens(userId);
+
+      logger.info("User account deleted successfully", {
+        operation: "deleteAccount",
+        metadata: { userId },
+      });
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      logger.error("Failed to delete account", error as Error, {
+        operation: "deleteAccount",
+        metadata: { userId },
+      });
+
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Failed to delete account",
       };
     }
   }

@@ -100,15 +100,20 @@ router.post("/verify", async (req, res) => {
 router.get("/waiver-status", async (req, res) => {
   try {
     // Authenticate the request
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as any, "bearerAuth");
 
-    const response = await controller.getWaiverStatus(req);
+    const response = await controller.getWaiverStatus(req as any);
     res.json(response);
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       res.status(401).json({ success: false, error: "Unauthorized" });
-    } else if (error instanceof Error && error.message === "Invalid or expired token") {
-      res.status(401).json({ success: false, error: "Invalid or expired token" });
+    } else if (
+      error instanceof Error &&
+      error.message === "Invalid or expired token"
+    ) {
+      res
+        .status(401)
+        .json({ success: false, error: "Invalid or expired token" });
     } else if (error instanceof ZodError) {
       res.status(400).json({ success: false, error: "Invalid request data" });
     } else if (error instanceof Error) {
@@ -123,15 +128,20 @@ router.get("/waiver-status", async (req, res) => {
 router.post("/accept-waiver", async (req, res) => {
   try {
     // Authenticate the request
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as any, "bearerAuth");
 
-    const response = await controller.acceptWaiver(req, req.body);
+    const response = await controller.acceptWaiver(req as any, req.body);
     res.json(response);
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       res.status(401).json({ success: false, error: "Unauthorized" });
-    } else if (error instanceof Error && error.message === "Invalid or expired token") {
-      res.status(401).json({ success: false, error: "Invalid or expired token" });
+    } else if (
+      error instanceof Error &&
+      error.message === "Invalid or expired token"
+    ) {
+      res
+        .status(401)
+        .json({ success: false, error: "Invalid or expired token" });
     } else if (error instanceof ZodError) {
       res.status(400).json({ success: false, error: "Invalid request data" });
     } else if (error instanceof Error) {
@@ -176,6 +186,34 @@ router.post("/logout", async (req, res) => {
     res.json(response);
   } catch (error) {
     if (error instanceof ZodError) {
+      res.status(400).json({ success: false, error: "Invalid request data" });
+    } else if (error instanceof Error) {
+      res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Delete account endpoint (authenticated)
+router.delete("/delete-account", async (req, res) => {
+  try {
+    // Authenticate the request
+    await expressAuthentication(req as any, "bearerAuth");
+
+    const response = await controller.deleteAccount(req as any);
+    res.json(response);
+  } catch (error) {
+    if (error instanceof Error && error.message === "Unauthorized") {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+    } else if (
+      error instanceof Error &&
+      error.message === "Invalid or expired token"
+    ) {
+      res
+        .status(401)
+        .json({ success: false, error: "Invalid or expired token" });
+    } else if (error instanceof ZodError) {
       res.status(400).json({ success: false, error: "Invalid request data" });
     } else if (error instanceof Error) {
       res.status(400).json({ success: false, error: error.message });

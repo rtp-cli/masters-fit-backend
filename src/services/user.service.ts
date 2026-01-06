@@ -41,6 +41,8 @@ export class UserService extends BaseService {
     const result = await this.db
       .update(users)
       .set({
+        ...(data.email !== undefined &&
+          data.email !== null && { email: data.email }),
         ...(data.name !== undefined &&
           data.name !== null && { name: data.name }),
         ...(data.needsOnboarding !== undefined &&
@@ -56,6 +58,10 @@ export class UserService extends BaseService {
         ...(data.waiverVersion !== undefined && {
           waiverVersion: data.waiverVersion,
         }),
+        ...(data.isActive !== undefined &&
+          data.isActive !== null && {
+            isActive: data.isActive,
+          }),
       })
       .where(this.eq(users.id, id))
       .returning();
@@ -81,6 +87,10 @@ export class UserService extends BaseService {
         ...(data.waiverVersion !== undefined && {
           waiverVersion: data.waiverVersion,
         }),
+        ...(data.isActive !== undefined &&
+          data.isActive !== null && {
+            isActive: data.isActive,
+          }),
       })
       .where(this.eq(users.email, data.email!))
       .returning();
@@ -128,6 +138,26 @@ export class UserService extends BaseService {
 
   async hasAcceptedCurrentWaiver(userId: number): Promise<boolean> {
     return this.hasAcceptedWaiver(userId, CURRENT_WAIVER_VERSION);
+  }
+
+  async deleteAccount(userId: number): Promise<User> {
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Append _deleted to email to prevent login
+    const deletedEmail = `${user.email}_deleted`;
+
+    const result = await this.db
+      .update(users)
+      .set({
+        email: deletedEmail,
+        isActive: false,
+      })
+      .where(this.eq(users.id, userId))
+      .returning();
+    return result[0];
   }
 }
 
