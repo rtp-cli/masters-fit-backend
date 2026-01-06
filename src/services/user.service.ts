@@ -146,8 +146,9 @@ export class UserService extends BaseService {
       throw new Error("User not found");
     }
 
-    // Append _deleted to email to prevent login
-    const deletedEmail = `${user.email}_deleted`;
+    // Append _deleted with timestamp to email to prevent login and ensure uniqueness
+    const timestamp = Date.now();
+    const deletedEmail = `${user.email}_deleted_${timestamp}`;
 
     const result = await this.db
       .update(users)
