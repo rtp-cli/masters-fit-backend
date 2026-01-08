@@ -6,59 +6,85 @@ import {
   WorkoutGenerationJobResult,
 } from "@/models/jobs.schema";
 
-// Build Redis base options from URL
-function parseRedisUrl(): any {
+// Build robust Redis options for Bull (ioredis under the hood)
+function buildBullRedisOptions(): any {
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
-  const url = new URL(redisUrl);
-  const isTls = url.protocol === "rediss:";
 
-  const base: any = {
-    host: url.hostname,
-    port: Number(url.port || 6379),
-    db:
-      url.pathname && url.pathname !== "/"
-        ? Number(url.pathname.slice(1))
-        : undefined,
-    username: url.username || undefined,
-    password: url.password || undefined,
-  };
+  try {
+    const url = new URL(redisUrl);
+    const isTls = url.protocol === "rediss:";
 
-  if (isTls) {
-    base.tls = {
-      rejectUnauthorized:
-        process.env.REDIS_TLS_REJECT_UNAUTHORIZED === "true",
+    const base: any = {
+      host: url.hostname,
+      port: Number(url.port || 6379),
+      db:
+        url.pathname && url.pathname !== "/"
+          ? Number(url.pathname.slice(1))
+          : undefined,
+      username: url.username || undefined,
+      password: url.password || undefined,
     };
+
+    if (isTls) {
+      base.tls = {
+        // In dev or some managed Redis providers, cert chains may be self-signed
+        rejectUnauthorized:
+          process.env.REDIS_TLS_REJECT_UNAUTHORIZED === "true",
+      };
+    }
+
+    // Return a structure Bull understands and allows customizing clients
+    return {
+      // Minimal redis options kept here for Bull's metadata
+      host: base.host,
+      port: base.port,
+      db: base.db,
+      username: base.username,
+      password: base.password,
+      tls: base.tls,
+      // Use factory to build per-client instances with safe flags
+      createClient: (type: string) => {
+        const common: any = {
+          ...base,
+          // Backoff for reconnects
+          retryStrategy: (times: number) => Math.min(1000 + times * 500, 30000),
+          reconnectOnError: (err: any) => {
+            const msg = err?.message || "";
+            return (
+              err?.code === "ECONNRESET" ||
+              msg.includes("ECONNRESET") ||
+              msg.includes("READONLY")
+            );
+          },
+        };
+
+        if (type === "subscriber" || type === "bclient") {
+          // Important: disable ready check and omit maxRetriesPerRequest for these
+          return new IORedis({
+            ...common,
+            enableReadyCheck: false,
+          });
+        }
+
+        // Main client can keep relaxed per-request retry settings
+        return new IORedis({
+          ...common,
+          // Avoid request queue build-up on disconnects for normal client only
+          maxRetriesPerRequest: null,
+        });
+      },
+    };
+  } catch {
+    // Fallback to letting Bull parse the string itself
+    return redisUrl;
   }
-
-  return base;
-}
-
-// Create Redis client factory for Bull - MUST be at top level of queue options
-function createBullRedisClient(type: string): IORedis {
-  const base = parseRedisUrl();
-
-  const options: any = {
-    ...base,
-    maxRetriesPerRequest: null, // Critical for Bull - prevents request timeout
-    enableReadyCheck: false,
-    retryStrategy: (times: number) => Math.min(1000 + times * 500, 30000),
-  };
-
-  const client = new IORedis(options);
-
-  client.on('error', (err) => {
-    logger.error(`Queue Redis ${type} client error`, err);
-  });
-
-  return client;
 }
 
 // Create the workout generation queue
-// IMPORTANT: createClient MUST be at top level, not inside redis options
 export const workoutGenerationQueue = new Queue<WorkoutGenerationJobData>(
   "workout generation",
   {
-    createClient: createBullRedisClient,
+    redis: buildBullRedisOptions(),
     defaultJobOptions: {
       removeOnComplete: 50, // Keep last 50 completed jobs
       removeOnFail: 20, // Keep last 20 failed jobs
@@ -68,16 +94,6 @@ export const workoutGenerationQueue = new Queue<WorkoutGenerationJobData>(
         delay: 5000, // Start with 5 second delay, then exponential backoff
       },
     },
-    settings: {
-      // How often to check for stalled jobs (ms)
-      stalledInterval: 30000,
-      // Max stall count before job is considered failed
-      maxStalledCount: 2,
-      // Lock duration for processing (5 minutes for long LLM calls)
-      lockDuration: 300000,
-      // How often to renew the lock
-      lockRenewTime: 150000,
-    },
   }
 );
 
@@ -85,6 +101,9 @@ export const workoutGenerationQueue = new Queue<WorkoutGenerationJobData>(
 workoutGenerationQueue.on("ready", () => {
   logger.info("Workout generation queue is ready", {
     operation: "workoutQueue",
+    metadata: {
+      queueName: "workout generation",
+    },
   });
 });
 
@@ -97,61 +116,24 @@ workoutGenerationQueue.on("error", (error) => {
   });
 });
 
-// Monitor for connection issues
-workoutGenerationQueue.on("paused", () => {
-  logger.warn("Queue paused", { operation: "workoutQueue" });
-});
-
-workoutGenerationQueue.on("resumed", () => {
-  logger.info("Queue resumed", { operation: "workoutQueue" });
-});
-
-// Keep-alive and job pickup workaround for local Docker Redis
-setInterval(async () => {
-  try {
-    const client = await workoutGenerationQueue.client;
-    if (client.status !== 'ready') {
-      logger.warn("Queue Redis client not ready", { status: client.status });
-    }
-    await client.ping();
-
-    // Check for waiting jobs that aren't being picked up (Docker Redis workaround)
-    const waitingCount = await workoutGenerationQueue.getWaitingCount();
-    const activeCount = await workoutGenerationQueue.getActiveCount();
-
-    if (waitingCount > 0 && activeCount === 0) {
-      await workoutGenerationQueue.resume();
-    }
-  } catch (err) {
-    logger.error("Queue health check failed", err as Error);
-  }
-}, 10000);
-
-workoutGenerationQueue.on("waiting", async (jobId) => {
-  logger.info("Job waiting in queue", {
+workoutGenerationQueue.on("waiting", (jobId) => {
+  logger.info("Job waiting in workout generation queue", {
     operation: "workoutQueue",
-    metadata: { jobId },
+    metadata: {
+      jobId,
+      status: "waiting",
+    },
   });
-
-  // Kick queue to pick up job (Docker Redis workaround)
-  setTimeout(async () => {
-    try {
-      const waitingCount = await workoutGenerationQueue.getWaitingCount();
-      const activeCount = await workoutGenerationQueue.getActiveCount();
-      if (waitingCount > 0 && activeCount < 10) {
-        await workoutGenerationQueue.resume();
-      }
-    } catch {
-      // Ignore
-    }
-  }, 1000);
 });
 
 workoutGenerationQueue.on("active", (job) => {
-  logger.info("Job active in queue", {
+  logger.info("Job started processing in workout generation queue", {
     operation: "workoutQueue",
     userId: (job.data as any).userId,
-    metadata: { jobId: job.id, jobName: job.name },
+    metadata: {
+      bullJobId: job.id,
+      status: "active",
+    },
   });
 });
 
