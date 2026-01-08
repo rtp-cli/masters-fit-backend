@@ -1,6 +1,5 @@
-import { ChatAnthropic } from "@langchain/anthropic";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { ChatMessageHistory } from "langchain/stores/message/in_memory";
+import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import {
   SystemMessage,
   HumanMessage,
@@ -21,7 +20,7 @@ export class WorkoutAgentService {
   private llm: BaseChatModel;
   private currentProvider: AIProvider;
   private currentModel: string;
-  private messageHistories: Map<string, ChatMessageHistory> = new Map();
+  private messageHistories: Map<string, InMemoryChatMessageHistory> = new Map();
   private activeGenerations: Map<string, AbortController> = new Map();
 
   constructor(provider: AIProvider, model: string) {
@@ -264,7 +263,7 @@ Please generate the workout now, addressing this feedback while following all sy
 
       // Get or create message history for this thread
       if (!this.messageHistories.has(threadId)) {
-        this.messageHistories.set(threadId, new ChatMessageHistory());
+        this.messageHistories.set(threadId, new InMemoryChatMessageHistory());
       }
 
       const messageHistory = this.messageHistories.get(threadId)!;
@@ -286,13 +285,6 @@ Please generate the workout now, addressing this feedback while following all sy
 
       // Get existing messages from history
       const existingMessages = await messageHistory.getMessages();
-
-      logger.info("Calling LLM with exercise context for workout generation", {
-        userId,
-        threadId,
-        messageCount: existingMessages.length,
-        operation: "regenerateWorkout",
-      });
 
       // Combine all messages for single LLM call
       const messages = [systemMessage, ...existingMessages, userMessage];

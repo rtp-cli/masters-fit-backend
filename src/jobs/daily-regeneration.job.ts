@@ -16,7 +16,7 @@ import { emitProgress } from "@/utils/websocket-progress.utils";
 export async function processDailyRegenerationJob(
   job: Job<DailyRegenerationJobData & { userId: number; jobId: number }>
 ): Promise<DailyRegenerationJobResult> {
-  logger.info("Daily regeneration job picked up by worker", {
+  logger.info("Daily regeneration job started", {
     operation: "processDailyRegenerationJob",
     bullJobId: job.id,
     jobId: (job.data as any).jobId,
@@ -53,31 +53,13 @@ export async function processDailyRegenerationJob(
 
   try {
     // Update job status to processing
-    logger.info("Updating job status to PROCESSING", {
-      operation: "processDailyRegenerationJob",
-      jobId,
-      userId,
-      planDayId,
-    });
-
     try {
       await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 10);
-      logger.info("Job status updated to PROCESSING successfully", {
+    } catch (dbError) {
+      logger.error("Failed to update job status to PROCESSING", dbError as Error, {
         operation: "processDailyRegenerationJob",
         jobId,
       });
-    } catch (dbError) {
-      logger.error(
-        "Failed to update job status to PROCESSING",
-        dbError as Error,
-        {
-          operation: "processDailyRegenerationJob",
-          jobId,
-          userId,
-          planDayId,
-        }
-      );
-      // Continue processing even if database update fails
     }
 
     // Emit initial progress

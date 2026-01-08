@@ -47,19 +47,32 @@ async function initializeServices() {
     await initializeRedis();
     logger.info('Redis initialized successfully');
 
-    // Set up queue processors
+    // Clean up stuck jobs from previous run
+    const activeJobs = await workoutGenerationQueue.getActive();
+    if (activeJobs.length > 0) {
+      logger.warn(`Cleaning up ${activeJobs.length} stuck jobs from previous run`);
+      for (const job of activeJobs) {
+        await job.moveToFailed({ message: 'Cleaned up stuck job on server restart' }, true);
+      }
+    }
+    await workoutGenerationQueue.clean(0, 'failed');
+
+    // Register queue processors
     workoutGenerationQueue.process('generate-workout', 10, processWorkoutGenerationJob);
     workoutGenerationQueue.process('regenerate-workout', 10, processWorkoutRegenerationJob);
     workoutGenerationQueue.process('regenerate-daily-workout', 10, processDailyRegenerationJob);
+
+    // Ensure queue is running
+    await workoutGenerationQueue.resume();
+
     logger.info('Workout generation queue processors started', {
       operation: 'initializeServices',
       metadata: {
         processors: ['generate-workout', 'regenerate-workout', 'regenerate-daily-workout'],
         concurrency: 10,
-        queueName: 'workout generation'
       }
     });
-    
+
   } catch (error) {
     logger.error('Failed to initialize services', error as Error);
     process.exit(1);
