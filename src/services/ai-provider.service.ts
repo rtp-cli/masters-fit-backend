@@ -1,6 +1,8 @@
 import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatDeepSeek } from "@langchain/deepseek";
+import { ChatGroq } from "@langchain/groq";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import {
   AIProvider,
@@ -75,7 +77,6 @@ export class AIProviderService {
 
 
   public createLLMInstance(provider: AIProvider, model: string): BaseChatModel {
-    // Validate input parameters
     if (!provider) {
       throw new Error("Provider is required");
     }
@@ -127,7 +128,7 @@ export class AIProviderService {
     switch (provider) {
       case AIProvider.ANTHROPIC:
         return new ChatAnthropic({
-          modelName: model,
+          model: model,
           anthropicApiKey: apiKey,
           ...commonConfig,
           temperature: 0.1,
@@ -142,7 +143,7 @@ export class AIProviderService {
         const isGPT5Model = model.startsWith('gpt-5');
 
         const openAIConfig: any = {
-          modelName: model,
+          model: model,
           openAIApiKey: apiKey,
           ...commonConfig,
           // Set temperature based on model type
@@ -168,12 +169,51 @@ export class AIProviderService {
         return new ChatOpenAI(openAIConfig);
 
       case AIProvider.GOOGLE:
-        return new ChatGoogleGenerativeAI({
-          modelName: model,
+        // Check if it's a Gemini 3 model that supports thinking configuration
+        const isGemini3Model = model.startsWith('gemini-3');
+
+        const googleConfig: any = {
+          model: model,
+          apiKey: apiKey,
+          ...commonConfig,
+          maxOutputTokens: modelConfig.maxTokens,
+        };
+
+        if (isGemini3Model) {
+          // Gemini 3 models default to high thinking which uses ~30k extra tokens
+          // Set to "low" for better token efficiency while maintaining quality
+          googleConfig.temperature = 1; // Gemini 3 recommends temperature 1 with thinking
+          googleConfig.thinkingConfig = {
+            thinkingLevel: "low",
+          };
+          logger.info(`Using Gemini 3 configuration for model: ${model}`, {
+            thinkingLevel: "low",
+            temperature: 1,
+            maxOutputTokens: modelConfig.maxTokens
+          });
+        } else {
+          // Gemini 2.x models use standard temperature
+          googleConfig.temperature = 0.1;
+        }
+
+        return new ChatGoogleGenerativeAI(googleConfig);
+
+      case AIProvider.DEEPSEEK:
+        return new ChatDeepSeek({
+          model: model,
           apiKey: apiKey,
           ...commonConfig,
           temperature: 0.1,
-          maxOutputTokens: modelConfig.maxTokens,
+          maxTokens: modelConfig.maxTokens,
+        });
+
+      case AIProvider.GROQ:
+        return new ChatGroq({
+          model: model,
+          apiKey: apiKey,
+          ...commonConfig,
+          temperature: 0.1,
+          maxTokens: modelConfig.maxTokens,
         });
 
       default:

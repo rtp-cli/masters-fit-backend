@@ -2,6 +2,8 @@ export enum AIProvider {
   ANTHROPIC = "anthropic",
   OPENAI = "openai",
   GOOGLE = "google",
+  DEEPSEEK = "deepseek",
+  GROQ = "groq",
 }
 
 export interface ModelConfig {
@@ -45,17 +47,9 @@ export const ANTHROPIC_MODELS: ModelConfig[] = [
 // OpenAI Models
 export const OPENAI_MODELS: ModelConfig[] = [
   {
-    id: "gpt-4.1",
-    name: "gpt-4.1",
-    displayName: "GPT-4.1",
-    maxTokens: 30000,
-    costTier: "medium",
-    description: "Latest stable model with improved coding and 1M context",
-  },
-  {
-    id: "gpt-5",
-    name: "gpt-5",
-    displayName: "GPT-5",
+    id: "gpt-5.2-2025-12-11",
+    name: "gpt-5.2-2025-12-11",
+    displayName: "GPT-5.2",
     maxTokens: 30000,
     costTier: "high",
     description: "OpenAI's flagship model with advanced reasoning",
@@ -96,6 +90,70 @@ export const GOOGLE_MODELS: ModelConfig[] = [
     costTier: "high",
     description: "Advanced reasoning for complex tasks",
   },
+  {
+    id: "gemini-3-pro-preview",
+    name: "gemini-3-pro-preview",
+    displayName: "Gemini 3 Pro",
+    maxTokens: 30000,
+    costTier: "high",
+    description: "Advanced reasoning for complex tasks",
+  },
+  {
+    id: "gemini-3-flash-preview",
+    name: "gemini-3-flash-preview",
+    displayName: "Gemini 3 Flash",
+    maxTokens: 30000,
+    costTier: "medium",
+    description: "Best price-performance balance",
+  },
+];
+
+// DeepSeek Models
+export const DEEPSEEK_MODELS: ModelConfig[] = [
+  {
+    id: "deepseek-chat",
+    name: "deepseek-chat",
+    displayName: "DeepSeek V3.2",
+    maxTokens: 30000,
+    costTier: "low",
+    description: "Cost-effective general purpose model",
+  },
+  {
+    id: "deepseek-reasoner",
+    name: "deepseek-reasoner",
+    displayName: "DeepSeek Reasoner",
+    maxTokens: 30000,
+    costTier: "medium",
+    description: "Advanced reasoning with thinking mode",
+  },
+];
+
+// Groq Models
+export const GROQ_MODELS: ModelConfig[] = [
+  {
+    id: "llama-3.3-70b-versatile",
+    name: "llama-3.3-70b-versatile",
+    displayName: "Llama 3.3 70B",
+    maxTokens: 30000,
+    costTier: "low",
+    description: "Ultra-fast inference, versatile",
+  },
+  {
+    id: "llama-3.1-8b-instant",
+    name: "llama-3.1-8b-instant",
+    displayName: "Llama 3.1 8B Instant",
+    maxTokens: 30000,
+    costTier: "low",
+    description: "Fastest inference, smaller model",
+  },
+  {
+    id: "mixtral-8x7b-32768",
+    name: "mixtral-8x7b-32768",
+    displayName: "Mixtral 8x7B",
+    maxTokens: 30000,
+    costTier: "low",
+    description: "MoE model, 32k context",
+  },
 ];
 
 // Provider Configurations
@@ -113,7 +171,7 @@ export const AI_PROVIDERS: Record<AIProvider, ProviderConfig> = {
     name: "openai",
     displayName: "OpenAI",
     models: OPENAI_MODELS,
-    defaultModel: "gpt-5",
+    defaultModel: "gpt-5-mini",
     envKeyName: "OPENAI_API_KEY",
   },
   [AIProvider.GOOGLE]: {
@@ -121,8 +179,24 @@ export const AI_PROVIDERS: Record<AIProvider, ProviderConfig> = {
     name: "google",
     displayName: "Google",
     models: GOOGLE_MODELS,
-    defaultModel: "gemini-2.5-flash",
+    defaultModel: "gemini-3-flash-preview",
     envKeyName: "GOOGLE_API_KEY",
+  },
+  [AIProvider.DEEPSEEK]: {
+    id: AIProvider.DEEPSEEK,
+    name: "deepseek",
+    displayName: "DeepSeek",
+    models: DEEPSEEK_MODELS,
+    defaultModel: "deepseek-chat",
+    envKeyName: "DEEPSEEK_API_KEY",
+  },
+  [AIProvider.GROQ]: {
+    id: AIProvider.GROQ,
+    name: "groq",
+    displayName: "Groq",
+    models: GROQ_MODELS,
+    defaultModel: "llama-3.3-70b-versatile",
+    envKeyName: "GROQ_API_KEY",
   },
 };
 

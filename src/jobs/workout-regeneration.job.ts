@@ -19,6 +19,43 @@ import {
 import { emitProgress } from "@/utils/websocket-progress.utils";
 import { AccessLevel } from "@/constants";
 
+// Check if error is a rate limit error (429) that shouldn't be retried
+function isRateLimitError(error: Error): boolean {
+  const message = error.message?.toLowerCase() || '';
+  const name = error.name?.toLowerCase() || '';
+
+  // Check for common rate limit indicators
+  return (
+    message.includes('429') ||
+    message.includes('rate limit') ||
+    message.includes('rate_limit') ||
+    message.includes('too many requests') ||
+    message.includes('quota exceeded') ||
+    message.includes('resource exhausted') ||
+    name.includes('ratelimit')
+  );
+}
+
+// Check if error is non-retryable (rate limit, auth errors, etc.)
+function isNonRetryableError(error: Error): boolean {
+  const message = error.message?.toLowerCase() || '';
+
+  // Rate limit errors
+  if (isRateLimitError(error)) return true;
+
+  // Authentication/authorization errors
+  if (message.includes('401') || message.includes('403') || message.includes('unauthorized') || message.includes('forbidden')) {
+    return true;
+  }
+
+  // Invalid API key
+  if (message.includes('invalid api key') || message.includes('invalid_api_key')) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function processWorkoutRegenerationJob(
   job: Job<WorkoutRegenerationJobData & { userId: number; jobId: number }>
 ): Promise<WorkoutRegenerationJobResult> {
@@ -216,6 +253,7 @@ export async function processWorkoutRegenerationJob(
     // Bull queue attemptsMade: 1=first attempt, 2=first retry, 3=second retry (final)
     const maxAttempts = job.opts.attempts || 3;
     const isLastAttempt = job.attemptsMade === maxAttempts;
+    const shouldNotRetry = isNonRetryableError(error as Error);
 
     logger.error("Workout regeneration job failed", error as Error, {
       operation: "workoutRegenerationJob",
@@ -228,11 +266,21 @@ export async function processWorkoutRegenerationJob(
         attemptsMade: job.attemptsMade,
         maxAttempts: job.opts.attempts || 3,
         isLastAttempt,
+        shouldNotRetry,
+        isRateLimitError: isRateLimitError(error as Error),
       },
     });
 
-    // Only update to failed status and send notifications on the final attempt
-    if (isLastAttempt) {
+    // Fail immediately on non-retryable errors (rate limits, auth errors) or final attempt
+    if (isLastAttempt || shouldNotRetry) {
+      if (shouldNotRetry) {
+        logger.info("Non-retryable error detected, failing immediately", {
+          operation: "workoutRegenerationJob",
+          jobId: job.id,
+          userId,
+          errorType: isRateLimitError(error as Error) ? "rate_limit" : "non_retryable",
+        });
+      }
       // Get user and profile data for tracking
       const user = await userService.getUser(userId);
       const userProfile = await profileService.getProfileByUserId(userId);
