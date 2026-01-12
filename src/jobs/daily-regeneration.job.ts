@@ -6,12 +6,18 @@ import { notificationService } from "@/services/notification.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
 import { userService } from "@/services/user.service";
 import { profileService } from "@/services/profile.service";
+import { subscriptionService } from "@/services/subscription.service";
+import {
+  getLastTokenUsage,
+  clearLastTokenUsage,
+} from "@/services/prompts.service";
 import {
   DailyRegenerationJobData,
   DailyRegenerationJobResult,
   JobStatus,
 } from "@/models/jobs.schema";
 import { emitProgress } from "@/utils/websocket-progress.utils";
+import { AccessLevel } from "@/constants";
 
 // Check if error is a rate limit error (429) that shouldn't be retried
 function isRateLimitError(error: Error): boolean {
@@ -55,7 +61,7 @@ export async function processDailyRegenerationJob(
 ): Promise<DailyRegenerationJobResult> {
   logger.info("Daily regeneration job started", {
     operation: "processDailyRegenerationJob",
-    bullJobId: job.id,
+    bullJobId: job.id.toString(),
     jobId: (job.data as any).jobId,
     userId: (job.data as any).userId,
     planDayId: (job.data as any).planDayId,
@@ -78,7 +84,7 @@ export async function processDailyRegenerationJob(
 
   logger.info("Starting daily workout regeneration job processing", {
     operation: "dailyRegenerationJob",
-    jobId: job.id,
+    jobId: jobId,
     userId,
     planDayId,
     metadata: {
@@ -102,6 +108,63 @@ export async function processDailyRegenerationJob(
     // Emit initial progress
     emitProgress(userId, 10);
 
+    // Check subscription limits before regeneration
+    const accessLevel =
+      await subscriptionService.getEffectiveAccessLevel(userId);
+    const estimatedTokens = (job.data as any)?.estimatedTokens || 2000; // Default estimate
+
+    if (accessLevel !== AccessLevel.UNLIMITED) {
+      const limitCheck = await subscriptionService.checkTrialLimits(
+        userId,
+        "regeneration",
+        estimatedTokens,
+        "daily"
+      );
+      if (!limitCheck.allowed) {
+        const errorMessage =
+          limitCheck.reason || "Daily regeneration limit exceeded";
+        logger.warn(
+          "Daily workout regeneration blocked by subscription limits",
+          {
+            operation: "dailyRegenerationJob",
+            jobId: jobId,
+            userId,
+            planDayId,
+            reason: errorMessage,
+            limits: limitCheck.limits,
+          }
+        );
+
+        // Update job status to failed with paywall reason
+        await jobsService.updateJobStatus(
+          jobId,
+          JobStatus.FAILED,
+          0,
+          undefined,
+          undefined,
+          errorMessage
+        );
+
+        emitProgress(userId, 0, false, errorMessage);
+
+        // Send error notification
+        await notificationService.sendWorkoutErrorNotification(
+          userId,
+          `Daily workout regeneration failed: ${errorMessage}`
+        );
+
+        // Return error result without consuming retry attempts
+        return {
+          planDayId: planDayId,
+          totalExercises: 0,
+          generationTimeMs: Date.now() - startTime,
+        } as DailyRegenerationJobResult;
+      }
+    }
+
+    // Clear any previous token usage before regeneration
+    clearLastTokenUsage(userId);
+
     // Regenerate daily workout using existing service
     // The service already handles progress updates via emitProgress
     const planDay = await workoutService.regenerateDailyWorkout(
@@ -111,6 +174,29 @@ export async function processDailyRegenerationJob(
       regenerationStyles,
       threadId
     );
+
+    // Get real token usage from regeneration (or fallback to estimate)
+    const tokenUsage = getLastTokenUsage(userId);
+    const actualTokensUsed = tokenUsage?.totalTokens || estimatedTokens;
+
+    logger.info("Daily regeneration job completed with token usage", {
+      userId,
+      jobId,
+      planDayId,
+      operation: "dailyRegenerationJob",
+      tokenUsage: tokenUsage || { estimated: estimatedTokens },
+      actualTokensUsed,
+    });
+
+    // Increment usage after successful regeneration with real token count
+    if (accessLevel !== AccessLevel.UNLIMITED) {
+      await subscriptionService.incrementTrialUsage(
+        userId,
+        "regeneration",
+        actualTokensUsed,
+        "daily"
+      );
+    }
 
     const generationTime = Date.now() - startTime;
 
@@ -190,7 +276,7 @@ export async function processDailyRegenerationJob(
 
     logger.info("Daily workout regeneration job completed successfully", {
       operation: "dailyRegenerationJob",
-      jobId: job.id,
+      jobId: jobId,
       userId,
       planDayId,
       metadata: {
@@ -212,7 +298,7 @@ export async function processDailyRegenerationJob(
 
     logger.error("Daily workout regeneration job failed", error as Error, {
       operation: "dailyRegenerationJob",
-      jobId: job.id,
+      jobId: jobId,
       userId,
       planDayId,
       metadata: {
@@ -255,7 +341,7 @@ export async function processDailyRegenerationJob(
           llm_model: userProfile?.aiModel || "",
           regeneration_reason:
             regenerationReason || "User requested daily regeneration",
-          error_type: error.constructor.name,
+          error_type: (error as Error).constructor.name,
           failure_reason: (error as Error).message,
           generation_time_ms: generationTime,
         }

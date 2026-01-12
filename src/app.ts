@@ -12,6 +12,7 @@ import { searchRouter } from "@/routes/search.routes";
 import { aiProviderRouter } from "@/routes/ai-provider.routes";
 import { analyticsRouter } from "@/routes/analytics.routes";
 import dashboardRouter from "@/routes/dashboard.routes";
+import { subscriptionRouter } from "@/routes/subscription.routes";
 import { errorHandler } from "@/middleware/error.middleware";
 import { pool } from "@/config/database.js";
 import { logger } from "@/utils/logger.js";
@@ -50,6 +51,39 @@ function extractRoutes(app: express.Application) {
 
 const app = express();
 
+// Create __dirname equivalent for ES modules
+// Handle both ES modules and CommonJS (bundled) environments
+// In bundled CommonJS, import.meta.url is not available, so we use process.cwd()
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+// Helper function to safely get __dirname
+function getDirname(): string {
+  try {
+    // Check if we can access import.meta.url (ES modules)
+    // Using a function to avoid ReferenceError in CommonJS
+    const metaUrl = (() => {
+      try {
+        return import.meta.url;
+      } catch {
+        return null;
+      }
+    })();
+
+    if (metaUrl) {
+      const __filename = fileURLToPath(metaUrl);
+      return dirname(__filename);
+    }
+  } catch {
+    // Fall through to fallback
+  }
+
+  // Fallback: use process.cwd() for bundled CommonJS
+  return process.cwd();
+}
+
+const __dirname = getDirname();
+
 // Middleware
 app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(express.json());
@@ -76,6 +110,11 @@ app.use(
   })
 );
 
+// Swagger JSON
+app.get("/api/docs-json", (_req, res) => {
+  res.json(swaggerJson);
+});
+
 // Routes
 app.use("/api/auth", authRouter);
 app.use("/api/profile", profileRouter);
@@ -87,13 +126,14 @@ app.use("/api/search", searchRouter);
 app.use("/api/ai-providers", aiProviderRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/dashboard", dashboardRouter);
+app.use("/api/subscriptions", subscriptionRouter);
 
 // Health check endpoint
 app.get("/api/health", async (req, res) => {
   try {
     // Test database connection
     const client = await pool.connect();
-    await client.query('SELECT 1');
+    await client.query("SELECT 1");
     client.release();
 
     res.json({
@@ -103,13 +143,16 @@ app.get("/api/health", async (req, res) => {
       uptime: process.uptime(),
     });
   } catch (error) {
-    logger.error("Health check failed", error);
+    logger.error("Health check failed", error as Error);
     res.status(503).json({
       status: "unhealthy",
       timestamp: new Date().toISOString(),
       database: "disconnected",
       uptime: process.uptime(),
-      error: process.env.NODE_ENV === "development" ? error.message : "Database connection failed"
+      error:
+        process.env.NODE_ENV === "development"
+          ? (error as Error).message
+          : "Database connection failed",
     });
   }
 });
@@ -128,14 +171,14 @@ app.get("/api", (req, res) => {
 });
 
 // Global error handlers for unhandled promise rejections and uncaught exceptions
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Promise Rejection', new Error(String(reason)), {
-    metadata: { promise: promise.toString() }
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled Promise Rejection", new Error(String(reason)), {
+    metadata: { promise: promise.toString() },
   });
 });
 
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception', error);
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught Exception", error);
   // Gracefully close server and database connections
   process.exit(1);
 });

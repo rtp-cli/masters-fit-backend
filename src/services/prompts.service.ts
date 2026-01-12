@@ -5,7 +5,45 @@ import { eq, and, asc } from "drizzle-orm";
 import { logger } from "@/utils/logger";
 import { emitProgress } from "@/utils/websocket-progress.utils";
 import { WorkoutAgentService } from "./workout-agent.service";
-import { DEFAULT_AI_PROVIDER, DEFAULT_AI_MODEL } from "@/constants/ai-providers";
+import {
+  DEFAULT_AI_PROVIDER,
+  DEFAULT_AI_MODEL,
+} from "@/constants/ai-providers";
+// Result type that includes token usage
+export interface PromptGenerationResult {
+  response: any;
+  promptId: number;
+  tokenUsage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
+}
+
+// Token usage type for export
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
+// Map to store last token usage per user (for retrieval after generation)
+const lastTokenUsageByUser = new Map<number, TokenUsage>();
+
+/**
+ * Get the last recorded token usage for a user
+ * This is populated after each generation/regeneration
+ */
+export function getLastTokenUsage(userId: number): TokenUsage | null {
+  return lastTokenUsageByUser.get(userId) || null;
+}
+
+/**
+ * Clear the last recorded token usage for a user
+ */
+export function clearLastTokenUsage(userId: number): void {
+  lastTokenUsageByUser.delete(userId);
+}
 
 export class PromptsService extends BaseService {
   constructor() {
@@ -13,7 +51,9 @@ export class PromptsService extends BaseService {
   }
 
   // Create user-specific workout agent based on their AI provider preferences
-  private async createUserWorkoutAgent(userId: number): Promise<WorkoutAgentService> {
+  private async createUserWorkoutAgent(
+    userId: number
+  ): Promise<WorkoutAgentService> {
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
       throw new Error("Profile not found");
@@ -23,17 +63,17 @@ export class PromptsService extends BaseService {
     const provider = profile.aiProvider || DEFAULT_AI_PROVIDER;
     const model = profile.aiModel || DEFAULT_AI_MODEL;
 
-    logger.info('Creating user-specific WorkoutAgentService', {
+    logger.info("Creating user-specific WorkoutAgentService", {
       userId,
       provider,
       model,
-      operation: 'createUserWorkoutAgent'
+      operation: "createUserWorkoutAgent",
     });
 
     return WorkoutAgentService.createForUser({
       ...profile,
       aiProvider: provider,
-      aiModel: model
+      aiModel: model,
     });
   }
 
@@ -50,7 +90,12 @@ export class PromptsService extends BaseService {
     return result[0];
   }
 
-  public async generatePrompt(userId: number, customFeedback?: string, threadId?: string, signal?: AbortSignal) {
+  public async generatePrompt(
+    userId: number,
+    customFeedback?: string,
+    threadId?: string,
+    signal?: AbortSignal
+  ): Promise<PromptGenerationResult> {
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
       throw new Error("Profile not found");
@@ -75,7 +120,7 @@ export class PromptsService extends BaseService {
     const workoutThreadId = threadId || `workout_${userId}_${Date.now()}`;
 
     try {
-      const workout = await workoutAgent.regenerateWorkout(
+      const result = await workoutAgent.regenerateWorkout(
         userId,
         profile,
         [], // exerciseNames no longer needed - agent uses tools
@@ -89,23 +134,43 @@ export class PromptsService extends BaseService {
       const createdPrompt = await this.createPrompt({
         userId,
         prompt: customFeedback || "Generate weekly workout plan",
-        response: JSON.stringify(workout),
-        threadId: workoutThreadId
+        response: JSON.stringify(result.workout),
+        threadId: workoutThreadId,
       });
 
-      return { response: workout, promptId: createdPrompt.id };
+      // Store token usage for retrieval
+      lastTokenUsageByUser.set(userId, result.tokenUsage);
+
+      logger.info("Prompt generation completed with token usage", {
+        userId,
+        promptId: createdPrompt.id,
+        tokenUsage: result.tokenUsage,
+        operation: "generatePrompt",
+      });
+
+      return {
+        response: result.workout,
+        promptId: createdPrompt.id,
+        tokenUsage: result.tokenUsage,
+      };
     } catch (error) {
       logger.error("LangChain workout generation failed", error as Error, {
         error: (error as Error).message,
         userId,
         threadId: workoutThreadId,
-        operation: "generatePrompt"
+        operation: "generatePrompt",
       });
-      throw new Error(`Failed to generate workout plan: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to generate workout plan: ${(error as Error).message}`
+      );
     }
   }
 
-  public async generateChunkedPrompt(userId: number, customFeedback?: string, signal?: AbortSignal) {
+  public async generateChunkedPrompt(
+    userId: number,
+    customFeedback?: string,
+    signal?: AbortSignal
+  ): Promise<PromptGenerationResult> {
     // For now, chunked generation will simply call the regular generatePrompt method
     // since LangChain agents can handle the full workout generation more efficiently
     // If token limits become an issue, we can implement chunking within the agent
@@ -122,7 +187,12 @@ export class PromptsService extends BaseService {
     emitProgress(userId, 90);
 
     try {
-      const result = await this.generatePrompt(userId, customFeedback, undefined, signal);
+      const result = await this.generatePrompt(
+        userId,
+        customFeedback,
+        undefined,
+        signal
+      );
 
       // Emit final progress
       emitProgress(userId, 95);
@@ -153,7 +223,7 @@ export class PromptsService extends BaseService {
       customFeedback?: string;
     },
     signal?: AbortSignal
-  ) {
+  ): Promise<PromptGenerationResult> {
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
       throw new Error("Profile not found");
@@ -184,12 +254,13 @@ export class PromptsService extends BaseService {
     const workoutThreadId = `workout_regen_${userId}_${Date.now()}`;
 
     try {
-      const workout = await workoutAgent.regenerateWorkout(
+      const result = await workoutAgent.regenerateWorkout(
         userId,
         updatedProfile,
         [], // exerciseNames no longer needed - agent uses tools
         workoutThreadId,
-        regenerationData.customFeedback || "Regenerate weekly workout plan with updated preferences",
+        regenerationData.customFeedback ||
+          "Regenerate weekly workout plan with updated preferences",
         undefined, // dayNumber
         false, // isRestDay
         signal // Pass abort signal through
@@ -197,20 +268,37 @@ export class PromptsService extends BaseService {
 
       const createdPrompt = await this.createPrompt({
         userId,
-        prompt: regenerationData.customFeedback || "Regenerate weekly workout plan",
-        response: JSON.stringify(workout),
-        threadId: workoutThreadId
+        prompt:
+          regenerationData.customFeedback || "Regenerate weekly workout plan",
+        response: JSON.stringify(result.workout),
+        threadId: workoutThreadId,
       });
 
-      return { response: workout, promptId: createdPrompt.id };
+      // Store token usage for retrieval
+      lastTokenUsageByUser.set(userId, result.tokenUsage);
+
+      logger.info("Regeneration prompt completed with token usage", {
+        userId,
+        promptId: createdPrompt.id,
+        tokenUsage: result.tokenUsage,
+        operation: "generateRegenerationPrompt",
+      });
+
+      return {
+        response: result.workout,
+        promptId: createdPrompt.id,
+        tokenUsage: result.tokenUsage,
+      };
     } catch (error) {
       logger.error("LangChain workout regeneration failed", error as Error, {
         error: (error as Error).message,
         userId,
         threadId: workoutThreadId,
-        operation: "generateRegenerationPrompt"
+        operation: "generateRegenerationPrompt",
       });
-      throw new Error(`Failed to regenerate workout plan: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to regenerate workout plan: ${(error as Error).message}`
+      );
     }
   }
 
@@ -222,7 +310,7 @@ export class PromptsService extends BaseService {
     isRestDay: boolean = false,
     threadId?: string,
     signal?: AbortSignal
-  ) {
+  ): Promise<PromptGenerationResult> {
     const profile = await profileService.getProfileByUserId(userId);
     if (!profile) {
       throw new Error("Profile not found");
@@ -235,7 +323,7 @@ export class PromptsService extends BaseService {
     const workoutThreadId = threadId || `workout_daily_${userId}_${Date.now()}`;
 
     try {
-      const workout = await workoutAgent.regenerateWorkout(
+      const result = await workoutAgent.regenerateWorkout(
         userId,
         profile,
         [], // exerciseNames no longer needed - agent uses tools
@@ -249,23 +337,40 @@ export class PromptsService extends BaseService {
       const createdPrompt = await this.createPrompt({
         userId,
         prompt: regenerationReason,
-        response: JSON.stringify(workout),
-        threadId: workoutThreadId
+        response: JSON.stringify(result.workout),
+        threadId: workoutThreadId,
       });
 
       // Emit 95% - AI response received and parsed
       emitProgress(userId, 95);
 
-      return { response: workout, promptId: createdPrompt.id };
+      // Store token usage for retrieval
+      lastTokenUsageByUser.set(userId, result.tokenUsage);
+
+      logger.info("Daily regeneration prompt completed with token usage", {
+        userId,
+        promptId: createdPrompt.id,
+        dayNumber,
+        tokenUsage: result.tokenUsage,
+        operation: "generateDailyRegenerationPrompt",
+      });
+
+      return {
+        response: result.workout,
+        promptId: createdPrompt.id,
+        tokenUsage: result.tokenUsage,
+      };
     } catch (error) {
       logger.error("LangChain daily regeneration failed", error as Error, {
         error: (error as Error).message,
         userId,
         threadId: workoutThreadId,
         dayNumber,
-        operation: "generateDailyRegenerationPrompt"
+        operation: "generateDailyRegenerationPrompt",
       });
-      throw new Error(`Failed to regenerate daily workout: ${(error as Error).message}`);
+      throw new Error(
+        `Failed to regenerate daily workout: ${(error as Error).message}`
+      );
     }
   }
 }

@@ -1,6 +1,9 @@
 import { Request } from "express";
 import jwt from "jsonwebtoken";
-import { validateCurrentWaiver, WaiverValidationError } from "@/utils/waiver.utils";
+import {
+  validateCurrentWaiver,
+  WaiverValidationError,
+} from "@/utils/waiver.utils";
 import { userService } from "@/services/user.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
 import { getBestIP } from "@/utils/ip.utils";
@@ -19,25 +22,30 @@ interface AuthenticatedRequest extends Request {
 function getClientIP(req: Request): string | undefined {
   try {
     // Check for forwarded IP from proxies/load balancers
-    const forwarded = req.headers['x-forwarded-for'];
+    const forwarded = req.headers["x-forwarded-for"];
     if (forwarded) {
       // x-forwarded-for can be a comma-separated list, take the first one
       const ips = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-      const ip = ips.split(',')[0].trim();
+      const ip = ips.split(",")[0].trim();
       if (ip) return ip;
     }
 
     // Check for real IP header
-    const realIP = req.headers['x-real-ip'];
-    if (realIP && typeof realIP === 'string') {
+    const realIP = req.headers["x-real-ip"];
+    if (realIP && typeof realIP === "string") {
       return realIP;
     }
 
     // Fall back to connection remote address
-    return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || undefined;
+    return (
+      req.ip ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      undefined
+    );
   } catch (error) {
     // If IP extraction fails, return undefined rather than throwing
-    console.warn('Failed to extract client IP:', error);
+    console.warn("Failed to extract client IP:", error);
     return undefined;
   }
 }
@@ -73,6 +81,12 @@ export async function expressAuthentication(
     // Fetch user information and store UUID in request for analytics
     try {
       const user = await userService.getUser(parseInt(decoded.id));
+
+      // Check if account is active
+      if (user && user.isActive === false) {
+        throw new Error("Account has been deleted");
+      }
+
       if (user?.uuid) {
         // Store UUID in request for analytics controllers
         request.userUuid = user.uuid;
@@ -83,20 +97,30 @@ export async function expressAuthentication(
         });
       }
     } catch (error) {
+      // If it's an account deleted error, throw it
+      if (
+        error instanceof Error &&
+        error.message === "Account has been deleted"
+      ) {
+        throw error;
+      }
       // Ignore profile sync errors - don't affect authentication
     }
 
     // Skip waiver validation for auth endpoints (to avoid circular dependency)
-    const isAuthEndpoint = request.path.startsWith('/api/auth');
+    const isAuthEndpoint = request.path.startsWith("/api/auth");
 
     // Also skip waiver validation for waiver-specific endpoints
-    const isWaiverEndpoint = request.path.includes('/waiver-status') ||
-                             request.path.includes('/accept-waiver') ||
-                             request.path.endsWith('/waiver-status') ||
-                             request.path.endsWith('/accept-waiver');
+    const isWaiverEndpoint =
+      request.path.includes("/waiver-status") ||
+      request.path.includes("/accept-waiver") ||
+      request.path.endsWith("/waiver-status") ||
+      request.path.endsWith("/accept-waiver");
 
     // Debug logging
-    console.log(`[Auth Middleware] Path: ${request.path}, isAuth: ${isAuthEndpoint}, isWaiver: ${isWaiverEndpoint}`);
+    console.log(
+      `[Auth Middleware] Path: ${request.path}, isAuth: ${isAuthEndpoint}, isWaiver: ${isWaiverEndpoint}`
+    );
 
     if (!isAuthEndpoint && !isWaiverEndpoint) {
       // Validate current waiver for all non-auth and non-waiver endpoints

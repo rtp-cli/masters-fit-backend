@@ -14,7 +14,7 @@ export class EventTrackingService {
       await mixpanelService.identify(userUuid, ip);
       logger.debug("User identified in analytics", { userUuid, hasIP: !!ip });
     } catch (error) {
-      logger.warn("Failed to identify user in analytics", error as Error, {
+      logger.warn("Failed to identify user in analytics", {
         userUuid,
       });
     }
@@ -45,7 +45,7 @@ export class EventTrackingService {
         userUuid,
         eventName,
         hasIP: !!ip,
-        ipPreview: ip ? ip.substring(0, 8) + "..." : undefined
+        ipPreview: ip ? ip.substring(0, 8) + "..." : undefined,
       });
     } catch (error) {
       logger.error("Failed to track event", error as Error, {
@@ -74,6 +74,7 @@ export class EventTrackingService {
       equipment_profile?: string;
       llm_model: string;
       regeneration_reason?: string;
+      generation_time_ms?: number;
     },
     ip?: string
   ): Promise<void> {
@@ -87,8 +88,15 @@ export class EventTrackingService {
     userUuid: string,
     data: {
       generation_scope: "day" | "week";
-      error: string;
+      error?: string;
       llm_model: string;
+      workout_style?: string;
+      days_per_week?: number;
+      equipment_profile?: string;
+      regeneration_reason?: string;
+      error_type?: string;
+      failure_reason?: string;
+      generation_time_ms?: number;
     },
     ip?: string
   ): Promise<void> {
@@ -165,11 +173,18 @@ export class EventTrackingService {
         return;
       }
 
-      await mixpanelService.setUserProfile(userUuid, {
-        ...properties,
-        onboarding_complete: properties.onboarding_complete ?? false,
-      }, ip);
-      logger.info("User profile updated successfully", { userUuid, hasIP: !!ip });
+      await mixpanelService.setUserProfile(
+        userUuid,
+        {
+          ...properties,
+          onboarding_complete: properties.onboarding_complete ?? false,
+        },
+        ip
+      );
+      logger.info("User profile updated successfully", {
+        userUuid,
+        hasIP: !!ip,
+      });
     } catch (error) {
       logger.error("Failed to update user profile", error as Error, {
         userUuid,
@@ -185,15 +200,18 @@ export class EventTrackingService {
   /**
    * Ensure user profile exists in Mixpanel with comprehensive data
    */
-  async ensureUserProfileExists(user: {
-    id: number;
-    uuid: string;
-    email: string;
-    name: string;
-    createdAt: Date;
-    needsOnboarding?: boolean;
-    waiverAcceptedAt?: Date;
-  }, ip?: string): Promise<void> {
+  async ensureUserProfileExists(
+    user: {
+      id: number;
+      uuid: string;
+      email: string;
+      name: string;
+      createdAt: Date;
+      needsOnboarding?: boolean;
+      waiverAcceptedAt?: Date;
+    },
+    ip?: string
+  ): Promise<void> {
     try {
       // Check cache to avoid duplicate syncs
       if (this.profileSyncCache.has(user.uuid)) {
@@ -214,19 +232,24 @@ export class EventTrackingService {
 
       // Try to get additional profile data from profile service
       try {
-        const { profileService } = await import('@/services/profile.service');
+        const { profileService } = await import("@/services/profile.service");
         const userProfile = await profileService.getProfileByUserId(user.id);
 
         if (userProfile) {
           // Add fitness profile data
           if (userProfile.age) profileData.age = userProfile.age;
           if (userProfile.gender) profileData.gender = userProfile.gender;
-          if (userProfile.fitnessLevel) profileData.fitness_level = userProfile.fitnessLevel;
-          if (userProfile.environment) profileData.workout_environment = userProfile.environment;
-          if (userProfile.equipment) profileData.available_equipment = userProfile.equipment;
-          if (userProfile.preferredStyles) profileData.preferred_workout_styles = userProfile.preferredStyles;
+          if (userProfile.fitnessLevel)
+            profileData.fitness_level = userProfile.fitnessLevel;
+          if (userProfile.environment)
+            profileData.workout_environment = userProfile.environment;
+          if (userProfile.equipment)
+            profileData.available_equipment = userProfile.equipment;
+          if (userProfile.preferredStyles)
+            profileData.preferred_workout_styles = userProfile.preferredStyles;
           if (userProfile.goals) profileData.primary_goals = userProfile.goals;
-          if (userProfile.limitations) profileData.physical_limitations = userProfile.limitations;
+          if (userProfile.limitations)
+            profileData.physical_limitations = userProfile.limitations;
         }
       } catch (profileError) {
         // Profile might not exist yet, that's okay
@@ -243,12 +266,12 @@ export class EventTrackingService {
         userUuid: user.uuid,
         hasProfile: Object.keys(profileData).length > 4, // More than basic fields
         hasIP: !!ip,
-        ipPreview: ip ? ip.substring(0, 8) + "..." : undefined
+        ipPreview: ip ? ip.substring(0, 8) + "..." : undefined,
       });
     } catch (error) {
       logger.error("Failed to ensure user profile exists", error as Error, {
         userId: user.id,
-        userUuid: user.uuid
+        userUuid: user.uuid,
       });
       // Don't throw - this shouldn't break authentication flow
     }
