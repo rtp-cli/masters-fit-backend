@@ -3,6 +3,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatDeepSeek } from "@langchain/deepseek";
 import { ChatGroq } from "@langchain/groq";
+import { ChatXAI } from "@langchain/xai";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import {
   AIProvider,
@@ -209,6 +210,15 @@ export class AIProviderService {
 
       case AIProvider.GROQ:
         return new ChatGroq({
+          model: model,
+          apiKey: apiKey,
+          ...commonConfig,
+          temperature: 0.1,
+          maxTokens: modelConfig.maxTokens,
+        });
+
+      case AIProvider.XAI:
+        return new ChatXAI({
           model: model,
           apiKey: apiKey,
           ...commonConfig,

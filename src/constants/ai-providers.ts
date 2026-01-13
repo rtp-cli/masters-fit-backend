@@ -4,6 +4,7 @@ export enum AIProvider {
   GOOGLE = "google",
   DEEPSEEK = "deepseek",
   GROQ = "groq",
+  XAI = "xai",
 }
 
 export interface ModelConfig {
@@ -114,7 +115,7 @@ export const DEEPSEEK_MODELS: ModelConfig[] = [
     id: "deepseek-chat",
     name: "deepseek-chat",
     displayName: "DeepSeek V3.2",
-    maxTokens: 30000,
+    maxTokens: 8192,
     costTier: "low",
     description: "Cost-effective general purpose model",
   },
@@ -130,29 +131,77 @@ export const DEEPSEEK_MODELS: ModelConfig[] = [
 
 // Groq Models
 export const GROQ_MODELS: ModelConfig[] = [
+  // Quality Tier
+  {
+    id: "openai/gpt-oss-120b",
+    name: "openai/gpt-oss-120b",
+    displayName: "GPT OSS 120B",
+    maxTokens: 8192,
+    costTier: "medium",
+    description: "Largest model with reasoning capabilities (500 tokens/sec)",
+  },
   {
     id: "llama-3.3-70b-versatile",
     name: "llama-3.3-70b-versatile",
     displayName: "Llama 3.3 70B",
-    maxTokens: 30000,
+    maxTokens: 8192,
     costTier: "low",
-    description: "Ultra-fast inference, versatile",
+    description: "Proven instruction-following (280 tokens/sec)",
+  },
+  // Speed Tier
+  {
+    id: "openai/gpt-oss-20b",
+    name: "openai/gpt-oss-20b",
+    displayName: "GPT OSS 20B",
+    maxTokens: 8192,
+    costTier: "low",
+    description: "Fastest inference available (1000 tokens/sec)",
   },
   {
     id: "llama-3.1-8b-instant",
     name: "llama-3.1-8b-instant",
-    displayName: "Llama 3.1 8B Instant",
-    maxTokens: 30000,
+    displayName: "Llama 3.1 8B",
+    maxTokens: 8192,
     costTier: "low",
-    description: "Fastest inference, smaller model",
+    description: "Fast and reliable (560 tokens/sec)",
+  },
+];
+
+// xAI Grok Models
+export const XAI_MODELS: ModelConfig[] = [
+  // Quality Tier
+  {
+    id: "grok-4",
+    name: "grok-4",
+    displayName: "Grok 4",
+    maxTokens: 30000,
+    costTier: "high",
+    description: "Frontier model with advanced reasoning (256K context)",
   },
   {
-    id: "mixtral-8x7b-32768",
-    name: "mixtral-8x7b-32768",
-    displayName: "Mixtral 8x7B",
+    id: "grok-3",
+    name: "grok-3",
+    displayName: "Grok 3",
+    maxTokens: 30000,
+    costTier: "high",
+    description: "Standard high-quality model (256K context)",
+  },
+  // Speed/Cost Tier
+  {
+    id: "grok-4-1-fast-non-reasoning",
+    name: "grok-4-1-fast-non-reasoning",
+    displayName: "Grok 4.1 Fast",
     maxTokens: 30000,
     costTier: "low",
-    description: "MoE model, 32k context",
+    description: "Ultra-fast, cost-effective (2M context, 90% cheaper)",
+  },
+  {
+    id: "grok-3-mini",
+    name: "grok-3-mini",
+    displayName: "Grok 3 Mini",
+    maxTokens: 30000,
+    costTier: "low",
+    description: "Smallest and most cost-effective option",
   },
 ];
 
@@ -197,6 +246,14 @@ export const AI_PROVIDERS: Record<AIProvider, ProviderConfig> = {
     models: GROQ_MODELS,
     defaultModel: "llama-3.3-70b-versatile",
     envKeyName: "GROQ_API_KEY",
+  },
+  [AIProvider.XAI]: {
+    id: AIProvider.XAI,
+    name: "xai",
+    displayName: "xAI",
+    models: XAI_MODELS,
+    defaultModel: "grok-3",
+    envKeyName: "XAI_API_KEY",
   },
 };
 

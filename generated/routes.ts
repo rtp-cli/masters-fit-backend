@@ -19,6 +19,8 @@ import { PromptsController } from './../src/controllers/prompts.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { SearchController } from './../src/controllers/search.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { SubscriptionController } from './../src/controllers/subscription.controller';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { WorkoutController } from './../src/controllers/workout.controller';
 import { expressAuthentication } from './../src/middleware/auth.middleware';
 // @ts-ignore - no great way to install types from subpackage
@@ -45,7 +47,7 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "success": {"dataType":"boolean","required":true},
-            "providers": {"dataType":"nestedObjectLiteral","nestedProperties":{"anthropic":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}},"openai":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}},"google":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}}},"required":true},
+            "providers": {"dataType":"nestedObjectLiteral","nestedProperties":{"anthropic":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}},"openai":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}},"google":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}},"deepseek":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}},"groq":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}},"xai":{"dataType":"nestedObjectLiteral","nestedProperties":{"defaultModel":{"dataType":"string","required":true},"models":{"dataType":"array","array":{"dataType":"refObject","ref":"ModelConfig"},"required":true},"displayName":{"dataType":"string","required":true},"available":{"dataType":"boolean","required":true}}}},"required":true},
         },
         "additionalProperties": false,
     },
@@ -62,7 +64,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AIProvider": {
         "dataType": "refEnum",
-        "enums": ["anthropic","openai","google"],
+        "enums": ["anthropic","openai","google","deepseek","groq","xai"],
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "UpdateProviderRequest": {
@@ -107,6 +109,7 @@ const models: TsoaRoute.Models = {
             "user": {"ref":"AuthUserResponse"},
             "email": {"dataType":"string"},
             "token": {"dataType":"string"},
+            "refreshToken": {"dataType":"string"},
         },
         "additionalProperties": false,
     },
@@ -165,6 +168,26 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "authCode": {"dataType":"string","required":true},
+            "email": {"dataType":"string"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "AuthRefreshResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"boolean","required":true},
+            "error": {"dataType":"string"},
+            "token": {"dataType":"string"},
+            "refreshToken": {"dataType":"string"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "RefreshTokenRequest": {
+        "dataType": "refObject",
+        "properties": {
+            "refreshToken": {"dataType":"string","required":true},
         },
         "additionalProperties": false,
     },
@@ -741,6 +764,7 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "id": {"dataType":"double","required":true},
+            "uuid": {"dataType":"string","required":true},
             "email": {"dataType":"string","required":true},
             "name": {"dataType":"string","required":true},
             "emailVerified": {"dataType":"union","subSchemas":[{"dataType":"boolean"},{"dataType":"enum","enums":[null]}],"required":true},
@@ -749,6 +773,7 @@ const models: TsoaRoute.Models = {
             "needsOnboarding": {"dataType":"union","subSchemas":[{"dataType":"boolean"},{"dataType":"enum","enums":[null]}],"required":true},
             "waiverAcceptedAt": {"dataType":"union","subSchemas":[{"dataType":"datetime"},{"dataType":"enum","enums":[null]}],"required":true},
             "waiverVersion": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+            "isActive": {"dataType":"union","subSchemas":[{"dataType":"boolean"},{"dataType":"enum","enums":[null]}],"required":true},
         },
         "additionalProperties": false,
     },
@@ -935,6 +960,134 @@ const models: TsoaRoute.Models = {
         "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "SubscriptionPlan": {
+        "dataType": "refObject",
+        "properties": {
+            "id": {"dataType":"double","required":true},
+            "planId": {"dataType":"string","required":true},
+            "name": {"dataType":"string","required":true},
+            "description": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+            "billingPeriod": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["monthly"]},{"dataType":"enum","enums":["annual"]}],"required":true},
+            "priceUsd": {"dataType":"double","required":true},
+            "isActive": {"dataType":"boolean","required":true},
+            "createdAt": {"dataType":"datetime","required":true},
+            "updatedAt": {"dataType":"datetime","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "SubscriptionPlansResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"enum","enums":[true],"required":true},
+            "plans": {"dataType":"array","array":{"dataType":"refObject","ref":"SubscriptionPlan"},"required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "REVENUE_CAT_EVENT_TYPES": {
+        "dataType": "refEnum",
+        "enums": ["TEST","INITIAL_PURCHASE","RENEWAL","CANCELLATION","UNCANCELLATION","NON_RENEWING_PURCHASE","SUBSCRIPTION_PAUSED","EXPIRATION","BILLING_ISSUE","PRODUCT_CHANGE","TRANSFER","SUBSCRIBER_ALIAS"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "RevenueCatEventType": {
+        "dataType": "refAlias",
+        "type": {"ref":"REVENUE_CAT_EVENT_TYPES","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "REVENUE_CAT_PERIOD_TYPES": {
+        "dataType": "refEnum",
+        "enums": ["TRIAL","INTRO","NORMAL","PROMOTIONAL"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "RevenueCatPeriodType": {
+        "dataType": "refAlias",
+        "type": {"ref":"REVENUE_CAT_PERIOD_TYPES","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "RevenueCatEnvironment": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["SANDBOX"]},{"dataType":"enum","enums":["PRODUCTION"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "REVENUE_CAT_STORES": {
+        "dataType": "refEnum",
+        "enums": ["APP_STORE","MAC_APP_STORE","PLAY_STORE","AMAZON","STRIPE","RC_BILLING","PROMOTIONAL","ROKU"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "RevenueCatStore": {
+        "dataType": "refAlias",
+        "type": {"ref":"REVENUE_CAT_STORES","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "REVENUE_CAT_CANCEL_REASONS": {
+        "dataType": "refEnum",
+        "enums": ["UNSUBSCRIBE","BILLING_ERROR","DEVELOPER_INITIATED","PRICE_INCREASE","CUSTOMER_SUPPORT","UNKNOWN","SUBSCRIPTION_PAUSED"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "RevenueCatCancelReason": {
+        "dataType": "refAlias",
+        "type": {"ref":"REVENUE_CAT_CANCEL_REASONS","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "Record_string._value-string--updated_at_ms-number--__": {
+        "dataType": "refAlias",
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{},"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "RevenueCatWebhookEvent": {
+        "dataType": "refObject",
+        "properties": {
+            "id": {"dataType":"string","required":true},
+            "type": {"ref":"RevenueCatEventType","required":true},
+            "app_user_id": {"dataType":"string","required":true},
+            "aliases": {"dataType":"array","array":{"dataType":"string"}},
+            "original_app_user_id": {"dataType":"string"},
+            "product_id": {"dataType":"string"},
+            "entitlement_ids": {"dataType":"array","array":{"dataType":"string"}},
+            "entitlement_id": {"dataType":"string"},
+            "purchased_at_ms": {"dataType":"double"},
+            "expiration_at_ms": {"dataType":"double"},
+            "event_timestamp_ms": {"dataType":"double"},
+            "purchased_at": {"dataType":"string"},
+            "expires_at": {"dataType":"string"},
+            "period_type": {"ref":"RevenueCatPeriodType"},
+            "environment": {"ref":"RevenueCatEnvironment"},
+            "store": {"ref":"RevenueCatStore"},
+            "transaction_id": {"dataType":"string"},
+            "original_transaction_id": {"dataType":"string"},
+            "price": {"dataType":"double"},
+            "price_in_purchased_currency": {"dataType":"double"},
+            "currency": {"dataType":"string"},
+            "country_code": {"dataType":"string"},
+            "offer_code": {"dataType":"string"},
+            "presented_offering_id": {"dataType":"string"},
+            "is_trial_conversion": {"dataType":"boolean"},
+            "is_family_share": {"dataType":"boolean"},
+            "renewal_number": {"dataType":"double"},
+            "auto_resume_at_ms": {"dataType":"double"},
+            "cancel_reason": {"ref":"RevenueCatCancelReason"},
+            "expiration_reason": {"ref":"RevenueCatCancelReason"},
+            "grace_period_expiration_at_ms": {"dataType":"double"},
+            "transferred_from": {"dataType":"array","array":{"dataType":"string"}},
+            "transferred_to": {"dataType":"array","array":{"dataType":"string"}},
+            "takehome_percentage": {"dataType":"double"},
+            "tax_percentage": {"dataType":"double"},
+            "commission_percentage": {"dataType":"double"},
+            "subscriber_attributes": {"ref":"Record_string._value-string--updated_at_ms-number--__"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "RevenueCatWebhookPayload": {
+        "dataType": "refObject",
+        "properties": {
+            "api_version": {"dataType":"string"},
+            "event": {"ref":"RevenueCatWebhookEvent","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "WorkoutBlockWithExercise": {
         "dataType": "refObject",
         "properties": {
@@ -1049,7 +1202,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_InsertWorkout_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"startDate":{"dataType":"string"},"endDate":{"dataType":"string"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"isActive":{"dataType":"any"},"completed":{"dataType":"any"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"isActive":{"dataType":"any"},"startDate":{"dataType":"string"},"endDate":{"dataType":"string"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"completed":{"dataType":"any"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PlanDayResponse": {
@@ -1370,6 +1523,82 @@ export function RegisterRoutes(app: Router) {
 
 
               const promise = controller.verify.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/auth/refresh',
+            ...(fetchMiddlewares<RequestHandler>(AuthController)),
+            ...(fetchMiddlewares<RequestHandler>(AuthController.prototype.refreshToken)),
+
+            function AuthController_refreshToken(request: any, response: any, next: any) {
+            const args = {
+                    requestBody: {"in":"body","name":"requestBody","required":true,"ref":"RefreshTokenRequest"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new AuthController();
+
+
+              const promise = controller.refreshToken.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/auth/logout',
+            ...(fetchMiddlewares<RequestHandler>(AuthController)),
+            ...(fetchMiddlewares<RequestHandler>(AuthController.prototype.logout)),
+
+            function AuthController_logout(request: any, response: any, next: any) {
+            const args = {
+                    requestBody: {"in":"body","name":"requestBody","required":true,"ref":"RefreshTokenRequest"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new AuthController();
+
+
+              const promise = controller.logout.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.delete('/auth/delete-account',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(AuthController)),
+            ...(fetchMiddlewares<RequestHandler>(AuthController.prototype.deleteAccount)),
+
+            function AuthController_deleteAccount(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new AuthController();
+
+
+              const promise = controller.deleteAccount.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 200, next);
             } catch (err) {
                 return next(err);
@@ -2754,6 +2983,7 @@ export function RegisterRoutes(app: Router) {
             function ProfileController_createProfile(request: any, response: any, next: any) {
             const args = {
                     requestBody: {"in":"body","name":"requestBody","required":true,"ref":"Partial_Profile_"},
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -2781,6 +3011,7 @@ export function RegisterRoutes(app: Router) {
             const args = {
                     id: {"in":"path","name":"id","required":true,"dataType":"double"},
                     requestBody: {"in":"body","name":"requestBody","required":true,"ref":"Partial_Profile_"},
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -2808,6 +3039,7 @@ export function RegisterRoutes(app: Router) {
             const args = {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
                     requestBody: {"in":"body","name":"requestBody","required":true,"ref":"Partial_Profile_"},
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -3016,6 +3248,57 @@ export function RegisterRoutes(app: Router) {
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/subscriptions/plans',
+            ...(fetchMiddlewares<RequestHandler>(SubscriptionController)),
+            ...(fetchMiddlewares<RequestHandler>(SubscriptionController.prototype.getSubscriptionPlans)),
+
+            function SubscriptionController_getSubscriptionPlans(request: any, response: any, next: any) {
+            const args = {
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new SubscriptionController();
+
+
+              const promise = controller.getSubscriptionPlans.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/subscriptions/webhooks/revenuecat',
+            ...(fetchMiddlewares<RequestHandler>(SubscriptionController)),
+            ...(fetchMiddlewares<RequestHandler>(SubscriptionController.prototype.handleRevenueCatWebhook)),
+
+            function SubscriptionController_handleRevenueCatWebhook(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+                    payload: {"in":"body","name":"payload","required":true,"ref":"RevenueCatWebhookPayload"},
+                    authHeader: {"in":"header","name":"Authorization","dataType":"string"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new SubscriptionController();
+
+
+              const promise = controller.handleRevenueCatWebhook.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         app.get('/workouts/:userId',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
@@ -3212,6 +3495,7 @@ export function RegisterRoutes(app: Router) {
             const args = {
                     id: {"in":"path","name":"id","required":true,"dataType":"double"},
                     requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"newExerciseId":{"dataType":"double","required":true}}},
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -3239,6 +3523,7 @@ export function RegisterRoutes(app: Router) {
             const args = {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
                     requestBody: {"in":"body","name":"requestBody","dataType":"nestedObjectLiteral","nestedProperties":{"timezone":{"dataType":"string"},"customFeedback":{"dataType":"string"}}},
+                    request: {"in":"request","name":"request","dataType":"object"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -3266,6 +3551,7 @@ export function RegisterRoutes(app: Router) {
             const args = {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
                     requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"profileData":{"dataType":"nestedObjectLiteral","nestedProperties":{"medicalNotes":{"dataType":"string"},"intensityLevel":{"dataType":"double"},"workoutDuration":{"dataType":"double"},"availableDays":{"dataType":"array","array":{"dataType":"string"}},"workoutStyles":{"dataType":"array","array":{"dataType":"string"}},"equipment":{"dataType":"array","array":{"dataType":"string"}},"environment":{"dataType":"array","array":{"dataType":"string"}},"fitnessLevel":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"goals":{"dataType":"array","array":{"dataType":"string"}},"gender":{"dataType":"string"},"weight":{"dataType":"double"},"height":{"dataType":"double"},"age":{"dataType":"double"}}},"threadId":{"dataType":"string"},"customFeedback":{"dataType":"string"}}},
+                    request: {"in":"request","name":"request","dataType":"object"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -3347,6 +3633,7 @@ export function RegisterRoutes(app: Router) {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
                     planDayId: {"in":"path","name":"planDayId","required":true,"dataType":"double"},
                     requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"threadId":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"styles":{"dataType":"array","array":{"dataType":"string"}},"reason":{"dataType":"string","required":true}}},
+                    request: {"in":"request","name":"request","dataType":"object"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa

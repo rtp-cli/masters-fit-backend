@@ -128,6 +128,84 @@
 									"available"
 								],
 								"type": "object"
+							},
+							"deepseek": {
+								"properties": {
+									"defaultModel": {
+										"type": "string"
+									},
+									"models": {
+										"items": {
+											"$ref": "#/components/schemas/ModelConfig"
+										},
+										"type": "array"
+									},
+									"displayName": {
+										"type": "string"
+									},
+									"available": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"defaultModel",
+									"models",
+									"displayName",
+									"available"
+								],
+								"type": "object"
+							},
+							"groq": {
+								"properties": {
+									"defaultModel": {
+										"type": "string"
+									},
+									"models": {
+										"items": {
+											"$ref": "#/components/schemas/ModelConfig"
+										},
+										"type": "array"
+									},
+									"displayName": {
+										"type": "string"
+									},
+									"available": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"defaultModel",
+									"models",
+									"displayName",
+									"available"
+								],
+								"type": "object"
+							},
+							"xai": {
+								"properties": {
+									"defaultModel": {
+										"type": "string"
+									},
+									"models": {
+										"items": {
+											"$ref": "#/components/schemas/ModelConfig"
+										},
+										"type": "array"
+									},
+									"displayName": {
+										"type": "string"
+									},
+									"available": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"defaultModel",
+									"models",
+									"displayName",
+									"available"
+								],
+								"type": "object"
 							}
 						},
 						"type": "object"
@@ -160,7 +238,10 @@
 				"enum": [
 					"anthropic",
 					"openai",
-					"google"
+					"google",
+					"deepseek",
+					"groq",
+					"xai"
 				],
 				"type": "string"
 			},
@@ -258,6 +339,9 @@
 						"type": "string"
 					},
 					"token": {
+						"type": "string"
+					},
+					"refreshToken": {
 						"type": "string"
 					}
 				},
@@ -362,10 +446,46 @@
 				"properties": {
 					"authCode": {
 						"type": "string"
+					},
+					"email": {
+						"type": "string"
 					}
 				},
 				"required": [
 					"authCode"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AuthRefreshResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"token": {
+						"type": "string"
+					},
+					"refreshToken": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RefreshTokenRequest": {
+				"properties": {
+					"refreshToken": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"refreshToken"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -1978,6 +2098,9 @@
 						"type": "number",
 						"format": "double"
 					},
+					"uuid": {
+						"type": "string"
+					},
 					"email": {
 						"type": "string"
 					},
@@ -2009,10 +2132,15 @@
 					"waiverVersion": {
 						"type": "string",
 						"nullable": true
+					},
+					"isActive": {
+						"type": "boolean",
+						"nullable": true
 					}
 				},
 				"required": [
 					"id",
+					"uuid",
 					"email",
 					"name",
 					"emailVerified",
@@ -2020,7 +2148,8 @@
 					"createdAt",
 					"needsOnboarding",
 					"waiverAcceptedAt",
-					"waiverVersion"
+					"waiverVersion",
+					"isActive"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -2588,6 +2717,323 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"SubscriptionPlan": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"planId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string",
+						"nullable": true
+					},
+					"billingPeriod": {
+						"type": "string",
+						"enum": [
+							"monthly",
+							"annual"
+						]
+					},
+					"priceUsd": {
+						"type": "number",
+						"format": "double"
+					},
+					"isActive": {
+						"type": "boolean"
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"planId",
+					"name",
+					"description",
+					"billingPeriod",
+					"priceUsd",
+					"isActive",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SubscriptionPlansResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"plans": {
+						"items": {
+							"$ref": "#/components/schemas/SubscriptionPlan"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"plans"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"REVENUE_CAT_EVENT_TYPES": {
+				"description": "RevenueCat webhook event types",
+				"enum": [
+					"TEST",
+					"INITIAL_PURCHASE",
+					"RENEWAL",
+					"CANCELLATION",
+					"UNCANCELLATION",
+					"NON_RENEWING_PURCHASE",
+					"SUBSCRIPTION_PAUSED",
+					"EXPIRATION",
+					"BILLING_ISSUE",
+					"PRODUCT_CHANGE",
+					"TRANSFER",
+					"SUBSCRIBER_ALIAS"
+				],
+				"type": "string"
+			},
+			"RevenueCatEventType": {
+				"$ref": "#/components/schemas/REVENUE_CAT_EVENT_TYPES"
+			},
+			"REVENUE_CAT_PERIOD_TYPES": {
+				"enum": [
+					"TRIAL",
+					"INTRO",
+					"NORMAL",
+					"PROMOTIONAL"
+				],
+				"type": "string"
+			},
+			"RevenueCatPeriodType": {
+				"$ref": "#/components/schemas/REVENUE_CAT_PERIOD_TYPES",
+				"description": "Period type for the subscription"
+			},
+			"RevenueCatEnvironment": {
+				"type": "string",
+				"enum": [
+					"SANDBOX",
+					"PRODUCTION"
+				],
+				"description": "Environment (sandbox or production)"
+			},
+			"REVENUE_CAT_STORES": {
+				"enum": [
+					"APP_STORE",
+					"MAC_APP_STORE",
+					"PLAY_STORE",
+					"AMAZON",
+					"STRIPE",
+					"RC_BILLING",
+					"PROMOTIONAL",
+					"ROKU"
+				],
+				"type": "string"
+			},
+			"RevenueCatStore": {
+				"$ref": "#/components/schemas/REVENUE_CAT_STORES"
+			},
+			"REVENUE_CAT_CANCEL_REASONS": {
+				"enum": [
+					"UNSUBSCRIBE",
+					"BILLING_ERROR",
+					"DEVELOPER_INITIATED",
+					"PRICE_INCREASE",
+					"CUSTOMER_SUPPORT",
+					"UNKNOWN",
+					"SUBSCRIPTION_PAUSED"
+				],
+				"type": "string"
+			},
+			"RevenueCatCancelReason": {
+				"$ref": "#/components/schemas/REVENUE_CAT_CANCEL_REASONS",
+				"description": "Cancellation and expiration reasons"
+			},
+			"Record_string._value-string--updated_at_ms-number--__": {
+				"properties": {},
+				"type": "object",
+				"description": "Construct a type with a set of properties K of type T"
+			},
+			"RevenueCatWebhookEvent": {
+				"description": "RevenueCat webhook event payload\nContains all fields that may be present in webhook events",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"type": {
+						"$ref": "#/components/schemas/RevenueCatEventType"
+					},
+					"app_user_id": {
+						"type": "string"
+					},
+					"aliases": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"original_app_user_id": {
+						"type": "string"
+					},
+					"product_id": {
+						"type": "string"
+					},
+					"entitlement_ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"entitlement_id": {
+						"type": "string"
+					},
+					"purchased_at_ms": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiration_at_ms": {
+						"type": "number",
+						"format": "double"
+					},
+					"event_timestamp_ms": {
+						"type": "number",
+						"format": "double"
+					},
+					"purchased_at": {
+						"type": "string"
+					},
+					"expires_at": {
+						"type": "string"
+					},
+					"period_type": {
+						"$ref": "#/components/schemas/RevenueCatPeriodType"
+					},
+					"environment": {
+						"$ref": "#/components/schemas/RevenueCatEnvironment"
+					},
+					"store": {
+						"$ref": "#/components/schemas/RevenueCatStore"
+					},
+					"transaction_id": {
+						"type": "string"
+					},
+					"original_transaction_id": {
+						"type": "string"
+					},
+					"price": {
+						"type": "number",
+						"format": "double"
+					},
+					"price_in_purchased_currency": {
+						"type": "number",
+						"format": "double"
+					},
+					"currency": {
+						"type": "string"
+					},
+					"country_code": {
+						"type": "string"
+					},
+					"offer_code": {
+						"type": "string"
+					},
+					"presented_offering_id": {
+						"type": "string"
+					},
+					"is_trial_conversion": {
+						"type": "boolean"
+					},
+					"is_family_share": {
+						"type": "boolean"
+					},
+					"renewal_number": {
+						"type": "number",
+						"format": "double"
+					},
+					"auto_resume_at_ms": {
+						"type": "number",
+						"format": "double"
+					},
+					"cancel_reason": {
+						"$ref": "#/components/schemas/RevenueCatCancelReason"
+					},
+					"expiration_reason": {
+						"$ref": "#/components/schemas/RevenueCatCancelReason"
+					},
+					"grace_period_expiration_at_ms": {
+						"type": "number",
+						"format": "double"
+					},
+					"transferred_from": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"transferred_to": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"takehome_percentage": {
+						"type": "number",
+						"format": "double"
+					},
+					"tax_percentage": {
+						"type": "number",
+						"format": "double"
+					},
+					"commission_percentage": {
+						"type": "number",
+						"format": "double"
+					},
+					"subscriber_attributes": {
+						"$ref": "#/components/schemas/Record_string._value-string--updated_at_ms-number--__"
+					}
+				},
+				"required": [
+					"id",
+					"type",
+					"app_user_id"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RevenueCatWebhookPayload": {
+				"description": "RevenueCat webhook payload structure",
+				"properties": {
+					"api_version": {
+						"type": "string"
+					},
+					"event": {
+						"$ref": "#/components/schemas/RevenueCatWebhookEvent"
+					}
+				},
+				"required": [
+					"event"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"WorkoutBlockWithExercise": {
 				"properties": {
 					"id": {
@@ -2917,6 +3363,7 @@
 					"description": {
 						"type": "string"
 					},
+					"isActive": {},
 					"startDate": {
 						"type": "string"
 					},
@@ -2925,7 +3372,6 @@
 					},
 					"updatedAt": {},
 					"promptId": {},
-					"isActive": {},
 					"completed": {}
 				},
 				"type": "object",
@@ -3600,6 +4046,153 @@
 						}
 					}
 				}
+			}
+		},
+		"/auth/refresh": {
+			"post": {
+				"operationId": "RefreshToken",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthRefreshResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthRefreshResponse"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Invalid refresh token",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthRefreshResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Refresh access token using refresh token",
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"description": "Refresh token request",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RefreshTokenRequest",
+								"description": "Refresh token request"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/logout": {
+			"post": {
+				"operationId": "Logout",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Logout user and revoke refresh token",
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"description": "Refresh token to revoke",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RefreshTokenRequest",
+								"description": "Refresh token to revoke"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/delete-account": {
+			"delete": {
+				"operationId": "DeleteAccount",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Delete user account\nMarks the account as inactive and appends _deleted to email to prevent login",
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/dashboard/{userId}/metrics": {
@@ -7562,6 +8155,92 @@
 				"parameters": []
 			}
 		},
+		"/subscriptions/plans": {
+			"get": {
+				"operationId": "GetSubscriptionPlans",
+				"responses": {
+					"200": {
+						"description": "Subscription plans retrieved successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SubscriptionPlansResponse"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal server error"
+					}
+				},
+				"description": "Get all active subscription plans\nReturns a list of subscription plans available for purchase",
+				"tags": [
+					"Subscriptions"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/subscriptions/webhooks/revenuecat": {
+			"post": {
+				"operationId": "HandleRevenueCatWebhook",
+				"responses": {
+					"200": {
+						"description": "Webhook processed successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"message",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request"
+					},
+					"401": {
+						"description": "Unauthorized - Invalid authorization"
+					}
+				},
+				"description": "Handle RevenueCat webhook events\nThis endpoint receives webhooks from RevenueCat for subscription events",
+				"tags": [
+					"Subscriptions"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "header",
+						"name": "Authorization",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RevenueCatWebhookPayload"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/workouts/{userId}": {
 			"get": {
 				"operationId": "GetUserWorkouts",
@@ -8410,6 +9089,9 @@
 								}
 							}
 						}
+					},
+					"404": {
+						"description": "No active workout found"
 					}
 				},
 				"description": "Fetch active workout",

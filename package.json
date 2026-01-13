@@ -25,6 +25,7 @@
     "@langchain/google-genai": "^2.1.5",
     "@langchain/groq": "^1.0.2",
     "@langchain/openai": "^1.2.1",
+    "@langchain/xai": "^1.2.0",
     "@tsoa/runtime": "^5.0.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
