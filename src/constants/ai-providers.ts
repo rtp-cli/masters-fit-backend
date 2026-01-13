@@ -136,7 +136,7 @@ export const GROQ_MODELS: ModelConfig[] = [
     id: "openai/gpt-oss-120b",
     name: "openai/gpt-oss-120b",
     displayName: "GPT OSS 120B",
-    maxTokens: 8192,
+    maxTokens: 30000,
     costTier: "medium",
     description: "Largest model with reasoning capabilities (500 tokens/sec)",
   },
@@ -144,26 +144,9 @@ export const GROQ_MODELS: ModelConfig[] = [
     id: "llama-3.3-70b-versatile",
     name: "llama-3.3-70b-versatile",
     displayName: "Llama 3.3 70B",
-    maxTokens: 8192,
+    maxTokens: 30000,
     costTier: "low",
     description: "Proven instruction-following (280 tokens/sec)",
-  },
-  // Speed Tier
-  {
-    id: "openai/gpt-oss-20b",
-    name: "openai/gpt-oss-20b",
-    displayName: "GPT OSS 20B",
-    maxTokens: 8192,
-    costTier: "low",
-    description: "Fastest inference available (1000 tokens/sec)",
-  },
-  {
-    id: "llama-3.1-8b-instant",
-    name: "llama-3.1-8b-instant",
-    displayName: "Llama 3.1 8B",
-    maxTokens: 8192,
-    costTier: "low",
-    description: "Fast and reliable (560 tokens/sec)",
   },
 ];
 
