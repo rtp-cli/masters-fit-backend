@@ -2,7 +2,10 @@ import { Router } from "express";
 import { WorkoutController } from "@/controllers/workout.controller";
 import { ZodError } from "zod";
 import { expressAuthentication } from "@/middleware/auth.middleware";
-import { subscriptionGuard } from "@/middleware/subscription.middleware";
+import {
+  subscriptionGuard,
+  subscriptionGuardWithOnboarding,
+} from "@/middleware/subscription.middleware";
 
 const router = Router();
 const controller = new WorkoutController();
@@ -153,18 +156,22 @@ router.post("/:userId/generate", async (req, res) => {
 });
 
 // Generate workout plan asynchronously
-router.post("/:userId/generate-async", async (req, res) => {
-  try {
-    await expressAuthentication(req as any, "bearerAuth");
-    const response = await controller.generateWorkoutPlanAsync(
-      Number(req.params.userId),
-      req.body
-    );
-    res.status(202).json(response);
-  } catch (error) {
-    handleError(error, res);
+router.post(
+  "/:userId/generate-async",
+  subscriptionGuardWithOnboarding(),
+  async (req, res) => {
+    try {
+      await expressAuthentication(req as any, "bearerAuth");
+      const response = await controller.generateWorkoutPlanAsync(
+        Number(req.params.userId),
+        req.body
+      );
+      res.status(202).json(response);
+    } catch (error) {
+      handleError(error, res);
+    }
   }
-});
+);
 
 router.post(
   "/:userId/regenerate",

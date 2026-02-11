@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { subscriptionService } from "@/services/subscription.service";
+import { workoutService } from "@/services/workout.service";
 import { PaywallResponse } from "@/types/subscription/responses";
 import { expressAuthentication } from "@/middleware/auth.middleware";
 import { logger } from "@/utils/logger";
@@ -211,6 +212,112 @@ export function subscriptionGuard(
         operation: "subscriptionGuard",
         userId: req.userId,
       });
+
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
+    }
+  };
+}
+
+/**
+ * Subscription guard for workout generation with onboarding exception.
+ * Logic:
+ * - If user has NO workout history -> allow (onboarding)
+ * - If user HAS workout history:
+ *    - AccessLevel.UNLIMITED -> allow
+ *    - Anything else -> 403 paywall (subscription required)
+ */
+export function subscriptionGuardWithOnboarding() {
+  return async (
+    req: SubscriptionRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      // Authenticate first if userId is not set
+      if (!req.userId) {
+        try {
+          await expressAuthentication(req as any, "bearerAuth");
+        } catch (authError) {
+          res.status(401).json({
+            success: false,
+            error: "Unauthorized",
+          });
+          return;
+        }
+      }
+
+      const userId = req.userId;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: "Unauthorized",
+        });
+        return;
+      }
+
+      // Onboarding check: if user has no workout history, allow without subscription
+      const hasWorkoutHistory = await workoutService.userHasWorkoutHistory(
+        userId
+      );
+
+      if (!hasWorkoutHistory) {
+        logger.debug("Onboarding generation allowed - no workout history", {
+          operation: "subscriptionGuardWithOnboarding",
+          userId,
+        });
+        next();
+        return;
+      }
+
+      // User has workout history -> require an active subscription (unlimited access)
+      const accessLevel =
+        await subscriptionService.getEffectiveAccessLevel(userId);
+
+      req.subscriptionAccess = accessLevel;
+
+      if (accessLevel === AccessLevel.UNLIMITED) {
+        logger.debug("Unlimited access granted for generation", {
+          operation: "subscriptionGuardWithOnboarding",
+          userId,
+          accessLevel,
+        });
+        next();
+        return;
+      }
+
+      // Any non-unlimited access level is blocked for further generations
+      const paywallResponse: PaywallResponse = {
+        success: false,
+        error: "Subscription required for new workout generation",
+        paywall: {
+          type: PaywallType.SUBSCRIPTION_REQUIRED,
+          message: getPaywallMessage("generation"),
+        },
+      };
+
+      logger.info(
+        "Subscription required for generation - user has workout history",
+        {
+          operation: "subscriptionGuardWithOnboarding",
+          userId,
+          accessLevel,
+        }
+      );
+
+      res.status(403).json(paywallResponse);
+    } catch (error) {
+      logger.error(
+        "Subscription guard with onboarding error",
+        error as Error,
+        {
+          operation: "subscriptionGuardWithOnboarding",
+          userId: req.userId,
+        }
+      );
 
       res.status(500).json({
         success: false,

@@ -285,6 +285,20 @@ export class WorkoutService extends BaseService {
     return transformedWorkout;
   }
 
+  /**
+   * Check if the user has any workout history (any workout record at all)
+   * Used for onboarding logic to allow the first workout generation
+   */
+  async userHasWorkoutHistory(userId: number): Promise<boolean> {
+    const result = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(workouts)
+      .where(eq(workouts.userId, userId));
+
+    const count = result[0]?.count ?? 0;
+    return count > 0;
+  }
+
   async createWorkout(data: InsertWorkout): Promise<Workout> {
     const now = new Date();
     const [workout] = await this.db
