@@ -84,14 +84,6 @@ export const GOOGLE_MODELS: ModelConfig[] = [
     description: "Best price-performance balance",
   },
   {
-    id: "gemini-2.5-pro",
-    name: "gemini-2.5-pro",
-    displayName: "Gemini 2.5 Pro",
-    maxTokens: 30000,
-    costTier: "high",
-    description: "Advanced reasoning for complex tasks",
-  },
-  {
     id: "gemini-3-pro-preview",
     name: "gemini-3-pro-preview",
     displayName: "Gemini 3 Pro",
