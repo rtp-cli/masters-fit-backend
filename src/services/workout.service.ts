@@ -801,6 +801,25 @@ export class WorkoutService extends BaseService {
     };
   }
 
+  async deletePlanDayExercise(id: number): Promise<{ success: boolean }> {
+    // Delete exercise logs first (FK constraint)
+    await this.db
+      .delete(exerciseLogs)
+      .where(eq(exerciseLogs.planDayExerciseId, id));
+
+    // Delete the plan day exercise
+    const [deleted] = await this.db
+      .delete(planDayExercises)
+      .where(eq(planDayExercises.id, id))
+      .returning();
+
+    if (!deleted) {
+      throw new Error(`Plan day exercise with id ${id} not found`);
+    }
+
+    return { success: true };
+  }
+
   async replaceExercise(
     planDayExerciseId: number,
     newExerciseId: number

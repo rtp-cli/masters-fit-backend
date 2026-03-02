@@ -211,6 +211,14 @@ export class WorkoutController extends Controller {
    * @param id Plan day exercise ID
    * @param requestBody New exercise data
    */
+  @Delete("/exercises/{id}")
+  @SuccessResponse(200, "Success")
+  public async deletePlanDayExercise(
+    @Path() id: number
+  ): Promise<{ success: boolean }> {
+    return workoutService.deletePlanDayExercise(id);
+  }
+
   @Put("/exercise/{id}/replace")
   @Response<WorkoutBlockExerciseResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")

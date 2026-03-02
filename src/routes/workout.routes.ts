@@ -128,6 +128,19 @@ router.put("/exercises/:id", async (req, res) => {
   }
 });
 
+// Delete plan day exercise
+router.delete("/exercises/:id", async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const response = await controller.deletePlanDayExercise(
+      Number(req.params.id)
+    );
+    res.json(response);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 // Replace plan day exercise with a new exercise
 router.put("/exercise/:id/replace", async (req, res) => {
   try {
