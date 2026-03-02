@@ -820,7 +820,54 @@ export class SubscriptionController extends Controller {
       }
     }
 
-    // Note: The receiving user will get an INITIAL_PURCHASE or RENEWAL event
-    // so we don't need to grant access here
+    // Grant access to receiving users
+    // This is critical for anonymous→authenticated transfers where TRANSFER
+    // is the only event that links the purchase to the real user ID.
+    for (const toUserId of transferredTo) {
+      try {
+        const userId = await this.resolveUserId(toUserId);
+
+        // Ensure subscription record exists (creates trial if none)
+        await subscriptionService.getUserSubscription(userId);
+
+        // Activate subscription with event data
+        const productId = event.product_id;
+        const plan = productId
+          ? await subscriptionService.getPlanByRevenueCatProductId(productId)
+          : null;
+
+        const purchasedAt = this.parseTimestamp(
+          event.purchased_at_ms,
+          event.purchased_at
+        );
+        const expiresAt = this.parseTimestamp(
+          event.expiration_at_ms,
+          event.expires_at
+        );
+
+        await subscriptionService.updateUserSubscription(userId, {
+          revenuecatCustomerId: event.app_user_id,
+          revenuecatSubscriptionId: event.original_transaction_id || null,
+          planId: plan?.planId || productId || "pro",
+          status: SubscriptionStatus.ACTIVE,
+          subscriptionStartDate: purchasedAt,
+          subscriptionEndDate: expiresAt,
+        });
+
+        logger.info("Access granted to transferred user", {
+          operation: "handleTransfer",
+          userId,
+          toUserId,
+          productId,
+          planId: plan?.planId,
+        });
+      } catch (error) {
+        logger.error("Could not grant access to transferred user", {
+          operation: "handleTransfer",
+          toUserId,
+          error: (error as Error).message,
+        });
+      }
+    }
   }
 }
