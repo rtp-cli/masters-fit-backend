@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { eq } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -38,7 +39,7 @@ export const workouts = pgTable("workouts", {
     .notNull(),
 }, (table) => ({
   userIdIdx: index("idx_workouts_user_id").on(table.userId),
-  userActiveIdx: index("idx_workouts_user_active").on(table.userId, table.isActive).where(eq(table.isActive, true)),
+  userActiveIdx: uniqueIndex("idx_workouts_user_active").on(table.userId).where(eq(table.isActive, true)),
   completedIdx: index("idx_workouts_completed").on(table.completed),
 }));
 

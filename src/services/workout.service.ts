@@ -301,16 +301,26 @@ export class WorkoutService extends BaseService {
 
   async createWorkout(data: InsertWorkout): Promise<Workout> {
     const now = new Date();
-    const [workout] = await this.db
-      .insert(workouts)
-      .values({
-        ...data,
-        startDate: sql`${data.startDate}::date`,
-        endDate: sql`${data.endDate}::date`,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning();
+
+    // Atomically deactivate existing active workouts and create the new one
+    // This prevents race conditions where two concurrent requests both create active workouts
+    const [workout] = await this.db.transaction(async (tx) => {
+      await tx
+        .update(workouts)
+        .set({ isActive: false, updatedAt: now })
+        .where(and(eq(workouts.userId, data.userId), eq(workouts.isActive, true)));
+
+      return tx
+        .insert(workouts)
+        .values({
+          ...data,
+          startDate: sql`${data.startDate}::date`,
+          endDate: sql`${data.endDate}::date`,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+    });
 
     const completeWorkout = (await this.db.query.workouts.findFirst({
       where: eq(workouts.id, workout.id),
@@ -936,40 +946,8 @@ export class WorkoutService extends BaseService {
     // Emit 10% - Starting
     emitProgress(userId, 10);
 
-    // First, find and deactivate the current active workout(s)
-    const activeWorkouts = await this.db
-      .select({ id: workouts.id, name: workouts.name })
-      .from(workouts)
-      .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
-
-    if (activeWorkouts.length > 0) {
-      logger.info("Found active workouts, deactivating them", {
-        operation: "generateWorkoutPlan",
-        userId,
-        metadata: {
-          count: activeWorkouts.length,
-          workouts: activeWorkouts.map((w) => `ID: ${w.id}, Name: ${w.name}`),
-        },
-      });
-
-      // Deactivate all current active workouts
-      await this.db
-        .update(workouts)
-        .set({ isActive: false, updatedAt: new Date() })
-        .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
-
-      logger.info("Successfully deactivated active workouts", {
-        operation: "generateWorkoutPlan",
-        userId,
-      });
-    } else {
-      logger.info("No active workouts found for user", {
-        userId,
-        operation: "generateWorkoutPlan",
-      });
-    }
-
-    // Emit 11% - Old workouts deactivated
+    // Note: Deactivation of existing active workouts is handled atomically
+    // inside createWorkout() via a transaction to prevent race conditions.
     emitProgress(userId, 11);
 
     // Try chunked generation first, fallback to regular generation if it fails
@@ -1334,40 +1312,8 @@ export class WorkoutService extends BaseService {
       } as any);
     }
 
-    // First, find and deactivate the current active workout(s)
-    const activeWorkouts = await this.db
-      .select({ id: workouts.id, name: workouts.name })
-      .from(workouts)
-      .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
-
-    if (activeWorkouts.length > 0) {
-      logger.info(
-        "Found active workouts, deactivating them before regeneration",
-        {
-          userId,
-          operation: "regenerateWorkoutPlan",
-          metadata: {
-            count: activeWorkouts.length,
-            workouts: activeWorkouts.map((w) => `ID: ${w.id}, Name: ${w.name}`),
-          },
-        }
-      );
-
-      // Deactivate all current active workouts
-      await this.db
-        .update(workouts)
-        .set({ isActive: false, updatedAt: new Date() })
-        .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
-
-      logger.info(
-        "Successfully deactivated active workouts before regeneration",
-        {
-          userId,
-          operation: "regenerateWorkoutPlan",
-        }
-      );
-    }
-
+    // Deactivation of existing active workouts is handled atomically
+    // inside createWorkout() via a transaction to prevent race conditions.
     const workout = await this.generateWorkoutPlan(userId, customFeedback, undefined, threadId);
     return workout;
   }
