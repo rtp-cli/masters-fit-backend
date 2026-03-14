@@ -292,7 +292,8 @@ router.get("/:userId/active-workout", async (req, res) => {
   try {
     await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.fetchActiveWorkout(
-      Number(req.params.userId)
+      Number(req.params.userId),
+      req.query.timezone as string | undefined
     );
     // Always return 200 - having no active workout is a valid state
     res.status(200).json(response);

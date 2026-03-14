@@ -1146,12 +1146,12 @@ export class LogsService extends BaseService {
       const workoutLog = await this.getOrCreateWorkoutLog(workoutId);
       
       // Calculate total time from all plan day logs
-      const planDayLogs = await this.db
+      const dayLogs = await this.db
         .select()
         .from(planDayLogs)
-        .where(inArray(planDayLogs.planDayId, allPlanDays.map(day => day.id)));
+        .where(inArray(planDayLogs.planDayId, allPlanDays.map((day: { id: number }) => day.id)));
 
-      const totalTimeSeconds = planDayLogs.reduce((total, log) => {
+      const totalTimeSeconds = dayLogs.reduce((total: number, log: { totalTimeSeconds: number | null }) => {
         return total + (log.totalTimeSeconds || 0);
       }, 0);
 
@@ -1163,6 +1163,28 @@ export class LogsService extends BaseService {
         totalDays: allPlanDays.length,
         isComplete: true,
       });
+    }
+  }
+  /**
+   * Reopen a completed plan day so the user can resume the workout
+   */
+  async reopenPlanDay(planDayId: number) {
+    // Un-mark the plan day
+    await this.db
+      .update(planDays)
+      .set({ isComplete: false, updatedAt: new Date() })
+      .where(eq(planDays.id, planDayId));
+
+    // Also un-mark the parent workout if it was marked complete
+    const planDay = await this.db.query.planDays.findFirst({
+      where: eq(planDays.id, planDayId),
+    });
+
+    if (planDay) {
+      await this.db
+        .update(workouts)
+        .set({ completed: false, updatedAt: new Date() })
+        .where(eq(workouts.id, planDay.workoutId));
     }
   }
 }

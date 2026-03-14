@@ -230,6 +230,21 @@ router.post("/workout/day/:planDayId/complete", async (req, res) => {
   }
 });
 
+// Reopen a completed plan day (for resume)
+router.post("/workout/day/:planDayId/reopen", async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const planDayId = Number(req.params.planDayId);
+
+    // Un-mark plan day as complete
+    await logsService.reopenPlanDay(planDayId);
+
+    res.json({ success: true });
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 // Plan day log routes
 router.get("/plan-day/plan-day/:planDayId", async (req, res) => {
   try {

@@ -397,15 +397,20 @@ export class WorkoutAnalyticsService {
       endDate.setUTCDate(startDate.getUTCDate() + 6);
     }
 
-    // Get all plan days within the determined date range for this user
+    // Get all plan days with exercise completion counts
     const userPlanDays = await db
       .select({
-        id: planDays.id,
+        planDayId: planDays.id,
         date: planDays.date,
-        isComplete: planDays.isComplete, // Use the new isComplete flag
+        isComplete: planDays.isComplete,
+        totalExercises: sql<number>`COUNT(DISTINCT ${planDayExercises.id})`,
+        completedExercises: sql<number>`COUNT(DISTINCT ${exerciseLogs.planDayExerciseId})`,
       })
       .from(planDays)
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+      .innerJoin(workoutBlocks, eq(workoutBlocks.planDayId, planDays.id))
+      .innerJoin(planDayExercises, eq(planDayExercises.workoutBlockId, workoutBlocks.id))
+      .leftJoin(exerciseLogs, eq(exerciseLogs.planDayExerciseId, planDayExercises.id))
       .where(
         and(
           eq(workouts.userId, userId),
@@ -413,15 +418,18 @@ export class WorkoutAnalyticsService {
           lte(planDays.date, formatDateToISO(endDate))
         )
       )
+      .groupBy(planDays.id, planDays.date, planDays.isComplete)
       .orderBy(planDays.date);
 
-    // Create a map for quick lookup of planned days
+    // Create a map for quick lookup
     const plannedDaysMap = new Map(
       userPlanDays.map((pd) => [
         pd.date,
         {
-          id: pd.id,
+          id: pd.planDayId,
           isComplete: pd.isComplete,
+          totalExercises: Number(pd.totalExercises) || 0,
+          completedExercises: Number(pd.completedExercises) || 0,
         },
       ])
     );
@@ -435,14 +443,16 @@ export class WorkoutAnalyticsService {
       const plannedDay = plannedDaysMap.get(dateStr);
 
       if (plannedDay) {
-        // This day has a planned workout
+        const completionRate = plannedDay.totalExercises > 0
+          ? Math.round((plannedDay.completedExercises / plannedDay.totalExercises) * 100)
+          : 0;
+
         progressData.push({
           date: dateStr,
-          completionRate: plannedDay.isComplete ? 100 : 0,
+          completionRate,
           hasPlannedWorkout: true,
         });
       } else {
-        // This is a rest day
         progressData.push({
           date: dateStr,
           completionRate: 0,

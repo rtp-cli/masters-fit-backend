@@ -255,6 +255,7 @@ export class WorkoutService extends BaseService {
             duration: exercise.duration ?? undefined,
             restTime: exercise.restTime ?? undefined,
             completed: exercise.completed ?? false,
+            isSkipped: exercise.isSkipped ?? false,
             notes: exercise.notes ?? undefined,
             order: exercise.order ?? undefined,
             created_at: new Date(exercise.createdAt ?? Date.now()),
@@ -1203,20 +1204,21 @@ export class WorkoutService extends BaseService {
     );
   }
 
-  async fetchActiveWorkout(userId: number): Promise<WorkoutWithDetails | null> {
+  async fetchActiveWorkout(userId: number, timezone?: string): Promise<WorkoutWithDetails | null> {
     try {
-      const today = new Date();
+      const todayStr = timezone
+        ? getCurrentDateStringInTimezone(timezone)
+        : getCurrentDateString();
       logger.info("Fetching active workout", {
         operation: "fetchActiveWorkout",
-        metadata: { userId, today: today.toISOString() },
+        metadata: { userId, today: todayStr, timezone },
       });
 
       const workout = await this.db.query.workouts.findFirst({
         where: and(
           eq(workouts.userId, userId),
           eq(workouts.isActive, true),
-          eq(workouts.completed, false),
-          sql`${workouts.startDate}::date <= ${today}::date AND ${workouts.endDate}::date >= ${today}::date`
+          sql`${workouts.startDate}::date <= ${todayStr}::date AND ${workouts.endDate}::date >= ${todayStr}::date`
         ),
         with: {
           planDays: {
@@ -1633,7 +1635,7 @@ export class WorkoutService extends BaseService {
    * Get workout history for a user (all past workouts - completed or not)
    */
   async getWorkoutHistory(userId: number): Promise<WorkoutWithDetails[]> {
-    const today = new Date();
+    const today = getCurrentDateString();
 
     // Get all workouts that are either:
     // 1. Not active (isActive = false)
@@ -1681,7 +1683,7 @@ export class WorkoutService extends BaseService {
     userId: number,
     timeFilter: "week" | "month" | "3months" | "all" = "month"
   ): Promise<any[]> {
-    const today = new Date();
+    const today = getCurrentDateString();
     let dateFilter = null;
 
     if (timeFilter !== "all") {
