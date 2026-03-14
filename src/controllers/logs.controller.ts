@@ -54,6 +54,7 @@ export class LogsController extends Controller {
     @Body()
     requestBody: {
       planDayExerciseId: number;
+      roundNumber?: number;
       sets: Array<{
         roundNumber: number;
         setNumber: number;
@@ -74,6 +75,44 @@ export class LogsController extends Controller {
     } catch (error) {
       logger.error("Error creating exercise log", error as Error, {
         operation: "createExerciseLog",
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Create multiple exercise log entries in a single batch
+   */
+  @Post("/exercise/batch")
+  public async createExerciseLogsBatch(
+    @Body()
+    requestBody: {
+      logs: Array<{
+        planDayExerciseId: number;
+        roundNumber?: number;
+        sets: Array<{
+          roundNumber: number;
+          setNumber: number;
+          weight: number;
+          reps: number;
+          restAfter?: number;
+        }>;
+        durationCompleted?: number;
+        timeTaken?: number;
+        notes?: string;
+        isComplete?: boolean;
+      }>;
+    }
+  ): Promise<{ count: number }> {
+    try {
+      const result = await logsService.createExerciseLogsBatch(
+        requestBody.logs
+      );
+      return result;
+    } catch (error) {
+      logger.error("Error creating exercise logs batch", error as Error, {
+        operation: "createExerciseLogsBatch",
+        count: requestBody.logs.length,
       });
       throw error;
     }
@@ -578,6 +617,32 @@ export class LogsController extends Controller {
     return {
       success: true,
       log: log!,
+    };
+  }
+
+  /**
+   * Add completed exercises (batch) to workout
+   * @param workoutId Workout ID
+   * @param requestBody Exercise IDs and optional block ID
+   */
+  @Post("/workout/{workoutId}/exercises/complete")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async addCompletedExercises(
+    @Path() workoutId: number,
+    @Body() requestBody: { planDayExerciseIds: number[]; workoutBlockId?: number }
+  ): Promise<WorkoutLogResponse> {
+    const log = await logsService.addCompletedExercises(
+      workoutId,
+      requestBody.planDayExerciseIds
+    );
+    // Also mark the block as complete if provided
+    if (requestBody.workoutBlockId) {
+      await logsService.addCompletedBlock(workoutId, requestBody.workoutBlockId);
+    }
+    return {
+      success: true,
+      log: (await logsService.getLatestWorkoutLogForWorkout(workoutId))!,
     };
   }
 

@@ -25,7 +25,7 @@ import {
 import { users } from "@/models/user.schema";
 import { BaseService } from "./base.service";
 import { eventTrackingService } from "./event-tracking.service";
-import { eq, and, inArray, desc, count, sum } from "drizzle-orm";
+import { eq, and, or, inArray, desc, count, sum } from "drizzle-orm";
 
 // Helper function to convert decimal string to number
 const parseDecimal = (value: string | null): number | null => {
@@ -39,6 +39,7 @@ export class LogsService extends BaseService {
 
   async createExerciseLog(data: {
     planDayExerciseId: number;
+    roundNumber?: number;
     sets: Array<{
       roundNumber: number;
       setNumber: number;
@@ -53,15 +54,34 @@ export class LogsService extends BaseService {
     rating?: number;
   }) {
     const { sets, ...exerciseLogData } = data;
+    const roundNumber = data.roundNumber ?? 1;
 
-    // Create parent exercise log
-    const [createdExerciseLog] = await this.db
-      .insert(exerciseLogs)
-      .values({
-        ...exerciseLogData,
-        isComplete: true, // If they're logging sets, they completed it
-      })
-      .returning();
+    // Delete existing log for this exercise+round (overwrite on redo)
+    // Cascade delete handles exercise_set_logs cleanup
+    await this.db
+      .delete(exerciseLogs)
+      .where(
+        and(
+          eq(exerciseLogs.planDayExerciseId, data.planDayExerciseId),
+          eq(exerciseLogs.roundNumber, roundNumber)
+        )
+      );
+
+    // Create parent exercise log and mark the exercise as completed
+    const [[createdExerciseLog]] = await Promise.all([
+      this.db
+        .insert(exerciseLogs)
+        .values({
+          ...exerciseLogData,
+          roundNumber,
+          isComplete: true,
+        })
+        .returning(),
+      this.db
+        .update(planDayExercises)
+        .set({ completed: true })
+        .where(eq(planDayExercises.id, data.planDayExerciseId)),
+    ]);
 
     // Create set logs (only if sets array is not empty)
     let createdSetLogs: any[] = [];
@@ -91,6 +111,98 @@ export class LogsService extends BaseService {
       ...createdExerciseLog,
       sets: setsWithNumbers,
     };
+  }
+
+  async createExerciseLogsBatch(
+    logs: Array<{
+      planDayExerciseId: number;
+      roundNumber?: number;
+      sets: Array<{
+        roundNumber: number;
+        setNumber: number;
+        weight: number;
+        reps: number;
+        restAfter?: number;
+      }>;
+      durationCompleted?: number;
+      timeTaken?: number;
+      notes?: string;
+      isComplete?: boolean;
+    }>
+  ) {
+    if (!logs.length) return { count: 0 };
+
+    // Resolve round numbers: use explicit roundNumber, fallback to first set's roundNumber, then 1
+    const logsWithRounds = logs.map((log) => ({
+      ...log,
+      roundNumber: log.roundNumber ?? log.sets?.[0]?.roundNumber ?? 1,
+    }));
+
+    // Delete existing logs for incoming (plan_day_exercise_id, round_number) combos
+    // This handles re-doing a workout — old data gets overwritten
+    const deleteConditions = logsWithRounds.map((log) =>
+      and(
+        eq(exerciseLogs.planDayExerciseId, log.planDayExerciseId),
+        eq(exerciseLogs.roundNumber, log.roundNumber)
+      )
+    );
+
+    // Batch delete in chunks to avoid overly large OR clauses
+    const chunkSize = 50;
+    for (let i = 0; i < deleteConditions.length; i += chunkSize) {
+      const chunk = deleteConditions.slice(i, i + chunkSize);
+      await this.db
+        .delete(exerciseLogs)
+        .where(chunk.length === 1 ? chunk[0]! : or(...chunk));
+    }
+
+    // Insert all exercise logs at once
+    const exerciseLogValues = logsWithRounds.map((log) => ({
+      planDayExerciseId: log.planDayExerciseId,
+      roundNumber: log.roundNumber,
+      durationCompleted: log.durationCompleted,
+      timeTaken: log.timeTaken,
+      notes: log.notes,
+      isComplete: log.isComplete ?? true,
+    }));
+
+    const createdExerciseLogs = await this.db
+      .insert(exerciseLogs)
+      .values(exerciseLogValues)
+      .returning();
+
+    // Collect all set logs with their parent exercise log IDs
+    const allSetLogs: Array<{
+      exerciseLogId: number;
+      roundNumber: number;
+      setNumber: number;
+      weight: string | null;
+      reps: number;
+      restAfter?: number;
+    }> = [];
+
+    for (let i = 0; i < logsWithRounds.length; i++) {
+      const sets = logsWithRounds[i].sets;
+      if (sets && sets.length > 0) {
+        for (const set of sets) {
+          allSetLogs.push({
+            exerciseLogId: createdExerciseLogs[i].id,
+            roundNumber: set.roundNumber,
+            setNumber: set.setNumber,
+            weight: set.weight ? set.weight.toString() : null,
+            reps: set.reps,
+            restAfter: set.restAfter,
+          });
+        }
+      }
+    }
+
+    // Insert all set logs at once
+    if (allSetLogs.length > 0) {
+      await this.db.insert(exerciseSetLogs).values(allSetLogs);
+    }
+
+    return { count: createdExerciseLogs.length };
   }
 
   async updateExerciseLog(exerciseLogId: number, data: UpdateExerciseLog) {
@@ -493,10 +605,9 @@ export class LogsService extends BaseService {
   }
 
   async getOrCreateWorkoutLog(workoutId: number) {
-    let workoutLog = await this.getLatestWorkoutLogForWorkout(workoutId);
-
-    if (!workoutLog) {
-      workoutLog = await this.createWorkoutLog({
+    const [workoutLog] = await this.db
+      .insert(workoutLogs)
+      .values({
         workoutId,
         isComplete: false,
         isActive: true,
@@ -509,7 +620,13 @@ export class LogsService extends BaseService {
         skippedExercises: [],
         skippedBlocks: [],
         notes: "",
-      });
+      })
+      .onConflictDoNothing({ target: workoutLogs.workoutId })
+      .returning();
+
+    // If insert was a no-op (already exists), fetch the existing row
+    if (!workoutLog) {
+      return (await this.getLatestWorkoutLogForWorkout(workoutId))!;
     }
 
     return workoutLog;
@@ -518,15 +635,30 @@ export class LogsService extends BaseService {
   // ==================== COMPLETION TRACKING ====================
 
   async addCompletedExercise(workoutId: number, planDayExerciseId: number) {
+    return this.addCompletedExercises(workoutId, [planDayExerciseId]);
+  }
+
+  async addCompletedExercises(workoutId: number, planDayExerciseIds: number[]) {
+    if (!planDayExerciseIds.length) return this.getLatestWorkoutLogForWorkout(workoutId);
+
     const workoutLog = await this.getOrCreateWorkoutLog(workoutId);
 
     const currentCompleted = workoutLog.completedExercises || [];
-    if (!currentCompleted.includes(planDayExerciseId)) {
-      const updatedCompleted = [...currentCompleted, planDayExerciseId];
+    const newIds = planDayExerciseIds.filter((id) => !currentCompleted.includes(id));
 
-      await this.updateWorkoutLog(workoutId, {
-        completedExercises: updatedCompleted,
-      });
+    if (newIds.length > 0) {
+      const updatedCompleted = [...currentCompleted, ...newIds];
+
+      await Promise.all([
+        this.updateWorkoutLog(workoutId, {
+          completedExercises: updatedCompleted,
+        }),
+        // Mark all exercises as completed in plan_day_exercises
+        this.db
+          .update(planDayExercises)
+          .set({ completed: true })
+          .where(inArray(planDayExercises.id, planDayExerciseIds)),
+      ]);
     }
 
     return this.getLatestWorkoutLogForWorkout(workoutId);
@@ -582,10 +714,14 @@ export class LogsService extends BaseService {
       });
     }
 
-    // Also mark the exercise itself as skipped in the planDayExercises table
+    // Mark as skipped and clear completed flag, also delete old exercise logs
+    await this.db
+      .delete(exerciseLogs)
+      .where(eq(exerciseLogs.planDayExerciseId, planDayExerciseId));
+
     await this.db
       .update(planDayExercises)
-      .set({ isSkipped: true, updatedAt: new Date() })
+      .set({ isSkipped: true, completed: false, updatedAt: new Date() })
       .where(eq(planDayExercises.id, planDayExerciseId));
 
     return this.getLatestWorkoutLogForWorkout(workoutId);
@@ -916,6 +1052,37 @@ export class LogsService extends BaseService {
         // Create new log
         await this.db.insert(planDayLogs).values(logData);
       }
+    }
+
+    // Sync workout_logs arrays with actual plan_day_exercises state
+    try {
+      const planDayBlocks = await this.db.query.workoutBlocks.findMany({
+        where: eq(workoutBlocks.planDayId, planDayId),
+        with: { exercises: true },
+      });
+
+      const allExercises = planDayBlocks.flatMap((b) => b.exercises);
+      const completedIds = allExercises.filter((e) => e.completed && !e.isSkipped).map((e) => e.id);
+      const skippedIds = allExercises.filter((e) => e.isSkipped).map((e) => e.id);
+      const blockIds = planDayBlocks.map((b) => b.id);
+
+      const workoutLog = await this.getOrCreateWorkoutLog(workoutId);
+      const currentCompleted = workoutLog.completedExercises || [];
+      const currentSkipped = workoutLog.skippedExercises || [];
+      const currentBlocks = workoutLog.completedBlocks || [];
+
+      // Merge new IDs with existing (from other plan days)
+      const mergedCompleted = [...new Set([...currentCompleted, ...completedIds])];
+      const mergedSkipped = [...new Set([...currentSkipped, ...skippedIds])];
+      const mergedBlocks = [...new Set([...currentBlocks, ...blockIds])];
+
+      await this.updateWorkoutLog(workoutId, {
+        completedExercises: mergedCompleted,
+        skippedExercises: mergedSkipped,
+        completedBlocks: mergedBlocks,
+      });
+    } catch (error) {
+      console.error("Error syncing workout_logs arrays:", error);
     }
 
     // Track workout completion analytics for this plan day

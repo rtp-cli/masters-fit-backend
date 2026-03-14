@@ -7,6 +7,7 @@ import {
   timestamp,
   decimal,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { eq } from "drizzle-orm";
 import {
@@ -28,6 +29,9 @@ export const exerciseLogs = pgTable(
       .notNull()
       .references(() => planDayExercises.id),
 
+    // Round number (1 for traditional/warmup/cooldown, 1..N for circuit/AMRAP rounds)
+    roundNumber: integer("round_number").notNull().default(1),
+
     // Time-based exercise metrics
     durationCompleted: integer("duration_completed"), // in seconds
     timeTaken: integer("time_taken"), // total time for this exercise in seconds
@@ -45,8 +49,10 @@ export const exerciseLogs = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => ({
-    planDayExerciseIdIdx: index("idx_exercise_logs_plan_day_exercise_id").on(
-      table.planDayExerciseId
+    // Unique constraint: one log per exercise per round
+    exerciseRoundUniqueIdx: uniqueIndex("idx_exercise_logs_pde_round").on(
+      table.planDayExerciseId,
+      table.roundNumber
     ),
     createdAtIdx: index("idx_exercise_logs_created_at").on(table.createdAt),
     isCompleteIdx: index("idx_exercise_logs_is_complete").on(table.isComplete),
@@ -196,13 +202,14 @@ export const workoutLogs = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => ({
-    workoutIdIdx: index("idx_workout_logs_workout_id").on(table.workoutId),
+    workoutIdIdx: uniqueIndex("idx_workout_logs_workout_id").on(table.workoutId),
   })
 );
 
 // Schemas for insert operations
 export const insertExerciseLogSchema = createInsertSchema(exerciseLogs, {
   planDayExerciseId: z.number(),
+  roundNumber: z.number().min(1).optional(),
   durationCompleted: z.number().optional(),
   timeTaken: z.number().optional(),
   isComplete: z.boolean().optional(),

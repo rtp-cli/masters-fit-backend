@@ -22,6 +22,17 @@ const handleError = (error: unknown, res: any) => {
   }
 };
 
+// Create exercise logs (batch)
+router.post("/exercise/batch", async (req, res) => {
+  try {
+    await expressAuthentication(req, "bearerAuth");
+    const result = await controller.createExerciseLogsBatch(req.body);
+    res.status(201).json(result);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 // Create exercise log
 router.post("/exercise", async (req, res) => {
   try {
@@ -133,6 +144,22 @@ router.post(
       } else if (error instanceof Error) {
         res.status(400).json({ success: false, error: error.message });
       }
+    }
+  }
+);
+
+// Add completed exercises (batch) to workout
+router.post(
+  "/workout/:workoutId/exercises/complete",
+  async (req, res) => {
+    try {
+      const response = await controller.addCompletedExercises(
+        Number(req.params.workoutId),
+        req.body
+      );
+      res.json(response);
+    } catch (error) {
+      handleError(error, res);
     }
   }
 );
