@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { WorkoutController } from "@/controllers/workout.controller";
+import { workoutService } from "@/services/workout.service";
 import { ZodError } from "zod";
 import { expressAuthentication } from "@/middleware/auth.middleware";
 import {
@@ -291,12 +292,16 @@ router.post(
 router.get("/:userId/active-workout", async (req, res) => {
   try {
     await expressAuthentication(req as any, "bearerAuth");
-    const response = await controller.fetchActiveWorkout(
+    const timezone = req.query.timezone as string | undefined;
+    const workout = await workoutService.fetchActiveWorkout(
       Number(req.params.userId),
-      req.query.timezone as string | undefined
+      timezone
     );
-    // Always return 200 - having no active workout is a valid state
-    res.status(200).json(response);
+    if (!workout) {
+      res.status(200).json({ success: true, workout: null });
+      return;
+    }
+    res.status(200).json({ success: true, workout });
   } catch (error) {
     handleError(error, res);
   }

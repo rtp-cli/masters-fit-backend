@@ -561,10 +561,9 @@ export class WorkoutController extends Controller {
   @SuccessResponse(200, "Success")
   @Response(404, "No active workout found")
   public async fetchActiveWorkout(
-    @Path() userId: number,
-    timezone?: string
+    @Path() userId: number
   ): Promise<WorkoutResponse> {
-    const workout = await workoutService.fetchActiveWorkout(userId, timezone);
+    const workout = await workoutService.fetchActiveWorkout(userId);
     if (!workout) {
       throw new Error("No active workout found");
     }
