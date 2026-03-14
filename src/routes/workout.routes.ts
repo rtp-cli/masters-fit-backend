@@ -157,18 +157,6 @@ router.put("/exercise/:id/replace", async (req, res) => {
   }
 });
 
-router.post("/:userId/generate", async (req, res) => {
-  try {
-    await expressAuthentication(req as any, "bearerAuth");
-    const response = await controller.generateWorkoutPlan(
-      Number(req.params.userId)
-    );
-    res.json(response);
-  } catch (error) {
-    handleError(error, res);
-  }
-});
-
 // Generate workout plan asynchronously
 router.post(
   "/:userId/generate-async",
@@ -187,30 +175,6 @@ router.post(
   }
 );
 
-router.post(
-  "/:userId/regenerate",
-  subscriptionGuard("regeneration", "weekly"),
-  async (req, res) => {
-    try {
-      const response = await controller.regenerateWorkoutPlan(
-        Number(req.params.userId),
-        req.body
-      );
-      res.json(response);
-    } catch (error) {
-      if (error instanceof ZodError) {
-        res.status(400).json({ success: false, error: "Invalid request data" });
-      } else if (error instanceof Error) {
-        res.status(400).json({ success: false, error: error.message });
-      } else {
-        res
-          .status(500)
-          .json({ success: false, error: "Internal server error" });
-      }
-    }
-  }
-);
-
 // Regenerate workout plan asynchronously
 router.post(
   "/:userId/regenerate-async",
@@ -222,32 +186,6 @@ router.post(
         req.body
       );
       res.status(202).json(response);
-    } catch (error) {
-      if (error instanceof ZodError) {
-        res.status(400).json({ success: false, error: "Invalid request data" });
-      } else if (error instanceof Error) {
-        res.status(400).json({ success: false, error: error.message });
-      } else {
-        res
-          .status(500)
-          .json({ success: false, error: "Internal server error" });
-      }
-    }
-  }
-);
-
-// Regenerate daily workout
-router.post(
-  "/:userId/days/:planDayId/regenerate",
-  subscriptionGuard("regeneration", "daily"),
-  async (req, res) => {
-    try {
-      const response = await controller.regenerateDailyWorkout(
-        Number(req.params.userId),
-        Number(req.params.planDayId),
-        req.body
-      );
-      res.json(response);
     } catch (error) {
       if (error instanceof ZodError) {
         res.status(400).json({ success: false, error: "Invalid request data" });
