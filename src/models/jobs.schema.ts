@@ -161,6 +161,7 @@ export interface DailyRegenerationJobData {
   regenerationReason: string;
   regenerationStyles?: string[];
   threadId?: string;
+  standaloneWorkoutId?: number;
 }
 
 export interface DailyRegenerationJobResult {

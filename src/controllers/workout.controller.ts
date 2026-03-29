@@ -784,27 +784,34 @@ export class WorkoutController extends Controller {
     });
 
     try {
-      // Get active workout to check if date is available
+      let newPlanDay;
+      let standaloneWorkoutId: number | undefined;
       const activeWorkout = await workoutService.fetchActiveWorkout(userId);
-      if (!activeWorkout) {
-        this.setStatus(400);
-        throw new Error("No active workout found");
-      }
 
-      // Check if this date already has a workout
-      const existingPlanDay = activeWorkout.planDays?.find(
-        (day) => day.date === requestBody.date
-      );
-      if (existingPlanDay) {
-        this.setStatus(400);
-        throw new Error("This date already has a workout scheduled");
-      }
+      if (activeWorkout) {
+        // Check if this date already has a workout in the active plan
+        const existingPlanDay = activeWorkout.planDays?.find(
+          (day) => day.date === requestBody.date
+        );
+        if (existingPlanDay) {
+          this.setStatus(400);
+          throw new Error("This date already has a workout scheduled");
+        }
 
-      // Create a new plan day for the rest day
-      const newPlanDay = await workoutService.createPlanDayForRestDay(
-        activeWorkout.id,
-        requestBody.date
-      );
+        newPlanDay = await workoutService.createPlanDayForRestDay(
+          activeWorkout.id,
+          requestBody.date
+        );
+      } else {
+        // No active workout — create a standalone single-day workout (inactive until job completes)
+        const standalone =
+          await workoutService.createStandaloneWorkoutForDate(
+            userId,
+            requestBody.date
+          );
+        newPlanDay = standalone.planDay;
+        standaloneWorkoutId = standalone.workoutId;
+      }
 
       // Create job record in database
       const job = await jobsService.createJob(
@@ -816,6 +823,7 @@ export class WorkoutController extends Controller {
           regenerationStyles: requestBody.styles,
           threadId: requestBody.threadId,
           isRestDayGeneration: true,
+          standaloneWorkoutId,
         }
       );
 
@@ -830,6 +838,7 @@ export class WorkoutController extends Controller {
         regenerationReason: requestBody.reason,
         regenerationStyles: requestBody.styles,
         threadId: requestBody.threadId,
+        standaloneWorkoutId,
       };
 
       await workoutGenerationQueue.add("regenerate-daily-workout", jobData, {

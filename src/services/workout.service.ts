@@ -2124,6 +2124,101 @@ export class WorkoutService extends BaseService {
 
     return newPlanDay;
   }
+
+  /**
+   * Create a standalone single-day workout plan for a user who has no active workout.
+   * The workout is created as **inactive** so it won't appear in the frontend until
+   * the generation job completes and calls activateWorkout().
+   */
+  async createStandaloneWorkoutForDate(
+    userId: number,
+    date: string
+  ): Promise<{ workoutId: number; planDay: PlanDay }> {
+    const now = new Date();
+
+    const prompt = await promptsService.createPrompt({
+      userId,
+      prompt: "Standalone single-day workout generation",
+      response: "{}",
+    });
+
+    const [workout] = await this.db
+      .insert(workouts)
+      .values({
+        userId,
+        promptId: prompt.id,
+        startDate: sql`${date}::date`,
+        endDate: sql`${date}::date`,
+        name: "Single Day Workout",
+        description: "Standalone workout generated on demand",
+        isActive: false,
+        completed: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    const [planDay] = await this.db
+      .insert(planDays)
+      .values({
+        workoutId: workout.id,
+        date: sql`${new Date(date)}::date`,
+        dayNumber: 1,
+        name: "Rest Day Workout",
+        description: "Optional workout for rest day",
+        instructions: null,
+        isComplete: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    logger.info("Standalone single-day workout created (inactive)", {
+      userId,
+      date,
+      workoutId: workout.id,
+      planDayId: planDay.id,
+      operation: "createStandaloneWorkoutForDate",
+    });
+
+    return { workoutId: workout.id, planDay };
+  }
+
+  /**
+   * Activate a standalone workout by deactivating any current active workout
+   * and setting this one to active.
+   */
+  async activateWorkout(
+    userId: number,
+    workoutId: number,
+    name?: string,
+    description?: string
+  ): Promise<void> {
+    const now = new Date();
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(workouts)
+        .set({ isActive: false, updatedAt: now })
+        .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
+
+      await tx
+        .update(workouts)
+        .set({
+          isActive: true,
+          updatedAt: now,
+          ...(name ? { name } : {}),
+          ...(description ? { description } : {}),
+        })
+        .where(eq(workouts.id, workoutId));
+    });
+
+    logger.info("Standalone workout activated", {
+      userId,
+      workoutId,
+      name,
+      operation: "activateWorkout",
+    });
+  }
 }
 
 export const workoutService = new WorkoutService();

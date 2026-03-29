@@ -80,6 +80,7 @@ export async function processDailyRegenerationJob(
     regenerationReason,
     regenerationStyles,
     threadId,
+    standaloneWorkoutId,
   } = job.data;
 
   logger.info("Starting daily workout regeneration job processing", {
@@ -195,6 +196,16 @@ export async function processDailyRegenerationJob(
         "regeneration",
         actualTokensUsed,
         "daily"
+      );
+    }
+
+    // If this was a standalone workout, activate it and update its name from the generated content
+    if (standaloneWorkoutId) {
+      await workoutService.activateWorkout(
+        userId,
+        standaloneWorkoutId,
+        planDay.name || undefined,
+        planDay.description || undefined
       );
     }
 
