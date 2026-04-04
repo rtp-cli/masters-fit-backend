@@ -296,6 +296,34 @@ router.post("/:userId/repeat-week/:originalWorkoutId", async (req, res) => {
   }
 });
 
+// Get past completed days
+router.get("/:userId/past-completed-days", async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const response = await controller.getPastCompletedDays(
+      Number(req.params.userId)
+    );
+    res.json(response);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+// Repeat a past day's workout
+router.post("/:userId/repeat-day/:planDayId", async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const response = await controller.repeatPastDay(
+      Number(req.params.userId),
+      Number(req.params.planDayId),
+      req.body
+    );
+    res.json(response);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 // Generate rest day workout
 router.post(
   "/:userId/rest-day-workout",

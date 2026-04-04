@@ -550,6 +550,48 @@ export class WorkoutController extends Controller {
     };
   }
 
+  /**
+   * Get past completed days for a user
+   * @param userId User ID
+   */
+  @Get("/{userId}/past-completed-days")
+  @Response<{ success: boolean; planDays: any[] }>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async getPastCompletedDays(
+    @Path() userId: number
+  ): Promise<{ success: boolean; planDays: any[] }> {
+    const planDays = await workoutService.getPastCompletedDays(userId);
+    return {
+      success: true,
+      planDays,
+    };
+  }
+
+  /**
+   * Repeat a past day's workout with a new date
+   * @param userId User ID
+   * @param planDayId Plan day ID to repeat
+   * @param requestBody New date for the repeated workout
+   */
+  @Post("/{userId}/repeat-day/{planDayId}")
+  @Response<WorkoutResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async repeatPastDay(
+    @Path() userId: number,
+    @Path() planDayId: number,
+    @Body() requestBody: { newDate: string }
+  ): Promise<WorkoutResponse> {
+    const workout = await workoutService.repeatPastDay(
+      userId,
+      planDayId,
+      requestBody.newDate
+    );
+    return {
+      success: true,
+      workout,
+    };
+  }
+
   // Test endpoint to check active workouts (for debugging)
   @Get("/:userId/debug/active")
   async getActiveWorkoutsDebug(@Path() userId: string) {

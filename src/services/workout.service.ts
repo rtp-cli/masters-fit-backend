@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, sql, not, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql, not, or, inArray } from "drizzle-orm";
 import {
   workouts,
   planDays,
@@ -1726,8 +1726,14 @@ export class WorkoutService extends BaseService {
           orderBy: [asc(planDays.date)],
           with: {
             blocks: {
+              orderBy: [asc(workoutBlocks.order)],
               with: {
-                exercises: true,
+                exercises: {
+                  orderBy: [asc(planDayExercises.order)],
+                  with: {
+                    exercise: true,
+                  },
+                },
               },
             },
           },
@@ -1775,7 +1781,27 @@ export class WorkoutService extends BaseService {
                 id: block.id,
                 blockName: block.blockName,
                 blockType: block.blockType,
+                blockDurationMinutes: block.blockDurationMinutes,
+                timeCapMinutes: block.timeCapMinutes,
+                rounds: block.rounds,
+                instructions: block.instructions,
+                order: block.order,
                 exerciseCount: block.exercises?.length || 0,
+                exercises: block.exercises?.map((ex) => ({
+                  id: ex.id,
+                  exerciseId: ex.exerciseId,
+                  sets: ex.sets,
+                  reps: ex.reps,
+                  weight: ex.weight,
+                  duration: ex.duration,
+                  restTime: ex.restTime,
+                  notes: ex.notes,
+                  order: ex.order,
+                  completed: ex.completed,
+                  exercise: ex.exercise,
+                })) || [],
+                created_at: block.createdAt,
+                updated_at: block.updatedAt,
               })) || [],
           })) || [],
       };
@@ -2066,6 +2092,295 @@ export class WorkoutService extends BaseService {
     emitProgress(userId, 100, true);
 
     return this.transformWorkout(createdWorkout as unknown as DBWorkoutResult);
+  }
+
+  /**
+   * Get past completed days for a user (up to 30 most recent)
+   */
+  async getPastCompletedDays(userId: number): Promise<any[]> {
+    const completedDays = await this.db.query.planDays.findMany({
+      where: and(
+        eq(planDays.isComplete, true),
+        inArray(
+          planDays.workoutId,
+          this.db
+            .select({ id: workouts.id })
+            .from(workouts)
+            .where(eq(workouts.userId, userId))
+        )
+      ),
+      orderBy: [desc(planDays.date)],
+      limit: 30,
+      with: {
+        blocks: {
+          orderBy: [asc(workoutBlocks.order)],
+          with: {
+            exercises: {
+              orderBy: [asc(planDayExercises.order)],
+              with: {
+                exercise: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return completedDays.map((day) => ({
+      id: day.id,
+      date: formatDateAsString(day.date),
+      name: day.name,
+      description: day.description,
+      isComplete: day.isComplete,
+      blocks: day.blocks?.map((block) => ({
+        id: block.id,
+        blockType: block.blockType,
+        blockName: block.blockName,
+        blockDurationMinutes: block.blockDurationMinutes,
+        timeCapMinutes: block.timeCapMinutes,
+        rounds: block.rounds,
+        instructions: block.instructions,
+        order: block.order,
+        exercises: block.exercises?.map((ex) => ({
+          id: ex.id,
+          exerciseId: ex.exerciseId,
+          sets: ex.sets,
+          reps: ex.reps,
+          weight: ex.weight,
+          duration: ex.duration,
+          restTime: ex.restTime,
+          notes: ex.notes,
+          order: ex.order,
+          completed: false,
+          exercise: ex.exercise,
+        })) || [],
+        created_at: block.createdAt,
+        updated_at: block.updatedAt,
+      })) || [],
+    }));
+  }
+
+  /**
+   * Repeat a past day's workout for a given date.
+   * If there's an active workout, inserts into it (like rest day workout).
+   * If no active workout, creates a new standalone single-day workout.
+   */
+  async repeatPastDay(
+    userId: number,
+    planDayId: number,
+    newDate: string
+  ): Promise<WorkoutWithDetails> {
+    // 1. Fetch source plan day with all blocks and exercises
+    const sourcePlanDay = await this.db.query.planDays.findFirst({
+      where: eq(planDays.id, planDayId),
+      with: {
+        workout: true,
+        blocks: {
+          orderBy: [asc(workoutBlocks.order)],
+          with: {
+            exercises: {
+              orderBy: [asc(planDayExercises.order)],
+              with: {
+                exercise: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!sourcePlanDay) {
+      throw new Error("Plan day not found");
+    }
+
+    if (sourcePlanDay.workout.userId !== userId) {
+      throw new Error("Unauthorized: plan day does not belong to this user");
+    }
+
+    // 2. Check for active workout
+    const activeWorkout = await this.fetchActiveWorkout(userId);
+    let targetWorkoutId: number;
+    let newPlanDay;
+
+    if (activeWorkout) {
+      // Insert into existing active workout (same pattern as rest day workout)
+      // Check if date already has a plan day — if so, replace its blocks
+      const existingPlanDay = activeWorkout.planDays?.find(
+        (day) => formatDateAsString(day.date) === newDate
+      );
+
+      if (existingPlanDay) {
+        // Delete existing blocks and exercises for this day, then replace
+        const existingBlocks = await this.db.query.workoutBlocks.findMany({
+          where: eq(workoutBlocks.planDayId, existingPlanDay.id),
+        });
+        for (const block of existingBlocks) {
+          await this.db
+            .delete(planDayExercises)
+            .where(eq(planDayExercises.workoutBlockId, block.id));
+        }
+        await this.db
+          .delete(workoutBlocks)
+          .where(eq(workoutBlocks.planDayId, existingPlanDay.id));
+
+        // Update the plan day metadata
+        await this.db
+          .update(planDays)
+          .set({
+            name: sourcePlanDay.name,
+            description: sourcePlanDay.description,
+            instructions: sourcePlanDay.instructions,
+            isComplete: false,
+            updatedAt: new Date(),
+          })
+          .where(eq(planDays.id, existingPlanDay.id));
+
+        newPlanDay = { id: existingPlanDay.id };
+      } else {
+        // No plan day for this date — insert a new one (same as createPlanDayForRestDay)
+        const existingDays = await this.db.query.planDays.findMany({
+          where: eq(planDays.workoutId, activeWorkout.id),
+          orderBy: [asc(planDays.date)],
+        });
+
+        const insertPosition =
+          existingDays.filter((day) => day.date < newDate).length + 1;
+
+        for (const day of existingDays) {
+          if ((day.dayNumber || 0) >= insertPosition) {
+            await this.db
+              .update(planDays)
+              .set({
+                dayNumber: (day.dayNumber || 0) + 1,
+                updatedAt: new Date(),
+              })
+              .where(eq(planDays.id, day.id));
+          }
+        }
+
+        const [insertedPlanDay] = await this.db
+          .insert(planDays)
+          .values({
+            workoutId: activeWorkout.id,
+            date: sql`${new Date(newDate)}::date`,
+            dayNumber: insertPosition,
+            name: sourcePlanDay.name,
+            description: sourcePlanDay.description,
+            instructions: sourcePlanDay.instructions,
+            isComplete: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning();
+
+        newPlanDay = insertedPlanDay;
+      }
+
+      targetWorkoutId = activeWorkout.id;
+    } else {
+      // No active workout — create a new standalone single-day workout
+      const prompt = await promptsService.createPrompt({
+        userId,
+        prompt: "Repeated past day workout",
+        response: "{}",
+      });
+
+      const [newWorkout] = await this.db
+        .insert(workouts)
+        .values({
+          userId,
+          name: "Single Day Workout",
+          description: sourcePlanDay.description || sourcePlanDay.name || "Repeated workout",
+          startDate: sql`${new Date(newDate)}::date`,
+          endDate: sql`${new Date(newDate)}::date`,
+          promptId: prompt.id,
+          isActive: true,
+          completed: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      const [insertedPlanDay] = await this.db
+        .insert(planDays)
+        .values({
+          workoutId: newWorkout.id,
+          date: sql`${new Date(newDate)}::date`,
+          dayNumber: 1,
+          name: sourcePlanDay.name,
+          description: sourcePlanDay.description,
+          instructions: sourcePlanDay.instructions,
+          isComplete: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      newPlanDay = insertedPlanDay;
+      targetWorkoutId = newWorkout.id;
+    }
+
+    // 3. Copy blocks and exercises from source to new plan day
+    for (const sourceBlock of sourcePlanDay.blocks || []) {
+      const [newBlock] = await this.db
+        .insert(workoutBlocks)
+        .values({
+          planDayId: newPlanDay.id,
+          blockType: sourceBlock.blockType,
+          blockName: sourceBlock.blockName,
+          blockDurationMinutes: sourceBlock.blockDurationMinutes,
+          timeCapMinutes: sourceBlock.timeCapMinutes,
+          rounds: sourceBlock.rounds,
+          instructions: sourceBlock.instructions,
+          order: sourceBlock.order,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      for (const sourceExercise of sourceBlock.exercises || []) {
+        await this.db.insert(planDayExercises).values({
+          workoutBlockId: newBlock.id,
+          exerciseId: sourceExercise.exerciseId,
+          sets: sourceExercise.sets,
+          reps: sourceExercise.reps,
+          weight: sourceExercise.weight,
+          duration: sourceExercise.duration,
+          restTime: sourceExercise.restTime,
+          completed: false,
+          isSkipped: false,
+          notes: sourceExercise.notes,
+          order: sourceExercise.order,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    }
+
+    // 4. Return the full workout
+    const resultWorkout = await this.db.query.workouts.findFirst({
+      where: eq(workouts.id, targetWorkoutId),
+      with: {
+        planDays: {
+          orderBy: [asc(planDays.date)],
+          with: {
+            blocks: {
+              orderBy: [asc(workoutBlocks.order)],
+              with: {
+                exercises: {
+                  orderBy: [asc(planDayExercises.order)],
+                  with: {
+                    exercise: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return this.transformWorkout(resultWorkout as unknown as DBWorkoutResult);
   }
 
   /**

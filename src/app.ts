@@ -13,6 +13,7 @@ import { aiProviderRouter } from "@/routes/ai-provider.routes";
 import { analyticsRouter } from "@/routes/analytics.routes";
 import dashboardRouter from "@/routes/dashboard.routes";
 import { subscriptionRouter } from "@/routes/subscription.routes";
+import * as Sentry from "@sentry/node";
 import { errorHandler } from "@/middleware/error.middleware";
 import { pool } from "@/config/database.js";
 import { logger } from "@/utils/logger.js";
@@ -179,9 +180,14 @@ process.on("unhandledRejection", (reason, promise) => {
 
 process.on("uncaughtException", (error) => {
   logger.error("Uncaught Exception", error);
-  // Gracefully close server and database connections
-  process.exit(1);
+  // Flush Sentry events before exiting
+  Sentry.close(2000).then(() => {
+    process.exit(1);
+  });
 });
+
+// Sentry error handler must be before any other error middleware
+Sentry.setupExpressErrorHandler(app);
 
 // Error handling
 app.use(errorHandler);

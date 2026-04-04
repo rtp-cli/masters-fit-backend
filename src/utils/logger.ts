@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/node";
+
 export enum LogLevel {
   ERROR = 0,
   WARN = 1,
@@ -142,6 +144,18 @@ class Logger {
 
     const logEntry = this.formatLog("ERROR", message, context, error);
     this.writeLog(logEntry);
+
+    // Also report to Sentry
+    if (error) {
+      Sentry.captureException(error, {
+        extra: { message, ...context },
+      });
+    } else {
+      Sentry.captureMessage(message, {
+        level: "error",
+        extra: context,
+      });
+    }
   }
 
   warn(message: string, context?: any) {

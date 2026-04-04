@@ -1,3 +1,6 @@
+// Sentry must be imported first to auto-instrument Express, pg, Redis, etc.
+import "./instrument";
+
 import app from "./app";
 import { logger } from "./utils/logger";
 import { createServer } from "http";
