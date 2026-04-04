@@ -8,6 +8,8 @@ export interface AuthUserResponse {
   needsOnboarding: boolean | null;
   waiverAcceptedAt: Date | null;
   waiverVersion: string | null;
+  themeMode: string | null;
+  colorTheme: string | null;
 }
 
 /**

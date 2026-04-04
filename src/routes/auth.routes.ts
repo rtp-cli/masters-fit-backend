@@ -2,6 +2,7 @@ import { Router } from "express";
 import { AuthController } from "@/controllers/auth.controller";
 import { ZodError } from "zod";
 import { expressAuthentication } from "@/middleware/auth.middleware";
+import { userService } from "@/services";
 
 const router = Router();
 const controller = new AuthController();
@@ -217,6 +218,51 @@ router.delete("/delete-account", async (req, res) => {
       res.status(400).json({ success: false, error: "Invalid request data" });
     } else if (error instanceof Error) {
       res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Update user theme preferences (authenticated)
+router.put("/theme", async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const userId = (req as any).userId;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+      return;
+    }
+
+    const { themeMode, colorTheme } = req.body;
+
+    // Validate values
+    const validThemeModes = ["light", "dark", "auto"];
+    const validColorThemes = ["original", "steel-blue", "dusty-denim", "dusty-sage", "carbon-violet"];
+
+    const updateData: any = {};
+    if (themeMode !== undefined) {
+      if (!validThemeModes.includes(themeMode)) {
+        res.status(400).json({ success: false, error: "Invalid themeMode" });
+        return;
+      }
+      updateData.themeMode = themeMode;
+    }
+    if (colorTheme !== undefined) {
+      if (!validColorThemes.includes(colorTheme)) {
+        res.status(400).json({ success: false, error: "Invalid colorTheme" });
+        return;
+      }
+      updateData.colorTheme = colorTheme;
+    }
+
+    await userService.updateUser(userId, updateData);
+
+    res.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error && (error.message === "Invalid or expired token" || error.message === "Unauthorized")) {
+      res.status(401).json({ success: false, error: error.message });
     } else {
       res.status(500).json({ success: false, error: "Internal server error" });
     }

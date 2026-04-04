@@ -62,6 +62,12 @@ export class UserService extends BaseService {
           data.isActive !== null && {
             isActive: data.isActive,
           }),
+        ...(data.themeMode !== undefined && {
+          themeMode: data.themeMode,
+        }),
+        ...(data.colorTheme !== undefined && {
+          colorTheme: data.colorTheme,
+        }),
       })
       .where(this.eq(users.id, id))
       .returning();
@@ -91,6 +97,12 @@ export class UserService extends BaseService {
           data.isActive !== null && {
             isActive: data.isActive,
           }),
+        ...(data.themeMode !== undefined && {
+          themeMode: data.themeMode,
+        }),
+        ...(data.colorTheme !== undefined && {
+          colorTheme: data.colorTheme,
+        }),
       })
       .where(this.eq(users.email, data.email!))
       .returning();

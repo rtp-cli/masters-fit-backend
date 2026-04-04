@@ -26,6 +26,8 @@ export const users = pgTable(
     waiverAcceptedAt: timestamp("waiver_accepted_at"),
     waiverVersion: text("waiver_version"),
     isActive: boolean("is_active").default(true),
+    themeMode: text("theme_mode").default("auto"),
+    colorTheme: text("color_theme").default("original"),
   },
   (table) => ({
     emailIdx: index("idx_users_email").on(table.email),
@@ -67,6 +69,8 @@ export const updateUserSchema = createInsertSchema(users).pick({
   waiverAcceptedAt: true,
   waiverVersion: true,
   isActive: true,
+  themeMode: true,
+  colorTheme: true,
 });
 
 // Types - Explicit interface for TSOA compatibility
@@ -82,6 +86,8 @@ export interface User {
   waiverAcceptedAt: Date | null;
   waiverVersion: string | null;
   isActive: boolean | null;
+  themeMode: string | null;
+  colorTheme: string | null;
 }
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
