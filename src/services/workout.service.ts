@@ -2418,7 +2418,7 @@ export class WorkoutService extends BaseService {
       .insert(planDays)
       .values({
         workoutId,
-        date: sql`${new Date(date)}::date`,
+        date: sql`${date}::date`,
         dayNumber: insertPosition,
         name: "Rest Day Workout",
         description: "Optional workout for rest day",
@@ -2477,7 +2477,7 @@ export class WorkoutService extends BaseService {
       .insert(planDays)
       .values({
         workoutId: workout.id,
-        date: sql`${new Date(date)}::date`,
+        date: sql`${date}::date`,
         dayNumber: 1,
         name: "Rest Day Workout",
         description: "Optional workout for rest day",
@@ -2533,6 +2533,39 @@ export class WorkoutService extends BaseService {
       name,
       operation: "activateWorkout",
     });
+  }
+
+  /**
+   * Delete an empty plan day (one with no blocks) created during a failed rest-day generation.
+   * Also deletes a standalone inactive workout if workoutId is provided.
+   */
+  async cleanupFailedRestDayGeneration(
+    planDayId: number,
+    standaloneWorkoutId?: number
+  ): Promise<void> {
+    try {
+      // Delete the orphaned plan day (has no blocks since generation failed before inserting them)
+      await this.db.delete(planDays).where(eq(planDays.id, planDayId));
+
+      // If there was a standalone workout created, delete it too
+      if (standaloneWorkoutId) {
+        await this.db
+          .delete(workouts)
+          .where(eq(workouts.id, standaloneWorkoutId));
+      }
+
+      logger.info("Cleaned up failed rest-day generation artifacts", {
+        planDayId,
+        standaloneWorkoutId,
+        operation: "cleanupFailedRestDayGeneration",
+      });
+    } catch (cleanupError) {
+      logger.error(
+        "Failed to clean up rest-day generation artifacts",
+        cleanupError as Error,
+        { planDayId, standaloneWorkoutId, operation: "cleanupFailedRestDayGeneration" }
+      );
+    }
   }
 }
 
