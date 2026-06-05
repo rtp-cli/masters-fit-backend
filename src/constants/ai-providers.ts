@@ -36,9 +36,9 @@ export const ANTHROPIC_MODELS: ModelConfig[] = [
     description: "Fastest model with near-frontier intelligence",
   },
   {
-    id: "claude-sonnet-4-5-20250929",
-    name: "claude-sonnet-4-5-20250929",
-    displayName: "Claude Sonnet 4.5",
+    id: "claude-sonnet-4-6",
+    name: "claude-sonnet-4-6",
+    displayName: "Claude Sonnet 4.6",
     maxTokens: 30000,
     costTier: "high",
     description: "Smartest model for complex agents and coding",
@@ -187,7 +187,7 @@ export const AI_PROVIDERS: Record<AIProvider, ProviderConfig> = {
     name: "anthropic",
     displayName: "Anthropic",
     models: ANTHROPIC_MODELS,
-    defaultModel: "claude-sonnet-4-5-20250929",
+    defaultModel: "claude-sonnet-4-6",
     envKeyName: "ANTHROPIC_API_KEY",
   },
   [AIProvider.OPENAI]: {

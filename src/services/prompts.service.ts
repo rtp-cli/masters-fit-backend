@@ -8,6 +8,8 @@ import { WorkoutAgentService } from "./workout-agent.service";
 import {
   DEFAULT_AI_PROVIDER,
   DEFAULT_AI_MODEL,
+  AI_PROVIDERS,
+  getModelConfig,
 } from "@/constants/ai-providers";
 // Result type that includes token usage
 export interface PromptGenerationResult {
@@ -61,7 +63,21 @@ export class PromptsService extends BaseService {
 
     // Use user's AI provider preferences if available, otherwise fallback to defaults
     const provider = profile.aiProvider || DEFAULT_AI_PROVIDER;
-    const model = profile.aiModel || DEFAULT_AI_MODEL;
+    let model = profile.aiModel || DEFAULT_AI_MODEL;
+
+    // Fall back to the provider's default model if the stored model is no longer valid
+    // (e.g., when a model is deprecated and removed from the constants)
+    if (!getModelConfig(provider, model)) {
+      const fallbackModel = AI_PROVIDERS[provider]?.defaultModel || DEFAULT_AI_MODEL;
+      logger.warn("Stored AI model is no longer valid, falling back to provider default", {
+        userId,
+        storedModel: model,
+        fallbackModel,
+        provider,
+        operation: "createUserWorkoutAgent",
+      });
+      model = fallbackModel;
+    }
 
     logger.info("Creating user-specific WorkoutAgentService", {
       userId,
