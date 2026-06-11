@@ -24,21 +24,8 @@ export interface ProgressEvent {
 }
 
 /**
- * Emit progress update to a specific user
- */
-export function emitProgress(userId: number, progress: number, complete: boolean = false, error?: string): void {
-  if (!io) {
-    return;
-  }
-
-  const room = `user-${userId}`;
-  const event: ProgressEvent = { progress, complete, error };
-  io.to(room).emit('workout-progress', event);
-}
-
-/**
- * Emit a structured generation status event (same wire event as
- * emitProgress, with phase + per-day statuses for richer UI).
+ * Emit a structured generation status event (phase + per-day statuses for
+ * richer UI). Legacy numeric-only events go through emitProgress below.
  */
 export function emitGenerationStatus(userId: number, event: ProgressEvent): void {
   if (!io) {
@@ -46,4 +33,11 @@ export function emitGenerationStatus(userId: number, event: ProgressEvent): void
   }
 
   io.to(`user-${userId}`).emit('workout-progress', event);
+}
+
+/**
+ * Emit progress update to a specific user
+ */
+export function emitProgress(userId: number, progress: number, complete: boolean = false, error?: string): void {
+  emitGenerationStatus(userId, { progress, complete, error });
 }

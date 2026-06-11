@@ -1,4 +1,4 @@
-import { InsertPrompt, Prompt, prompts } from "@/models";
+import { InsertPrompt, Profile, Prompt, prompts } from "@/models";
 import { BaseService } from "./base.service";
 import { profileService } from "./profile.service";
 import { eq, and, asc } from "drizzle-orm";
@@ -56,9 +56,11 @@ export class PromptsService extends BaseService {
 
   // Create user-specific workout agent based on their AI provider preferences
   private async createUserWorkoutAgent(
-    userId: number
+    userId: number,
+    existingProfile?: Profile
   ): Promise<WorkoutAgentService> {
-    const profile = await profileService.getProfileByUserId(userId);
+    const profile =
+      existingProfile ?? (await profileService.getProfileByUserId(userId));
     if (!profile) {
       throw new Error("Profile not found");
     }
@@ -195,7 +197,7 @@ export class PromptsService extends BaseService {
       );
     }
 
-    const workoutAgent = await this.createUserWorkoutAgent(userId);
+    const workoutAgent = await this.createUserWorkoutAgent(userId, profile);
 
     emitGenerationStatus(userId, { progress: 15, phase: "planning" });
 

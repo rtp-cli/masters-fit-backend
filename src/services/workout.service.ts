@@ -1899,8 +1899,8 @@ export class WorkoutService extends BaseService {
         userId,
         name: `${originalWorkout.name}`,
         description: originalWorkout.description,
-        startDate: sql`${newStart}::date`,
-        endDate: sql`${new Date(newEndDate)}::date`,
+        startDate: sql`${newStartDate}::date`,
+        endDate: sql`${newEndDate}::date`,
         promptId: originalWorkout.promptId, // Copy the prompt ID from original workout
         isActive: true,
         completed: false,
@@ -1949,7 +1949,7 @@ export class WorkoutService extends BaseService {
           .insert(planDays)
           .values({
             workoutId: newWorkout.id,
-            date: sql`${new Date(scheduledDate)}::date`,
+            date: sql`${scheduledDate}::date`,
             name: originalPlanDay.name,
             description: originalPlanDay.description,
             instructions: originalPlanDay.instructions,
@@ -2262,7 +2262,7 @@ export class WorkoutService extends BaseService {
           .insert(planDays)
           .values({
             workoutId: activeWorkout.id,
-            date: sql`${new Date(newDate)}::date`,
+            date: sql`${newDate}::date`,
             dayNumber: insertPosition,
             name: sourcePlanDay.name,
             description: sourcePlanDay.description,
@@ -2291,8 +2291,8 @@ export class WorkoutService extends BaseService {
           userId,
           name: "Single Day Workout",
           description: sourcePlanDay.description || sourcePlanDay.name || "Repeated workout",
-          startDate: sql`${new Date(newDate)}::date`,
-          endDate: sql`${new Date(newDate)}::date`,
+          startDate: sql`${newDate}::date`,
+          endDate: sql`${newDate}::date`,
           promptId: prompt.id,
           isActive: true,
           completed: false,
@@ -2305,7 +2305,7 @@ export class WorkoutService extends BaseService {
         .insert(planDays)
         .values({
           workoutId: newWorkout.id,
-          date: sql`${new Date(newDate)}::date`,
+          date: sql`${newDate}::date`,
           dayNumber: 1,
           name: sourcePlanDay.name,
           description: sourcePlanDay.description,
@@ -2418,7 +2418,7 @@ export class WorkoutService extends BaseService {
       .insert(planDays)
       .values({
         workoutId,
-        date: sql`${new Date(date)}::date`,
+        date: sql`${date}::date`,
         dayNumber: insertPosition,
         name: "Rest Day Workout",
         description: "Optional workout for rest day",
@@ -2477,7 +2477,7 @@ export class WorkoutService extends BaseService {
       .insert(planDays)
       .values({
         workoutId: workout.id,
-        date: sql`${new Date(date)}::date`,
+        date: sql`${date}::date`,
         dayNumber: 1,
         name: "Rest Day Workout",
         description: "Optional workout for rest day",

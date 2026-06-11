@@ -216,14 +216,23 @@ ${exerciseContext}
 Your final response MUST be a valid JSON workout plan following the exact structure specified in the prompt above.
 No explanations or text outside the JSON structure in your final response.`;
 
-    // Mark the system message for Anthropic prompt caching. The large static
-    // prompt (rules + exercise list) is cached for 5 minutes, cutting LLM
-    // processing time by ~60% on repeat generations.
+    return this.buildProviderAwareSystemMessage(enhancedSystemContent);
+  }
+
+  /**
+   * cache_control is an Anthropic-specific content-block field; other
+   * providers' APIs can reject unknown fields, so non-Anthropic providers
+   * get a plain string system message.
+   */
+  private buildProviderAwareSystemMessage(text: string): SystemMessage {
+    if (this.currentProvider !== AIProvider.ANTHROPIC) {
+      return new SystemMessage(text);
+    }
     return new SystemMessage({
       content: [
         {
           type: "text",
-          text: enhancedSystemContent,
+          text,
           cache_control: { type: "ephemeral" },
         } as any,
       ],
@@ -393,25 +402,31 @@ Please generate the workout now, addressing this feedback while following all sy
     const { signal, onProgress } = options || {};
     const startedAt = Date.now();
 
-    // Shared, profile-stable system prompt (rules + exercise list). Marked
-    // for prompt caching so the planning call warms the cache and the
-    // parallel day calls (plus repeat generations within 5 min) read it.
+    // Abort scope for the fan-out: forwards an external abort, and lets a
+    // terminal day failure cancel sibling in-flight calls instead of letting
+    // them run (and bill) to completion after the result is already doomed.
+    const fanoutAbort = new AbortController();
+    if (signal) {
+      if (signal.aborted) fanoutAbort.abort();
+      else signal.addEventListener("abort", () => fanoutAbort.abort());
+    }
+
+    // Shared, profile-stable system prompt (rules + exercise list), marked
+    // for prompt caching on Anthropic. Note: the planning call and day calls
+    // bind different structured-output tools, and tool definitions are part
+    // of the cache prefix — so planning does NOT warm the cache for day
+    // calls. The day calls share one prefix with each other, which pays off
+    // on retries and repeat generations within the cache TTL.
     const availableExercises = await this.getFilteredExercises(profile);
     const exerciseContext = this.formatExerciseContext(availableExercises);
-    const systemMessage = new SystemMessage({
-      content: [
-        {
-          type: "text",
-          text: `${buildFanoutSystemPrompt(profile)}
+    const systemMessage = this.buildProviderAwareSystemMessage(
+      `${buildFanoutSystemPrompt(profile)}
 
 ## AVAILABLE EXERCISES FOR YOUR WORKOUTS
 
 These exercises match the user's equipment and environment constraints:
-${exerciseContext}`,
-          cache_control: { type: "ephemeral" },
-        } as any,
-      ],
-    });
+${exerciseContext}`
+    );
 
     const usageTotals = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     let cacheReadTokens = 0;
@@ -432,13 +447,22 @@ ${exerciseContext}`,
     });
     const planResult: any = await planLlm.invoke(
       [systemMessage, new HumanMessage(buildPlanningUserMessage(profile, customFeedback))],
-      { signal }
+      { signal: fanoutAbort.signal }
     );
     recordUsage(planResult.raw);
     const weekPlan = planResult.parsed as WeekPlan;
-    if (!weekPlan?.days?.length) {
-      throw new Error("Week planning returned no days");
+    const expectedDayCount = profile.availableDays?.length || 7;
+    if (!weekPlan?.days?.length || weekPlan.days.length < expectedDayCount) {
+      throw new Error(
+        `Week planning returned ${weekPlan?.days?.length || 0} days, expected ${expectedDayCount}`
+      );
     }
+    // The model controls the day fields — renumber sequentially so the day
+    // count and numbering always match the user's available days, no matter
+    // what the planning call returned.
+    weekPlan.days = weekPlan.days
+      .slice(0, expectedDayCount)
+      .map((day, index) => ({ ...day, day: index + 1 }));
 
     logger.info("Week plan ready", {
       userId,
@@ -457,43 +481,45 @@ ${exerciseContext}`,
       name: "workout_day",
       includeRaw: true,
     });
+    const MAX_ATTEMPTS = 2;
     const generateDay = async (day: WeekPlan["days"][number]) => {
-      const invokeOnce = async () => {
-        const res: any = await dayLlm.invoke(
-          [
-            systemMessage,
-            new HumanMessage(buildDayUserMessage(profile, weekPlan, day, customFeedback)),
-          ],
-          { signal }
-        );
-        recordUsage(res.raw);
-        if (!res.parsed?.blocks?.length) {
-          throw new Error(`Day ${day.day} generation returned no blocks`);
-        }
-        return res.parsed;
-      };
-
-      try {
-        const result = await invokeOnce();
-        onProgress?.({ type: "day_done", dayNumber: day.day });
-        return result;
-      } catch (firstError) {
-        if (signal?.aborted) throw firstError;
-        logger.warn("Day generation failed, retrying once", {
-          userId,
-          dayNumber: day.day,
-          error: (firstError as Error).message,
-          operation: "generateWeeklyWorkout",
-        });
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
-          const result = await invokeOnce();
+          const res: any = await dayLlm.invoke(
+            [
+              systemMessage,
+              new HumanMessage(buildDayUserMessage(profile, weekPlan, day, customFeedback)),
+            ],
+            { signal: fanoutAbort.signal }
+          );
+          recordUsage(res.raw);
+          if (!res.parsed?.blocks?.length) {
+            throw new Error(`Day ${day.day} generation returned no blocks`);
+          }
           onProgress?.({ type: "day_done", dayNumber: day.day });
-          return result;
-        } catch (retryError) {
-          onProgress?.({ type: "day_failed", dayNumber: day.day });
-          throw retryError;
+          // Don't trust the model's echoed day number — it determines week
+          // ordering and date assignment downstream.
+          return { ...res.parsed, day: day.day };
+        } catch (error) {
+          lastError = error;
+          if (fanoutAbort.signal.aborted) break;
+          if (attempt < MAX_ATTEMPTS) {
+            logger.warn("Day generation failed, retrying", {
+              userId,
+              dayNumber: day.day,
+              attempt,
+              error: (error as Error).message,
+              operation: "generateWeeklyWorkout",
+            });
+          }
         }
       }
+      onProgress?.({ type: "day_failed", dayNumber: day.day });
+      // Cancel sibling in-flight day calls — the week is already doomed and
+      // the caller will fall back to single-call generation.
+      fanoutAbort.abort();
+      throw lastError;
     };
 
     const generatedDays = await Promise.all(weekPlan.days.map(generateDay));

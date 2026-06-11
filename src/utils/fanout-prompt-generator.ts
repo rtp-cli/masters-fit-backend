@@ -1,4 +1,5 @@
 import { Profile } from "@/models";
+import { AvailableEquipment, PreferredStyles } from "@/constants/profile";
 import {
   getEquipmentDescription,
   getStyleInterpretationGuide,
@@ -46,31 +47,12 @@ export interface WeekPlan {
 // via withStructuredOutput, so output is guaranteed parseable)
 // ---------------------------------------------------------------------------
 
-const VALID_EQUIPMENT = [
-  "dumbbells",
-  "resistance_bands",
-  "machines",
-  "bodyweight",
-  "kettlebells",
-  "medicine_ball",
-  "foam_roller",
-  "treadmill",
-  "bike",
-  "yoga_mat",
-];
+// Canonical vocabularies — the schema enums must match what the rest of the
+// system stores and filters on, or new exercises silently fall out of
+// equipment-filtered searches.
+const VALID_EQUIPMENT = Object.values(AvailableEquipment);
 
-const VALID_TAGS = [
-  "hiit",
-  "strength",
-  "cardio",
-  "rehab",
-  "crossfit",
-  "functional",
-  "pilates",
-  "yoga",
-  "balance",
-  "mobility",
-];
+const VALID_TAGS = Object.values(PreferredStyles);
 
 const BLOCK_TYPES = [
   "traditional",
@@ -395,6 +377,8 @@ export const buildPlanningUserMessage = (
 Design the weekly split for this user. Return exactly ${dayCount} days, numbered sequentially 1 to ${dayCount} (they map to: ${
     profile.availableDays?.join(", ") || "all days"
   }).
+
+This is the WEEK PLANNING mode described in your instructions: produce only the high-level split (names, focus, muscle groups, styles). The day-generation requirements (duration compliance, block structure, exercise selection) apply to the per-day calls that follow, not to this plan.
 
 Requirements:
 - Balance muscle groups and intensity across the week — no heavy same-muscle-group work on consecutive training days
