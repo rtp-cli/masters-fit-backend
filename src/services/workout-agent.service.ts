@@ -13,6 +13,14 @@ import {
   buildClaudePrompt,
   buildClaudeDailyPrompt,
 } from "@/utils/prompt-generator";
+import {
+  buildFanoutSystemPrompt,
+  buildPlanningUserMessage,
+  buildDayUserMessage,
+  WEEK_PLAN_SCHEMA,
+  WORKOUT_DAY_SCHEMA,
+  WeekPlan,
+} from "@/utils/fanout-prompt-generator";
 import { aiProviderService } from "./ai-provider.service";
 import { AIProvider } from "@/constants/ai-providers";
 
@@ -25,6 +33,12 @@ export interface WorkoutGenerationResult {
     totalTokens: number;
   };
 }
+
+// Progress callbacks emitted by fan-out weekly generation
+export type WeeklyGenerationProgress =
+  | { type: "plan_ready"; days: { dayNumber: number; label: string }[] }
+  | { type: "day_done"; dayNumber: number }
+  | { type: "day_failed"; dayNumber: number };
 
 const EXERCISE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const exerciseCache = new Map<string, { exercises: ExerciseMetadata[]; expiresAt: number }>();
@@ -359,6 +373,168 @@ Please generate the workout now, addressing this feedback while following all sy
       });
       throw error;
     }
+  }
+
+  /**
+   * Fan-out weekly generation: one small planning call designs the week
+   * split, then all days generate in parallel with structured outputs.
+   * Wall-clock ≈ planning + slowest single day instead of the whole week
+   * generating serially in one call.
+   */
+  async generateWeeklyWorkout(
+    userId: number,
+    profile: Profile,
+    customFeedback?: string,
+    options?: {
+      signal?: AbortSignal;
+      onProgress?: (update: WeeklyGenerationProgress) => void;
+    }
+  ): Promise<WorkoutGenerationResult> {
+    const { signal, onProgress } = options || {};
+    const startedAt = Date.now();
+
+    // Shared, profile-stable system prompt (rules + exercise list). Marked
+    // for prompt caching so the planning call warms the cache and the
+    // parallel day calls (plus repeat generations within 5 min) read it.
+    const availableExercises = await this.getFilteredExercises(profile);
+    const exerciseContext = this.formatExerciseContext(availableExercises);
+    const systemMessage = new SystemMessage({
+      content: [
+        {
+          type: "text",
+          text: `${buildFanoutSystemPrompt(profile)}
+
+## AVAILABLE EXERCISES FOR YOUR WORKOUTS
+
+These exercises match the user's equipment and environment constraints:
+${exerciseContext}`,
+          cache_control: { type: "ephemeral" },
+        } as any,
+      ],
+    });
+
+    const usageTotals = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+    let cacheReadTokens = 0;
+    let cacheCreationTokens = 0;
+    const recordUsage = (raw: any) => {
+      const usage = (raw as AIMessage)?.usage_metadata;
+      usageTotals.inputTokens += usage?.input_tokens || 0;
+      usageTotals.outputTokens += usage?.output_tokens || 0;
+      usageTotals.totalTokens += usage?.total_tokens || 0;
+      cacheReadTokens += usage?.input_token_details?.cache_read || 0;
+      cacheCreationTokens += usage?.input_token_details?.cache_creation || 0;
+    };
+
+    // 1. Planning call — small output (~300 tokens), also warms the cache
+    const planLlm = this.llm.withStructuredOutput(WEEK_PLAN_SCHEMA as any, {
+      name: "week_plan",
+      includeRaw: true,
+    });
+    const planResult: any = await planLlm.invoke(
+      [systemMessage, new HumanMessage(buildPlanningUserMessage(profile, customFeedback))],
+      { signal }
+    );
+    recordUsage(planResult.raw);
+    const weekPlan = planResult.parsed as WeekPlan;
+    if (!weekPlan?.days?.length) {
+      throw new Error("Week planning returned no days");
+    }
+
+    logger.info("Week plan ready", {
+      userId,
+      planName: weekPlan.name,
+      dayCount: weekPlan.days.length,
+      planningDurationMs: Date.now() - startedAt,
+      operation: "generateWeeklyWorkout",
+    });
+    onProgress?.({
+      type: "plan_ready",
+      days: weekPlan.days.map((d) => ({ dayNumber: d.day, label: d.name })),
+    });
+
+    // 2. Day calls — parallel, one retry each on failure
+    const dayLlm = this.llm.withStructuredOutput(WORKOUT_DAY_SCHEMA as any, {
+      name: "workout_day",
+      includeRaw: true,
+    });
+    const generateDay = async (day: WeekPlan["days"][number]) => {
+      const invokeOnce = async () => {
+        const res: any = await dayLlm.invoke(
+          [
+            systemMessage,
+            new HumanMessage(buildDayUserMessage(profile, weekPlan, day, customFeedback)),
+          ],
+          { signal }
+        );
+        recordUsage(res.raw);
+        if (!res.parsed?.blocks?.length) {
+          throw new Error(`Day ${day.day} generation returned no blocks`);
+        }
+        return res.parsed;
+      };
+
+      try {
+        const result = await invokeOnce();
+        onProgress?.({ type: "day_done", dayNumber: day.day });
+        return result;
+      } catch (firstError) {
+        if (signal?.aborted) throw firstError;
+        logger.warn("Day generation failed, retrying once", {
+          userId,
+          dayNumber: day.day,
+          error: (firstError as Error).message,
+          operation: "generateWeeklyWorkout",
+        });
+        try {
+          const result = await invokeOnce();
+          onProgress?.({ type: "day_done", dayNumber: day.day });
+          return result;
+        } catch (retryError) {
+          onProgress?.({ type: "day_failed", dayNumber: day.day });
+          throw retryError;
+        }
+      }
+    };
+
+    const generatedDays = await Promise.all(weekPlan.days.map(generateDay));
+
+    // 3. Assemble the legacy single-call response shape
+    const exercisesToAdd: any[] = [];
+    const seenNewExercises = new Set<string>();
+    const workoutPlan = generatedDays
+      .sort((a, b) => a.day - b.day)
+      .map((generatedDay) => {
+        const { exercisesToAdd: dayExercises, ...dayPlan } = generatedDay;
+        for (const exercise of dayExercises || []) {
+          const key = exercise.name?.toLowerCase();
+          if (key && !seenNewExercises.has(key)) {
+            seenNewExercises.add(key);
+            exercisesToAdd.push(exercise);
+          }
+        }
+        return dayPlan;
+      });
+
+    logger.info("Fan-out weekly generation complete", {
+      userId,
+      dayCount: workoutPlan.length,
+      newExerciseCount: exercisesToAdd.length,
+      totalDurationMs: Date.now() - startedAt,
+      tokenUsage: usageTotals,
+      cacheReadTokens,
+      cacheCreationTokens,
+      operation: "generateWeeklyWorkout",
+    });
+
+    return {
+      workout: {
+        name: weekPlan.name,
+        description: weekPlan.description,
+        workoutPlan,
+        exercisesToAdd,
+      },
+      tokenUsage: usageTotals,
+    };
   }
 
   private cleanJsonResponse(response: string): string {

@@ -1,7 +1,7 @@
 import { Profile } from "@/models";
 import { WorkoutEnvironments } from "@/constants/profile";
 
-const getEquipmentDescription = (
+export const getEquipmentDescription = (
   environment?: string | null,
   equipment?: any,
   otherEquipment?: string | null
@@ -44,7 +44,7 @@ const getEquipmentDescription = (
   }
 };
 
-const getStyleInterpretationGuide = (): string => {
+export const getStyleInterpretationGuide = (): string => {
   return `
 ## STYLE PROGRAMMING GUIDELINES
 
@@ -126,7 +126,7 @@ Choose the most appropriate format and structure for the styles selected. Combin
 `;
 };
 
-const getConstraintIntegrationProtocol = (): string => {
+export const getConstraintIntegrationProtocol = (): string => {
   return `
   ## UNIVERSAL LIMITATION HANDLING RULE
 
@@ -165,7 +165,7 @@ const getConstraintIntegrationProtocol = (): string => {
   `;
 };
 
-const getRecoveryEnhancementGuide = (): string => {
+export const getRecoveryEnhancementGuide = (): string => {
   return `
 ## RECOVERY & REHAB PRIORITY ENHANCEMENT
 
@@ -177,7 +177,7 @@ When user goals include "recovery", "rehab", "mobility", or has chronic pain/lim
 `;
 };
 
-const getBlockTypeGuide = (): string => {
+export const getBlockTypeGuide = (): string => {
   return `
 ## BLOCK TYPE PROGRAMMING GUIDE WITH DURATION IMPLICATIONS
 
@@ -255,7 +255,7 @@ When selecting block types, always consider their duration implications. A 40-mi
 `;
 };
 
-const getEquipmentUsageGuidelines = (): string => {
+export const getEquipmentUsageGuidelines = (): string => {
   return `
 ## EQUIPMENT USAGE GUIDELINES (For Home Gym Users)
 
@@ -317,7 +317,7 @@ EVERY exercise you add to the workout plan MUST be a valid exercise with actual 
 `;
 };
 
-const getDurationRequirements = (
+export const getDurationRequirements = (
   workoutDuration: number,
   context: "weekly" | "daily" = "weekly",
   includeWarmup: boolean = true,
@@ -490,7 +490,7 @@ If calculated duration falls outside acceptable range, apply these corrections i
 `;
 };
 
-const getProfessionalProgrammingPriorities = (
+export const getProfessionalProgrammingPriorities = (
   context: "weekly" | "daily" = "weekly"
 ): string => {
   const dayReference = context === "weekly" ? "each day" : "this day";
@@ -635,7 +635,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
 `;
 };
 
-const getCriticalConstraints = (
+export const getCriticalConstraints = (
   context: "weekly" | "daily" = "weekly"
 ): string => {
   const scopeReference =
@@ -658,7 +658,7 @@ const getCriticalConstraints = (
 `;
 };
 
-const getStyleMixingExamples = (): string => {
+export const getStyleMixingExamples = (): string => {
   return `
 ## EXAMPLES OF STYLE MIXING
 

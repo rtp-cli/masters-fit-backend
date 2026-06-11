@@ -3,7 +3,11 @@ import { BaseService } from "./base.service";
 import { profileService } from "./profile.service";
 import { eq, and, asc } from "drizzle-orm";
 import { logger } from "@/utils/logger";
-import { emitProgress } from "@/utils/websocket-progress.utils";
+import {
+  emitProgress,
+  emitGenerationStatus,
+  GenerationDayStatus,
+} from "@/utils/websocket-progress.utils";
 import { WorkoutAgentService } from "./workout-agent.service";
 import {
   DEFAULT_AI_PROVIDER,
@@ -166,41 +170,108 @@ export class PromptsService extends BaseService {
     }
   }
 
+  /**
+   * Fan-out weekly generation: planning call + parallel per-day calls with
+   * structured outputs, emitting real per-day progress over the websocket.
+   * Callers fall back to generatePrompt (single whole-week call) on failure.
+   */
   public async generateChunkedPrompt(
     userId: number,
     customFeedback?: string,
     signal?: AbortSignal
   ): Promise<PromptGenerationResult> {
-    // For now, chunked generation will simply call the regular generatePrompt method
-    // since LangChain agents can handle the full workout generation more efficiently
-    // If token limits become an issue, we can implement chunking within the agent
+    const profile = await profileService.getProfileByUserId(userId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+    if (
+      !profile.availableDays ||
+      !profile.preferredStyles ||
+      !profile.workoutDuration ||
+      !profile.environment
+    ) {
+      throw new Error(
+        "Profile is missing required fields: availableDays, preferredStyles, workoutDuration, or environment"
+      );
+    }
 
-    logger.info("Chunked generation requested, using LangChain agent instead", {
-      userId,
-      operation: "generateChunkedPrompt",
-    });
+    const workoutAgent = await this.createUserWorkoutAgent(userId);
 
-    // Emit progress to match expected behavior
-    emitProgress(userId, 12);
-    emitProgress(userId, 15);
-    emitProgress(userId, 50);
-    emitProgress(userId, 90);
+    emitGenerationStatus(userId, { progress: 15, phase: "planning" });
+
+    let dayStatuses: GenerationDayStatus[] = [];
+    const dayProgress = () => {
+      const done = dayStatuses.filter((d) => d.status === "done").length;
+      const total = dayStatuses.length || 1;
+      // 25% = plan ready, 95% = all days generated; saving happens after
+      return Math.round(25 + 70 * (done / total));
+    };
 
     try {
-      const result = await this.generatePrompt(
+      const result = await workoutAgent.generateWeeklyWorkout(
         userId,
-        customFeedback,
-        undefined,
-        signal
+        profile,
+        customFeedback || "Generate weekly workout plan",
+        {
+          signal,
+          onProgress: (update) => {
+            if (update.type === "plan_ready") {
+              dayStatuses = update.days.map((d) => ({
+                dayNumber: d.dayNumber,
+                label: d.label,
+                status: "generating" as const,
+              }));
+              emitGenerationStatus(userId, {
+                progress: 25,
+                phase: "generating_days",
+                days: dayStatuses,
+              });
+              return;
+            }
+            const day = dayStatuses.find(
+              (d) => d.dayNumber === update.dayNumber
+            );
+            if (day) {
+              day.status = update.type === "day_done" ? "done" : "failed";
+            }
+            emitGenerationStatus(userId, {
+              progress: dayProgress(),
+              phase: "generating_days",
+              days: dayStatuses,
+            });
+          },
+        }
       );
 
-      // Emit final progress
-      emitProgress(userId, 95);
-      emitProgress(userId, 99);
+      emitGenerationStatus(userId, {
+        progress: 95,
+        phase: "saving",
+        days: dayStatuses,
+      });
 
-      return result;
+      const createdPrompt = await this.createPrompt({
+        userId,
+        prompt: customFeedback || "Generate weekly workout plan",
+        response: JSON.stringify(result.workout),
+        threadId: `workout_fanout_${userId}_${Date.now()}`,
+      });
+
+      lastTokenUsageByUser.set(userId, result.tokenUsage);
+
+      logger.info("Fan-out generation completed with token usage", {
+        userId,
+        promptId: createdPrompt.id,
+        tokenUsage: result.tokenUsage,
+        operation: "generateChunkedPrompt",
+      });
+
+      return {
+        response: result.workout,
+        promptId: createdPrompt.id,
+        tokenUsage: result.tokenUsage,
+      };
     } catch (error) {
-      logger.error("Chunked generation failed", error as Error, {
+      logger.error("Fan-out generation failed", error as Error, {
         userId,
         operation: "generateChunkedPrompt",
       });
