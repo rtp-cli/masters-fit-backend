@@ -134,8 +134,10 @@ export class AIProviderService {
           ...commonConfig,
           temperature: 0.1,
           maxTokens: modelConfig.maxTokens,
-          invocationKwargs: {
-            top_p: undefined,
+          clientOptions: {
+            defaultHeaders: {
+              "anthropic-beta": "prompt-caching-2024-07-31",
+            },
           },
         });
 
