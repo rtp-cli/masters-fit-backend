@@ -299,9 +299,11 @@ Please generate the workout now, addressing this feedback while following all sy
       const messages = [systemMessage, ...existingMessages, userMessage];
 
       // Single LLM call with comprehensive context and abort signal
+      const llmStartedAt = Date.now();
       const response = await this.llm.invoke(messages, {
         signal: abortController.signal,
       });
+      const llmDurationMs = Date.now() - llmStartedAt;
 
       // Extract token usage from the response
       const usageMetadata = (response as AIMessage).usage_metadata;
@@ -315,6 +317,14 @@ Please generate the workout now, addressing this feedback while following all sy
         userId,
         threadId,
         tokenUsage,
+        llmDurationMs,
+        provider: this.currentProvider,
+        model: this.currentModel,
+        // Anthropic prompt-cache effectiveness: cache_read > 0 means the
+        // system prefix was served from cache instead of reprocessed.
+        cacheReadInputTokens: usageMetadata?.input_token_details?.cache_read ?? 0,
+        cacheCreationInputTokens:
+          usageMetadata?.input_token_details?.cache_creation ?? 0,
         operation: "regenerateWorkout",
       });
 

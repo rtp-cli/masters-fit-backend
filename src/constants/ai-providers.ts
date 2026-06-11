@@ -14,6 +14,9 @@ export interface ModelConfig {
   maxTokens: number;
   costTier: "low" | "medium" | "high";
   description: string;
+  // Anthropic effort parameter (output_config.effort). Only set on models
+  // that support it — sending it to unsupported models returns a 400.
+  effort?: "low" | "medium" | "high";
 }
 
 export interface ProviderConfig {
@@ -27,6 +30,17 @@ export interface ProviderConfig {
 
 // Anthropic Models
 export const ANTHROPIC_MODELS: ModelConfig[] = [
+  {
+    id: "claude-sonnet-4-6",
+    name: "claude-sonnet-4-6",
+    displayName: "Claude Sonnet 4.6",
+    maxTokens: 30000,
+    costTier: "medium",
+    description: "Best balance of speed and intelligence",
+    // Low effort is tuned for latency-sensitive content generation and
+    // matches/exceeds Sonnet 4.5 quality at noticeably lower latency.
+    effort: "low",
+  },
   {
     id: "claude-haiku-4-5-20251001",
     name: "claude-haiku-4-5-20251001",
@@ -187,7 +201,7 @@ export const AI_PROVIDERS: Record<AIProvider, ProviderConfig> = {
     name: "anthropic",
     displayName: "Anthropic",
     models: ANTHROPIC_MODELS,
-    defaultModel: "claude-sonnet-4-5-20250929",
+    defaultModel: "claude-sonnet-4-6",
     envKeyName: "ANTHROPIC_API_KEY",
   },
   [AIProvider.OPENAI]: {

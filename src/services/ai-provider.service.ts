@@ -134,11 +134,18 @@ export class AIProviderService {
           ...commonConfig,
           temperature: 0.1,
           maxTokens: modelConfig.maxTokens,
-          clientOptions: {
-            defaultHeaders: {
-              "anthropic-beta": "prompt-caching-2024-07-31",
-            },
-          },
+          // Prompt caching is GA — no beta header needed. cache_control
+          // markers on messages are honored automatically.
+          // effort (output_config) controls thinking depth / token spend on
+          // models that support it; passed via invocationKwargs because
+          // @langchain/anthropic has no typed param for it yet.
+          ...(modelConfig.effort
+            ? {
+                invocationKwargs: {
+                  output_config: { effort: modelConfig.effort },
+                },
+              }
+            : {}),
         });
 
       case AIProvider.OPENAI:
