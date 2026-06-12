@@ -407,6 +407,14 @@ export async function processDailyRegenerationJob(
         `Daily workout regeneration failed: ${(error as Error).message}`
       );
 
+      // Clean up the orphaned plan day so the user can retry for the same date.
+      // (The plan day was created before job execution but has no blocks since AI failed.)
+      try {
+        await workoutService.cleanupFailedRestDayGeneration(planDayId, standaloneWorkoutId);
+      } catch {
+        // Non-fatal: cleanup best-effort
+      }
+
       // Return error result instead of throwing to avoid Bull queue overriding the FAILED status
       return {
         planDayId: 0,
