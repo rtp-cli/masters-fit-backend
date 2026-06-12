@@ -8,7 +8,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "@/models/user.schema";
@@ -39,7 +39,7 @@ export const workouts = pgTable("workouts", {
     .notNull(),
 }, (table) => ({
   userIdIdx: index("idx_workouts_user_id").on(table.userId),
-  userActiveIdx: uniqueIndex("idx_workouts_user_active").on(table.userId).where(sql`${table.isActive} = true`),
+  userActiveIdx: uniqueIndex("idx_workouts_user_active").on(table.userId).where(sql`is_active = true`),
   completedIdx: index("idx_workouts_completed").on(table.completed),
 }));
 
@@ -70,7 +70,7 @@ export const planDays = pgTable("plan_days", {
   dateIdx: index("idx_plan_days_date").on(table.date),
   workoutDateIdx: index("idx_plan_days_workout_date").on(table.workoutId, table.date),
   isCompleteIdx: index("idx_plan_days_complete").on(table.isComplete),
-  incompleteWorkoutDateIdx: index("idx_plan_days_incomplete").on(table.workoutId, table.date).where(eq(table.isComplete, false)),
+  incompleteWorkoutDateIdx: index("idx_plan_days_incomplete").on(table.workoutId, table.date).where(sql`is_complete = false`),
 }));
 
 export const planDayRelations = relations(planDays, ({ one, many }) => ({

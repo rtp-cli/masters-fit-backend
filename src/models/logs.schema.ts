@@ -9,7 +9,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import {
   planDayExercises,
   workouts,
@@ -58,7 +58,7 @@ export const exerciseLogs = pgTable(
     isCompleteIdx: index("idx_exercise_logs_is_complete").on(table.isComplete),
     completeCreatedIdx: index("idx_exercise_logs_complete_created")
       .on(table.isComplete, table.createdAt)
-      .where(eq(table.isComplete, true)),
+      .where(sql`is_complete = true`),
   })
 );
 
