@@ -8,3 +8,4 @@ export * from "@/models/logs.schema";
 export * from "@/models/jobs.schema";
 export * from "@/models/system-config.schema";
 export * from "@/models/subscription.schema";
+export * from "@/models/llm-generation-logs.schema";

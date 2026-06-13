@@ -23,6 +23,7 @@ import {
 } from "@/utils/fanout-prompt-generator";
 import { aiProviderService } from "./ai-provider.service";
 import { AIProvider } from "@/constants/ai-providers";
+import { llmGenerationLogsService } from "./llm-generation-logs.service";
 
 // Result type that includes token usage
 export interface WorkoutGenerationResult {
@@ -37,6 +38,7 @@ export interface WorkoutGenerationResult {
 // Progress callbacks emitted by fan-out weekly generation
 export type WeeklyGenerationProgress =
   | { type: "plan_ready"; days: { dayNumber: number; label: string }[] }
+  | { type: "day_started"; dayNumber: number }
   | { type: "day_done"; dayNumber: number }
   | { type: "day_failed"; dayNumber: number };
 
@@ -351,6 +353,20 @@ Please generate the workout now, addressing this feedback while following all sy
         operation: "regenerateWorkout",
       });
 
+      // Fire-and-forget — must not block or throw on the generation hot path
+      void llmGenerationLogsService.insert({
+        userId,
+        operation: "regenerateWorkout",
+        provider: this.currentProvider,
+        model: this.currentModel,
+        llmDurationMs,
+        inputTokens: tokenUsage.inputTokens,
+        outputTokens: tokenUsage.outputTokens,
+        totalTokens: tokenUsage.totalTokens,
+        cacheReadInputTokens: usageMetadata?.input_token_details?.cache_read ?? 0,
+        cacheCreationInputTokens: usageMetadata?.input_token_details?.cache_creation ?? 0,
+      });
+
       // Add the exchange to history
       await messageHistory.addMessage(userMessage);
       await messageHistory.addMessage(response);
@@ -411,15 +427,23 @@ Please generate the workout now, addressing this feedback while following all sy
       else signal.addEventListener("abort", () => fanoutAbort.abort());
     }
 
-    // Shared, profile-stable system prompt (rules + exercise list), marked
-    // for prompt caching on Anthropic. Note: the planning call and day calls
-    // bind different structured-output tools, and tool definitions are part
-    // of the cache prefix — so planning does NOT warm the cache for day
-    // calls. The day calls share one prefix with each other, which pays off
-    // on retries and repeat generations within the cache TTL.
+    // Two separate system messages:
+    //   planningSystemMessage — no exercise list; the planner only designs
+    //     the week split (names, focus, muscle groups) and never touches
+    //     exercises. Omitting ~4 000 tokens of exercise context meaningfully
+    //     cuts planning TTFT.
+    //   daySystemMessage — full exercise context with cache_control so the
+    //     expensive prefix is paid once and shared across all parallel day
+    //     calls. Note: planning and day calls bind different tool schemas, so
+    //     the planning cache does NOT warm the day cache — day calls warm
+    //     each other, which pays off on retries and repeat generations within
+    //     the 5-min cache TTL.
     const availableExercises = await this.getFilteredExercises(profile);
     const exerciseContext = this.formatExerciseContext(availableExercises);
-    const systemMessage = this.buildProviderAwareSystemMessage(
+    const planningSystemMessage = this.buildProviderAwareSystemMessage(
+      buildFanoutSystemPrompt(profile)
+    );
+    const daySystemMessage = this.buildProviderAwareSystemMessage(
       `${buildFanoutSystemPrompt(profile)}
 
 ## AVAILABLE EXERCISES FOR YOUR WORKOUTS
@@ -440,13 +464,19 @@ ${exerciseContext}`
       cacheCreationTokens += usage?.input_token_details?.cache_creation || 0;
     };
 
-    // 1. Planning call — small output (~300 tokens), also warms the cache
-    const planLlm = this.llm.withStructuredOutput(WEEK_PLAN_SCHEMA as any, {
+    // 1. Planning call — small output (~300 tokens). Use Haiku 4.5 on
+    //    Anthropic: the week-split task (names, focus, muscle groups) is
+    //    well within its capabilities and it's significantly faster than
+    //    Sonnet. Fall back to the user's selected model on other providers.
+    const planLlmBase = this.currentProvider === AIProvider.ANTHROPIC
+      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, 'claude-haiku-4-5-20251001')
+      : this.llm;
+    const planLlm = planLlmBase.withStructuredOutput(WEEK_PLAN_SCHEMA as any, {
       name: "week_plan",
       includeRaw: true,
     });
     const planResult: any = await planLlm.invoke(
-      [systemMessage, new HumanMessage(buildPlanningUserMessage(profile, customFeedback))],
+      [planningSystemMessage, new HumanMessage(buildPlanningUserMessage(profile, customFeedback))],
       { signal: fanoutAbort.signal }
     );
     recordUsage(planResult.raw);
@@ -476,19 +506,47 @@ ${exerciseContext}`
       days: weekPlan.days.map((d) => ({ dayNumber: d.day, label: d.name })),
     });
 
-    // 2. Day calls — parallel, one retry each on failure
-    const dayLlm = this.llm.withStructuredOutput(WORKOUT_DAY_SCHEMA as any, {
+    // 2. Day calls — staggered starts (800 ms between each), then parallel.
+    //
+    // Model: Haiku 4.5 on Anthropic. Day generation is a structured
+    // selection/parameterisation task (pick exercises from the filtered list,
+    // assign sets/reps/weights/blocks within the plan already designed by
+    // the planning call). Haiku 4.5 handles it capably and cuts per-call
+    // latency from ~20 s (Sonnet 4.5) to ~4-6 s, which is the dominant
+    // win here. Other providers fall back to the user's selected model.
+    //
+    // Staggering (800 ms between starts) distributes completions visibly:
+    // at ~5 s per Haiku call, 800 ms ≈ 16 % of call time, so each day's
+    // checkmark appears ~800 ms after the previous one instead of all
+    // arriving in a burst. Cache: later calls also benefit from the
+    // Anthropic prompt-cache entry established by the first call.
+    //
+    // Total stagger overhead is (n-1) × 800 ms — 4.8 s for 7 days.
+    const DAY_STAGGER_MS = 800;
+    const dayLlmBase = this.currentProvider === AIProvider.ANTHROPIC
+      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, 'claude-haiku-4-5-20251001')
+      : this.llm;
+    const dayLlm = dayLlmBase.withStructuredOutput(WORKOUT_DAY_SCHEMA as any, {
       name: "workout_day",
       includeRaw: true,
     });
     const MAX_ATTEMPTS = 2;
-    const generateDay = async (day: WeekPlan["days"][number]) => {
+    const generateDay = async (day: WeekPlan["days"][number], staggerMs: number) => {
+      // Stagger: wait before starting this day's LLM call.
+      if (staggerMs > 0) {
+        await new Promise<void>((resolve) => setTimeout(resolve, staggerMs));
+        if (fanoutAbort.signal.aborted) throw new Error("Aborted before day start");
+      }
+
+      // Signal that this day's call is now in-flight.
+      onProgress?.({ type: "day_started", dayNumber: day.day });
+
       let lastError: unknown;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
           const res: any = await dayLlm.invoke(
             [
-              systemMessage,
+              daySystemMessage,
               new HumanMessage(buildDayUserMessage(profile, weekPlan, day, customFeedback)),
             ],
             { signal: fanoutAbort.signal }
@@ -522,7 +580,9 @@ ${exerciseContext}`
       throw lastError;
     };
 
-    const generatedDays = await Promise.all(weekPlan.days.map(generateDay));
+    const generatedDays = await Promise.all(
+      weekPlan.days.map((day, i) => generateDay(day, i * DAY_STAGGER_MS))
+    );
 
     // 3. Assemble the legacy single-call response shape
     const exercisesToAdd: any[] = [];
@@ -541,15 +601,30 @@ ${exerciseContext}`
         return dayPlan;
       });
 
+    const totalDurationMs = Date.now() - startedAt;
     logger.info("Fan-out weekly generation complete", {
       userId,
       dayCount: workoutPlan.length,
       newExerciseCount: exercisesToAdd.length,
-      totalDurationMs: Date.now() - startedAt,
+      totalDurationMs,
       tokenUsage: usageTotals,
       cacheReadTokens,
       cacheCreationTokens,
       operation: "generateWeeklyWorkout",
+    });
+
+    // Fire-and-forget — must not block or throw on the generation hot path
+    void llmGenerationLogsService.insert({
+      userId,
+      operation: "generateWeeklyWorkout",
+      provider: this.currentProvider,
+      model: this.currentModel,
+      llmDurationMs: totalDurationMs,
+      inputTokens: usageTotals.inputTokens,
+      outputTokens: usageTotals.outputTokens,
+      totalTokens: usageTotals.totalTokens,
+      cacheReadInputTokens: cacheReadTokens,
+      cacheCreationInputTokens: cacheCreationTokens,
     });
 
     return {

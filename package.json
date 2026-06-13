@@ -14,7 +14,8 @@
     "db:migrate": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "tsoa": "tsoa spec-and-routes",
-    "tsc": "tsc --noEmit"
+    "tsc": "tsc --noEmit",
+    "reset-user-trial": "tsx src/scripts/reset-user-trial.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",

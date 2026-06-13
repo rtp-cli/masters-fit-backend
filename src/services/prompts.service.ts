@@ -239,10 +239,13 @@ export class PromptsService extends BaseService {
           signal,
           onProgress: (update) => {
             if (update.type === "plan_ready") {
+              // Start every day as "pending" — each transitions to "generating"
+              // when its staggered LLM call actually fires (day_started), so
+              // the UI activates days one-by-one rather than all at once.
               dayStatuses = update.days.map((d) => ({
                 dayNumber: d.dayNumber,
                 label: d.label,
-                status: "generating" as const,
+                status: "pending" as const,
               }));
               emitGenerationStatus(userId, {
                 progress: 25,
@@ -255,7 +258,11 @@ export class PromptsService extends BaseService {
               (d) => d.dayNumber === update.dayNumber
             );
             if (day) {
-              day.status = update.type === "day_done" ? "done" : "failed";
+              if (update.type === "day_started") {
+                day.status = "generating";
+              } else {
+                day.status = update.type === "day_done" ? "done" : "failed";
+              }
             }
             emitGenerationStatus(userId, {
               progress: dayProgress(),
