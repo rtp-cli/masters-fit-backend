@@ -49,7 +49,7 @@ import {
   determineTimeCap,
   determineRounds,
 } from "@/utils/workout-block-configuration.utils";
-import { emitProgress } from "@/utils/websocket-progress.utils";
+import { emitProgress, emitGenerationStatus } from "@/utils/websocket-progress.utils";
 
 type DBWorkoutResult = {
   id: number;
@@ -1427,8 +1427,18 @@ export class WorkoutService extends BaseService {
         },
       });
 
-      // Emit 70% - AI request starting
-      emitProgress(userId, 70);
+      // Emit 70% — AI request starting. Show a single-day timeline in the
+      // modal so the user sees a spinner circle instead of a blank spinner.
+      const dayNumber = (existingPlanDay as any).dayNumber || 1;
+      emitGenerationStatus(userId, {
+        progress: 70,
+        phase: "generating_days",
+        days: [{
+          dayNumber,
+          label: existingPlanDay.name || "Today's Workout",
+          status: "generating",
+        }],
+      });
 
       const isRestDayContext =
         (existingPlanDay.name || "").toLowerCase().includes("rest day") ||
@@ -1436,14 +1446,15 @@ export class WorkoutService extends BaseService {
 
       const result = await promptsService.generateDailyRegenerationPrompt(
         userId,
-        (existingPlanDay as any).dayNumber || 1,
+        dayNumber,
         previousWorkout,
         regenerationReason,
         isRestDayContext,
         threadId
       );
 
-      // Emit 85% - AI response received
+      // Emit 85% — AI response received; mark the day done so the checkmark
+      // appears before the complete signal clears the timeline.
       emitProgress(userId, 85);
       const { response } = result;
 
@@ -1560,14 +1571,19 @@ export class WorkoutService extends BaseService {
         })
         .where(eq(planDays.id, planDayId));
 
-      // Emit 95% - Database operations starting
-      emitProgress(userId, 95);
+      // Mark the day done so the checkmark stamps in before the modal closes.
+      emitGenerationStatus(userId, {
+        progress: 99,
+        phase: "saving",
+        days: [{
+          dayNumber,
+          label: response.name || existingPlanDay.name || "Today's Workout",
+          status: "done",
+        }],
+      });
 
-      // Small delay to show progress
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Emit 99% - Database operations complete
-      emitProgress(userId, 99);
+      // Small delay so the checkmark animation completes before complete fires.
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
       // Emit 100% - Complete
       emitProgress(userId, 100, true);

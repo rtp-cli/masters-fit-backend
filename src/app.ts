@@ -13,6 +13,7 @@ import { aiProviderRouter } from "@/routes/ai-provider.routes";
 import { analyticsRouter } from "@/routes/analytics.routes";
 import dashboardRouter from "@/routes/dashboard.routes";
 import { subscriptionRouter } from "@/routes/subscription.routes";
+import { llmMetricsRouter } from "@/routes/llm-metrics.routes";
 import * as Sentry from "@sentry/node";
 import { errorHandler } from "@/middleware/error.middleware";
 import { pool } from "@/config/database.js";
@@ -128,6 +129,7 @@ app.use("/api/ai-providers", aiProviderRouter);
 app.use("/api/analytics", analyticsRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/subscriptions", subscriptionRouter);
+app.use("/api/admin/llm-metrics", llmMetricsRouter);
 
 // Health check endpoint
 app.get("/api/health", async (req, res) => {

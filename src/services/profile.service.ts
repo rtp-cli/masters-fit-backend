@@ -12,7 +12,19 @@ export class ProfileService extends BaseService {
       .select()
       .from(profiles)
       .where(this.eq(profiles.userId, userId));
-    return result[0];
+    const profile = result[0];
+    if (profile) {
+      // Strip PostgreSQL array notation if environment was stored as e.g. {"bodyweight_only"}
+      profile.environment = this.normalizeEnumField(profile.environment) as any;
+    }
+    return profile;
+  }
+
+  // Strips PostgreSQL set literal syntax: {"value"} → "value"
+  private normalizeEnumField(value: string | null | undefined): string | null | undefined {
+    if (!value) return value;
+    const match = value.match(/^\{"?([^"{}]+)"?\}$/);
+    return match ? match[1] : value;
   }
 
   async createOrUpdateProfile(profileData: InsertProfile): Promise<Profile> {
@@ -55,6 +67,11 @@ export class ProfileService extends BaseService {
 
   private processProfileData(profileData: any): any {
     const processed = { ...profileData };
+
+    // Normalize environment before any comparison or DB write
+    if (processed.environment) {
+      processed.environment = this.normalizeEnumField(processed.environment);
+    }
 
     // Automatically assign equipment based on environment
     if (processed.environment) {
