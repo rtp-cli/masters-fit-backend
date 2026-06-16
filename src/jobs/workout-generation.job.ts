@@ -11,7 +11,7 @@ import {
   WorkoutGenerationJobResult,
   JobStatus,
 } from "@/models/jobs.schema";
-import { emitProgress } from "@/utils/websocket-progress.utils";
+import { emitProgress, clearPersistedGenerationStatus } from "@/utils/websocket-progress.utils";
 import { withTimeout } from "@/utils/timeout.utils";
 
 // Server-side watchdog: bound the whole generation so a hang anywhere
@@ -97,6 +97,10 @@ export async function processWorkoutGenerationJob(
   });
 
   try {
+    // A fresh job must not surface the previous run's per-day timeline — clear
+    // any stale persisted status before emitting this job's own progress.
+    await clearPersistedGenerationStatus(userId);
+
     // Update job status to processing
     try {
       await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 5);

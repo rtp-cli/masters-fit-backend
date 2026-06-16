@@ -69,6 +69,27 @@ async function persistGenerationStatus(
 }
 
 /**
+ * Clear any persisted generation status for a user. Called at the start of a
+ * new generation/regeneration job so a fresh job never reads the previous
+ * run's per-day timeline. Without this, a daily regen (which emits no per-day
+ * events) leaves the prior weekly run's completed days in Redis, and the
+ * daily-regen modal surfaces that stale timeline.
+ */
+export async function clearPersistedGenerationStatus(
+  userId: number
+): Promise<void> {
+  if (!redisClient.isOpen) return;
+  try {
+    await redisClient.del(generationStatusKey(userId));
+  } catch (error) {
+    logger.warn("Failed to clear persisted generation status", {
+      userId,
+      error: (error as Error)?.message,
+    });
+  }
+}
+
+/**
  * Read back the persisted generation status for a user (used by the polled
  * job-status endpoint). Returns null when nothing is stored.
  */

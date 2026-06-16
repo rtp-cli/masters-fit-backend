@@ -16,7 +16,7 @@ import {
   DailyRegenerationJobResult,
   JobStatus,
 } from "@/models/jobs.schema";
-import { emitProgress } from "@/utils/websocket-progress.utils";
+import { emitProgress, clearPersistedGenerationStatus } from "@/utils/websocket-progress.utils";
 import { AccessLevel } from "@/constants";
 
 // Check if error is a rate limit error (429) that shouldn't be retried
@@ -96,6 +96,11 @@ export async function processDailyRegenerationJob(
   });
 
   try {
+    // A fresh job must not surface the previous run's per-day timeline — daily
+    // regen emits no per-day events, so without this it would show the prior
+    // weekly run's completed days.
+    await clearPersistedGenerationStatus(userId);
+
     // Update job status to processing
     try {
       await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 10);
