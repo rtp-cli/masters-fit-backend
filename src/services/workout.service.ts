@@ -952,6 +952,7 @@ export class WorkoutService extends BaseService {
     emitProgress(userId, 11);
 
     // Try chunked generation first, fallback to regular generation if it fails
+    const generationStartedAt = Date.now();
     let response, promptId;
     try {
       const result = await promptsService.generateChunkedPrompt(
@@ -1000,6 +1001,16 @@ export class WorkoutService extends BaseService {
         );
       }
     }
+    // Phase split: LLM generation vs DB persistence (createWorkout + exercise
+    // upserts + plan-day rows). Lets us see whether the wall-clock is the model
+    // or the database.
+    const generationDurationMs = Date.now() - generationStartedAt;
+    logger.info("Workout LLM generation phase complete", {
+      userId,
+      generationDurationMs,
+      operation: "generateWorkoutPlan",
+    });
+    const persistStartedAt = Date.now();
     const profile = await profileService.getProfileByUserId(userId);
     // Calculate startDate and endDate as YYYY-MM-DD strings in user's timezone
     const startDate = timezone
@@ -1200,6 +1211,13 @@ export class WorkoutService extends BaseService {
     // Option 1: fetch full workout with planDays and exercises, then transform and return
     const generatedWorkout = await this.getWorkoutById(workout.id);
     if (!generatedWorkout) throw new Error("Workout not found");
+
+    logger.info("Workout DB persistence phase complete", {
+      userId,
+      persistDurationMs: Date.now() - persistStartedAt,
+      workoutId: workout.id,
+      operation: "generateWorkoutPlan",
+    });
 
     // Emit 100% - Complete
     emitProgress(userId, 100, true);

@@ -83,6 +83,10 @@ export async function processWorkoutRegenerationJob(
       hasCustomFeedback: !!customFeedback,
       hasProfileData: !!profileData,
       startTime: new Date().toISOString(),
+      // How long the job sat in the queue before a worker picked it up — the
+      // first slice of the user's perceived wait, before any generation.
+      queueWaitMs:
+        typeof job.timestamp === "number" ? Date.now() - job.timestamp : undefined,
     },
   });
 

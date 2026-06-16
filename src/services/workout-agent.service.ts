@@ -523,17 +523,25 @@ ${exerciseContext}`
       .slice(0, expectedDayCount)
       .map((day, index) => ({ ...day, day: index + 1 }));
 
+    const planningDurationMs = Date.now() - startedAt;
     logger.info("Week plan ready", {
       userId,
       planName: weekPlan.name,
       dayCount: weekPlan.days.length,
-      planningDurationMs: Date.now() - startedAt,
+      planningDurationMs,
       operation: "generateWeeklyWorkout",
     });
     onProgress?.({
       type: "plan_ready",
       days: weekPlan.days.map((d) => ({ dayNumber: d.day, label: d.name })),
     });
+
+    // Per-phase timing — measured so we optimize the real bottleneck rather
+    // than guess. `dayTimings` captures each day call's wall-clock (the LLM
+    // round-trip, excluding the upfront stagger) and the attempt it succeeded
+    // on; the days phase as a whole is timed from here.
+    const daysPhaseStartedAt = Date.now();
+    const dayTimings: { dayNumber: number; durationMs: number; attempts: number }[] = [];
 
     // 2. Day calls — staggered starts (800 ms between each), then parallel.
     //
@@ -572,6 +580,7 @@ ${exerciseContext}`
 
       let lastError: unknown;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        const callStartedAt = Date.now();
         try {
           const res: any = await runWithAbortTimeout(
             (signal) =>
@@ -590,6 +599,15 @@ ${exerciseContext}`
           if (!res.parsed?.blocks?.length) {
             throw new Error(`Day ${day.day} generation returned no blocks`);
           }
+          const dayDurationMs = Date.now() - callStartedAt;
+          dayTimings.push({ dayNumber: day.day, durationMs: dayDurationMs, attempts: attempt });
+          logger.info("Day generation completed", {
+            userId,
+            dayNumber: day.day,
+            dayDurationMs,
+            attempt,
+            operation: "generateWeeklyWorkout",
+          });
           onProgress?.({ type: "day_done", dayNumber: day.day });
           // Don't trust the model's echoed day number — it determines week
           // ordering and date assignment downstream.
@@ -619,6 +637,10 @@ ${exerciseContext}`
       weekPlan.days.map((day, i) => generateDay(day, i * DAY_STAGGER_MS))
     );
 
+    const daysPhaseDurationMs = Date.now() - daysPhaseStartedAt;
+    const slowestDayMs = dayTimings.reduce((m, d) => Math.max(m, d.durationMs), 0);
+    const retriedDays = dayTimings.filter((d) => d.attempts > 1).length;
+
     // 3. Assemble the legacy single-call response shape
     const exercisesToAdd: any[] = [];
     const seenNewExercises = new Set<string>();
@@ -642,6 +664,14 @@ ${exerciseContext}`
       dayCount: workoutPlan.length,
       newExerciseCount: exercisesToAdd.length,
       totalDurationMs,
+      // Phase breakdown: planning (one Haiku call) vs the parallel days phase.
+      // slowestDayMs is the tail that gates the days phase; retriedDays flags
+      // calls that needed a second attempt (a latency contributor).
+      planningDurationMs,
+      daysPhaseDurationMs,
+      slowestDayMs,
+      retriedDays,
+      perDayMs: dayTimings.sort((a, b) => a.dayNumber - b.dayNumber),
       tokenUsage: usageTotals,
       cacheReadTokens,
       cacheCreationTokens,

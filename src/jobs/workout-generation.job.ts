@@ -74,6 +74,10 @@ export async function processWorkoutGenerationJob(
       attemptsMade: job.attemptsMade,
       timestamp: new Date().toISOString(),
       processId: process.pid,
+      // How long the job sat in the queue before a worker picked it up — the
+      // first slice of the user's perceived wait, before any generation.
+      queueWaitMs:
+        typeof job.timestamp === "number" ? Date.now() - job.timestamp : undefined,
     },
   });
 
