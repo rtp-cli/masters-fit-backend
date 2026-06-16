@@ -85,16 +85,19 @@ export const workoutGenerationQueue = new Queue<WorkoutGenerationJobData>(
   "workout generation",
   {
     redis: buildBullRedisOptions(),
-    // Lock/stall tuning. Bull's default lockDuration is 30s, but a workout
-    // generation legitimately runs ~30-40s (and up to the processor watchdog
-    // ceiling of 8 min in the worst case). When a still-running job outlives
-    // its lock, Bull flags it "stalled" and a second worker re-runs it — which
-    // is exactly how one regeneration produced TWO workouts (jobId 665 →
-    // workouts 328 & 329) plus a "Missing lock for job 665" error. The lock
-    // must comfortably outlive the longest legitimate run.
+    // Lock/stall tuning. Bull auto-renews a job's lock every `lockRenewTime`
+    // while the worker is alive, so a long job NEVER stalls as long as its
+    // instance keeps running — `lockDuration` is NOT a max-job-time, it's "how
+    // long after a worker goes silent before the job is reclaimed". The 30s
+    // default is too tight: a brief renewal gap during a deploy flagged a
+    // healthy ~30s job as stalled and a second worker re-ran it (jobId 665 →
+    // two workouts 328 & 329 + "Missing lock for job 665"). But too long is
+    // also bad — a 10-min lock left a job orphaned by a restart waiting ~12 min
+    // to be reclaimed (jobId 671, queueWaitMs 737983). 2 minutes balances both:
+    // comfortably above transient hiccups, yet fast crash/deploy recovery.
     settings: {
-      lockDuration: 600000, // 10 min — above the 8-min generation watchdog
-      lockRenewTime: 150000, // renew every 2.5 min while the job is processing
+      lockDuration: 120000, // 2 min
+      lockRenewTime: 30000, // renew every 30s while the job is processing
       // Only a job whose worker actually died (lock unrenewed for the full
       // lockDuration) is treated as stalled; reprocess it at most once.
       maxStalledCount: 1,
