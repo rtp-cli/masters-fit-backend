@@ -475,6 +475,12 @@ ${exerciseContext}`
       name: "week_plan",
       includeRaw: true,
     });
+    logger.info("Starting fan-out planning call", {
+      userId,
+      expectedDayCount: profile.availableDays?.length || 7,
+      provider: this.currentProvider,
+      operation: "generateWeeklyWorkout",
+    });
     const planResult: any = await planLlm.invoke(
       [planningSystemMessage, new HumanMessage(buildPlanningUserMessage(profile, customFeedback))],
       { signal: fanoutAbort.signal }
@@ -482,6 +488,13 @@ ${exerciseContext}`
     recordUsage(planResult.raw);
     const weekPlan = planResult.parsed as WeekPlan;
     const expectedDayCount = profile.availableDays?.length || 7;
+    logger.info("Fan-out planning call completed", {
+      userId,
+      returnedDayCount: weekPlan?.days?.length || 0,
+      expectedDayCount,
+      weekPlanName: weekPlan?.name,
+      operation: "generateWeeklyWorkout",
+    });
     if (!weekPlan?.days?.length || weekPlan.days.length < expectedDayCount) {
       throw new Error(
         `Week planning returned ${weekPlan?.days?.length || 0} days, expected ${expectedDayCount}`

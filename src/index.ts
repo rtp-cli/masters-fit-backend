@@ -64,15 +64,11 @@ async function initializeServices() {
     logger.info('Socket.IO Redis adapter attached');
     logger.info('Redis initialized successfully');
 
-    // Clean up stuck jobs from previous run
-    const activeJobs = await workoutGenerationQueue.getActive();
-    if (activeJobs.length > 0) {
-      logger.warn(`Cleaning up ${activeJobs.length} stuck jobs from previous run`);
-      for (const job of activeJobs) {
-        await job.moveToFailed({ message: 'Cleaned up stuck job on server restart' }, true);
-      }
-    }
-    await workoutGenerationQueue.clean(0, 'failed');
+    // Bull's built-in stall checker handles jobs that were active when a
+    // worker died — no manual cleanup needed. Forcibly moving active jobs to
+    // failed here causes duplicate processing during zero-downtime deploys:
+    // the old instance continues its job while the new instance re-queues and
+    // processes it a second time.
 
     // Register queue processors
     workoutGenerationQueue.process('generate-workout', 10, processWorkoutGenerationJob);
