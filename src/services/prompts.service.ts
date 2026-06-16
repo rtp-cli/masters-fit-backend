@@ -289,9 +289,14 @@ export class PromptsService extends BaseService {
         tokenUsage: result.tokenUsage,
       };
     } catch (error) {
-      logger.error("Fan-out generation failed", error as Error, {
+      // INFO level so it survives any higher log-level filter — this is the
+      // primary (per-day progress) path and its failure is what silently
+      // demotes users to the spinner-only serial path.
+      logger.info("Fan-out generation failed", {
         userId,
         operation: "generateChunkedPrompt",
+        error: (error as Error)?.message,
+        stack: (error as Error)?.stack,
       });
       throw error;
     }

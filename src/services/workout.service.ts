@@ -961,12 +961,17 @@ export class WorkoutService extends BaseService {
       response = result.response;
       promptId = result.promptId;
     } catch (chunkedError: any) {
-      logger.warn(
+      // Logged at INFO so it's never hidden by a higher log-level filter —
+      // the fan-out path is the primary path (it drives the per-day progress
+      // UI), so a fall-through to serial generation is a real regression we
+      // must always be able to see, with the full reason.
+      logger.info(
         "Chunked workout generation failed, falling back to regular generation",
         {
           userId,
           operation: "generateWorkoutPlan",
-          error: (chunkedError as Error).message,
+          error: (chunkedError as Error)?.message,
+          stack: (chunkedError as Error)?.stack,
         }
       );
       try {
