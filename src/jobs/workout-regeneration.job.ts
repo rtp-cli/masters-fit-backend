@@ -17,7 +17,15 @@ import {
   JobStatus,
 } from "@/models/jobs.schema";
 import { emitProgress } from "@/utils/websocket-progress.utils";
+import { withTimeout } from "@/utils/timeout.utils";
 import { AccessLevel } from "@/constants";
+
+// Server-side watchdog: bound the whole regeneration so a hang anywhere
+// (including the non-abortable serial fallback path) always fails the job
+// rather than leaving it `active` forever. Must stay well under the client's
+// 5-minute regeneration timeout so the user gets a real, retryable error
+// instead of the generic "Generation Timed Out".
+const REGENERATION_WATCHDOG_MS = 240_000; // 4 minutes
 
 // Check if error is a rate limit error (429) that shouldn't be retried
 function isRateLimitError(error: Error): boolean {
@@ -42,6 +50,11 @@ function isNonRetryableError(error: Error): boolean {
 
   // Rate limit errors
   if (isRateLimitError(error)) return true;
+
+  // Watchdog timeout — the operation already blew past its hard ceiling, so a
+  // blind retry risks running concurrently with the still-pending original
+  // (and double-writing a workout). Fail fast and let the user retry cleanly.
+  if (error.name === "TimeoutError") return true;
 
   // Authentication/authorization errors
   if (message.includes('401') || message.includes('403') || message.includes('unauthorized') || message.includes('forbidden')) {
@@ -148,10 +161,10 @@ export async function processWorkoutRegenerationJob(
 
     // Regenerate workout using existing service
     // The service internally calls generateWorkoutPlan which handles progress updates
-    const workout = await workoutService.regenerateWorkoutPlan(
-      userId,
-      customFeedback,
-      profileData
+    const workout = await withTimeout(
+      workoutService.regenerateWorkoutPlan(userId, customFeedback, profileData),
+      REGENERATION_WATCHDOG_MS,
+      "Workout regeneration"
     );
 
     // Get real token usage from regeneration (or fallback to estimate)

@@ -12,6 +12,13 @@ import {
   JobStatus,
 } from "@/models/jobs.schema";
 import { emitProgress } from "@/utils/websocket-progress.utils";
+import { withTimeout } from "@/utils/timeout.utils";
+
+// Server-side watchdog: bound the whole generation so a hang anywhere
+// (including the non-abortable serial fallback path) always fails the job
+// rather than leaving it `active` forever. Stays under the client's 10-minute
+// generation timeout so the user gets a real, retryable error.
+const GENERATION_WATCHDOG_MS = 480_000; // 8 minutes
 
 // Check if error is a rate limit error (429) that shouldn't be retried
 function isRateLimitError(error: Error): boolean {
@@ -36,6 +43,11 @@ function isNonRetryableError(error: Error): boolean {
 
   // Rate limit errors
   if (isRateLimitError(error)) return true;
+
+  // Watchdog timeout — the operation already blew past its hard ceiling, so a
+  // blind retry risks running concurrently with the still-pending original
+  // (and double-writing a workout). Fail fast and let the user retry cleanly.
+  if (error.name === "TimeoutError") return true;
 
   // Authentication/authorization errors
   if (message.includes('401') || message.includes('403') || message.includes('unauthorized') || message.includes('forbidden')) {
@@ -102,10 +114,10 @@ export async function processWorkoutGenerationJob(
 
     // Generate workout using existing service
     // The service already handles progress updates via emitProgress
-    const workout = await workoutService.generateWorkoutPlan(
-      userId,
-      customFeedback,
-      timezone
+    const workout = await withTimeout(
+      workoutService.generateWorkoutPlan(userId, customFeedback, timezone),
+      GENERATION_WATCHDOG_MS,
+      "Workout generation"
     );
 
     const generationTime = Date.now() - startTime;

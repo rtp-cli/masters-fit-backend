@@ -24,6 +24,16 @@ import {
 import { aiProviderService } from "./ai-provider.service";
 import { AIProvider } from "@/constants/ai-providers";
 import { llmGenerationLogsService } from "./llm-generation-logs.service";
+import { runWithAbortTimeout } from "@/utils/timeout.utils";
+
+// Hard per-call ceilings for the fan-out LLM calls. Without these a stalled
+// provider connection (one that never sends an RST) hangs the await forever,
+// which leaves the Bull job `active` indefinitely and the client stuck on a
+// spinner until its own multi-minute timeout fires. A timed-out day call
+// simply rejects, so the existing retry loop re-attempts it and — if it still
+// fails — the job fails fast with a real error instead of hanging.
+const PLANNING_CALL_TIMEOUT_MS = 60_000;
+const DAY_CALL_TIMEOUT_MS = 75_000;
 
 // Result type that includes token usage
 export interface WorkoutGenerationResult {
@@ -481,9 +491,15 @@ ${exerciseContext}`
       provider: this.currentProvider,
       operation: "generateWeeklyWorkout",
     });
-    const planResult: any = await planLlm.invoke(
-      [planningSystemMessage, new HumanMessage(buildPlanningUserMessage(profile, customFeedback))],
-      { signal: fanoutAbort.signal }
+    const planResult: any = await runWithAbortTimeout(
+      (signal) =>
+        planLlm.invoke(
+          [planningSystemMessage, new HumanMessage(buildPlanningUserMessage(profile, customFeedback))],
+          { signal }
+        ),
+      fanoutAbort.signal,
+      PLANNING_CALL_TIMEOUT_MS,
+      "Fan-out planning call"
     );
     recordUsage(planResult.raw);
     const weekPlan = planResult.parsed as WeekPlan;
@@ -557,12 +573,18 @@ ${exerciseContext}`
       let lastError: unknown;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
-          const res: any = await dayLlm.invoke(
-            [
-              daySystemMessage,
-              new HumanMessage(buildDayUserMessage(profile, weekPlan, day, customFeedback)),
-            ],
-            { signal: fanoutAbort.signal }
+          const res: any = await runWithAbortTimeout(
+            (signal) =>
+              dayLlm.invoke(
+                [
+                  daySystemMessage,
+                  new HumanMessage(buildDayUserMessage(profile, weekPlan, day, customFeedback)),
+                ],
+                { signal }
+              ),
+            fanoutAbort.signal,
+            DAY_CALL_TIMEOUT_MS,
+            `Day ${day.day} generation`
           );
           recordUsage(res.raw);
           if (!res.parsed?.blocks?.length) {
