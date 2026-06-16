@@ -1,0 +1,29 @@
+name: Deploy to Render
+
+# Triggers a Render deploy on every push to main by calling the service's
+# Deploy Hook. Needed because the Render service is connected via public Git
+# URL (no GitHub App), so Render does not receive push events on its own.
+#
+# Setup: add a repo secret RENDER_DEPLOY_HOOK_URL
+#   (Render dashboard -> service -> Settings -> Deploy Hook).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {} # allow manual "Run workflow" from the Actions tab
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          if [ -z "${RENDER_DEPLOY_HOOK_URL}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL secret is not set"
+            exit 1
+          fi
+          echo "Triggering Render deploy for commit ${GITHUB_SHA}..."
+          curl --fail --silent --show-error "${RENDER_DEPLOY_HOOK_URL}"
+          echo "Render deploy triggered."
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
