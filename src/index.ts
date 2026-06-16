@@ -5,6 +5,8 @@ import app from "./app";
 import { logger } from "./utils/logger";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
 import { setSocketIOInstance } from "./utils/websocket-progress.utils";
 import { initializeRedis, closeRedis } from "./utils/redis";
 import { workoutGenerationQueue, closeWorkoutGenerationQueue } from "./queues/workout-generation.queue";
@@ -48,6 +50,18 @@ async function initializeServices() {
   try {
     // Initialize Redis
     await initializeRedis();
+
+    // Attach Redis adapter to Socket.IO so events broadcast across all
+    // Render instances (including during zero-downtime deploys where two
+    // instances briefly overlap, and when the job processor runs on a
+    // different instance than the connected client).
+    const pubClient = createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379',
+      socket: { ...(process.env.REDIS_URL?.startsWith('rediss://') && { tls: true, rejectUnauthorized: false }) }
+    });
+    const subClient = pubClient.duplicate();
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    io.adapter(createAdapter(pubClient, subClient));
+    logger.info('Socket.IO Redis adapter attached');
     logger.info('Redis initialized successfully');
 
     // Clean up stuck jobs from previous run
