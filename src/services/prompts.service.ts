@@ -131,12 +131,11 @@ export class PromptsService extends BaseService {
     // Validate profile has required fields
     if (
       !profile.availableDays ||
-      !profile.preferredStyles ||
       !profile.workoutDuration ||
       !profile.environment
     ) {
       throw new Error(
-        "Profile is missing required fields: availableDays, preferredStyles, workoutDuration, or environment"
+        "Profile is missing required fields: availableDays, workoutDuration, or environment"
       );
     }
 
@@ -209,12 +208,11 @@ export class PromptsService extends BaseService {
     }
     if (
       !profile.availableDays ||
-      !profile.preferredStyles ||
       !profile.workoutDuration ||
       !profile.environment
     ) {
       throw new Error(
-        "Profile is missing required fields: availableDays, preferredStyles, workoutDuration, or environment"
+        "Profile is missing required fields: availableDays, workoutDuration, or environment"
       );
     }
 
