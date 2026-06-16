@@ -41,6 +41,10 @@ import {
 } from "@/models";
 import { logger } from "@/utils/logger";
 import { workoutGenerationQueue } from "@/queues/workout-generation.queue";
+import {
+  getPersistedGenerationStatus,
+  GenerationDayStatus,
+} from "@/utils/websocket-progress.utils";
 
 // Helper function to get client IP from request
 function getClientIP(req: any): string | undefined {
@@ -728,6 +732,12 @@ export class WorkoutController extends Controller {
       workoutId?: number;
       createdAt: string;
       completedAt?: string;
+      // Structured per-day generation timeline, recovered from Redis. Lets the
+      // client render the progressive UI from polling even when the live
+      // websocket events were never delivered (the simulator hits a local
+      // server; the device goes through Render's proxy on cellular).
+      phase?: string;
+      days?: GenerationDayStatus[];
     };
   }> {
     const job = await jobsService.getJob(jobId);
@@ -744,6 +754,8 @@ export class WorkoutController extends Controller {
       this.setHeader("Expires", "0");
     }
 
+    const generationStatus = await getPersistedGenerationStatus(job.userId);
+
     return {
       success: true,
       job: {
@@ -754,6 +766,8 @@ export class WorkoutController extends Controller {
         workoutId: job.workoutId || undefined,
         createdAt: job.createdAt.toISOString(),
         completedAt: job.completedAt?.toISOString(),
+        phase: generationStatus?.phase,
+        days: generationStatus?.days,
       },
     };
   }
