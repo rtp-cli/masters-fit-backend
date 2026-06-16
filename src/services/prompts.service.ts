@@ -206,16 +206,6 @@ export class PromptsService extends BaseService {
     if (!profile) {
       throw new Error("Profile not found");
     }
-    if (
-      !profile.availableDays ||
-      !profile.workoutDuration ||
-      !profile.environment
-    ) {
-      throw new Error(
-        "Profile is missing required fields: availableDays, workoutDuration, or environment"
-      );
-    }
-
     const workoutAgent = await this.createUserWorkoutAgent(userId, profile);
 
     emitGenerationStatus(userId, { progress: 15, phase: "planning" });
