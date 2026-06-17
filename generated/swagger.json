@@ -31,6 +31,14 @@
 					},
 					"description": {
 						"type": "string"
+					},
+					"effort": {
+						"type": "string",
+						"enum": [
+							"low",
+							"medium",
+							"high"
+						]
 					}
 				},
 				"required": [
@@ -305,6 +313,14 @@
 					"waiverVersion": {
 						"type": "string",
 						"nullable": true
+					},
+					"themeMode": {
+						"type": "string",
+						"nullable": true
+					},
+					"colorTheme": {
+						"type": "string",
+						"nullable": true
 					}
 				},
 				"required": [
@@ -313,7 +329,9 @@
 					"name",
 					"needsOnboarding",
 					"waiverAcceptedAt",
-					"waiverVersion"
+					"waiverVersion",
+					"themeMode",
+					"colorTheme"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -2136,6 +2154,14 @@
 					"isActive": {
 						"type": "boolean",
 						"nullable": true
+					},
+					"themeMode": {
+						"type": "string",
+						"nullable": true
+					},
+					"colorTheme": {
+						"type": "string",
+						"nullable": true
 					}
 				},
 				"required": [
@@ -2149,7 +2175,9 @@
 					"needsOnboarding",
 					"waiverAcceptedAt",
 					"waiverVersion",
-					"isActive"
+					"isActive",
+					"themeMode",
+					"colorTheme"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -3531,6 +3559,33 @@
 				},
 				"type": "object",
 				"description": "Make all properties in T optional"
+			},
+			"GenerationDayStatus": {
+				"properties": {
+					"dayNumber": {
+						"type": "number",
+						"format": "double"
+					},
+					"label": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"pending",
+							"generating",
+							"done",
+							"failed"
+						]
+					}
+				},
+				"required": [
+					"dayNumber",
+					"label",
+					"status"
+				],
+				"type": "object",
+				"additionalProperties": false
 			}
 		},
 		"securitySchemes": {
@@ -5754,6 +5809,10 @@
 										},
 										"type": "array"
 									},
+									"roundNumber": {
+										"type": "number",
+										"format": "double"
+									},
 									"planDayExerciseId": {
 										"type": "number",
 										"format": "double"
@@ -5762,6 +5821,125 @@
 								"required": [
 									"sets",
 									"planDayExerciseId"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/logs/exercise/batch": {
+			"post": {
+				"operationId": "CreateExerciseLogsBatch",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"count": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"count"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create multiple exercise log entries in a single batch",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"logs": {
+										"items": {
+											"properties": {
+												"isComplete": {
+													"type": "boolean"
+												},
+												"notes": {
+													"type": "string"
+												},
+												"timeTaken": {
+													"type": "number",
+													"format": "double"
+												},
+												"durationCompleted": {
+													"type": "number",
+													"format": "double"
+												},
+												"sets": {
+													"items": {
+														"properties": {
+															"restAfter": {
+																"type": "number",
+																"format": "double"
+															},
+															"reps": {
+																"type": "number",
+																"format": "double"
+															},
+															"weight": {
+																"type": "number",
+																"format": "double"
+															},
+															"setNumber": {
+																"type": "number",
+																"format": "double"
+															},
+															"roundNumber": {
+																"type": "number",
+																"format": "double"
+															}
+														},
+														"required": [
+															"reps",
+															"weight",
+															"setNumber",
+															"roundNumber"
+														],
+														"type": "object"
+													},
+													"type": "array"
+												},
+												"roundNumber": {
+													"type": "number",
+													"format": "double"
+												},
+												"planDayExerciseId": {
+													"type": "number",
+													"format": "double"
+												}
+											},
+											"required": [
+												"sets",
+												"planDayExerciseId"
+											],
+											"type": "object"
+										},
+										"type": "array"
+									}
+								},
+								"required": [
+									"logs"
 								],
 								"type": "object"
 							}
@@ -7014,6 +7192,82 @@
 						}
 					}
 				]
+			}
+		},
+		"/logs/workout/{workoutId}/exercises/complete": {
+			"post": {
+				"operationId": "AddCompletedExercises",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutLogResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Add completed exercises (batch) to workout",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "Workout ID",
+						"in": "path",
+						"name": "workoutId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "Exercise IDs and optional block ID",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"workoutBlockId": {
+										"type": "number",
+										"format": "double"
+									},
+									"planDayExerciseIds": {
+										"items": {
+											"type": "number",
+											"format": "double"
+										},
+										"type": "array"
+									}
+								},
+								"required": [
+									"planDayExerciseIds"
+								],
+								"type": "object",
+								"description": "Exercise IDs and optional block ID"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/logs/workout/{workoutId}/block/{workoutBlockId}": {
@@ -8632,26 +8886,24 @@
 				}
 			}
 		},
-		"/workouts/exercise/{id}/replace": {
-			"put": {
-				"operationId": "ReplaceExercise",
+		"/workouts/exercises/{id}": {
+			"delete": {
+				"operationId": "DeletePlanDayExercise",
 				"responses": {
 					"200": {
 						"description": "Success",
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
+									"properties": {
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
 								}
 							}
 						}
@@ -8677,9 +8929,54 @@
 							"type": "number"
 						}
 					}
+				]
+			}
+		},
+		"/workouts/exercise/{id}/replace": {
+			"put": {
+				"operationId": "ReplaceExercise",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutBlockExerciseResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
 				],
 				"requestBody": {
-					"description": "New exercise data",
 					"required": true,
 					"content": {
 						"application/json": {
@@ -8693,214 +8990,7 @@
 								"required": [
 									"newExerciseId"
 								],
-								"type": "object",
-								"description": "New exercise data"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/workouts/{userId}/generate": {
-			"post": {
-				"operationId": "GenerateWorkoutPlan",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/WorkoutResponse"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/WorkoutResponse"
-								}
-							}
-						}
-					}
-				},
-				"description": "Generate workout plan",
-				"tags": [
-					"Workouts"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "User ID",
-						"in": "path",
-						"name": "userId",
-						"required": true,
-						"schema": {
-							"format": "double",
-							"type": "number"
-						}
-					}
-				],
-				"requestBody": {
-					"description": "Generation options including timezone",
-					"required": false,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"timezone": {
-										"type": "string"
-									},
-									"customFeedback": {
-										"type": "string"
-									}
-								},
-								"type": "object",
-								"description": "Generation options including timezone"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/workouts/{userId}/regenerate": {
-			"post": {
-				"operationId": "RegenerateWorkoutPlan",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/WorkoutResponse"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/WorkoutResponse"
-								}
-							}
-						}
-					}
-				},
-				"description": "Regenerate workout plan with custom preferences and feedback",
-				"tags": [
-					"Workouts"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "User ID",
-						"in": "path",
-						"name": "userId",
-						"required": true,
-						"schema": {
-							"format": "double",
-							"type": "number"
-						}
-					}
-				],
-				"requestBody": {
-					"description": "Regeneration data",
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"profileData": {
-										"properties": {
-											"medicalNotes": {
-												"type": "string"
-											},
-											"intensityLevel": {
-												"type": "number",
-												"format": "double"
-											},
-											"workoutDuration": {
-												"type": "number",
-												"format": "double"
-											},
-											"availableDays": {
-												"items": {
-													"type": "string"
-												},
-												"type": "array"
-											},
-											"workoutStyles": {
-												"items": {
-													"type": "string"
-												},
-												"type": "array"
-											},
-											"equipment": {
-												"items": {
-													"type": "string"
-												},
-												"type": "array"
-											},
-											"environment": {
-												"items": {
-													"type": "string"
-												},
-												"type": "array"
-											},
-											"fitnessLevel": {
-												"type": "string"
-											},
-											"limitations": {
-												"items": {
-													"type": "string"
-												},
-												"type": "array"
-											},
-											"goals": {
-												"items": {
-													"type": "string"
-												},
-												"type": "array"
-											},
-											"gender": {
-												"type": "string"
-											},
-											"weight": {
-												"type": "number",
-												"format": "double"
-											},
-											"height": {
-												"type": "number",
-												"format": "double"
-											},
-											"age": {
-												"type": "number",
-												"format": "double"
-											}
-										},
-										"type": "object"
-									},
-									"threadId": {
-										"type": "string"
-									},
-									"customFeedback": {
-										"type": "string"
-									}
-								},
-								"type": "object",
-								"description": "Regeneration data"
+								"type": "object"
 							}
 						}
 					}
@@ -9064,6 +9154,9 @@
 										},
 										"type": "object"
 									},
+									"timezone": {
+										"type": "string"
+									},
 									"customFeedback": {
 										"type": "string"
 									}
@@ -9115,99 +9208,6 @@
 						}
 					}
 				]
-			}
-		},
-		"/workouts/{userId}/days/{planDayId}/regenerate": {
-			"post": {
-				"operationId": "RegenerateDailyWorkout",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/PlanDayResponse"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/PlanDayResponse"
-								}
-							}
-						}
-					}
-				},
-				"description": "Regenerate a single day's workout",
-				"tags": [
-					"Workouts"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"description": "User ID",
-						"in": "path",
-						"name": "userId",
-						"required": true,
-						"schema": {
-							"format": "double",
-							"type": "number"
-						}
-					},
-					{
-						"description": "Plan day ID",
-						"in": "path",
-						"name": "planDayId",
-						"required": true,
-						"schema": {
-							"format": "double",
-							"type": "number"
-						}
-					}
-				],
-				"requestBody": {
-					"description": "Regeneration reason and optional styles",
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"threadId": {
-										"type": "string"
-									},
-									"limitations": {
-										"items": {
-											"type": "string"
-										},
-										"type": "array"
-									},
-									"styles": {
-										"items": {
-											"type": "string"
-										},
-										"type": "array"
-									},
-									"reason": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"reason"
-								],
-								"type": "object",
-								"description": "Regeneration reason and optional styles"
-							}
-						}
-					}
-				}
 			}
 		},
 		"/workouts/{userId}/days/{planDayId}/regenerate-async": {
@@ -9537,6 +9537,158 @@
 				}
 			}
 		},
+		"/workouts/{userId}/past-completed-days": {
+			"get": {
+				"operationId": "GetPastCompletedDays",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"planDays": {
+											"items": {},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"planDays",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"planDays": {
+											"items": {},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"planDays",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get past completed days for a user",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/workouts/{userId}/repeat-day/{planDayId}": {
+			"post": {
+				"operationId": "RepeatPastDay",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Repeat a past day's workout with a new date",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"description": "User ID",
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Plan day ID to repeat",
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"description": "New date for the repeated workout",
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"newDate": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"newDate"
+								],
+								"type": "object",
+								"description": "New date for the repeated workout"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/workouts/{userId}/debug/active": {
 			"get": {
 				"operationId": "GetActiveWorkoutsDebug",
@@ -9799,6 +9951,15 @@
 									"properties": {
 										"job": {
 											"properties": {
+												"days": {
+													"items": {
+														"$ref": "#/components/schemas/GenerationDayStatus"
+													},
+													"type": "array"
+												},
+												"phase": {
+													"type": "string"
+												},
 												"completedAt": {
 													"type": "string"
 												},

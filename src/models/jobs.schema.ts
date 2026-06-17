@@ -129,6 +129,7 @@ export interface WorkoutGenerationJobResult {
 
 export interface WorkoutRegenerationJobData {
   customFeedback?: string;
+  timezone?: string;
   profileData?: {
     age?: number;
     height?: number;

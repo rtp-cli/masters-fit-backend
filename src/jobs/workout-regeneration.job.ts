@@ -73,7 +73,7 @@ export async function processWorkoutRegenerationJob(
   job: Job<WorkoutRegenerationJobData & { userId: number; jobId: number }>
 ): Promise<WorkoutRegenerationJobResult> {
   const startTime = Date.now();
-  const { userId, jobId, customFeedback, profileData } = job.data;
+  const { userId, jobId, customFeedback, profileData, timezone } = job.data;
 
   logger.info("Starting workout regeneration job processing", {
     operation: "workoutRegenerationJob",
@@ -170,7 +170,7 @@ export async function processWorkoutRegenerationJob(
     // Regenerate workout using existing service
     // The service internally calls generateWorkoutPlan which handles progress updates
     const workout = await withTimeout(
-      workoutService.regenerateWorkoutPlan(userId, customFeedback, profileData),
+      workoutService.regenerateWorkoutPlan(userId, customFeedback, profileData, timezone),
       REGENERATION_WATCHDOG_MS,
       "Workout regeneration"
     );
