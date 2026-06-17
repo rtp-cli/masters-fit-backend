@@ -310,6 +310,7 @@ export class WorkoutController extends Controller {
     @Body()
     requestBody: {
       customFeedback?: string;
+      timezone?: string;
       profileData?: {
         age?: number;
         height?: number;
@@ -353,6 +354,7 @@ export class WorkoutController extends Controller {
         userId,
         jobId: job.id,
         customFeedback: requestBody?.customFeedback,
+        timezone: requestBody?.timezone,
         profileData: requestBody?.profileData,
       };
 

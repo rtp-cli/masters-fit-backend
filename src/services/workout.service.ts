@@ -1314,6 +1314,7 @@ export class WorkoutService extends BaseService {
       intensityLevel?: number;
       medicalNotes?: string;
     },
+    timezone?: string,
     threadId?: string
   ): Promise<WorkoutWithDetails> {
     if (profileData) {
@@ -1339,7 +1340,7 @@ export class WorkoutService extends BaseService {
 
     // Deactivation of existing active workouts is handled atomically
     // inside createWorkout() via a transaction to prevent race conditions.
-    const workout = await this.generateWorkoutPlan(userId, customFeedback, undefined, threadId);
+    const workout = await this.generateWorkoutPlan(userId, customFeedback, timezone, threadId);
     return workout;
   }
 
