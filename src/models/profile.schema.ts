@@ -51,6 +51,10 @@ export const profiles = pgTable("profiles", {
   includeCooldown: boolean("include_cooldown").default(true),
   aiProvider: text("ai_provider").$type<AIProvider>().default(DEFAULT_AI_PROVIDER),
   aiModel: text("ai_model").default(DEFAULT_AI_MODEL),
+  // IANA timezone name (e.g. "America/Chicago"). Persisted source of truth so
+  // off-request work (queue jobs, future scheduled notifications) can resolve
+  // the user's local "today" instead of falling back to server/UTC time.
+  timezone: text("timezone"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 }, (table) => ({
   userIdIdx: index("idx_profiles_user_id").on(table.userId),
@@ -87,6 +91,7 @@ export interface Profile {
   includeCooldown: boolean | null;
   aiProvider: AIProvider | null;
   aiModel: string | null;
+  timezone: string | null;
   updatedAt: Date | null;
 }
 

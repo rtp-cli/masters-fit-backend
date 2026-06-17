@@ -101,6 +101,7 @@ export class ProfileController extends Controller {
       intensityLevel: requestBody.intensityLevel ?? null,
       includeWarmup: requestBody.includeWarmup ?? true,
       includeCooldown: requestBody.includeCooldown ?? true,
+      timezone: requestBody.timezone ?? null,
     });
     const profile: Profile = {
       id: dbProfile.id,
@@ -122,6 +123,7 @@ export class ProfileController extends Controller {
       intensityLevel: dbProfile.intensityLevel ?? undefined,
       includeWarmup: dbProfile.includeWarmup ?? true,
       includeCooldown: dbProfile.includeCooldown ?? true,
+      timezone: dbProfile.timezone ?? undefined,
       created_at: dbProfile.updatedAt ?? new Date(),
       updated_at: dbProfile.updatedAt ?? new Date(),
     };
@@ -192,6 +194,7 @@ export class ProfileController extends Controller {
     if (requestBody.intensityLevel !== undefined) updateData.intensityLevel = requestBody.intensityLevel;
     if (requestBody.includeWarmup !== undefined) updateData.includeWarmup = requestBody.includeWarmup;
     if (requestBody.includeCooldown !== undefined) updateData.includeCooldown = requestBody.includeCooldown;
+    if (requestBody.timezone !== undefined) updateData.timezone = requestBody.timezone;
 
     const dbProfile = await profileService.createOrUpdateProfile(updateData);
 
@@ -282,6 +285,7 @@ export class ProfileController extends Controller {
     if (requestBody.intensityLevel !== undefined) updateData.intensityLevel = requestBody.intensityLevel;
     if (requestBody.includeWarmup !== undefined) updateData.includeWarmup = requestBody.includeWarmup;
     if (requestBody.includeCooldown !== undefined) updateData.includeCooldown = requestBody.includeCooldown;
+    if (requestBody.timezone !== undefined) updateData.timezone = requestBody.timezone;
 
     const dbProfile = await profileService.createOrUpdateProfile(updateData);
 

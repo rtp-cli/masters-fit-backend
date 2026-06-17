@@ -1013,9 +1013,7 @@ export class WorkoutService extends BaseService {
     const persistStartedAt = Date.now();
     const profile = await profileService.getProfileByUserId(userId);
     // Calculate startDate and endDate as YYYY-MM-DD strings in user's timezone
-    const startDate = timezone
-      ? getCurrentDateStringInTimezone(timezone)
-      : getCurrentDateString();
+    const startDate = await this.resolveTodayString(userId, timezone);
     const endDate = addDays(startDate, 6);
 
     const workout = await this.createWorkout({
@@ -1043,9 +1041,8 @@ export class WorkoutService extends BaseService {
 
     const workoutPlan = response.workoutPlan;
     const availableDays = profile?.availableDays || []; // e.g. ["tuesday", "wednesday", "saturday"]
-    const today = timezone
-      ? getCurrentDateStringInTimezone(timezone)
-      : getCurrentDateString();
+    // Same value as startDate above — reuse it rather than resolving twice.
+    const today = startDate;
 
     // Get today's weekday in the specified timezone
     const todayDay = timezone
@@ -1227,11 +1224,25 @@ export class WorkoutService extends BaseService {
     );
   }
 
+  /**
+   * Resolve the user's local "today" (YYYY-MM-DD) using, in order:
+   *   1. an explicit request timezone (most accurate at this instant),
+   *   2. the persisted profile timezone (works off-request, e.g. queue jobs),
+   *   3. server/UTC time (last-resort fallback).
+   */
+  private async resolveTodayString(
+    userId: number,
+    timezone?: string
+  ): Promise<string> {
+    if (timezone) return getCurrentDateStringInTimezone(timezone);
+    const profile = await profileService.getProfileByUserId(userId);
+    if (profile?.timezone) return getCurrentDateStringInTimezone(profile.timezone);
+    return getCurrentDateString();
+  }
+
   async fetchActiveWorkout(userId: number, timezone?: string): Promise<WorkoutWithDetails | null> {
     try {
-      const todayStr = timezone
-        ? getCurrentDateStringInTimezone(timezone)
-        : getCurrentDateString();
+      const todayStr = await this.resolveTodayString(userId, timezone);
       logger.info("Fetching active workout", {
         operation: "fetchActiveWorkout",
         metadata: { userId, today: todayStr, timezone },
@@ -1675,7 +1686,7 @@ export class WorkoutService extends BaseService {
    * Get workout history for a user (all past workouts - completed or not)
    */
   async getWorkoutHistory(userId: number): Promise<WorkoutWithDetails[]> {
-    const today = getCurrentDateString();
+    const today = await this.resolveTodayString(userId);
 
     // Get all workouts that are either:
     // 1. Not active (isActive = false)
@@ -1723,7 +1734,7 @@ export class WorkoutService extends BaseService {
     userId: number,
     timeFilter: "week" | "month" | "3months" | "all" = "month"
   ): Promise<any[]> {
-    const today = getCurrentDateString();
+    const today = await this.resolveTodayString(userId);
     let dateFilter = null;
 
     if (timeFilter !== "all") {

@@ -500,6 +500,9 @@
 				"properties": {
 					"refreshToken": {
 						"type": "string"
+					},
+					"timezone": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -2092,6 +2095,9 @@
 					"includeCooldown": {
 						"type": "boolean"
 					},
+					"timezone": {
+						"type": "string"
+					},
 					"created_at": {
 						"type": "string",
 						"format": "date-time"
@@ -2290,6 +2296,9 @@
 					},
 					"includeCooldown": {
 						"type": "boolean"
+					},
+					"timezone": {
+						"type": "string"
 					},
 					"created_at": {
 						"type": "string",

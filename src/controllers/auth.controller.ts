@@ -25,7 +25,7 @@ import {
   AcceptWaiverRequest,
   RefreshTokenRequest,
 } from "@/types";
-import { userService, authService, refreshTokenService } from "@/services";
+import { userService, authService, refreshTokenService, profileService } from "@/services";
 import { systemConfigService } from "@/services/system-config.service";
 import { emailService } from "@/services/email.service";
 import { emailAuthSchema, InsertUser, insertUserSchema } from "@/models";
@@ -588,7 +588,7 @@ export class AuthController extends Controller {
   public async refreshToken(
     @Body() requestBody: RefreshTokenRequest
   ): Promise<AuthRefreshResponse> {
-    const { refreshToken } = requestBody;
+    const { refreshToken, timezone } = requestBody;
 
     if (!refreshToken) {
       return {
@@ -617,6 +617,18 @@ export class AuthController extends Controller {
           success: false,
           error: "User not found",
         };
+      }
+
+      // Best-effort: refresh the persisted timezone while we have the user.
+      // Fire-and-forget and swallow errors — this must never delay or fail the
+      // token refresh, which is a load-bearing path.
+      if (timezone) {
+        void profileService.updateTimezone(userId, timezone).catch((err) => {
+          logger.warn("Failed to persist user timezone on refresh", {
+            operation: "refreshToken",
+            metadata: { userId, error: (err as Error).message },
+          });
+        });
       }
 
       // Generate new access token
