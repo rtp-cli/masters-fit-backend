@@ -191,6 +191,7 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "refreshToken": {"dataType":"string","required":true},
+            "timezone": {"dataType":"string"},
         },
         "additionalProperties": false,
     },
@@ -757,6 +758,7 @@ const models: TsoaRoute.Models = {
             "intensityLevel": {"ref":"IntensityLevel"},
             "includeWarmup": {"dataType":"boolean"},
             "includeCooldown": {"dataType":"boolean"},
+            "timezone": {"dataType":"string"},
             "created_at": {"dataType":"datetime","required":true},
             "updated_at": {"dataType":"datetime","required":true},
         },
@@ -798,7 +800,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_Profile_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"id":{"dataType":"double"},"userId":{"dataType":"double"},"email":{"dataType":"string"},"height":{"dataType":"double"},"weight":{"dataType":"double"},"age":{"dataType":"double"},"gender":{"ref":"Gender"},"goals":{"dataType":"array","array":{"dataType":"refAlias","ref":"FitnessGoal"}},"fitnessLevel":{"ref":"FitnessLevel"},"limitations":{"dataType":"array","array":{"dataType":"refAlias","ref":"PhysicalLimitation"}},"medicalNotes":{"dataType":"string"},"environment":{"ref":"WorkoutEnvironment"},"equipment":{"dataType":"array","array":{"dataType":"refAlias","ref":"AvailableEquipment"}},"otherEquipment":{"dataType":"string"},"preferredStyles":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredStyles"}},"availableDays":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredDay"}},"workoutDuration":{"dataType":"double"},"intensityLevel":{"ref":"IntensityLevel"},"includeWarmup":{"dataType":"boolean"},"includeCooldown":{"dataType":"boolean"},"created_at":{"dataType":"datetime"},"updated_at":{"dataType":"datetime"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"id":{"dataType":"double"},"userId":{"dataType":"double"},"email":{"dataType":"string"},"height":{"dataType":"double"},"weight":{"dataType":"double"},"age":{"dataType":"double"},"gender":{"ref":"Gender"},"goals":{"dataType":"array","array":{"dataType":"refAlias","ref":"FitnessGoal"}},"fitnessLevel":{"ref":"FitnessLevel"},"limitations":{"dataType":"array","array":{"dataType":"refAlias","ref":"PhysicalLimitation"}},"medicalNotes":{"dataType":"string"},"environment":{"ref":"WorkoutEnvironment"},"equipment":{"dataType":"array","array":{"dataType":"refAlias","ref":"AvailableEquipment"}},"otherEquipment":{"dataType":"string"},"preferredStyles":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredStyles"}},"availableDays":{"dataType":"array","array":{"dataType":"refAlias","ref":"PreferredDay"}},"workoutDuration":{"dataType":"double"},"intensityLevel":{"ref":"IntensityLevel"},"includeWarmup":{"dataType":"boolean"},"includeCooldown":{"dataType":"boolean"},"timezone":{"dataType":"string"},"created_at":{"dataType":"datetime"},"updated_at":{"dataType":"datetime"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Prompt": {

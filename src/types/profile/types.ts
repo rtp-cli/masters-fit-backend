@@ -48,6 +48,7 @@ export interface Profile {
   intensityLevel?: IntensityLevel;
   includeWarmup?: boolean;
   includeCooldown?: boolean;
+  timezone?: string;
   created_at: Date;
   updated_at: Date;
 }

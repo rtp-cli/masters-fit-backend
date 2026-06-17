@@ -18,4 +18,7 @@ export interface AcceptWaiverRequest {
 
 export interface RefreshTokenRequest {
   refreshToken: string;
+  // Optional IANA timezone, refreshed opportunistically when the app comes back
+  // and rotates its token. Persisted to the user's profile (best-effort).
+  timezone?: string;
 }

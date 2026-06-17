@@ -27,6 +27,19 @@ export class ProfileService extends BaseService {
     return match ? match[1] : value;
   }
 
+  /**
+   * Persist the user's IANA timezone. Update-only: if no profile exists yet
+   * (e.g. a token refresh before onboarding) this is a no-op rather than
+   * inserting a partial profile row. Onboarding sets the timezone at profile
+   * creation time instead.
+   */
+  async updateTimezone(userId: number, timezone: string): Promise<void> {
+    await this.db
+      .update(profiles)
+      .set({ timezone, updatedAt: createTimestamp() })
+      .where(this.eq(profiles.userId, userId));
+  }
+
   async createOrUpdateProfile(profileData: InsertProfile): Promise<Profile> {
     // Automatically set equipment based on environment
     const processedData = this.processProfileData(profileData);
