@@ -36,10 +36,7 @@ import { MetricsCalculationService } from "./metrics-calculation.service";
 import { WorkoutAnalyticsService } from "./workout-analytics.service";
 import { GoalProgressService } from "./goal-progress.service";
 // Import utilities
-import {
-  calculateGlobalWorkoutStreak,
-  StreakCalculationData,
-} from "@/utils/streak-calculation.utils";
+import { calculateScheduledWorkoutStreak } from "@/utils/streak-calculation.utils";
 
 export class DashboardService {
   private metricsCalculationService = new MetricsCalculationService();
@@ -481,37 +478,25 @@ export class DashboardService {
     );
   }
 
-  // Utility method that fetches data and delegates calculation to utility function
+  // Fetches the user's scheduled workout days and delegates streak calculation.
+  // Streak = consecutive *completed* scheduled workouts (planDays.isComplete),
+  // most recent first; rest days (no plan day) never break it.
   private async calculateWorkoutStreak(userId: number): Promise<number> {
-    // Get all plan days that have exercises completed, grouped by date and workout
-    const planDayCompletionData = await db
+    const scheduledDays = await db
       .select({
-        planDayId: planDays.id,
         date: planDays.date,
-        workoutId: planDays.workoutId,
-        hasExerciseLogs: sql<boolean>`COUNT(${exerciseLogs.id}) > 0`,
+        isComplete: planDays.isComplete,
       })
       .from(planDays)
       .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
-      .innerJoin(workoutBlocks, eq(planDays.id, workoutBlocks.planDayId))
-      .leftJoin(
-        planDayExercises,
-        eq(workoutBlocks.id, planDayExercises.workoutBlockId)
-      )
-      .leftJoin(
-        exerciseLogs,
-        eq(planDayExercises.id, exerciseLogs.planDayExerciseId)
-      )
-      .where(eq(workouts.userId, userId))
-      .groupBy(planDays.id, planDays.date, planDays.workoutId);
+      .where(eq(workouts.userId, userId));
 
-    if (planDayCompletionData.length === 0) {
+    if (scheduledDays.length === 0) {
       return 0;
     }
 
-    // Delegate calculation to utility function
-    return calculateGlobalWorkoutStreak(
-      planDayCompletionData as StreakCalculationData[]
+    return calculateScheduledWorkoutStreak(
+      scheduledDays.map((d) => ({ date: d.date, isComplete: !!d.isComplete }))
     );
   }
 }
