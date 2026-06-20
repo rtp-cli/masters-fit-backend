@@ -1,131 +1,50 @@
 import { getCurrentUTCDate } from "@/utils/date.utils";
 
-export interface StreakCalculationData {
-  planDayId: number;
+export interface StreakDayData {
+  /** A scheduled workout day, format YYYY-MM-DD. */
   date: string;
-  workoutId: number;
-  hasExerciseLogs: boolean;
-}
-
-export interface ActiveWorkoutStreakData {
-  planDayId: number;
-  date: string;
-  hasExerciseLogs: boolean;
+  /** Whether that scheduled workout was completed (planDays.isComplete). */
+  isComplete: boolean;
 }
 
 /**
- * Calculate the global workout streak for a user
- * Any workout completed on a day counts toward the streak
+ * Current workout streak = consecutive *completed scheduled workouts*, counted
+ * back from the most recent.
+ *
+ * Rest days carry no planDay, so they are simply absent from `days` and never
+ * break a streak. Today's scheduled-but-not-yet-done workout doesn't break it
+ * either (the day isn't over); only a *past* missed scheduled workout does.
+ *
+ * Counts each scheduled day at most once: if multiple plan days share a date,
+ * that date counts as completed when any of them is complete.
  */
-export function calculateGlobalWorkoutStreak(
-  planDayCompletionData: StreakCalculationData[]
-): number {
-  const currentDate = getCurrentUTCDate();
-  const today = currentDate.toISOString().split("T")[0];
+export function calculateScheduledWorkoutStreak(days: StreakDayData[]): number {
+  const today = getCurrentUTCDate().toISOString().split("T")[0];
 
-  // Get all completed workouts, grouped by date (any workout completed on a day counts)
-  const completedDates = planDayCompletionData
-    .filter((item) => item.hasExerciseLogs && item.date <= today)
-    .reduce(
-      (acc, item) => {
-        if (!acc.some((d) => d.date === item.date)) {
-          acc.push({ date: item.date });
-        }
-        return acc;
-      },
-      [] as { date: string }[]
-    )
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  if (completedDates.length === 0) {
-    return 0;
+  // Collapse to one entry per date (complete if any plan day that date is).
+  const completeByDate = new Map<string, boolean>();
+  for (const day of days) {
+    if (day.date > today) continue; // ignore future scheduled workouts
+    completeByDate.set(
+      day.date,
+      (completeByDate.get(day.date) ?? false) || day.isComplete
+    );
   }
+
+  // Walk newest-first.
+  const dates = [...completeByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
 
   let streak = 0;
-  let expectedDate = new Date(completedDates[0].date);
-
-  for (const { date } of completedDates) {
-    const currentWorkoutDate = new Date(date);
-    const daysDiff = Math.floor(
-      (expectedDate.getTime() - currentWorkoutDate.getTime()) /
-        (1000 * 60 * 60 * 24)
-    );
-
-    if (streak === 0) {
-      // First workout - check if it's recent
-      const daysSinceToday = Math.floor(
-        (currentDate.getTime() - currentWorkoutDate.getTime()) /
-          (1000 * 60 * 60 * 24)
-      );
-      if (daysSinceToday <= 7) {
-        // Allow up to 7 days gap for the first workout
-        streak = 1;
-        expectedDate = new Date(currentWorkoutDate);
-        expectedDate.setDate(expectedDate.getDate() - 1); // Expect previous day for next iteration
-      } else {
-        break;
-      }
-    } else if (daysDiff <= 7) {
-      // Allow up to 7 days between workouts
+  for (const date of dates) {
+    if (completeByDate.get(date)) {
       streak++;
-      expectedDate = new Date(currentWorkoutDate);
-      expectedDate.setDate(expectedDate.getDate() - 1);
-    } else {
-      // Gap too large, streak broken
-      break;
+      continue;
     }
-  }
-
-  return streak;
-}
-
-/**
- * Calculate streak for a specific active workout
- */
-export function calculateActiveWorkoutStreak(
-  planDayCompletionData: ActiveWorkoutStreakData[]
-): number {
-  const currentDate = getCurrentUTCDate();
-  const today = currentDate.toISOString().split("T")[0];
-
-  // Filter data for completed workouts and sort by date descending
-  const workoutData = planDayCompletionData
-    .filter((item) => item.hasExerciseLogs && item.date <= today)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  if (workoutData.length === 0) {
-    return 0;
-  }
-
-  let streak = 0;
-  let currentStreakDate = new Date(workoutData[0].date);
-
-  for (const data of workoutData) {
-    const dataDate = new Date(data.date);
-    const daysDiff = Math.floor(
-      (currentStreakDate.getTime() - dataDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (streak === 0) {
-      // First workout - check if it's recent
-      const daysSinceToday = Math.floor(
-        (currentDate.getTime() - dataDate.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      if (daysSinceToday <= 7) {
-        // Allow up to 7 days gap for the first workout
-        streak = 1;
-        currentStreakDate = dataDate;
-      } else {
-        break;
-      }
-    } else if (daysDiff <= 7) {
-      // Allow up to 7 days between workouts
-      streak++;
-      currentStreakDate = dataDate;
-    } else {
-      // Gap too large, streak broken
-      break;
+    // Incomplete scheduled day:
+    if (date === today) {
+      continue; // today isn't over — neither counts nor breaks
     }
+    break; // a past scheduled workout was missed — streak ends here
   }
 
   return streak;
