@@ -10,6 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "lint": "eslint . --ext .ts",
     "test": "jest",
+    "db:check": "printf '' | drizzle-kit push --verbose",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",

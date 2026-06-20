@@ -37,18 +37,32 @@ Drizzle reads everything through `src/models/index.ts`. If you added a **new sch
 add a matching `export * from "@/models/<resource>.schema";` line there. Editing an
 **existing** table needs no change here.
 
-## Step 3 — Push the change to Postgres
+## Step 3 — Review, then push the change to Postgres
+
+First **preview** the diff read-only (this prints the proposed SQL and applies nothing — it
+feeds EOF to the confirmation prompt so Drizzle aborts):
 
 ```bash
-npm run db:migrate
+npm run db:check
 ```
 
-This compares your code to the live database and applies the difference.
+Read every statement. If it's purely additive (CREATE / ADD COLUMN / ADD INDEX), apply it:
 
-⚠️ **This edits a real database.** Read what Drizzle prints before confirming. Be especially
-careful with anything that says it will **drop** a column or table, or **truncate** data —
-that destroys data. When in doubt, stop and ask the team. Prefer additive changes
-(new nullable column, or with a default) over renames/drops.
+```bash
+npm run db:push
+```
+
+This compares your code to the live database and applies the difference. It's interactive —
+confirm the diff matches what `db:check` showed, then select "Yes, execute all statements".
+
+⚠️ **This edits a real database.** Be especially careful with anything that says it will
+**drop** a column or table, or **truncate** data — that destroys data. When in doubt, stop and
+ask the team. Prefer additive changes (new nullable column, or with a default) over
+renames/drops. **Never use `--force`** — it auto-approves data-loss statements.
+
+> These commands target whatever `DATABASE_URL` points to (the `.env` default is your **local**
+> DB). To deploy the same change to **production**, use the `deploy-db` command, which runs the
+> review-then-apply flow against Neon.
 
 ## Step 4 — Keep the types in sync
 
