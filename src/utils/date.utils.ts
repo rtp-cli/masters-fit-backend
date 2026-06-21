@@ -53,6 +53,20 @@ export function getCurrentDateStringInTimezone(timezone: string): string {
 }
 
 /**
+ * Resolve a user's local "today" (YYYY-MM-DD): request tz → profile tz → server/UTC.
+ *
+ * Pure (no DB). Mirrors WorkoutService.resolveTodayString precedence so the
+ * dashboard/streak/analytics paths agree with workout generation on "today".
+ */
+export function resolveTodayString(
+  profileTimezone?: string | null,
+  requestTimezone?: string
+): string {
+  const tz = requestTimezone || profileTimezone || undefined;
+  return tz ? getCurrentDateStringInTimezone(tz) : getCurrentDateString();
+}
+
+/**
  * Convert any date input to UTC Date object (for database timestamps only)
  */
 export function toUTCDate(dateInput: string | Date | null | undefined): Date {

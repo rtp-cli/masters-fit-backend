@@ -4346,6 +4346,14 @@
 								"muscle_group"
 							]
 						}
+					},
+					{
+						"in": "query",
+						"name": "timezone",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				]
 			}
@@ -4392,6 +4400,14 @@
 						"schema": {
 							"format": "double",
 							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "timezone",
+						"required": false,
+						"schema": {
+							"type": "string"
 						}
 					}
 				]
@@ -4470,6 +4486,14 @@
 								"6m",
 								"1y"
 							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "timezone",
+						"required": false,
+						"schema": {
+							"type": "string"
 						}
 					}
 				]

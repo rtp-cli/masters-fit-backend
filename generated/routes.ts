@@ -1634,6 +1634,7 @@ export function RegisterRoutes(app: Router) {
                     endDate: {"in":"query","name":"endDate","dataType":"string"},
                     timeRange: {"in":"query","name":"timeRange","dataType":"union","subSchemas":[{"dataType":"enum","enums":["1w"]},{"dataType":"enum","enums":["1m"]},{"dataType":"enum","enums":["3m"]},{"dataType":"enum","enums":["6m"]},{"dataType":"enum","enums":["1y"]}]},
                     groupBy: {"in":"query","name":"groupBy","dataType":"union","subSchemas":[{"dataType":"enum","enums":["exercise"]},{"dataType":"enum","enums":["day"]},{"dataType":"enum","enums":["muscle_group"]}]},
+                    timezone: {"in":"query","name":"timezone","dataType":"string"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -1660,6 +1661,7 @@ export function RegisterRoutes(app: Router) {
             function DashboardController_getWeeklySummary(request: any, response: any, next: any) {
             const args = {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    timezone: {"in":"query","name":"timezone","dataType":"string"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -1689,6 +1691,7 @@ export function RegisterRoutes(app: Router) {
                     startDate: {"in":"query","name":"startDate","dataType":"string"},
                     endDate: {"in":"query","name":"endDate","dataType":"string"},
                     timeRange: {"in":"query","name":"timeRange","dataType":"union","subSchemas":[{"dataType":"enum","enums":["1w"]},{"dataType":"enum","enums":["1m"]},{"dataType":"enum","enums":["3m"]},{"dataType":"enum","enums":["6m"]},{"dataType":"enum","enums":["1y"]}]},
+                    timezone: {"in":"query","name":"timezone","dataType":"string"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa

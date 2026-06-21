@@ -17,10 +17,11 @@ import {
 import {
   getDateRangeUTC,
   formatDateForDisplay,
-  getCurrentUTCDate,
-  formatDateToISO,
+  resolveTodayString,
+  addDays,
 } from "@/utils/date.utils";
 import { logger } from "@/utils/logger";
+import { profileService } from "@/services/profile.service";
 
 export class WorkoutAnalyticsService {
   // Color mapping for workout types
@@ -104,9 +105,15 @@ export class WorkoutAnalyticsService {
   async getWorkoutConsistency(
     userId: number,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    timezone?: string
   ): Promise<WorkoutConsistency[]> {
     const { start, end } = getDateRangeUTC(startDate, endDate);
+
+    // Resolve the user's local "today" for the in-progress/upcoming/completed
+    // comparison so it matches their real day (not UTC).
+    const profile = await profileService.getProfileByUserId(userId);
+    const today = resolveTodayString(profile?.timezone, timezone);
 
     // Get all workouts for the user within the date range
     const userWorkouts = await db
@@ -193,13 +200,13 @@ export class WorkoutAnalyticsService {
         day: "numeric",
       })})`;
 
-      // Determine status
-      const currentDate = getCurrentUTCDate();
+      // Determine status by comparing the user's local today (YYYY-MM-DD) to the
+      // workout's date-string range (lexicographic compare is correct for ISO dates).
       const isInProgress =
-        currentDate >= startDateObj && currentDate <= endDateObj;
+        today >= workout.startDate && today <= workout.endDate;
       const status = isInProgress
         ? "in-progress"
-        : currentDate > endDateObj
+        : today > workout.endDate
           ? "completed"
           : "upcoming";
 
@@ -369,7 +376,8 @@ export class WorkoutAnalyticsService {
   }
 
   async getDailyWorkoutProgress(
-    userId: number
+    userId: number,
+    timezone?: string
   ): Promise<
     { date: string; completionRate: number; hasPlannedWorkout: boolean }[]
   > {
@@ -378,23 +386,24 @@ export class WorkoutAnalyticsService {
       where: and(eq(workouts.userId, userId), eq(workouts.isActive, true)),
     });
 
-    let startDate: Date;
-    let endDate: Date;
+    // Work in YYYY-MM-DD strings throughout to avoid UTC date shifts.
+    let startDateStr: string;
+    let endDateStr: string;
 
     if (activeWorkout) {
-      // 2. If an active workout exists, use its date range
-      startDate = new Date(activeWorkout.startDate);
-      endDate = new Date(activeWorkout.endDate);
+      // 2. If an active workout exists, use its date range (stored as date strings)
+      startDateStr = activeWorkout.startDate;
+      endDateStr = activeWorkout.endDate;
     } else {
-      // 3. Fallback to the current calendar week if no active workout
-      const today = getCurrentUTCDate();
-      startDate = new Date(today);
-      const dayOfWeek = today.getUTCDay();
+      // 3. Fallback to the current calendar week (Monday start) computed from the
+      // user's resolved local today via string math (no UTC Date arithmetic).
+      const profile = await profileService.getProfileByUserId(userId);
+      const today = resolveTodayString(profile?.timezone, timezone);
+      const [ty, tm, td] = today.split("-").map(Number);
+      const dayOfWeek = new Date(ty, tm - 1, td).getDay(); // Sun=0 … Sat=6
       const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday is the first day
-      startDate.setUTCDate(today.getUTCDate() + diff);
-
-      endDate = new Date(startDate);
-      endDate.setUTCDate(startDate.getUTCDate() + 6);
+      startDateStr = addDays(today, diff);
+      endDateStr = addDays(startDateStr, 6);
     }
 
     // Get all plan days with exercise completion counts
@@ -414,8 +423,8 @@ export class WorkoutAnalyticsService {
       .where(
         and(
           eq(workouts.userId, userId),
-          gte(planDays.date, formatDateToISO(startDate)),
-          lte(planDays.date, formatDateToISO(endDate))
+          gte(planDays.date, startDateStr),
+          lte(planDays.date, endDateStr)
         )
       )
       .groupBy(planDays.id, planDays.date, planDays.isComplete)
@@ -434,12 +443,11 @@ export class WorkoutAnalyticsService {
       ])
     );
 
-    // Generate progress for each day in the range
+    // Generate progress for each day in the range (string date math, no UTC shift)
     const progressData = [];
-    const currentDate = new Date(startDate);
+    let dateStr = startDateStr;
 
-    while (currentDate <= endDate) {
-      const dateStr = formatDateToISO(currentDate);
+    while (dateStr <= endDateStr) {
       const plannedDay = plannedDaysMap.get(dateStr);
 
       if (plannedDay) {
@@ -460,7 +468,7 @@ export class WorkoutAnalyticsService {
         });
       }
 
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      dateStr = addDays(dateStr, 1);
     }
 
     return progressData;

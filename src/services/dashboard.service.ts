@@ -27,9 +27,11 @@ import { BaseService } from "@/services/base.service";
 import {
   getDateRangeUTC,
   formatDateForDisplay,
-  getCurrentUTCDate,
+  resolveTodayString,
+  addDays,
 } from "@/utils/date.utils";
 import { logger } from "@/utils/logger";
+import { profileService } from "@/services/profile.service";
 
 // Import new modular services
 import { MetricsCalculationService } from "./metrics-calculation.service";
@@ -171,7 +173,8 @@ export class DashboardService {
     userId: number,
     startDate?: string,
     endDate?: string,
-    groupBy?: "exercise" | "day" | "muscle_group"
+    groupBy?: "exercise" | "day" | "muscle_group",
+    timezone?: string
   ): Promise<DashboardMetrics> {
     const [
       weeklySummary,
@@ -183,11 +186,12 @@ export class DashboardService {
       workoutTypeMetrics,
       dailyWorkoutProgress,
     ] = await Promise.all([
-      this.getWeeklySummary(userId),
+      this.getWeeklySummary(userId, timezone),
       this.workoutAnalyticsService.getWorkoutConsistency(
         userId,
         startDate,
-        endDate
+        endDate,
+        timezone
       ),
       this.metricsCalculationService.getWeightMetrics(
         userId,
@@ -221,7 +225,7 @@ export class DashboardService {
             hasData: false,
           };
         }),
-      this.workoutAnalyticsService.getDailyWorkoutProgress(userId),
+      this.workoutAnalyticsService.getDailyWorkoutProgress(userId, timezone),
     ]);
 
     return {
@@ -236,19 +240,24 @@ export class DashboardService {
     };
   }
 
-  async getWeeklySummary(userId: number): Promise<WeeklySummary> {
-    // Get current week's start and end dates
-    const currentDate = getCurrentUTCDate();
-    const startOfWeek = new Date(currentDate);
-    const dayOfWeek = startOfWeek.getDay();
+  async getWeeklySummary(
+    userId: number,
+    timezone?: string
+  ): Promise<WeeklySummary> {
+    // Resolve the user's local "today" (request tz → profile tz → server/UTC),
+    // then compute the Monday–Sunday week window from it using string date math
+    // (no UTC Date arithmetic, so it can't shift the day for users west of UTC).
+    const profile = await profileService.getProfileByUserId(userId);
+    const today = resolveTodayString(profile?.timezone, timezone);
+
+    // Day-of-week for the local date string (Sun=0 … Sat=6); local Date
+    // construction from YYYY-MM-DD parts is timezone-safe (no UTC shift).
+    const [ty, tm, td] = today.split("-").map(Number);
+    const dayOfWeek = new Date(ty, tm - 1, td).getDay();
     const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Adjust for Monday start
-    startOfWeek.setDate(startOfWeek.getDate() + diff);
 
-    const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(endOfWeek.getDate() + 6);
-
-    const startOfWeekStr = startOfWeek.toISOString().split("T")[0];
-    const endOfWeekStr = endOfWeek.toISOString().split("T")[0];
+    const startOfWeekStr = addDays(today, diff);
+    const endOfWeekStr = addDays(startOfWeekStr, 6);
 
     // Get all plan days for this week
     const allPlanDaysThisWeek = await db
@@ -276,7 +285,7 @@ export class DashboardService {
         exerciseCompletionRate: 0,
         totalWorkoutsThisWeek: 0,
         completedWorkoutsThisWeek: 0,
-        streak: await this.calculateWorkoutStreak(userId),
+        streak: await this.calculateWorkoutStreak(userId, timezone),
       };
     }
 
@@ -329,7 +338,7 @@ export class DashboardService {
           )
         : 0;
 
-    const streak = await this.calculateWorkoutStreak(userId);
+    const streak = await this.calculateWorkoutStreak(userId, timezone);
 
     return {
       workoutCompletionRate,
@@ -344,12 +353,14 @@ export class DashboardService {
   async getWorkoutConsistency(
     userId: number,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    timezone?: string
   ): Promise<WorkoutConsistency[]> {
     return this.workoutAnalyticsService.getWorkoutConsistency(
       userId,
       startDate,
-      endDate
+      endDate,
+      timezone
     );
   }
 
@@ -412,11 +423,15 @@ export class DashboardService {
   }
 
   async getDailyWorkoutProgress(
-    userId: number
+    userId: number,
+    timezone?: string
   ): Promise<
     { date: string; completionRate: number; hasPlannedWorkout: boolean }[]
   > {
-    return this.workoutAnalyticsService.getDailyWorkoutProgress(userId);
+    return this.workoutAnalyticsService.getDailyWorkoutProgress(
+      userId,
+      timezone
+    );
   }
 
   async getWeightProgressionMetrics(
@@ -481,7 +496,10 @@ export class DashboardService {
   // Fetches the user's scheduled workout days and delegates streak calculation.
   // Streak = consecutive *completed* scheduled workouts (planDays.isComplete),
   // most recent first; rest days (no plan day) never break it.
-  private async calculateWorkoutStreak(userId: number): Promise<number> {
+  private async calculateWorkoutStreak(
+    userId: number,
+    timezone?: string
+  ): Promise<number> {
     const scheduledDays = await db
       .select({
         date: planDays.date,
@@ -495,8 +513,12 @@ export class DashboardService {
       return 0;
     }
 
+    const profile = await profileService.getProfileByUserId(userId);
+    const today = resolveTodayString(profile?.timezone, timezone);
+
     return calculateScheduledWorkoutStreak(
-      scheduledDays.map((d) => ({ date: d.date, isComplete: !!d.isComplete }))
+      scheduledDays.map((d) => ({ date: d.date, isComplete: !!d.isComplete })),
+      today
     );
   }
 }

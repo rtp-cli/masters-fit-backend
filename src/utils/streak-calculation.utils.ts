@@ -1,5 +1,3 @@
-import { getCurrentUTCDate } from "@/utils/date.utils";
-
 export interface StreakDayData {
   /** A scheduled workout day, format YYYY-MM-DD. */
   date: string;
@@ -17,10 +15,15 @@ export interface StreakDayData {
  *
  * Counts each scheduled day at most once: if multiple plan days share a date,
  * that date counts as completed when any of them is complete.
+ *
+ * @param days   scheduled workout days
+ * @param today  the user's local "today" (YYYY-MM-DD) — caller resolves this via
+ *               the timezone precedence so the streak matches the user's real day.
  */
-export function calculateScheduledWorkoutStreak(days: StreakDayData[]): number {
-  const today = getCurrentUTCDate().toISOString().split("T")[0];
-
+export function calculateScheduledWorkoutStreak(
+  days: StreakDayData[],
+  today: string
+): number {
   // Collapse to one entry per date (complete if any plan day that date is).
   const completeByDate = new Map<string, boolean>();
   for (const day of days) {
