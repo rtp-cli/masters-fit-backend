@@ -28,6 +28,7 @@ import {
   GetWeightAccuracyRequest,
 } from "@/types/dashboard/requests";
 import { DashboardService } from "@/services";
+import { getCurrentDateStringInTimezone } from "@/utils/date.utils";
 
 @Route("dashboard")
 @Tags("Dashboard")
@@ -46,19 +47,22 @@ export class DashboardController extends Controller {
     @Query() startDate?: string,
     @Query() endDate?: string,
     @Query() timeRange?: "1w" | "1m" | "3m" | "6m" | "1y",
-    @Query() groupBy?: "exercise" | "day" | "muscle_group"
+    @Query() groupBy?: "exercise" | "day" | "muscle_group",
+    @Query() timezone?: string
   ): Promise<DashboardMetricsResponse> {
     const { startDate: start, endDate: end } = this.parseTimeRange(
       timeRange,
       startDate,
-      endDate
+      endDate,
+      timezone
     );
 
     const data = await this.dashboardService.getDashboardMetrics(
       userId,
       start,
       end,
-      groupBy
+      groupBy,
+      timezone
     );
 
     return {
@@ -74,9 +78,10 @@ export class DashboardController extends Controller {
   @Response<WeeklySummaryResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
   public async getWeeklySummary(
-    @Path() userId: number
+    @Path() userId: number,
+    @Query() timezone?: string
   ): Promise<WeeklySummaryResponse> {
-    const data = await this.dashboardService.getWeeklySummary(userId);
+    const data = await this.dashboardService.getWeeklySummary(userId, timezone);
 
     return {
       success: true,
@@ -94,18 +99,21 @@ export class DashboardController extends Controller {
     @Path() userId: number,
     @Query() startDate?: string,
     @Query() endDate?: string,
-    @Query() timeRange?: "1w" | "1m" | "3m" | "6m" | "1y"
+    @Query() timeRange?: "1w" | "1m" | "3m" | "6m" | "1y",
+    @Query() timezone?: string
   ): Promise<WorkoutConsistencyResponse> {
     const { startDate: start, endDate: end } = this.parseTimeRange(
       timeRange,
       startDate,
-      endDate
+      endDate,
+      timezone
     );
 
     const data = await this.dashboardService.getWorkoutConsistency(
       userId,
       start,
-      end
+      end,
+      timezone
     );
 
     return {
@@ -424,14 +432,21 @@ export class DashboardController extends Controller {
   private parseTimeRange(
     timeRange?: string,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    timezone?: string
   ): { startDate?: string; endDate?: string } {
     if (startDate && endDate) {
       return { startDate, endDate };
     }
 
     const now = new Date();
-    const end = endDate || now.toISOString().split("T")[0];
+    // Default "end = today" should be the user's local today when a timezone is
+    // available, so the range doesn't roll a day early/late for non-UTC users.
+    const end =
+      endDate ||
+      (timezone
+        ? getCurrentDateStringInTimezone(timezone)
+        : now.toISOString().split("T")[0]);
 
     if (!timeRange) {
       return { startDate, endDate: end };
