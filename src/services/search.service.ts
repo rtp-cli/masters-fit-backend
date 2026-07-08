@@ -453,7 +453,7 @@ export class SearchService extends BaseService {
         conditions.push(sql`
           EXISTS (
             SELECT 1 FROM unnest(${exercises.muscleGroups}) AS muscle_group
-            WHERE muscle_group = ANY(${sql.raw(`ARRAY[${muscleGroups.map(g => `'${g}'`).join(',')}]`)})
+            WHERE muscle_group = ANY(ARRAY[${sql.join(muscleGroups.map(g => sql`${g}`), sql`, `)}])
           )
         `);
       }
@@ -472,7 +472,7 @@ export class SearchService extends BaseService {
               cardinality(${exercises.equipment}) = 0 OR
               EXISTS (
                 SELECT 1 FROM unnest(${exercises.equipment}) AS exercise_equipment
-                WHERE exercise_equipment = ANY(${sql.raw(`ARRAY[${equipmentToFilter.map(e => `'${e}'`).join(',')}]`)})
+                WHERE exercise_equipment = ANY(ARRAY[${sql.join(equipmentToFilter.map(e => sql`${e}`), sql`, `)}])
               )
             )
           `);
@@ -481,7 +481,7 @@ export class SearchService extends BaseService {
           conditions.push(sql`
             EXISTS (
               SELECT 1 FROM unnest(${exercises.equipment}) AS exercise_equipment
-              WHERE exercise_equipment = ANY(${sql.raw(`ARRAY[${equipmentToFilter.map(e => `'${e}'`).join(',')}]`)})
+              WHERE exercise_equipment = ANY(ARRAY[${sql.join(equipmentToFilter.map(e => sql`${e}`), sql`, `)}])
             )
           `);
         }
