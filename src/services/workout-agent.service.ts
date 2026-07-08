@@ -8,6 +8,10 @@ import {
 } from "@langchain/core/messages";
 import { Profile } from "@/models";
 import { validateEquipmentAndFilter } from "@/utils/equipment-validation";
+import {
+  checkExerciseRepetition,
+  checkConsecutiveMuscleGroupOverload,
+} from "@/utils/workout-balance-validation";
 import { logger } from "@/utils/logger";
 import { exerciseService, ExerciseMetadata } from "./exercise.service";
 import {
@@ -540,6 +544,21 @@ ${exerciseContext}`
       planningDurationMs,
       operation: "generateWeeklyWorkout",
     });
+
+    // [LR-049] This is the one point in the pipeline with cross-day context —
+    // the parallel per-day fan-out calls below don't see each other's
+    // output, so consecutive-day muscle-group balance can only be checked
+    // here, against the planning stage's per-day focus assignments.
+    const muscleGroupOverloads = checkConsecutiveMuscleGroupOverload(
+      weekPlan.days
+    );
+    for (const finding of muscleGroupOverloads) {
+      logger.warn("Consecutive days share a primary muscle group focus", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
     onProgress?.({
       type: "plan_ready",
       days: weekPlan.days.map((d) => ({ dayNumber: d.day, label: d.name })),
@@ -677,6 +696,17 @@ ${exerciseContext}`
       rawWorkoutPlan,
       profile
     );
+
+    // [LR-049] Detect-and-log, not auto-fix — see workout-balance-validation.ts
+    // for why (risk of breaking a legitimately structured circuit/superset).
+    const repetitionFindings = checkExerciseRepetition(workoutPlan);
+    for (const finding of repetitionFindings) {
+      logger.warn("Exercise repeated more than expected within one day", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
 
     const totalDurationMs = Date.now() - startedAt;
     logger.info("Fan-out weekly generation complete", {
