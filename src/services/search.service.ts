@@ -362,6 +362,28 @@ export class SearchService extends BaseService {
   /**
    * Search exercises by name or muscle group
    */
+  /**
+   * Logs each search query + result count so zero-result ("dead") searches
+   * are visible, without needing a dedicated analytics pipeline. [LR-025]
+   */
+  private logSearchTelemetry(
+    operation: string,
+    query: string | undefined,
+    resultCount: number
+  ) {
+    if (resultCount === 0) {
+      logger.warn("Search returned zero results", {
+        operation,
+        metadata: { query, resultCount },
+      });
+    } else {
+      logger.info("Search executed", {
+        operation,
+        metadata: { query, resultCount },
+      });
+    }
+  }
+
   async searchExercises(
     query: string,
     options: { limit?: number; offset?: number } = {}
@@ -385,8 +407,11 @@ export class SearchService extends BaseService {
         offset,
       });
 
+      const pageResults = results.slice(0, limit);
+      this.logSearchTelemetry("searchExercises", query, pageResults.length);
+
       return {
-        exercises: results.slice(0, limit),
+        exercises: pageResults,
         hasMore: results.length > limit,
       };
     } catch (error) {
@@ -520,8 +545,15 @@ export class SearchService extends BaseService {
         orderBy: (exercises, { asc }) => [asc(exercises.name)],
       });
 
+      const pageResults = results.slice(0, limit);
+      this.logSearchTelemetry(
+        "searchExercisesWithFilters",
+        query,
+        pageResults.length
+      );
+
       return {
-        exercises: results.slice(0, limit),
+        exercises: pageResults,
         hasMore: results.length > limit,
         appliedFilters: {
           equipment: userEquipmentOnly ? userEquipment : equipment,

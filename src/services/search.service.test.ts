@@ -1,5 +1,6 @@
-import { describe, it, expect } from "@jest/globals";
+import { describe, it, expect, jest, afterEach } from "@jest/globals";
 import { searchService } from "@/services/search.service";
+import { logger } from "@/utils/logger";
 
 // Integration-style test against the real local DB (same pattern already
 // used by exercise.service.test.ts) — the exercises table has a small, known
@@ -30,5 +31,34 @@ describe("SearchService.searchExercises pagination", () => {
     if (page1.exercises.length > 0 && page2.exercises.length > 0) {
       expect(page2.exercises[0].id).not.toBe(page1.exercises[0].id);
     }
+  });
+});
+
+describe("SearchService search telemetry [LR-025]", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("warns on a zero-result query, so dead searches are visible in logs", async () => {
+    const warnSpy = jest.spyOn(logger, "warn").mockImplementation(() => {});
+    await searchService.searchExercises("zzzznonexistentqueryxyz123");
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Search returned zero results",
+      expect.objectContaining({ operation: "searchExercises" })
+    );
+  });
+
+  it("logs at info level (not warn) for a query with results", async () => {
+    const warnSpy = jest.spyOn(logger, "warn").mockImplementation(() => {});
+    const infoSpy = jest.spyOn(logger, "info").mockImplementation(() => {});
+    await searchService.searchExercises("a");
+    expect(infoSpy).toHaveBeenCalledWith(
+      "Search executed",
+      expect.objectContaining({ operation: "searchExercises" })
+    );
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      "Search returned zero results",
+      expect.anything()
+    );
   });
 });
