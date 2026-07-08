@@ -1,6 +1,15 @@
 import { Exercise, exercises, InsertExercise } from "@/models";
 import { BaseService } from "./base.service";
-import { eq, ilike, and, arrayOverlaps, inArray, or, isNull } from "drizzle-orm";
+import {
+  eq,
+  ilike,
+  and,
+  arrayOverlaps,
+  inArray,
+  or,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import { logger } from "@/utils/logger";
 import { AvailableEquipment, IntensityLevels } from "@/constants";
 
@@ -97,7 +106,74 @@ export class ExerciseService extends BaseService {
       });
     }
 
-    return await this.createExercise(data);
+    // [LR-056] The check above is still a check-then-insert race under
+    // concurrent fan-out day-generation: two calls introducing the same new
+    // name could both pass the "not found" check above. createExerciseInsert
+    // relies on the DB-level unique index on lower(name) as the real guard —
+    // if a concurrent insert wins the race, this falls back to reading back
+    // whichever row actually landed, instead of erroring or duplicating.
+    const inserted = await this.createExerciseInsertIgnoringConflict(data);
+    if (inserted) return inserted;
+
+    const winner = await this.getExerciseByExactName(data.name);
+    if (winner) {
+      logger.debug(
+        `Exercise "${data.name}" was created concurrently, using existing ID ${winner.id}`,
+        {
+          operation: "createExerciseIfNotExists",
+          metadata: { exerciseName: data.name, existingId: winner.id },
+        }
+      );
+      return winner;
+    }
+    // Conflict happened but the winning row is gone by the time we looked
+    // (e.g. deleted between the two queries) — vanishingly unlikely, but
+    // don't silently return undefined.
+    throw new Error(
+      `Exercise "${data.name}" conflicted on insert but could not be re-read`
+    );
+  }
+
+  /**
+   * Same insert as createExercise, but with a bare `.onConflictDoNothing()`
+   * (no target) so it no-ops against idx_exercises_name_unique instead of
+   * throwing. No target is needed since that's the only unique constraint on
+   * this table — bare ON CONFLICT DO NOTHING applies to any of them. (An
+   * earlier version tried a raw sql`` template to target `lower(name)`
+   * explicitly, since Drizzle's typed onConflictDoNothing() only accepts real
+   * columns — but sql`` silently mis-binds a plain JS array value as a
+   * comma-spread list instead of a single Postgres array parameter, breaking
+   * the muscle_groups column. Staying on the typed builder avoids that.)
+   * Returns undefined (not an error) if another insert won the race.
+   */
+  private async createExerciseInsertIgnoringConflict(
+    data: InsertExercise
+  ): Promise<Exercise | undefined> {
+    const result = await this.db
+      .insert(exercises)
+      .values([
+        {
+          name: data.name,
+          muscleGroups: data.muscleGroups,
+          instructions: Array.isArray(data.instructions)
+            ? data.instructions.join("\n")
+            : data.instructions,
+          equipment: data.equipment,
+          description: data.description,
+          difficulty: data.difficulty,
+          tag: data.tag,
+          link: data.link,
+        },
+      ])
+      .onConflictDoNothing()
+      .returning();
+    return result[0];
+  }
+
+  private async getExerciseByExactName(name: string) {
+    return await this.db.query.exercises.findFirst({
+      where: sql`lower(${exercises.name}) = lower(${name})`,
+    });
   }
 
   async getExerciseById(id: number) {

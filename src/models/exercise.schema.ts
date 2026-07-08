@@ -5,6 +5,7 @@ import {
   timestamp,
   integer,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -33,6 +34,14 @@ export const exercises = pgTable(
   },
   (table) => ({
     nameIdx: index("idx_exercises_name").on(table.name),
+    // [LR-056] Guards against the check-then-insert race in
+    // createExerciseIfNotExists: concurrent fan-out day-generation calls could
+    // both pass the "not found" check for the same new name and both insert.
+    // Requires the catalog to be free of case-insensitive duplicates first —
+    // see EXERCISE_CURATION_CANDIDATES_PROD.md / dedupe-exercises.ts.
+    uniqueNameIdx: uniqueIndex("idx_exercises_name_unique").on(
+      sql`lower(${table.name})`
+    ),
     muscleGroupsIdx: index("idx_exercises_muscle_groups_gin").on(
       table.muscleGroups
     ),
