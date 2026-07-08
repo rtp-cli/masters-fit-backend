@@ -97,6 +97,99 @@ describe("SubscriptionController TRANSFER handling", () => {
       expect.objectContaining({ planId: "masters_fit_annual" })
     );
   });
+
+  it("[LR-005] normal transfer: revokes the old user and activates the new one", async () => {
+    mockedUserService.getUser.mockImplementation(async (id: any) =>
+      ({ id: Number(id) }) as any
+    );
+
+    const payload: RevenueCatWebhookPayload = {
+      api_version: "1.0",
+      event: {
+        id: "evt_normal_transfer",
+        type: "TRANSFER",
+        app_user_id: "20",
+        product_id: "masters_fit_monthly",
+        transferred_from: ["19"],
+        transferred_to: ["20"],
+      } as any,
+    };
+
+    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+
+    expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
+      19,
+      expect.objectContaining({ status: "expired" })
+    );
+    expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
+      20,
+      expect.objectContaining({ status: "active" })
+    );
+  });
+
+  it("[LR-005] transfer to a user with no existing subscription record still activates them", async () => {
+    // getUserSubscription's real implementation creates a trial record if
+    // none exists — simulate that by resolving successfully regardless.
+    mockedSubscriptionService.getUserSubscription.mockResolvedValue({
+      id: 1,
+      userId: 21,
+      status: "trial",
+    } as any);
+
+    const payload: RevenueCatWebhookPayload = {
+      api_version: "1.0",
+      event: {
+        id: "evt_transfer_no_history",
+        type: "TRANSFER",
+        app_user_id: "21",
+        product_id: "masters_fit_monthly",
+        transferred_from: [],
+        transferred_to: ["21"],
+      } as any,
+    };
+    mockedUserService.getUser.mockResolvedValue({ id: 21 } as any);
+
+    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+
+    expect(mockedSubscriptionService.getUserSubscription).toHaveBeenCalledWith(
+      21
+    );
+    expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
+      21,
+      expect.objectContaining({ status: "active" })
+    );
+  });
+
+  it("[LR-005] transfer to a user who already has an active subscription overwrites it, doesn't skip", async () => {
+    mockedSubscriptionService.getUserSubscription.mockResolvedValue({
+      id: 2,
+      userId: 22,
+      status: "active",
+      planId: "masters_fit_monthly",
+    } as any);
+    mockedUserService.getUser.mockResolvedValue({ id: 22 } as any);
+
+    const payload: RevenueCatWebhookPayload = {
+      api_version: "1.0",
+      event: {
+        id: "evt_transfer_already_active",
+        type: "TRANSFER",
+        app_user_id: "22",
+        product_id: "masters_fit_annual",
+        transferred_from: [],
+        transferred_to: ["22"],
+      } as any,
+    };
+
+    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+
+    // Should still update to the transferred product, not silently skip
+    // because the user already had an active subscription.
+    expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
+      22,
+      expect.objectContaining({ status: "active", planId: "masters_fit_annual" })
+    );
+  });
 });
 
 describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018/LR-010]", () => {
