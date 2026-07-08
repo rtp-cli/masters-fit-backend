@@ -7,6 +7,7 @@ import {
   type UsageMetadata,
 } from "@langchain/core/messages";
 import { Profile } from "@/models";
+import { validateEquipmentAndFilter } from "@/utils/equipment-validation";
 import { logger } from "@/utils/logger";
 import { exerciseService, ExerciseMetadata } from "./exercise.service";
 import {
@@ -34,6 +35,14 @@ import { runWithAbortTimeout } from "@/utils/timeout.utils";
 // fails — the job fails fast with a real error instead of hanging.
 const PLANNING_CALL_TIMEOUT_MS = 60_000;
 const DAY_CALL_TIMEOUT_MS = 75_000;
+
+// Models pinned for the Anthropic fan-out path (see the planning/day call
+// sites below for why Haiku is the default). Overridable via env so an eval
+// harness can sweep models without editing code.
+const FANOUT_PLANNING_MODEL =
+  process.env.FANOUT_PLANNING_MODEL || "claude-haiku-4-5-20251001";
+const FANOUT_DAY_MODEL =
+  process.env.FANOUT_DAY_MODEL || "claude-haiku-4-5-20251001";
 
 // Result type that includes token usage
 export interface WorkoutGenerationResult {
@@ -479,7 +488,7 @@ ${exerciseContext}`
     //    well within its capabilities and it's significantly faster than
     //    Sonnet. Fall back to the user's selected model on other providers.
     const planLlmBase = this.currentProvider === AIProvider.ANTHROPIC
-      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, 'claude-haiku-4-5-20251001')
+      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, FANOUT_PLANNING_MODEL)
       : this.llm;
     const planLlm = planLlmBase.withStructuredOutput(WEEK_PLAN_SCHEMA as any, {
       name: "week_plan",
@@ -561,7 +570,7 @@ ${exerciseContext}`
     // Total stagger overhead is (n-1) × 800 ms — 4.8 s for 7 days.
     const DAY_STAGGER_MS = 800;
     const dayLlmBase = this.currentProvider === AIProvider.ANTHROPIC
-      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, 'claude-haiku-4-5-20251001')
+      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, FANOUT_DAY_MODEL)
       : this.llm;
     const dayLlm = dayLlmBase.withStructuredOutput(WORKOUT_DAY_SCHEMA as any, {
       name: "workout_day",
@@ -642,9 +651,9 @@ ${exerciseContext}`
     const retriedDays = dayTimings.filter((d) => d.attempts > 1).length;
 
     // 3. Assemble the legacy single-call response shape
-    const exercisesToAdd: any[] = [];
+    const rawExercisesToAdd: any[] = [];
     const seenNewExercises = new Set<string>();
-    const workoutPlan = generatedDays
+    const rawWorkoutPlan = generatedDays
       .sort((a, b) => a.day - b.day)
       .map((generatedDay) => {
         const { exercisesToAdd: dayExercises, ...dayPlan } = generatedDay;
@@ -652,11 +661,22 @@ ${exerciseContext}`
           const key = exercise.name?.toLowerCase();
           if (key && !seenNewExercises.has(key)) {
             seenNewExercises.add(key);
-            exercisesToAdd.push(exercise);
+            rawExercisesToAdd.push(exercise);
           }
         }
         return dayPlan;
       });
+
+    // [LR-012] The structured-output schema constrains equipment values to a
+    // valid enum, but never checks them against THIS user's actual
+    // environment/equipment — a home-gym user with only dumbbells could
+    // still get a squat-rack exercise. Drop exercises the user can't
+    // actually perform rather than just logging and shipping them.
+    const { exercisesToAdd, workoutPlan } = validateEquipmentAndFilter(
+      rawExercisesToAdd,
+      rawWorkoutPlan,
+      profile
+    );
 
     const totalDurationMs = Date.now() - startedAt;
     logger.info("Fan-out weekly generation complete", {
@@ -678,12 +698,22 @@ ${exerciseContext}`
       operation: "generateWeeklyWorkout",
     });
 
-    // Fire-and-forget — must not block or throw on the generation hot path
+    // Fire-and-forget — must not block or throw on the generation hot path.
+    // `model` is the user's profile selection; on Anthropic the fan-out path
+    // overrides it, so planningModel/dayModel record what actually ran.
     void llmGenerationLogsService.insert({
       userId,
       operation: "generateWeeklyWorkout",
       provider: this.currentProvider,
       model: this.currentModel,
+      planningModel:
+        this.currentProvider === AIProvider.ANTHROPIC
+          ? FANOUT_PLANNING_MODEL
+          : this.currentModel,
+      dayModel:
+        this.currentProvider === AIProvider.ANTHROPIC
+          ? FANOUT_DAY_MODEL
+          : this.currentModel,
       llmDurationMs: totalDurationMs,
       inputTokens: usageTotals.inputTokens,
       outputTokens: usageTotals.outputTokens,
