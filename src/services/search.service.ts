@@ -18,6 +18,11 @@ import {
 import { BaseService } from "./base.service";
 import { logger } from "@/utils/logger";
 import { AvailableEquipment, IntensityLevels } from "@/constants/profile";
+import { resolveTodayString } from "@/utils/date.utils";
+import {
+  isRecognizedDatePhrase,
+  resolveDatePhrase,
+} from "@/utils/date-phrase-resolver";
 
 // Simple response types
 interface DateSearchResponse {
@@ -41,7 +46,25 @@ export class SearchService extends BaseService {
     dateString: string
   ): Promise<DateSearchResponse> {
     try {
-      const searchDate = new Date(dateString);
+      // [LR-024] "today"/"yesterday" resolve to the user's actual local
+      // date; "this week"/"last week" are ranges and don't fit this
+      // method's single-day shape, so they're deliberately not wired here
+      // yet (resolveDatePhrase itself handles and tests them — see that
+      // file's own notes on why wiring range phrases in is a bigger,
+      // separate change). Anything else falls through unchanged to the
+      // exact YYYY-MM-DD parsing that already existed.
+      let resolvedDateString = dateString;
+      if (isRecognizedDatePhrase(dateString)) {
+        const { profileService } = await import("./profile.service");
+        const userProfile = await profileService.getProfileByUserId(userId);
+        const todayString = resolveTodayString(userProfile?.timezone);
+        const resolved = resolveDatePhrase(dateString, todayString);
+        if (resolved?.type === "single") {
+          resolvedDateString = resolved.date;
+        }
+      }
+
+      const searchDate = new Date(resolvedDateString);
 
       // First, find all workouts for this user
       const userWorkouts = await this.db.query.workouts.findMany({
@@ -52,7 +75,7 @@ export class SearchService extends BaseService {
       if (userWorkouts.length === 0) {
         return {
           success: true,
-          date: dateString,
+          date: resolvedDateString,
           workout: null,
         };
       }
@@ -63,7 +86,7 @@ export class SearchService extends BaseService {
       const planDay = await this.db.query.planDays.findFirst({
         where: and(
           sql`${planDays.workoutId} IN (${sql.join(workoutIds, sql`, `)})`,
-          eq(planDays.date, dateString)
+          eq(planDays.date, resolvedDateString)
         ),
         with: {
           workout: true,
@@ -83,7 +106,7 @@ export class SearchService extends BaseService {
       if (!planDay) {
         return {
           success: true,
-          date: dateString,
+          date: resolvedDateString,
           workout: null,
         };
       }
@@ -194,7 +217,7 @@ export class SearchService extends BaseService {
 
       return {
         success: true,
-        date: dateString,
+        date: resolvedDateString,
         workout: searchResult,
       };
     } catch (error) {
