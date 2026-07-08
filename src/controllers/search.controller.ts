@@ -58,17 +58,25 @@ export class SearchController extends Controller {
   /**
    * Search exercises by name or muscle group (legacy endpoint)
    * @param query Search query
+   * @param limit Maximum number of results (default: 20)
+   * @param offset Number of results to skip, for pagination (default: 0)
    */
   @Get("/exercises")
   @Response<ApiResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
   public async searchExercises(
-    @Query() query: string
-  ): Promise<{ success: boolean; exercises: any[] }> {
-    const exercises = await searchService.searchExercises(query);
+    @Query() query: string,
+    @Query() limit?: number,
+    @Query() offset?: number
+  ): Promise<{ success: boolean; exercises: any[]; hasMore: boolean }> {
+    const result = await searchService.searchExercises(query, {
+      limit,
+      offset,
+    });
     return {
       success: true,
-      exercises,
+      exercises: result.exercises,
+      hasMore: result.hasMore,
     };
   }
 
@@ -82,6 +90,7 @@ export class SearchController extends Controller {
    * @param excludeId Exercise ID to exclude (optional)
    * @param userEquipmentOnly Auto-filter by user's equipment (default: true)
    * @param limit Maximum number of results (default: 20)
+   * @param offset Number of results to skip, for pagination (default: 0)
    */
   @Get("/exercises/filtered/{userId}")
   @Response<ApiResponse>(400, "Bad Request")
@@ -94,10 +103,12 @@ export class SearchController extends Controller {
     @Query() difficulty?: string,
     @Query() excludeId?: number,
     @Query() userEquipmentOnly?: boolean,
-    @Query() limit?: number
+    @Query() limit?: number,
+    @Query() offset?: number
   ): Promise<{
     success: boolean;
     exercises: any[];
+    hasMore: boolean;
     appliedFilters: {
       equipment?: string[];
       difficulty?: string;
@@ -112,12 +123,14 @@ export class SearchController extends Controller {
       excludeId,
       userEquipmentOnly: userEquipmentOnly ?? true,
       limit: limit ?? 20,
+      offset: offset ?? 0,
     };
 
     const result = await searchService.searchExercisesWithFilters(userId, options);
     return {
       success: true,
       exercises: result.exercises,
+      hasMore: result.hasMore,
       appliedFilters: result.appliedFilters,
     };
   }

@@ -8258,6 +8258,9 @@
 							"application/json": {
 								"schema": {
 									"properties": {
+										"hasMore": {
+											"type": "boolean"
+										},
 										"exercises": {
 											"items": {},
 											"type": "array"
@@ -8267,6 +8270,7 @@
 										}
 									},
 									"required": [
+										"hasMore",
 										"exercises",
 										"success"
 									],
@@ -8304,6 +8308,26 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"description": "Maximum number of results (default: 20)",
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Number of results to skip, for pagination (default: 0)",
+						"in": "query",
+						"name": "offset",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
 					}
 				]
 			}
@@ -8335,6 +8359,9 @@
 											},
 											"type": "object"
 										},
+										"hasMore": {
+											"type": "boolean"
+										},
 										"exercises": {
 											"items": {},
 											"type": "array"
@@ -8345,6 +8372,7 @@
 									},
 									"required": [
 										"appliedFilters",
+										"hasMore",
 										"exercises",
 										"success"
 									],
@@ -8443,6 +8471,16 @@
 						"description": "Maximum number of results (default: 20)",
 						"in": "query",
 						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"description": "Number of results to skip, for pagination (default: 0)",
+						"in": "query",
+						"name": "offset",
 						"required": false,
 						"schema": {
 							"format": "double",

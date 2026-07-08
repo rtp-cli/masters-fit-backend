@@ -3264,6 +3264,8 @@ export function RegisterRoutes(app: Router) {
             function SearchController_searchExercises(request: any, response: any, next: any) {
             const args = {
                     query: {"in":"query","name":"query","required":true,"dataType":"string"},
+                    limit: {"in":"query","name":"limit","dataType":"double"},
+                    offset: {"in":"query","name":"offset","dataType":"double"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
@@ -3297,6 +3299,7 @@ export function RegisterRoutes(app: Router) {
                     excludeId: {"in":"query","name":"excludeId","dataType":"double"},
                     userEquipmentOnly: {"in":"query","name":"userEquipmentOnly","dataType":"boolean"},
                     limit: {"in":"query","name":"limit","dataType":"double"},
+                    offset: {"in":"query","name":"offset","dataType":"double"},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa

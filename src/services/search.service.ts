@@ -362,10 +362,16 @@ export class SearchService extends BaseService {
   /**
    * Search exercises by name or muscle group
    */
-  async searchExercises(query: string): Promise<Exercise[]> {
+  async searchExercises(
+    query: string,
+    options: { limit?: number; offset?: number } = {}
+  ): Promise<{ exercises: Exercise[]; hasMore: boolean }> {
     try {
+      const { limit = 20, offset = 0 } = options;
       const searchTerm = `%${query.toLowerCase()}%`;
 
+      // Fetch one extra row to detect whether there's a next page, without a
+      // separate COUNT query.
       const results = await this.db.query.exercises.findMany({
         where: sql`
           LOWER(${exercises.name}) LIKE ${searchTerm} OR
@@ -375,10 +381,14 @@ export class SearchService extends BaseService {
             WHERE LOWER(muscle_group) LIKE ${searchTerm}
           )
         `,
-        limit: 20,
+        limit: limit + 1,
+        offset,
       });
 
-      return results;
+      return {
+        exercises: results.slice(0, limit),
+        hasMore: results.length > limit,
+      };
     } catch (error) {
       logger.error("Error searching exercises", error as Error, {
         operation: "searchExercises",
@@ -400,9 +410,11 @@ export class SearchService extends BaseService {
       excludeId?: number;
       userEquipmentOnly?: boolean;
       limit?: number;
+      offset?: number;
     }
   ): Promise<{
     exercises: Exercise[];
+    hasMore: boolean;
     appliedFilters: {
       equipment?: string[];
       difficulty?: string;
@@ -418,6 +430,7 @@ export class SearchService extends BaseService {
         excludeId,
         userEquipmentOnly = true,
         limit = 20,
+        offset = 0,
       } = options;
 
       // Get user's equipment if auto-filtering is enabled
@@ -502,12 +515,14 @@ export class SearchService extends BaseService {
 
       const results = await this.db.query.exercises.findMany({
         where: whereClause,
-        limit,
+        limit: limit + 1,
+        offset,
         orderBy: (exercises, { asc }) => [asc(exercises.name)],
       });
 
       return {
-        exercises: results,
+        exercises: results.slice(0, limit),
+        hasMore: results.length > limit,
         appliedFilters: {
           equipment: userEquipmentOnly ? userEquipment : equipment,
           difficulty,
