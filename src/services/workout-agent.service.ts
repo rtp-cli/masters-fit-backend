@@ -9,6 +9,10 @@ import {
 import { Profile } from "@/models";
 import { validateEquipmentAndFilter } from "@/utils/equipment-validation";
 import {
+  filterExercisesByLimitations,
+  validateLimitationsAndFilter,
+} from "@/utils/limitation-validation";
+import {
   checkExerciseRepetition,
   checkConsecutiveMuscleGroupOverload,
 } from "@/utils/workout-balance-validation";
@@ -105,7 +109,14 @@ export class WorkoutAgentService {
     const equipment = Array.isArray(profile.equipment)
       ? [...profile.equipment].sort().join(",")
       : profile.equipment || "";
-    return `${profile.environment}:${equipment}`;
+    // [LR-013] Limitations now affect which exercises this returns (see
+    // filterExercisesByLimitations below) — must be part of the cache key,
+    // or one user's cached unfiltered list could leak to a different user
+    // with the same equipment/environment but different limitations.
+    const limitations = Array.isArray(profile.limitations)
+      ? [...profile.limitations].sort().join(",")
+      : "";
+    return `${profile.environment}:${equipment}:${limitations}`;
   }
 
   private async getFilteredExercises(
@@ -128,12 +139,17 @@ export class WorkoutAgentService {
           : [profile.equipment];
       }
 
-      const exercises = await exerciseService.searchExercises(filters);
+      const rawExercises = await exerciseService.searchExercises(filters);
+      // [LR-013] The primary enforcement point: exclude contraindicated
+      // exercises before the LLM ever sees them as an option, rather than
+      // relying solely on the post-generation check below for exercisesToAdd.
+      const exercises = filterExercisesByLimitations(rawExercises, profile);
       exerciseCache.set(cacheKey, { exercises, expiresAt: Date.now() + EXERCISE_CACHE_TTL_MS });
 
       logger.info("Exercise search completed", {
         cacheKey,
         resultCount: exercises.length,
+        excludedByLimitations: rawExercises.length - exercises.length,
       });
 
       return exercises;
@@ -709,13 +725,31 @@ ${exerciseContext}`
     const rawWorkoutPlan = generatedDays
       .sort((a, b) => a.day - b.day)
       .map((generatedDay) => {
-        const { exercisesToAdd: dayExercises, ...dayPlan } = generatedDay;
+        const {
+          exercisesToAdd: dayExercises,
+          limitationConcerns,
+          ...dayPlan
+        } = generatedDay;
         for (const exercise of dayExercises || []) {
           const key = exercise.name?.toLowerCase();
           if (key && !seenNewExercises.has(key)) {
             seenNewExercises.add(key);
             rawExercisesToAdd.push(exercise);
           }
+        }
+        // [LR-013] Log-and-allow: the LLM's own self-reported borderline
+        // calls, surfaced for visibility — not auto-removed, since these are
+        // exercises it deliberately decided to keep despite the flag.
+        if (limitationConcerns?.length) {
+          logger.warn("LLM flagged borderline exercises for user's limitations", {
+            userId,
+            operation: "generateWeeklyWorkout",
+            metadata: {
+              day: dayPlan.day,
+              limitations: profile.limitations,
+              limitationConcerns,
+            },
+          });
         }
         return dayPlan;
       });
@@ -725,9 +759,19 @@ ${exerciseContext}`
     // environment/equipment — a home-gym user with only dumbbells could
     // still get a squat-rack exercise. Drop exercises the user can't
     // actually perform rather than just logging and shipping them.
-    const { exercisesToAdd, workoutPlan } = validateEquipmentAndFilter(
+    const equipmentFiltered = validateEquipmentAndFilter(
       rawExercisesToAdd,
       rawWorkoutPlan,
+      profile
+    );
+
+    // [LR-013] Same reasoning as LR-012 above, for limitations/medical notes
+    // instead of equipment: catalog exercises are pre-filtered in
+    // getFilteredExercises, but the LLM's own exercisesToAdd never goes
+    // through that filter — check it post-generation too.
+    const { exercisesToAdd, workoutPlan } = validateLimitationsAndFilter(
+      equipmentFiltered.exercisesToAdd,
+      equipmentFiltered.workoutPlan,
       profile
     );
 

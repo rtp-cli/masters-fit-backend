@@ -265,6 +265,12 @@ export const WORKOUT_DAY_SCHEMA = {
         "New exercises used in this day that are NOT in the AVAILABLE EXERCISES list. Empty array if none.",
       items: EXERCISE_TO_ADD_SCHEMA,
     },
+    limitationConcerns: {
+      type: "array",
+      description:
+        "[LR-013] If the user has physical limitations/medical notes, list any exercise in this day that's borderline for one of them even though you included it (e.g. a rule-based filter wouldn't necessarily catch this). Empty array if nothing borderline. This does NOT get removed automatically — it's logged for a human to review.",
+      items: { type: "string" },
+    },
   },
   required: [
     "day",
@@ -273,6 +279,7 @@ export const WORKOUT_DAY_SCHEMA = {
     "instructions",
     "blocks",
     "exercisesToAdd",
+    "limitationConcerns",
   ],
 } as const;
 
@@ -352,6 +359,7 @@ ${getStyleMixingExamples()}
 2. **Check the database**: the AVAILABLE EXERCISES list below is your reference database. For each exercise you designed, use the EXACT database name if it exists there.
 3. **New exercises**: any exercise not in the database MUST be added to 'exercisesToAdd' with complete details (equipment restricted to the user's environment; link must be a YouTube demo, or a public image for form-free activities like walking).
 4. **Validity**: every exercise must be a real, performable movement ("Pushups" is valid; "Warmup" or "Stretching" is not).
+5. **Limitations self-check**: if the user has physical limitations or medical notes, after building the day review it against them and populate 'limitationConcerns' with the name of any exercise that's borderline for one of those limitations, even if you decided to keep it. Empty array if nothing borderline — this is a review flag, not a request to remove anything yourself.
 
 ## CONCISENESS REQUIREMENTS
 
