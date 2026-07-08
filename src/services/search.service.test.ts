@@ -52,6 +52,39 @@ describe("SearchService.searchExercises fuzzy matching [LR-022]", () => {
   });
 });
 
+describe("SearchService.searchExercises relevance ordering [LR-057]", () => {
+  it("ranks a name that starts with the query ahead of names that merely contain it", async () => {
+    // Local catalog: "Squat Jumps" starts with "squat"; "Air Squat", "Goblet
+    // Squat", etc. contain it but don't start with it. Previously these came
+    // back in arbitrary DB scan order — this asserts the starts-with match
+    // now always leads.
+    const result = await searchService.searchExercises("squat", {
+      limit: 50,
+    });
+    const names = result.exercises.map((e) => e.name);
+    const startsWithIdx = names.findIndex((n) =>
+      n.toLowerCase().startsWith("squat")
+    );
+    const containsOnlyIdx = names.findIndex(
+      (n) => n.toLowerCase().includes("squat") && !n.toLowerCase().startsWith("squat")
+    );
+    expect(startsWithIdx).toBeGreaterThanOrEqual(0);
+    expect(containsOnlyIdx).toBeGreaterThanOrEqual(0);
+    expect(startsWithIdx).toBeLessThan(containsOnlyIdx);
+  });
+
+  it("ranks an exact case-insensitive name match first", async () => {
+    // "Push-Up" is an exact match; "Wall Push-Up" only contains it.
+    const result = await searchService.searchExercises("push-up", {
+      limit: 50,
+    });
+    const names = result.exercises.map((e) => e.name.toLowerCase());
+    if (names.includes("push-up")) {
+      expect(names[0]).toBe("push-up");
+    }
+  });
+});
+
 describe("SearchService search telemetry [LR-025]", () => {
   afterEach(() => {
     jest.restoreAllMocks();

@@ -434,6 +434,21 @@ export class SearchService extends BaseService {
           ) OR
           similarity(LOWER(${exercises.name}), ${lowerQuery}) > 0.3
         `,
+        // [LR-057] Without this, rows come back in arbitrary DB scan order —
+        // a fuzzy-only or muscle-group match could rank ahead of an exact
+        // name match. Rank by match quality (exact > starts-with > contains
+        // > fuzzy-only), then by similarity score, then alphabetically as a
+        // stable tiebreak.
+        orderBy: sql`
+          CASE
+            WHEN LOWER(${exercises.name}) = ${lowerQuery} THEN 0
+            WHEN LOWER(${exercises.name}) LIKE ${lowerQuery + "%"} THEN 1
+            WHEN LOWER(${exercises.name}) LIKE ${searchTerm} THEN 2
+            ELSE 3
+          END,
+          similarity(LOWER(${exercises.name}), ${lowerQuery}) DESC,
+          ${exercises.name} ASC
+        `,
         limit: limit + 1,
         offset,
       });
