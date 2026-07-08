@@ -55,27 +55,28 @@ export class BaseService {
         try {
           return await operation();
         } catch (error) {
+          const err = error as Error & { code?: string };
           // Log the original error for debugging
           logger.debug(`Database operation failed: ${context.operation}`, {
             operation: context.operation,
             userId: context.userId,
             metadata: {
-              error: error.message,
-              code: error.code,
-              retriable: this.isRetriableDbError(error)
+              error: err.message,
+              code: err.code,
+              retriable: this.isRetriableDbError(err)
             }
           });
 
           // Only retry if it's a retriable error
-          if (this.isRetriableDbError(error)) {
-            throw error; // This will trigger the retry logic
+          if (this.isRetriableDbError(err)) {
+            throw err; // This will trigger the retry logic
           } else {
             // For non-retriable errors (like constraint violations), fail immediately
-            logger.error(`Non-retriable database error in ${context.operation}`, error, {
+            logger.error(`Non-retriable database error in ${context.operation}`, err, {
               operation: context.operation,
               userId: context.userId
             });
-            throw error;
+            throw err;
           }
         }
       },

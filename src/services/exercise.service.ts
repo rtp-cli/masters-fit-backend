@@ -2,6 +2,7 @@ import { Exercise, exercises, InsertExercise } from "@/models";
 import { BaseService } from "./base.service";
 import { eq, ilike, and, arrayOverlaps, inArray, or, isNull } from "drizzle-orm";
 import { logger } from "@/utils/logger";
+import { AvailableEquipment, IntensityLevels } from "@/constants";
 
 // Interface for exercise metadata (minimal data for LLM)
 export interface ExerciseMetadata {
@@ -11,7 +12,44 @@ export interface ExerciseMetadata {
   difficulty: string | null;
 }
 
+// The real canonical enums (@/constants/profile) already exist and are even
+// wired into a Zod schema (insertExerciseSchema) — that schema is just never
+// actually called before insert, which is the real gap. muscle_groups has no
+// canonical enum and is NOT clean enough to fake one tonight (wildly
+// inconsistent casing/naming in real data today, e.g. "chest"/"Chest",
+// "hip flexors"/"Hip Flexors"/"hip_flexors" — flagged for LR-035 catalog
+// curation), so it only gets a structural (non-empty) check.
+const KNOWN_DIFFICULTIES = new Set<string>(Object.values(IntensityLevels));
+const KNOWN_EQUIPMENT = new Set<string>(Object.values(AvailableEquipment));
+
 export class ExerciseService extends BaseService {
+  /**
+   * Validates exercise fields against known-good values before insert.
+   * Returns a list of problems (empty = valid) rather than throwing, so
+   * callers can decide whether to skip the exercise or log-and-continue.
+   */
+  validateExerciseData(data: InsertExercise): string[] {
+    const problems: string[] = [];
+
+    if (data.difficulty && !KNOWN_DIFFICULTIES.has(data.difficulty)) {
+      problems.push(`unknown difficulty "${data.difficulty}"`);
+    }
+
+    for (const item of data.equipment ?? []) {
+      if (!KNOWN_EQUIPMENT.has(item)) {
+        problems.push(`unknown equipment "${item}"`);
+      }
+    }
+
+    if (!data.muscleGroups || data.muscleGroups.length === 0) {
+      problems.push("muscleGroups is empty");
+    } else if (data.muscleGroups.some((g) => !g || !g.trim())) {
+      problems.push("muscleGroups contains an empty value");
+    }
+
+    return problems;
+  }
+
   async createExercise(data: InsertExercise) {
     const result = await this.db
       .insert(exercises)
@@ -47,7 +85,18 @@ export class ExerciseService extends BaseService {
       return existing;
     }
 
-    // If not found, create new exercise
+    // If not found, validate before creating. Log-and-allow rather than
+    // reject-and-skip: skipping would require verifying every caller handles
+    // a missing exercise gracefully (unverified tonight), whereas logging
+    // still surfaces the data-quality signal without that risk.
+    const problems = this.validateExerciseData(data);
+    if (problems.length > 0) {
+      logger.warn(`Exercise "${data.name}" has data-quality issues`, {
+        operation: "createExerciseIfNotExists",
+        metadata: { exerciseName: data.name, problems },
+      });
+    }
+
     return await this.createExercise(data);
   }
 

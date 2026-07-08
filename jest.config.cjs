@@ -13,6 +13,11 @@ module.exports = {
   roots: ["<rootDir>/src"],
   testMatch: ["**/*.test.ts"],
   moduleNameMapper: {
+    // Some source files use ESM-style .js-suffixed imports pointing at real
+    // .ts files (e.g. "@/config/database.js") — this must come before the
+    // generic rule below, or that rule matches first and the .js suffix
+    // gets baked into the mapped path, which doesn't exist on disk.
+    "^@/(.*)\\.js$": "<rootDir>/src/$1",
     "^@/(.*)$": "<rootDir>/src/$1",
   },
   transform: {

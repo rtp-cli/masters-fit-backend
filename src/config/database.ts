@@ -20,7 +20,8 @@ if (!process.env.DATABASE_URL) {
 // but not for local development databases
 const shouldUseSSL = (): boolean | { rejectUnauthorized: boolean } => {
   // Check if DATABASE_URL explicitly requires SSL
-  const dbUrl = process.env.DATABASE_URL.toLowerCase();
+  // Non-null: the module-scope guard above already throws if this is unset.
+  const dbUrl = process.env.DATABASE_URL!.toLowerCase();
   if (dbUrl.includes("sslmode=require") || dbUrl.includes("ssl=true")) {
     return { rejectUnauthorized: false };
   }
@@ -43,7 +44,6 @@ export const pool = new Pool({
   max: 20, // maximum number of connections in pool
   idleTimeoutMillis: 30000, // close idle connections after 30 seconds
   connectionTimeoutMillis: 10000, // return error after 10 seconds if connection cannot be established
-  acquireTimeoutMillis: 60000, // return error after 60 seconds if connection cannot be acquired from pool
   // Retry configuration
   statement_timeout: 30000, // 30 second timeout for statements
   query_timeout: 30000, // 30 second timeout for queries
