@@ -206,6 +206,14 @@ export class PromptsService extends BaseService {
     if (!profile) {
       throw new Error("Profile not found");
     }
+    // Deliberately no availableDays/workoutDuration/environment guard here
+    // (removed in 3229a60, confirmed still correct 2026-07-08): every actual
+    // usage downstream (fanout-prompt-generator.ts) already has a safe
+    // default (`?? 7`, `|| 30`, environment-aware equipment description).
+    // The guard used to throw before this path could ever run, silently
+    // forcing every request onto the slower serial path (generatePrompt
+    // below) which emits no per-day progress — that's the "stuck on
+    // spinner" bug this removal fixed. Do not re-add it.
     const workoutAgent = await this.createUserWorkoutAgent(userId, profile);
 
     emitGenerationStatus(userId, { progress: 15, phase: "planning" });
