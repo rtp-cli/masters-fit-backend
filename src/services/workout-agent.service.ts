@@ -12,6 +12,8 @@ import {
   checkExerciseRepetition,
   checkConsecutiveMuscleGroupOverload,
 } from "@/utils/workout-balance-validation";
+import { buildProgressionContext } from "@/utils/progression-context";
+import { workoutService } from "./workout.service";
 import { logger } from "@/utils/logger";
 import { exerciseService, ExerciseMetadata } from "./exercise.service";
 import {
@@ -463,11 +465,33 @@ Please generate the workout now, addressing this feedback while following all sy
     //     the 5-min cache TTL.
     const availableExercises = await this.getFilteredExercises(profile);
     const exerciseContext = this.formatExerciseContext(availableExercises);
+
+    // [LR-014] Week-over-week progression: nudge intensity based on how much
+    // of last week the user actually completed. First pass — completion-rate
+    // based, not per-exercise weight/rep tracking (see progression-context.ts).
+    let progressionContext = "";
+    try {
+      const previousWeeks = await workoutService.getPreviousWorkouts(
+        userId,
+        "week"
+      );
+      const mostRecentCompletionRate = previousWeeks[0]?.completionRate ?? null;
+      progressionContext = buildProgressionContext(mostRecentCompletionRate);
+    } catch (error) {
+      // Progression context is an enhancement, not a requirement — never
+      // block generation on it.
+      logger.warn("Failed to fetch previous week for progression context", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        error: (error as Error).message,
+      });
+    }
+
     const planningSystemMessage = this.buildProviderAwareSystemMessage(
-      buildFanoutSystemPrompt(profile)
+      `${buildFanoutSystemPrompt(profile)}${progressionContext}`
     );
     const daySystemMessage = this.buildProviderAwareSystemMessage(
-      `${buildFanoutSystemPrompt(profile)}
+      `${buildFanoutSystemPrompt(profile)}${progressionContext}
 
 ## AVAILABLE EXERCISES FOR YOUR WORKOUTS
 
