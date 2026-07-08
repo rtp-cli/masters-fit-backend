@@ -31,6 +31,7 @@ import {
 } from "@/models/logs.schema";
 import { userSubscriptions, trialUsage } from "@/models/subscription.schema";
 import { backgroundJobs } from "@/models/jobs.schema";
+import { exercises } from "@/models/exercise.schema";
 import { SubscriptionStatus } from "@/constants";
 import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
 import {
@@ -99,28 +100,72 @@ function eveningOf(dateStr: string): Date {
 }
 
 // ---------------------------------------------------------------------------
-// Exercise library IDs (verified present in the local exercises table)
+// Exercise library — resolved by NAME at runtime (see resolveExerciseIds
+// below), not hardcoded IDs. IDs drift between local and remote databases
+// (local's curated ~100-row catalog vs. production's much larger one grown
+// from real usage), so a hardcoded ID map silently pointed at the wrong
+// exercise on whichever DB it wasn't verified against.
 // ---------------------------------------------------------------------------
-const EX = {
-  armCircles: 2,
-  legSwings: 15,
-  hipCircles: 1,
-  bandPullApart: 17,
-  gobletSquat: 8, // weighted (kettlebells)
-  dumbbellRow: 6, // weighted (dumbbells)
-  inclinePress: 21, // weighted (dumbbells)
-  benchPress: 20, // weighted
-  airSquat: 3,
-  pushUp: 9,
-  ringRow: 22,
-  tricepDips: 24,
-  kettlebellSwing: 4,
-  burpee: 7,
-  boxJump: 5,
-  hamstringStretch: 11,
-  chestStretch: 12,
-  childsPose: 14,
+// Each entry is a list of acceptable names, tried in order — the catalog's
+// exact wording (and even which variant exists at all) differs between local
+// and production, so the first candidate found on whichever DB is running
+// wins. Fallback candidates are the plainest/most generic variant available.
+const EX_NAMES: Record<string, string[]> = {
+  armCircles: ["Arm Circles"],
+  legSwings: ["Leg Swings", "Standing Leg Swings"],
+  hipCircles: ["Hip Circles"],
+  bandPullApart: ["Band Pull-Apart"],
+  gobletSquat: ["Goblet Squat"], // weighted (kettlebells)
+  dumbbellRow: ["Dumbbell Row", "Dumbbell Rows"], // weighted (dumbbells)
+  inclinePress: ["Incline Dumbbell Press"], // weighted (dumbbells)
+  benchPress: ["Barbell Bench Press"], // weighted
+  airSquat: ["Air Squat", "Air Squats"],
+  pushUp: ["Push-Up"],
+  ringRow: ["Ring Row"],
+  tricepDips: ["Tricep Dips"],
+  kettlebellSwing: ["Kettlebell Swing"],
+  burpee: ["Burpee"],
+  boxJump: ["Box Jump"],
+  hamstringStretch: ["Hamstring Stretch", "Standing Hamstring Stretch"],
+  chestStretch: ["Chest Stretch", "Standing Chest Stretch"],
+  childsPose: ["Child's Pose", "Childs Pose"],
 };
+
+// Populated by resolveExerciseIds() in run(), before deleteDemoUser/seed use it.
+let EX: Record<keyof typeof EX_NAMES, number>;
+
+async function resolveExerciseIds(): Promise<void> {
+  const allCandidates = Object.values(EX_NAMES).flat();
+  const rows = await db
+    .select({ id: exercises.id, name: exercises.name })
+    .from(exercises)
+    .where(inArray(exercises.name, allCandidates));
+  const byName = new Map(rows.map((r) => [r.name, r.id]));
+
+  const missing: string[] = [];
+  const resolved = {} as Record<keyof typeof EX_NAMES, number>;
+  for (const [key, candidates] of Object.entries(EX_NAMES) as [
+    keyof typeof EX_NAMES,
+    string[],
+  ][]) {
+    const found = candidates.find((name) => byName.has(name));
+    if (found === undefined) {
+      missing.push(candidates.join(" / "));
+    } else {
+      resolved[key] = byName.get(found)!;
+    }
+  }
+  if (missing.length) {
+    console.error(
+      `Aborting: this database's exercises table has none of the accepted ` +
+        `name(s) for ${missing.length} exercise(s) the demo seed needs: ` +
+        `${missing.join("; ")}. No changes were made to the demo user.`
+    );
+    process.exit(1);
+  }
+  EX = resolved;
+  console.log(`Resolved ${Object.keys(EX).length} exercise names to this database's IDs.`);
+}
 
 // A 3-day split. Each day: warmup → main (weighted) → conditioning → cooldown.
 type ExSpec = {
@@ -636,6 +681,7 @@ async function run() {
     console.log("Delete-only mode; not reseeding.");
     process.exit(0);
   }
+  await resolveExerciseIds();
   await seed();
   process.exit(0);
 }
