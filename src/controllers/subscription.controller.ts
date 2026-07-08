@@ -5,6 +5,7 @@ import {
   Route,
   Request,
   Response,
+  Security,
   SuccessResponse,
   Tags,
   Body,
@@ -18,7 +19,10 @@ import {
   REVENUE_CAT_EVENT_TYPES,
   REVENUE_CAT_CANCEL_REASONS,
 } from "@/types/subscription/requests";
-import { SubscriptionPlansResponse } from "@/types/subscription/responses";
+import {
+  SubscriptionPlansResponse,
+  SubscriptionResponse,
+} from "@/types/subscription/responses";
 import { logger } from "@/utils/logger";
 import { userService } from "@/services/user.service";
 
@@ -73,6 +77,50 @@ export class SubscriptionController extends Controller {
   }
 
   /**
+   * Get the authenticated user's current subscription status
+   * Lets the frontend confirm the backend is actually in sync after a purchase
+   * (e.g. RevenueCat webhook processed) instead of trusting only local SDK state.
+   */
+  @Get("/status")
+  @Security("bearerAuth")
+  @SuccessResponse(200, "Subscription status retrieved successfully")
+  @Response(401, "Unauthorized")
+  @Response(500, "Internal server error")
+  public async getSubscriptionStatus(
+    @Request() request: any
+  ): Promise<SubscriptionResponse> {
+    try {
+      const userId = request.userId;
+      const [subscription, accessLevel] = await Promise.all([
+        subscriptionService.getUserSubscription(userId),
+        subscriptionService.getEffectiveAccessLevel(userId),
+      ]);
+
+      return {
+        success: true,
+        subscription: {
+          id: subscription.id,
+          userId: subscription.userId,
+          status: subscription.status,
+          planId: subscription.planId,
+          subscriptionStartDate:
+            subscription.subscriptionStartDate?.toISOString() ?? null,
+          subscriptionEndDate:
+            subscription.subscriptionEndDate?.toISOString() ?? null,
+          accessLevel,
+        },
+      };
+    } catch (error) {
+      logger.error("Failed to retrieve subscription status", error as Error, {
+        operation: "getSubscriptionStatus",
+      });
+
+      this.setStatus(500);
+      throw error;
+    }
+  }
+
+  /**
    * Handle RevenueCat webhook events
    * This endpoint receives webhooks from RevenueCat for subscription events
    * @see https://www.revenuecat.com/docs/integrations/webhooks
@@ -112,8 +160,10 @@ export class SubscriptionController extends Controller {
           return { success: false, message: "Unauthorized" };
         }
       } else {
-        // No auth configured - log this for awareness
-        logger.debug(
+        // REVENUECAT_WEBHOOK_AUTH_HEADER is unset - this endpoint is
+        // currently accepting unauthenticated requests from anyone who finds
+        // the URL. warn (not debug) so this is visible at default log levels.
+        logger.warn(
           "Webhook authorization not configured, accepting all requests",
           {
             operation: "handleRevenueCatWebhook",

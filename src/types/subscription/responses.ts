@@ -1,4 +1,4 @@
-import { PaywallType } from "@/constants";
+import { AccessLevel, PaywallType, SubscriptionStatus } from "@/constants";
 
 export interface PaywallResponse {
   success: false;
@@ -19,10 +19,13 @@ export interface SubscriptionResponse {
   subscription: {
     id: number;
     userId: number;
-    status: "trial" | "active" | "expired" | "cancelled";
+    status: SubscriptionStatus;
     planId: string | null;
     subscriptionStartDate: string | null;
     subscriptionEndDate: string | null;
+    // Computed entitlement (accounts for grace period), not just raw status —
+    // this is what callers should actually gate access on.
+    accessLevel: AccessLevel;
   };
 }
 

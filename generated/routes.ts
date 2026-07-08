@@ -992,6 +992,25 @@ const models: TsoaRoute.Models = {
         "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "SubscriptionStatus": {
+        "dataType": "refEnum",
+        "enums": ["trial","active","expired","cancelled","grace_period","paused"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "AccessLevel": {
+        "dataType": "refEnum",
+        "enums": ["unlimited","trial","blocked"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "SubscriptionResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"enum","enums":[true],"required":true},
+            "subscription": {"dataType":"nestedObjectLiteral","nestedProperties":{"accessLevel":{"ref":"AccessLevel","required":true},"subscriptionEndDate":{"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},"subscriptionStartDate":{"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},"planId":{"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},"status":{"ref":"SubscriptionStatus","required":true},"userId":{"dataType":"double","required":true},"id":{"dataType":"double","required":true}},"required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "REVENUE_CAT_EVENT_TYPES": {
         "dataType": "refEnum",
         "enums": ["TEST","INITIAL_PURCHASE","RENEWAL","CANCELLATION","UNCANCELLATION","NON_RENEWING_PURCHASE","SUBSCRIPTION_PAUSED","EXPIRATION","BILLING_ISSUE","PRODUCT_CHANGE","TRANSFER","SUBSCRIBER_ALIAS"],
@@ -3339,6 +3358,32 @@ export function RegisterRoutes(app: Router) {
 
 
               const promise = controller.getSubscriptionPlans.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/subscriptions/status',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SubscriptionController)),
+            ...(fetchMiddlewares<RequestHandler>(SubscriptionController.prototype.getSubscriptionStatus)),
+
+            function SubscriptionController_getSubscriptionStatus(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new SubscriptionController();
+
+
+              const promise = controller.getSubscriptionStatus.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 200, next);
             } catch (err) {
                 return next(err);

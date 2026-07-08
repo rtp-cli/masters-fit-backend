@@ -1,13 +1,18 @@
 import { Router } from "express";
 import { SubscriptionController } from "@/controllers/subscription.controller";
 import { ZodError } from "zod";
+import { expressAuthentication } from "@/middleware/auth.middleware";
 
 const router = Router();
 const controller = new SubscriptionController();
 
 // Helper function for consistent error handling
 const handleError = (error: unknown, res: any) => {
-  if (error instanceof ZodError) {
+  if (error instanceof Error && error.message === "Invalid or expired token") {
+    res.status(401).json({ success: false, error: error.message });
+  } else if (error instanceof Error && error.message === "Unauthorized") {
+    res.status(401).json({ success: false, error: "Unauthorized" });
+  } else if (error instanceof ZodError) {
     res.status(400).json({ success: false, error: "Invalid request data" });
   } else if (error instanceof Error) {
     res.status(400).json({ success: false, error: error.message });
@@ -20,6 +25,17 @@ const handleError = (error: unknown, res: any) => {
 router.get("/plans", async (req, res) => {
   try {
     const response = await controller.getSubscriptionPlans();
+    res.json(response);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+// Get the authenticated user's current subscription status
+router.get("/status", async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const response = await controller.getSubscriptionStatus(req as any);
     res.json(response);
   } catch (error) {
     handleError(error, res);

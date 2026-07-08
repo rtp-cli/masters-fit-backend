@@ -2830,6 +2830,82 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"SubscriptionStatus": {
+				"enum": [
+					"trial",
+					"active",
+					"expired",
+					"cancelled",
+					"grace_period",
+					"paused"
+				],
+				"type": "string"
+			},
+			"AccessLevel": {
+				"enum": [
+					"unlimited",
+					"trial",
+					"blocked"
+				],
+				"type": "string"
+			},
+			"SubscriptionResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"subscription": {
+						"properties": {
+							"accessLevel": {
+								"$ref": "#/components/schemas/AccessLevel"
+							},
+							"subscriptionEndDate": {
+								"type": "string",
+								"nullable": true
+							},
+							"subscriptionStartDate": {
+								"type": "string",
+								"nullable": true
+							},
+							"planId": {
+								"type": "string",
+								"nullable": true
+							},
+							"status": {
+								"$ref": "#/components/schemas/SubscriptionStatus"
+							},
+							"userId": {
+								"type": "number",
+								"format": "double"
+							},
+							"id": {
+								"type": "number",
+								"format": "double"
+							}
+						},
+						"required": [
+							"accessLevel",
+							"subscriptionEndDate",
+							"subscriptionStartDate",
+							"planId",
+							"status",
+							"userId",
+							"id"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"success",
+					"subscription"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"REVENUE_CAT_EVENT_TYPES": {
 				"description": "RevenueCat webhook event types",
 				"enum": [
@@ -8465,6 +8541,39 @@
 					"Subscriptions"
 				],
 				"security": [],
+				"parameters": []
+			}
+		},
+		"/subscriptions/status": {
+			"get": {
+				"operationId": "GetSubscriptionStatus",
+				"responses": {
+					"200": {
+						"description": "Subscription status retrieved successfully",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SubscriptionResponse"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"500": {
+						"description": "Internal server error"
+					}
+				},
+				"description": "Get the authenticated user's current subscription status\nLets the frontend confirm the backend is actually in sync after a purchase\n(e.g. RevenueCat webhook processed) instead of trusting only local SDK state.",
+				"tags": [
+					"Subscriptions"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
 				"parameters": []
 			}
 		},
