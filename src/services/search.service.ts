@@ -390,18 +390,26 @@ export class SearchService extends BaseService {
   ): Promise<{ exercises: Exercise[]; hasMore: boolean }> {
     try {
       const { limit = 20, offset = 0 } = options;
-      const searchTerm = `%${query.toLowerCase()}%`;
+      const lowerQuery = query.toLowerCase();
+      const searchTerm = `%${lowerQuery}%`;
 
       // Fetch one extra row to detect whether there's a next page, without a
       // separate COUNT query.
       const results = await this.db.query.exercises.findMany({
+        // [LR-022] ILIKE-equivalent substring match is typo-intolerant
+        // ("bencg press" never finds "bench press"). Added a pg_trgm
+        // similarity check on the name as an OR — catches near-misses
+        // without replacing the exact-substring path (still wins when it
+        // matches, this only adds coverage). 0.3 matches pg_trgm's own
+        // default similarity_threshold GUC, not an arbitrary pick.
         where: sql`
           LOWER(${exercises.name}) LIKE ${searchTerm} OR
           LOWER(${exercises.description}) LIKE ${searchTerm} OR
           EXISTS (
             SELECT 1 FROM unnest(${exercises.muscleGroups}) AS muscle_group
             WHERE LOWER(muscle_group) LIKE ${searchTerm}
-          )
+          ) OR
+          similarity(LOWER(${exercises.name}), ${lowerQuery}) > 0.3
         `,
         limit: limit + 1,
         offset,

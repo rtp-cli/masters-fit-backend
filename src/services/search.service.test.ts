@@ -34,6 +34,24 @@ describe("SearchService.searchExercises pagination", () => {
   });
 });
 
+describe("SearchService.searchExercises fuzzy matching [LR-022]", () => {
+  it("finds a real exercise despite a typo in the query", async () => {
+    // Matches the exact example from the ticket. Verified separately via
+    // `SELECT similarity(...)` that this scores ~0.48 against the real
+    // "Barbell Bench Press" row, comfortably over the 0.3 threshold.
+    const result = await searchService.searchExercises("bencg press");
+    const names = result.exercises.map((e) => e.name.toLowerCase());
+    expect(names.some((n) => n.includes("bench press"))).toBe(true);
+  });
+
+  it("does not match on an unrelated query despite fuzzy matching being enabled", async () => {
+    const result = await searchService.searchExercises(
+      "zzzznonexistentqueryxyz123"
+    );
+    expect(result.exercises).toHaveLength(0);
+  });
+});
+
 describe("SearchService search telemetry [LR-025]", () => {
   afterEach(() => {
     jest.restoreAllMocks();
