@@ -31,7 +31,7 @@ async function seedSubscriptionPlans() {
         name: "Annual Premium",
         description: "Unlimited workouts and regenerations",
         billingPeriod: BillingPeriod.ANNUAL,
-        priceUsd: 79.99, // $79.99
+        priceUsd: 49.99, // $49.99
         isActive: true,
       },
     ];
