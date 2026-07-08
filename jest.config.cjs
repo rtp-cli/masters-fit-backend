@@ -12,6 +12,7 @@ module.exports = {
   testEnvironment: "node",
   roots: ["<rootDir>/src"],
   testMatch: ["**/*.test.ts"],
+  setupFilesAfterEnv: ["<rootDir>/src/test/jest-setup-after-env.ts"],
   moduleNameMapper: {
     // Some source files use ESM-style .js-suffixed imports pointing at real
     // .ts files (e.g. "@/config/database.js") — this must come before the
