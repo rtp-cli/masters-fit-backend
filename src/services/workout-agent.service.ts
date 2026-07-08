@@ -604,14 +604,24 @@ ${exerciseContext}`
     // latency from ~20 s (Sonnet 4.5) to ~4-6 s, which is the dominant
     // win here. Other providers fall back to the user's selected model.
     //
-    // Staggering (800 ms between starts) distributes completions visibly:
-    // at ~5 s per Haiku call, 800 ms ≈ 16 % of call time, so each day's
-    // checkmark appears ~800 ms after the previous one instead of all
-    // arriving in a burst. Cache: later calls also benefit from the
-    // Anthropic prompt-cache entry established by the first call.
+    // Staggering distributes completions visibly: each day's checkmark
+    // appears staggered after the previous one instead of all arriving in
+    // a burst. Cache: later calls also benefit from the Anthropic
+    // prompt-cache entry established by the first call.
     //
-    // Total stagger overhead is (n-1) × 800 ms — 4.8 s for 7 days.
-    const DAY_STAGGER_MS = 800;
+    // [LR-037] Confirmed via git archaeology (commit e9f7d84) this was NEVER
+    // about rate limits/lock contention — purely UI pacing for the
+    // day_started progress event. That means shrinking it has no
+    // rate-limit risk to worry about, only a UX trade-off: since the
+    // slowest day gates the whole phase, the stagger's overhead
+    // ((n-1) × stagger) lands directly on total generation time, not just
+    // on how the progress bar looks. Reduced 800ms->300ms: still reads as
+    // "one at a time" visually (a perceptible gap), cuts worst-case
+    // overhead for a 7-day week from 4.8s to 1.8s. Judgment call, not
+    // measured on a live run — worth a quick on-device sanity check that
+    // the progress reveal still looks reasonable, not the exact 300ms
+    // value being sacred.
+    const DAY_STAGGER_MS = 300;
     const dayLlmBase = this.currentProvider === AIProvider.ANTHROPIC
       ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, FANOUT_DAY_MODEL)
       : this.llm;
