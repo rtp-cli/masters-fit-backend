@@ -898,7 +898,7 @@ export class SubscriptionController extends Controller {
         await subscriptionService.updateUserSubscription(userId, {
           revenuecatCustomerId: event.app_user_id,
           revenuecatSubscriptionId: event.original_transaction_id || null,
-          planId: plan?.planId || productId || "pro",
+          planId: plan?.planId || productId || null,
           status: SubscriptionStatus.ACTIVE,
           subscriptionStartDate: purchasedAt,
           subscriptionEndDate: expiresAt,
@@ -912,11 +912,14 @@ export class SubscriptionController extends Controller {
           planId: plan?.planId,
         });
       } catch (error) {
-        logger.error("Could not grant access to transferred user", {
-          operation: "handleTransfer",
-          toUserId,
-          error: (error as Error).message,
-        });
+        logger.error(
+          "Could not grant access to transferred user",
+          error as Error,
+          {
+            operation: "handleTransfer",
+            toUserId,
+          }
+        );
       }
     }
   }
