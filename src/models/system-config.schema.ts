@@ -24,7 +24,7 @@ export const systemConfig = pgTable(
   {
     id: serial("id").primaryKey(),
     key: text("key").notNull().unique().$type<SystemConfigKeyType>(),
-    value: jsonb("value").notNull(),
+    value: jsonb("value").notNull().$type<Record<string, any>>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
