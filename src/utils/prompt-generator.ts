@@ -680,19 +680,12 @@ export const buildClaudePrompt = (
   exerciseNames: string[],
   customFeedback?: string
 ) => {
-  // Validate required profile fields
-  if (
-    !profile.availableDays ||
-    !profile.preferredStyles ||
-    !profile.workoutDuration ||
-    !profile.environment
-  ) {
-    throw new Error(
-      "Profile is missing required fields: availableDays, preferredStyles, workoutDuration, or environment"
-    );
-  }
-
-  const workoutDuration = profile.workoutDuration;
+  // [LR-053] Previously threw if availableDays/workoutDuration/environment
+  // were missing — but the fan-out path (fanout-prompt-generator.ts) tolerates
+  // the same gaps with defaults, so a profile could generate successfully via
+  // fan-out and then throw if fan-out ever failed and fell back to this
+  // (serial) path. Same defaults as fan-out now, not a throw.
+  const workoutDuration = profile.workoutDuration || 30;
   const includeWarmup = profile.includeWarmup ?? true;
   const includeCooldown = profile.includeCooldown ?? true;
 
@@ -759,7 +752,7 @@ You are an experienced fitness trainer and certified fitness professional. Your 
 - Preferred Styles: ${profile.preferredStyles?.join(", ") || "General fitness"}
 - Available Days: ${profile.availableDays?.join(", ") || "All days"}
 - Workout Duration: ${workoutDuration} minutes per session
-- Environment: ${profile.environment}
+- Environment: ${profile.environment || "not specified"}
 - Available Equipment: ${getEquipmentDescription(
     profile.environment,
     profile.equipment,

@@ -128,16 +128,13 @@ export class PromptsService extends BaseService {
       throw new Error("Profile not found");
     }
 
-    // Validate profile has required fields
-    if (
-      !profile.availableDays ||
-      !profile.workoutDuration ||
-      !profile.environment
-    ) {
-      throw new Error(
-        "Profile is missing required fields: availableDays, workoutDuration, or environment"
-      );
-    }
+    // [LR-053] Used to throw here if availableDays/workoutDuration/environment
+    // were missing. Removed: this is the serial fallback for when the
+    // fan-out path (generateChunkedPrompt) fails, and fan-out already
+    // tolerates the same gaps with defaults — a profile could succeed via
+    // fan-out and then throw here on fallback for the exact same data.
+    // buildClaudePrompt (called via regenerateWorkout -> buildSystemMessage)
+    // now has matching defaults, so this guard is no longer needed.
 
     // Create user-specific workout agent
     const workoutAgent = await this.createUserWorkoutAgent(userId);
