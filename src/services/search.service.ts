@@ -437,8 +437,12 @@ export class SearchService extends BaseService {
         // [LR-057] Without this, rows come back in arbitrary DB scan order —
         // a fuzzy-only or muscle-group match could rank ahead of an exact
         // name match. Rank by match quality (exact > starts-with > contains
-        // > fuzzy-only), then by similarity score, then alphabetically as a
-        // stable tiebreak.
+        // > fuzzy-only), then by similarity score, then alphabetically, then
+        // by id as an absolute final tiebreak — without a unique-column
+        // tiebreak, LIMIT/OFFSET pagination isn't guaranteed stable across
+        // separate query executions when earlier keys tie (seen in practice:
+        // a duplicate-key React warning from the same row appearing on two
+        // pages of "Load More").
         orderBy: sql`
           CASE
             WHEN LOWER(${exercises.name}) = ${lowerQuery} THEN 0
@@ -447,7 +451,8 @@ export class SearchService extends BaseService {
             ELSE 3
           END,
           similarity(LOWER(${exercises.name}), ${lowerQuery}) DESC,
-          ${exercises.name} ASC
+          ${exercises.name} ASC,
+          ${exercises.id} ASC
         `,
         limit: limit + 1,
         offset,

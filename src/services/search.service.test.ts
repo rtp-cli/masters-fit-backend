@@ -32,6 +32,29 @@ describe("SearchService.searchExercises pagination", () => {
       expect(page2.exercises[0].id).not.toBe(page1.exercises[0].id);
     }
   });
+
+  it("no exercise appears on both of two sequential, non-overlapping pages", async () => {
+    // Stronger than the "first item differs" check above, which wouldn't
+    // catch an overlap at any OTHER position. Written while investigating a
+    // real duplicate-React-key crash during "Load More" — this passes
+    // whether or not the ORDER BY has an explicit id tiebreak (name ASC was
+    // already fully deterministic on this data, since names are unique
+    // locally), so it did NOT prove that was the bug's cause. The real
+    // cause turned out to be a frontend double-invocation race (see
+    // search-view.tsx's loadMoreExercises); this test stays as a genuine
+    // backend pagination-continuity guard, not a claim about that bug.
+    const page1 = await searchService.searchExercises("squat", {
+      limit: 5,
+      offset: 0,
+    });
+    const page2 = await searchService.searchExercises("squat", {
+      limit: 5,
+      offset: page1.exercises.length,
+    });
+    const page1Ids = new Set(page1.exercises.map((e) => e.id));
+    const overlap = page2.exercises.filter((e) => page1Ids.has(e.id));
+    expect(overlap).toEqual([]);
+  });
 });
 
 describe("SearchService.searchExercises fuzzy matching [LR-022]", () => {
