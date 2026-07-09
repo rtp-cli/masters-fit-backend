@@ -7,15 +7,9 @@ import {
   type UsageMetadata,
 } from "@langchain/core/messages";
 import { Profile } from "@/models";
-import { validateEquipmentAndFilter } from "@/utils/equipment-validation";
-import {
-  filterExercisesByLimitations,
-  validateLimitationsAndFilter,
-} from "@/utils/limitation-validation";
-import {
-  checkExerciseRepetition,
-  checkConsecutiveMuscleGroupOverload,
-} from "@/utils/workout-balance-validation";
+import { filterExercisesByLimitations } from "@/utils/limitation-validation";
+import { checkConsecutiveMuscleGroupOverload } from "@/utils/workout-balance-validation";
+import { applyPostGenerationValidation } from "@/utils/post-generation-validation";
 import { buildProgressionContext } from "@/utils/progression-context";
 import { workoutService } from "./workout.service";
 import { logger } from "@/utils/logger";
@@ -754,30 +748,14 @@ ${exerciseContext}`
         return dayPlan;
       });
 
-    // [LR-012] The structured-output schema constrains equipment values to a
-    // valid enum, but never checks them against THIS user's actual
-    // environment/equipment — a home-gym user with only dumbbells could
-    // still get a squat-rack exercise. Drop exercises the user can't
-    // actually perform rather than just logging and shipping them.
-    const equipmentFiltered = validateEquipmentAndFilter(
-      rawExercisesToAdd,
-      rawWorkoutPlan,
-      profile
-    );
+    // [LR-012/LR-013/LR-049] Post-generation validation pipeline — equipment
+    // filter, then limitation filter, then repetition check against the
+    // final filtered plan. Extracted to post-generation-validation.ts
+    // [LR-019] so the wiring between these three is directly testable, not
+    // just each validator individually.
+    const { exercisesToAdd, workoutPlan, repetitionFindings } =
+      applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile);
 
-    // [LR-013] Same reasoning as LR-012 above, for limitations/medical notes
-    // instead of equipment: catalog exercises are pre-filtered in
-    // getFilteredExercises, but the LLM's own exercisesToAdd never goes
-    // through that filter — check it post-generation too.
-    const { exercisesToAdd, workoutPlan } = validateLimitationsAndFilter(
-      equipmentFiltered.exercisesToAdd,
-      equipmentFiltered.workoutPlan,
-      profile
-    );
-
-    // [LR-049] Detect-and-log, not auto-fix — see workout-balance-validation.ts
-    // for why (risk of breaking a legitimately structured circuit/superset).
-    const repetitionFindings = checkExerciseRepetition(workoutPlan);
     for (const finding of repetitionFindings) {
       logger.warn("Exercise repeated more than expected within one day", {
         userId,
