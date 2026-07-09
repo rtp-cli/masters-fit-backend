@@ -68,7 +68,12 @@ export class SearchController extends Controller {
     @Query() query: string,
     @Query() limit?: number,
     @Query() offset?: number
-  ): Promise<{ success: boolean; exercises: any[]; hasMore: boolean }> {
+  ): Promise<{
+    success: boolean;
+    exercises: any[];
+    hasMore: boolean;
+    total: number;
+  }> {
     const result = await searchService.searchExercises(query, {
       limit,
       offset,
@@ -77,6 +82,7 @@ export class SearchController extends Controller {
       success: true,
       exercises: result.exercises,
       hasMore: result.hasMore,
+      total: result.total,
     };
   }
 

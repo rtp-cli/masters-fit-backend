@@ -410,22 +410,15 @@ export class SearchService extends BaseService {
   async searchExercises(
     query: string,
     options: { limit?: number; offset?: number } = {}
-  ): Promise<{ exercises: Exercise[]; hasMore: boolean }> {
+  ): Promise<{ exercises: Exercise[]; hasMore: boolean; total: number }> {
     try {
       const { limit = 20, offset = 0 } = options;
       const lowerQuery = query.toLowerCase();
       const searchTerm = `%${lowerQuery}%`;
 
-      // Fetch one extra row to detect whether there's a next page, without a
-      // separate COUNT query.
-      const results = await this.db.query.exercises.findMany({
-        // [LR-022] ILIKE-equivalent substring match is typo-intolerant
-        // ("bencg press" never finds "bench press"). Added a pg_trgm
-        // similarity check on the name as an OR — catches near-misses
-        // without replacing the exact-substring path (still wins when it
-        // matches, this only adds coverage). 0.3 matches pg_trgm's own
-        // default similarity_threshold GUC, not an arbitrary pick.
-        where: sql`
+      // Shared with the count query below — a single source of truth for
+      // "what counts as a match" so the two can't drift apart.
+      const whereCondition = sql`
           LOWER(${exercises.name}) LIKE ${searchTerm} OR
           LOWER(${exercises.description}) LIKE ${searchTerm} OR
           EXISTS (
@@ -433,30 +426,51 @@ export class SearchService extends BaseService {
             WHERE LOWER(muscle_group) LIKE ${searchTerm}
           ) OR
           similarity(LOWER(${exercises.name}), ${lowerQuery}) > 0.3
-        `,
-        // [LR-057] Without this, rows come back in arbitrary DB scan order —
-        // a fuzzy-only or muscle-group match could rank ahead of an exact
-        // name match. Rank by match quality (exact > starts-with > contains
-        // > fuzzy-only), then by similarity score, then alphabetically, then
-        // by id as an absolute final tiebreak — without a unique-column
-        // tiebreak, LIMIT/OFFSET pagination isn't guaranteed stable across
-        // separate query executions when earlier keys tie (seen in practice:
-        // a duplicate-key React warning from the same row appearing on two
-        // pages of "Load More").
-        orderBy: sql`
-          CASE
-            WHEN LOWER(${exercises.name}) = ${lowerQuery} THEN 0
-            WHEN LOWER(${exercises.name}) LIKE ${lowerQuery + "%"} THEN 1
-            WHEN LOWER(${exercises.name}) LIKE ${searchTerm} THEN 2
-            ELSE 3
-          END,
-          similarity(LOWER(${exercises.name}), ${lowerQuery}) DESC,
-          ${exercises.name} ASC,
-          ${exercises.id} ASC
-        `,
-        limit: limit + 1,
-        offset,
-      });
+        `;
+
+      // Real total match count — lets the UI show "20 of 40" instead of
+      // just "20" (which read as "only 20 total exist" until you noticed
+      // the Load More button). Independent of the page query, so run both
+      // concurrently rather than one after the other.
+      const [countRows, results] = await Promise.all([
+        this.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(exercises)
+          .where(whereCondition),
+        // Fetch one extra row to detect whether there's a next page, without
+        // a separate COUNT query for that specific purpose.
+        this.db.query.exercises.findMany({
+          // [LR-022] ILIKE-equivalent substring match is typo-intolerant
+          // ("bencg press" never finds "bench press"). Added a pg_trgm
+          // similarity check on the name as an OR — catches near-misses
+          // without replacing the exact-substring path (still wins when it
+          // matches, this only adds coverage). 0.3 matches pg_trgm's own
+          // default similarity_threshold GUC, not an arbitrary pick.
+          where: whereCondition,
+          // [LR-057] Without this, rows come back in arbitrary DB scan order
+          // — a fuzzy-only or muscle-group match could rank ahead of an
+          // exact name match. Rank by match quality (exact > starts-with >
+          // contains > fuzzy-only), then by similarity score, then
+          // alphabetically, then by id as an absolute final tiebreak —
+          // without a unique-column tiebreak, LIMIT/OFFSET pagination isn't
+          // guaranteed stable across separate query executions when earlier
+          // keys tie (seen in practice: a duplicate-key React warning from
+          // the same row appearing on two pages of "Load More").
+          orderBy: sql`
+            CASE
+              WHEN LOWER(${exercises.name}) = ${lowerQuery} THEN 0
+              WHEN LOWER(${exercises.name}) LIKE ${lowerQuery + "%"} THEN 1
+              WHEN LOWER(${exercises.name}) LIKE ${searchTerm} THEN 2
+              ELSE 3
+            END,
+            similarity(LOWER(${exercises.name}), ${lowerQuery}) DESC,
+            ${exercises.name} ASC,
+            ${exercises.id} ASC
+          `,
+          limit: limit + 1,
+          offset,
+        }),
+      ]);
 
       const pageResults = results.slice(0, limit);
       this.logSearchTelemetry("searchExercises", query, pageResults.length);
@@ -464,6 +478,7 @@ export class SearchService extends BaseService {
       return {
         exercises: pageResults,
         hasMore: results.length > limit,
+        total: countRows[0].count,
       };
     } catch (error) {
       logger.error("Error searching exercises", error as Error, {

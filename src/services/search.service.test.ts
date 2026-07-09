@@ -19,6 +19,20 @@ describe("SearchService.searchExercises pagination", () => {
     expect(result.hasMore).toBe(false);
   });
 
+  it("total matches the actual number of rows returned once every page is loaded", async () => {
+    const allAtOnce = await searchService.searchExercises("a", {
+      limit: 10000,
+    });
+    expect(allAtOnce.total).toBe(allAtOnce.exercises.length);
+  });
+
+  it("total is the same real count on every page, not just the current page's size", async () => {
+    const page1 = await searchService.searchExercises("a", { limit: 5, offset: 0 });
+    const page2 = await searchService.searchExercises("a", { limit: 5, offset: 5 });
+    expect(page1.total).toBe(page2.total);
+    expect(page1.total).toBeGreaterThan(5);
+  });
+
   it("offset moves the window (page 2 doesn't repeat page 1's first result)", async () => {
     const page1 = await searchService.searchExercises("a", {
       limit: 5,
