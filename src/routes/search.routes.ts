@@ -1,7 +1,21 @@
-import { Router } from "express";
+import { Router, Request } from "express";
 import { SearchController } from "@/controllers/search.controller";
 import { ZodError } from "zod";
 import { expressAuthentication } from "@/middleware/auth.middleware";
+
+// [LR-062] Matches the same pattern already used in analytics.routes.ts —
+// expressAuthentication's parameter type requires an already-authenticated
+// request (it's the one that PRODUCES req.userId), and this interface isn't
+// exported from auth.middleware.ts, so every route file that calls it
+// declares its own local copy and casts at the call site. This file never
+// had either, which is why it was part of the backend's pre-existing tsc
+// backlog (LR-054/055) — fixed here, not deferred, since it was blocking
+// LR-062's route-level tests from even compiling.
+interface AuthenticatedRequest extends Request {
+  userId: number;
+  userUuid?: string;
+  clientIP?: string;
+}
 
 const router = Router();
 const controller = new SearchController();
@@ -24,7 +38,7 @@ const handleError = (error: unknown, res: any) => {
 // Search workouts by date
 router.get("/date/:userId", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as AuthenticatedRequest, "bearerAuth");
     const { date } = req.query;
     if (!date || typeof date !== "string") {
       return res.status(400).json({
@@ -46,7 +60,7 @@ router.get("/date/:userId", async (req, res) => {
 // Get exercise details with user statistics
 router.get("/exercise/:userId/:exerciseId", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as AuthenticatedRequest, "bearerAuth");
     const response = await controller.searchExercise(
       Number(req.params.userId),
       Number(req.params.exerciseId)
@@ -60,7 +74,7 @@ router.get("/exercise/:userId/:exerciseId", async (req, res) => {
 // Search exercises by query
 router.get("/exercises", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as AuthenticatedRequest, "bearerAuth");
     const { query, limit, offset } = req.query;
     if (!query || typeof query !== "string") {
       return res.status(400).json({
@@ -89,7 +103,7 @@ router.get("/exercises", async (req, res) => {
 // Enhanced search exercises with filtering
 router.get("/exercises/filtered/:userId", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as AuthenticatedRequest, "bearerAuth");
     const {
       query,
       muscleGroups,
@@ -119,7 +133,7 @@ router.get("/exercises/filtered/:userId", async (req, res) => {
 // Get available filter options
 router.get("/filters", async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
+    await expressAuthentication(req as AuthenticatedRequest, "bearerAuth");
     const response = await controller.getFilterOptions();
     res.json(response);
   } catch (error) {
