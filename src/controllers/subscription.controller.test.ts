@@ -313,6 +313,167 @@ describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018
     expect(call.status).toBe("cancelled");
     expect(call.subscriptionEndDate.getTime()).toBe(futureExpiry);
   });
+
+  // [LR-010/LR-018] The one event type in the dispatch switch with no
+  // coverage at all — grace period is the one billing-state transition
+  // LR-008's frontend reconciliation specifically depends on being correct.
+  it("puts the user into grace period on BILLING_ISSUE, storing the grace period expiration", async () => {
+    const graceExpiry = Date.now() + 3 * 24 * 60 * 60 * 1000;
+    const payload: RevenueCatWebhookPayload = {
+      api_version: "1.0",
+      event: {
+        id: "evt_billing_issue",
+        type: "BILLING_ISSUE",
+        app_user_id: "19",
+        grace_period_expiration_at_ms: graceExpiry,
+      } as any,
+    };
+
+    const result = await controller.handleRevenueCatWebhook(
+      {} as any,
+      payload,
+      undefined
+    );
+
+    expect(result.success).toBe(true);
+    const call = mockedSubscriptionService.updateUserSubscription.mock
+      .calls[0][1] as { status: string; subscriptionEndDate: Date | null };
+    expect(call.status).toBe("grace_period");
+    expect(call.subscriptionEndDate?.getTime()).toBe(graceExpiry);
+  });
+
+  it("puts the user into grace period on BILLING_ISSUE even with no grace_period_expiration_at_ms field", async () => {
+    const payload: RevenueCatWebhookPayload = {
+      api_version: "1.0",
+      event: {
+        id: "evt_billing_issue_no_expiry",
+        type: "BILLING_ISSUE",
+        app_user_id: "19",
+      } as any,
+    };
+
+    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+
+    const call = mockedSubscriptionService.updateUserSubscription.mock
+      .calls[0][1] as { status: string; subscriptionEndDate: Date | null };
+    expect(call.status).toBe("grace_period");
+    expect(call.subscriptionEndDate).toBeNull();
+  });
+});
+
+describe("SubscriptionController.handleRevenueCatWebhook — EXPIRATION reason branching [LR-010/LR-018]", () => {
+  const controller = new SubscriptionController();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedSubscriptionService.isWebhookEventProcessed.mockResolvedValue(false);
+    mockedUserService.getUser.mockResolvedValue({ id: 19 } as any);
+  });
+
+  async function expireWith(cancelReason: string | undefined) {
+    const payload: RevenueCatWebhookPayload = {
+      api_version: "1.0",
+      event: {
+        id: `evt_expire_${cancelReason ?? "none"}`,
+        type: "EXPIRATION",
+        app_user_id: "19",
+        expiration_reason: cancelReason,
+        expiration_at_ms: Date.now(),
+      } as any,
+    };
+    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    return mockedSubscriptionService.updateUserSubscription.mock.calls[0][1] as {
+      status: string;
+    };
+  }
+
+  it("maps SUBSCRIPTION_PAUSED to paused", async () => {
+    mockedSubscriptionService.getUserSubscription.mockResolvedValue({} as any);
+    expect((await expireWith("SUBSCRIPTION_PAUSED")).status).toBe("paused");
+  });
+
+  it("maps BILLING_ERROR to expired", async () => {
+    mockedSubscriptionService.getUserSubscription.mockResolvedValue({} as any);
+    expect((await expireWith("BILLING_ERROR")).status).toBe("expired");
+  });
+
+  it("maps UNSUBSCRIBE to cancelled", async () => {
+    mockedSubscriptionService.getUserSubscription.mockResolvedValue({} as any);
+    expect((await expireWith("UNSUBSCRIBE")).status).toBe("cancelled");
+  });
+
+  it("maps DEVELOPER_INITIATED to cancelled", async () => {
+    mockedSubscriptionService.getUserSubscription.mockResolvedValue({} as any);
+    expect((await expireWith("DEVELOPER_INITIATED")).status).toBe("cancelled");
+  });
+
+  it("maps an unrecognized/missing reason to expired (the default branch)", async () => {
+    mockedSubscriptionService.getUserSubscription.mockResolvedValue({} as any);
+    expect((await expireWith(undefined)).status).toBe("expired");
+  });
+
+  it("keeps a user already cancelled as cancelled, regardless of the expiration reason", async () => {
+    mockedSubscriptionService.getUserSubscription.mockResolvedValue({
+      status: "cancelled",
+    } as any);
+    // Even a reason that would normally map to "expired" shouldn't override
+    // an existing cancellation.
+    expect((await expireWith("BILLING_ERROR")).status).toBe("cancelled");
+  });
+});
+
+describe("SubscriptionController.handleRevenueCatWebhook — PRODUCT_CHANGE [LR-010/LR-018]", () => {
+  const controller = new SubscriptionController();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedSubscriptionService.isWebhookEventProcessed.mockResolvedValue(false);
+    mockedUserService.getUser.mockResolvedValue({ id: 19 } as any);
+  });
+
+  it("activates the subscription under the new plan when the new product matches a known plan", async () => {
+    mockedSubscriptionService.getPlanByRevenueCatProductId.mockResolvedValue({
+      planId: "masters_fit_annual",
+    } as any);
+
+    const payload: RevenueCatWebhookPayload = {
+      api_version: "1.0",
+      event: {
+        id: "evt_product_change",
+        type: "PRODUCT_CHANGE",
+        app_user_id: "19",
+        product_id: "masters_fit_annual",
+      } as any,
+    };
+
+    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+
+    expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
+      19,
+      expect.objectContaining({ planId: "masters_fit_annual", status: "active" })
+    );
+  });
+
+  it("falls back to the raw product id (not a hardcoded default) when no matching plan is found", async () => {
+    mockedSubscriptionService.getPlanByRevenueCatProductId.mockResolvedValue(null);
+
+    const payload: RevenueCatWebhookPayload = {
+      api_version: "1.0",
+      event: {
+        id: "evt_product_change_unknown",
+        type: "PRODUCT_CHANGE",
+        app_user_id: "19",
+        product_id: "some_unmapped_product",
+      } as any,
+    };
+
+    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+
+    expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
+      19,
+      expect.objectContaining({ planId: "some_unmapped_product", status: "active" })
+    );
+  });
 });
 
 describe("SubscriptionController.getSubscriptionStatus", () => {
