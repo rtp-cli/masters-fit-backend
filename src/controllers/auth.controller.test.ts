@@ -7,7 +7,7 @@ import {
 } from "@/services";
 
 jest.mock("@/services", () => ({
-  userService: { getUser: jest.fn() },
+  userService: { getUser: jest.fn(), acceptWaiver: jest.fn() },
   authService: {},
   refreshTokenService: {
     validateRefreshToken: jest.fn(),
@@ -100,5 +100,126 @@ describe("AuthController.refreshToken", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("Failed to rotate refresh token");
+  });
+});
+
+describe("AuthController.getWaiverStatus [LR-017]", () => {
+  const controller = new AuthController();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("needs acceptance when the request has no userId (not authenticated)", async () => {
+    const result = await controller.getWaiverStatus({} as any);
+    expect(result.success).toBe(false);
+    expect(result.waiverInfo.needsAcceptance).toBe(true);
+    expect(mockedUserService.getUser).not.toHaveBeenCalled();
+  });
+
+  it("needs acceptance when the user record can't be found", async () => {
+    mockedUserService.getUser.mockResolvedValue(null as any);
+    const result = await controller.getWaiverStatus({ userId: 42 } as any);
+    expect(result.success).toBe(false);
+    expect(result.waiverInfo.needsAcceptance).toBe(true);
+  });
+
+  it("needs acceptance for a user who has never accepted any waiver", async () => {
+    mockedUserService.getUser.mockResolvedValue({
+      id: 42,
+      waiverAcceptedAt: null,
+      waiverVersion: null,
+    } as any);
+    const result = await controller.getWaiverStatus({ userId: 42 } as any);
+    expect(result.success).toBe(true);
+    expect(result.waiverInfo.needsAcceptance).toBe(true);
+    expect(result.waiverInfo.hasAccepted).toBe(false);
+    expect(result.waiverInfo.isUpdate).toBe(false);
+  });
+
+  it("does not need acceptance for a user on the current waiver version", async () => {
+    mockedUserService.getUser.mockResolvedValue({
+      id: 42,
+      waiverAcceptedAt: new Date(),
+      waiverVersion: "1.0",
+    } as any);
+    const result = await controller.getWaiverStatus({ userId: 42 } as any);
+    expect(result.waiverInfo.needsAcceptance).toBe(false);
+    expect(result.waiverInfo.hasAccepted).toBe(true);
+    expect(result.waiverInfo.isUpdate).toBe(false);
+  });
+
+  it("flags an update (not a fresh acceptance) for a user on an old waiver version", async () => {
+    mockedUserService.getUser.mockResolvedValue({
+      id: 42,
+      waiverAcceptedAt: new Date(),
+      waiverVersion: "0.9",
+    } as any);
+    const result = await controller.getWaiverStatus({ userId: 42 } as any);
+    expect(result.waiverInfo.needsAcceptance).toBe(true);
+    expect(result.waiverInfo.isUpdate).toBe(true);
+  });
+
+  it("needs acceptance (fails safe) if the user lookup throws", async () => {
+    mockedUserService.getUser.mockRejectedValue(new Error("db down"));
+    const result = await controller.getWaiverStatus({ userId: 42 } as any);
+    expect(result.success).toBe(false);
+    expect(result.waiverInfo.needsAcceptance).toBe(true);
+  });
+});
+
+describe("AuthController.acceptWaiver [LR-017]", () => {
+  const controller = new AuthController();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("rejects with no version in the request body", async () => {
+    const result = await controller.acceptWaiver(
+      { userId: 42 } as any,
+      {} as any
+    );
+    expect(result.success).toBe(false);
+    expect(mockedUserService.acceptWaiver).not.toHaveBeenCalled();
+  });
+
+  it("rejects a version that doesn't match the current waiver version", async () => {
+    const result = await controller.acceptWaiver(
+      { userId: 42 } as any,
+      { version: "0.9" } as any
+    );
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Invalid waiver version");
+    expect(mockedUserService.acceptWaiver).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the request has no userId (not authenticated)", async () => {
+    const result = await controller.acceptWaiver(
+      {} as any,
+      { version: "1.0" } as any
+    );
+    expect(result.success).toBe(false);
+    expect(mockedUserService.acceptWaiver).not.toHaveBeenCalled();
+  });
+
+  it("accepts the current version for an authenticated user", async () => {
+    mockedUserService.acceptWaiver.mockResolvedValue(undefined as any);
+    const result = await controller.acceptWaiver(
+      { userId: 42 } as any,
+      { version: "1.0" } as any
+    );
+    expect(result.success).toBe(true);
+    expect(mockedUserService.acceptWaiver).toHaveBeenCalledWith(42, "1.0");
+  });
+
+  it("returns a failure (not a throw) if persisting the acceptance fails", async () => {
+    mockedUserService.acceptWaiver.mockRejectedValue(new Error("db down"));
+    const result = await controller.acceptWaiver(
+      { userId: 42 } as any,
+      { version: "1.0" } as any
+    );
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("Failed to accept waiver");
   });
 });
