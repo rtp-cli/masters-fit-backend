@@ -61,7 +61,7 @@ router.get("/exercise/:userId/:exerciseId", async (req, res) => {
 router.get("/exercises", async (req, res) => {
   try {
     await expressAuthentication(req, "bearerAuth");
-    const { query } = req.query;
+    const { query, limit, offset } = req.query;
     if (!query || typeof query !== "string") {
       return res.status(400).json({
         success: false,
@@ -69,7 +69,17 @@ router.get("/exercises", async (req, res) => {
       });
     }
 
-    const response = await controller.searchExercises(query);
+    // [LR-023 bug] limit/offset were never read from req.query here, so every
+    // request silently got the controller's undefined -> service's default
+    // (limit=20, offset=0) regardless of what the caller asked for — "Load
+    // More" was always re-fetching page 1. TSOA's generated routes.ts (which
+    // does parse these) never actually serves traffic; this hand-wired route
+    // does, per this project's own routing convention.
+    const response = await controller.searchExercises(
+      query,
+      limit ? Number(limit) : undefined,
+      offset ? Number(offset) : undefined
+    );
     res.json(response);
   } catch (error) {
     handleError(error, res);
