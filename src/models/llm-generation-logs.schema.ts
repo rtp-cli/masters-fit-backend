@@ -12,6 +12,12 @@ export const llmGenerationLogs = pgTable(
     operation: text("operation").notNull(), // e.g. "generateWeeklyWorkout", "regenerateWorkout"
     provider: text("provider").notNull(),
     model: text("model").notNull(),
+    // Actual per-phase model for generateWeeklyWorkout's fan-out (planning
+    // call vs. day calls) — `model` above is the user's profile selection,
+    // which the fan-out path overrides on Anthropic. Null for
+    // regenerateWorkout, where `model` is already the model that ran.
+    planningModel: text("planning_model"),
+    dayModel: text("day_model"),
     llmDurationMs: integer("llm_duration_ms").notNull(),
     inputTokens: integer("input_tokens").notNull().default(0),
     outputTokens: integer("output_tokens").notNull().default(0),
