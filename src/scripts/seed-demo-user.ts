@@ -114,7 +114,7 @@ const EX_NAMES: Record<string, string[]> = {
   armCircles: ["Arm Circles"],
   legSwings: ["Leg Swings", "Standing Leg Swings"],
   hipCircles: ["Hip Circles"],
-  bandPullApart: ["Band Pull-Apart"],
+  bandPullApart: ["Band Pull-Apart", "Band Pull Apart"], // prod catalog omits the hyphen
   gobletSquat: ["Goblet Squat"], // weighted (kettlebells)
   dumbbellRow: ["Dumbbell Row", "Dumbbell Rows"], // weighted (dumbbells)
   inclinePress: ["Incline Dumbbell Press"], // weighted (dumbbells)
@@ -676,12 +676,16 @@ async function seed(): Promise<void> {
 async function run() {
   assertLocalDatabase(process.argv.includes("--remote"));
   const deleteOnly = process.argv.includes("--delete");
+  // Resolve exercise names BEFORE deleting anything — a resolution failure must
+  // never leave us having wiped the demo user without recreating him.
+  if (!deleteOnly) {
+    await resolveExerciseIds();
+  }
   await deleteDemoUser();
   if (deleteOnly) {
     console.log("Delete-only mode; not reseeding.");
     process.exit(0);
   }
-  await resolveExerciseIds();
   await seed();
   process.exit(0);
 }
