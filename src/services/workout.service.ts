@@ -1012,8 +1012,14 @@ export class WorkoutService extends BaseService {
     });
     const persistStartedAt = Date.now();
     const profile = await profileService.getProfileByUserId(userId);
-    // Calculate startDate and endDate as YYYY-MM-DD strings in user's timezone
-    const startDate = await this.resolveTodayString(userId, timezone);
+    // [PERF-05] Reuse the profile just fetched above rather than letting
+    // resolveTodayString fetch it again — same timezone resolution, one fewer
+    // round-trip on the request path when no explicit timezone was passed.
+    const startDate = timezone
+      ? getCurrentDateStringInTimezone(timezone)
+      : profile?.timezone
+        ? getCurrentDateStringInTimezone(profile.timezone)
+        : getCurrentDateString();
     const endDate = addDays(startDate, 6);
 
     const workout = await this.createWorkout({
@@ -1096,16 +1102,21 @@ export class WorkoutService extends BaseService {
         }
       }
 
-      // Fetch all exercises in parallel
-      const exercisePromises = Array.from(allExerciseNames).map(
-        async (name) => {
-          const exercise = await exerciseService.getExerciseByName(name);
-          if (exercise) {
-            exerciseDetailsMap.set(name, exercise);
-          }
-        }
+      // [PERF-01] Resolve every referenced exercise in ONE indexed query instead
+      // of a per-name ILIKE fan-out (~30-45 sequential-scan queries per plan). Match
+      // case-insensitively and re-key the result by the exact plan name so downstream
+      // `exerciseDetailsMap.get(exercise.exerciseName)` lookups behave as before.
+      const requestedNames = Array.from(allExerciseNames);
+      const foundExercises = await exerciseService.getExercisesByNames(requestedNames);
+      const exercisesByLowerName = new Map(
+        foundExercises.map((e) => [e.name.trim().toLowerCase(), e])
       );
-      await Promise.all(exercisePromises);
+      for (const name of requestedNames) {
+        const match = exercisesByLowerName.get(name.trim().toLowerCase());
+        if (match) {
+          exerciseDetailsMap.set(name, match);
+        }
+      }
 
       // Second pass: prepare all data structures
       for (let i = 0; i < workoutPlan.length; i++) {

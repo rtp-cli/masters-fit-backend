@@ -219,6 +219,29 @@ export class ExerciseService extends BaseService {
     return result;
   }
 
+  /**
+   * Batch-resolve exercises by exact name (case-insensitive), in a single query.
+   * [PERF-01] Replaces the per-name `getExerciseByName` fan-out during persistence,
+   * which fired one `ILIKE '%name%'` query per exercise (~30-45 per weekly plan) —
+   * and, because a leading-wildcard ILIKE cannot use the name index, each was a
+   * sequential scan of the whole catalog. This matches `lower(name)` exactly, hitting
+   * the `idx_exercises_name_unique` functional index. The LLM is instructed to use the
+   * exact names from the provided catalog, so exact match is correct here.
+   */
+  async getExercisesByNames(names: string[]): Promise<Exercise[]> {
+    const unique = Array.from(new Set(names.map((n) => n.trim().toLowerCase()))).filter(
+      (n) => n.length > 0
+    );
+    if (unique.length === 0) return [];
+
+    const result = await this.db
+      .select()
+      .from(exercises)
+      .where(inArray(sql`lower(${exercises.name})`, unique));
+
+    return result as Exercise[];
+  }
+
   async updateExerciseLink(id: number, link: string | null) {
     const result = await this.db
       .update(exercises)

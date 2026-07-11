@@ -30,6 +30,7 @@ import { aiProviderService } from "./ai-provider.service";
 import { AIProvider } from "@/constants/ai-providers";
 import { llmGenerationLogsService } from "./llm-generation-logs.service";
 import { runWithAbortTimeout } from "@/utils/timeout.utils";
+import { Semaphore } from "@/utils/concurrency.utils";
 
 // Hard per-call ceilings for the fan-out LLM calls. Without these a stalled
 // provider connection (one that never sends an RST) hangs the await forever,
@@ -161,39 +162,26 @@ export class WorkoutAgentService {
       return "No exercises available for the specified constraints.";
     }
 
-    // Group exercises by muscle groups for better organization
-    const exercisesByMuscleGroup: Record<string, ExerciseMetadata[]> = {};
-
-    exercises.forEach((exercise) => {
-      exercise.muscleGroups.forEach((muscleGroup) => {
-        if (!exercisesByMuscleGroup[muscleGroup]) {
-          exercisesByMuscleGroup[muscleGroup] = [];
-        }
-        if (
-          !exercisesByMuscleGroup[muscleGroup].some(
-            (e) => e.name === exercise.name
-          )
-        ) {
-          exercisesByMuscleGroup[muscleGroup].push(exercise);
-        }
-      });
-    });
-
+    // [PERF-06] Render each exercise ONCE with its muscle groups as a field,
+    // rather than repeating the full entry under every muscle-group heading it
+    // belongs to. The old grouped format duplicated each exercise ~2x (once per
+    // muscle group), roughly doubling the ~22KB catalog block that rides on every
+    // day-call prompt. This flat list carries the same information (name, muscle
+    // groups, equipment, difficulty) at ~half the tokens.
     let context = "";
-    Object.entries(exercisesByMuscleGroup).forEach(
-      ([muscleGroup, groupExercises]) => {
-        context += `\n### ${muscleGroup.toUpperCase()} EXERCISES:\n`;
-        groupExercises.forEach((exercise) => {
-          const equipmentList =
-            exercise.equipment && exercise.equipment.length > 0
-              ? exercise.equipment.join(", ")
-              : "bodyweight";
-          const difficulty = exercise.difficulty || "moderate";
+    exercises.forEach((exercise) => {
+      const muscleGroups =
+        exercise.muscleGroups && exercise.muscleGroups.length > 0
+          ? exercise.muscleGroups.join(", ")
+          : "general";
+      const equipmentList =
+        exercise.equipment && exercise.equipment.length > 0
+          ? exercise.equipment.join(", ")
+          : "bodyweight";
+      const difficulty = exercise.difficulty || "moderate";
 
-          context += `- **${exercise.name}** (equipment: ${equipmentList}, difficulty: ${difficulty})\n`;
-        });
-      }
-    );
+      context += `- **${exercise.name}** (muscle groups: ${muscleGroups}; equipment: ${equipmentList}; difficulty: ${difficulty})\n`;
+    });
 
     return context;
   }
@@ -632,6 +620,18 @@ ${exerciseContext}`
     // the progress reveal still looks reasonable, not the exact 300ms
     // value being sacred.
     const DAY_STAGGER_MS = 300;
+    // [PERF-03] Give day 0 a head start before the rest of the week fans out, so its
+    // ~14K-token shared system prefix is written to Anthropic's prompt cache before the
+    // sibling days try to read it. With the old 300ms-only stagger, the early days fire
+    // well before that write lands and each pays the full prefix write instead of a
+    // ~0.1x cache read. Kept in the same ballpark as the old last-day stagger (~1.8s) to
+    // avoid a latency regression. TUNE against `cacheHitPct` in the llm-metrics report;
+    // set to 0 to restore the old pure-stagger behavior.
+    const CACHE_WARM_MS = 1500;
+    // [PERF-04] Cap concurrent day calls per generation. Cheap insurance against
+    // account-level Anthropic rate limits when several generations run at once.
+    const MAX_CONCURRENT_DAYS = 5;
+    const daySemaphore = new Semaphore(MAX_CONCURRENT_DAYS);
     const dayLlmBase = this.currentProvider === AIProvider.ANTHROPIC
       ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, FANOUT_DAY_MODEL)
       : this.llm;
@@ -654,18 +654,22 @@ ${exerciseContext}`
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         const callStartedAt = Date.now();
         try {
-          const res: any = await runWithAbortTimeout(
-            (signal) =>
-              dayLlm.invoke(
-                [
-                  daySystemMessage,
-                  new HumanMessage(buildDayUserMessage(profile, weekPlan, day, customFeedback)),
-                ],
-                { signal }
-              ),
-            fanoutAbort.signal,
-            DAY_CALL_TIMEOUT_MS,
-            `Day ${day.day} generation`
+          // [PERF-04] Gate the actual LLM call through the semaphore so no more
+          // than MAX_CONCURRENT_DAYS day calls are in flight at once.
+          const res: any = await daySemaphore.run(() =>
+            runWithAbortTimeout(
+              (signal) =>
+                dayLlm.invoke(
+                  [
+                    daySystemMessage,
+                    new HumanMessage(buildDayUserMessage(profile, weekPlan, day, customFeedback)),
+                  ],
+                  { signal }
+                ),
+              fanoutAbort.signal,
+              DAY_CALL_TIMEOUT_MS,
+              `Day ${day.day} generation`
+            )
           );
           recordUsage(res.raw);
           if (!res.parsed?.blocks?.length) {
@@ -699,15 +703,65 @@ ${exerciseContext}`
         }
       }
       onProgress?.({ type: "day_failed", dayNumber: day.day });
-      // Cancel sibling in-flight day calls — the week is already doomed and
-      // the caller will fall back to single-call generation.
-      fanoutAbort.abort();
+      // [PERF-02] A single day failing must NOT cancel its siblings. This used to
+      // call fanoutAbort.abort(), discarding every successfully-generated day and
+      // forcing a full whole-week regeneration on the pricier fallback model for one
+      // transient blip. Now we just surface the failure; the caller keeps the good
+      // days and retries only the failed one(s).
       throw lastError;
     };
 
-    const generatedDays = await Promise.all(
-      weekPlan.days.map((day, i) => generateDay(day, i * DAY_STAGGER_MS))
+    // [PERF-03] Schedule day 0 immediately; hold the rest until CACHE_WARM_MS so
+    // day 0's shared prompt prefix is cached before its siblings read it, then
+    // stagger normally.
+    const daySchedule = (i: number): number =>
+      i === 0 ? 0 : CACHE_WARM_MS + (i - 1) * DAY_STAGGER_MS;
+
+    const firstPass = await Promise.allSettled(
+      weekPlan.days.map((day, i) => generateDay(day, daySchedule(i)))
     );
+
+    const generatedDays: any[] = [];
+    const failedDays: WeekPlan["days"] = [];
+    firstPass.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        generatedDays.push(result.value);
+      } else {
+        failedDays.push(weekPlan.days[i]);
+      }
+    });
+
+    // [PERF-02] Second pass: retry only the day(s) that failed, sequentially and
+    // without stagger — so one transient failure no longer discards the whole week.
+    if (failedDays.length > 0 && !fanoutAbort.signal.aborted) {
+      logger.warn("Retrying failed fan-out days individually", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        metadata: { failedDayCount: failedDays.length },
+      });
+      for (const day of failedDays) {
+        if (fanoutAbort.signal.aborted) break;
+        try {
+          generatedDays.push(await generateDay(day, 0));
+        } catch (error) {
+          logger.warn("Day still failed after individual retry", {
+            userId,
+            dayNumber: day.day,
+            operation: "generateWeeklyWorkout",
+            error: (error as Error).message,
+          });
+        }
+      }
+    }
+
+    // If we still can't produce every day, fall back to the serial whole-week path
+    // (the caller catches this and regenerates) — the existing safety net, now only
+    // after genuinely trying to preserve the days that did succeed.
+    if (generatedDays.length < weekPlan.days.length) {
+      throw new Error(
+        `Fan-out generation incomplete: ${generatedDays.length}/${weekPlan.days.length} days succeeded`
+      );
+    }
 
     const daysPhaseDurationMs = Date.now() - daysPhaseStartedAt;
     const slowestDayMs = dayTimings.reduce((m, d) => Math.max(m, d.durationMs), 0);
