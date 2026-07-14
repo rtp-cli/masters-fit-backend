@@ -28,6 +28,7 @@ import { exerciseService } from "./exercise.service";
 import { AvailableEquipment, IntensityLevel } from "@/types/profile/types";
 import { profileService } from "./profile.service";
 import { PreferredDays } from "@/constants";
+import type { WorkoutSourceType } from "@/constants/access-policy";
 import { PreferredDay } from "@/types/profile/types";
 import {
   getTodayString,
@@ -317,6 +318,7 @@ export class WorkoutService extends BaseService {
           ...data,
           startDate: sql`${data.startDate}::date`,
           endDate: sql`${data.endDate}::date`,
+          sourceType: data.sourceType as WorkoutSourceType | null | undefined,
           createdAt: now,
           updatedAt: now,
         })

@@ -15,6 +15,7 @@ import { users } from "@/models/user.schema";
 import { exercises } from "@/models/exercise.schema";
 import { prompts } from "@/models/prompts.schema";
 import { relations } from "drizzle-orm";
+import type { WorkoutSourceType } from "@/constants/access-policy";
 
 // Workout table
 export const workouts = pgTable("workouts", {
@@ -31,6 +32,10 @@ export const workouts = pgTable("workouts", {
   name: text("name").notNull(),
   description: text("description"),
   completed: boolean("completed").default(false),
+  // Lineage tag (AI_INITIAL | AI_NEW_PROGRAM | AI_REGENERATION | REST_DAY |
+  // REPEAT | MANUAL). Descriptive metadata for analytics/debugging/cleanup —
+  // NOT the source of truth for entitlement (the ai_operations ledger is).
+  sourceType: text("source_type").$type<WorkoutSourceType>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

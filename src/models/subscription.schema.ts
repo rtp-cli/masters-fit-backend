@@ -13,6 +13,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "@/models/user.schema";
 import { BillingPeriod, SubscriptionStatus } from "@/constants";
+import type { AccessOverride } from "@/constants/access-policy";
 
 // Subscription plans table
 export const subscriptionPlans = pgTable(
@@ -61,6 +62,13 @@ export const userSubscriptions = pgTable(
     subscriptionEndDate: timestamp("subscription_end_date", {
       withTimezone: true,
     }), // When subscription expires
+    // Server-granted access override (COMPLIMENTARY | BYPASS). Wins over the
+    // billing-derived tier while unexpired. Set only via controlled tooling —
+    // never from client input. Replaces the client-only demo-email hack.
+    accessOverride: text("access_override").$type<AccessOverride>(),
+    accessOverrideExpiresAt: timestamp("access_override_expires_at", {
+      withTimezone: true,
+    }), // null = no expiry (permanent grant)
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -202,6 +210,8 @@ export interface UserSubscription {
   status: SubscriptionStatus;
   subscriptionStartDate: Date | null;
   subscriptionEndDate: Date | null;
+  accessOverride: AccessOverride | null;
+  accessOverrideExpiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

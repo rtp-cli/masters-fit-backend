@@ -15,6 +15,7 @@ import { BaseService } from "@/services/base.service";
 import { logger } from "@/utils/logger";
 import { getCurrentUTCDate } from "@/utils/date.utils";
 import { AccessLevel, TRIAL_LIMITS, SubscriptionStatus } from "@/constants";
+import type { AccessOverride } from "@/constants/access-policy";
 
 export interface TrialLimitCheck {
   allowed: boolean;
@@ -370,6 +371,10 @@ export class SubscriptionService extends BaseService {
           .set({
             ...updates,
             status: updates.status as SubscriptionStatus | undefined,
+            accessOverride: updates.accessOverride as
+              | AccessOverride
+              | null
+              | undefined,
             updatedAt: getCurrentUTCDate(),
           })
           .where(eq(userSubscriptions.userId, userId))
