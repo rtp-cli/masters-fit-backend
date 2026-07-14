@@ -25,6 +25,12 @@ jest.mock("@/services/user.service", () => ({
 const mockedSubscriptionService = jest.mocked(subscriptionService);
 const mockedUserService = jest.mocked(userService);
 
+// Webhook auth is now fail-closed: the secret must be configured AND match.
+// Configure it for the business-logic webhook tests below; the calls pass the
+// same "test-secret" as the Authorization header. (The dedicated auth-header
+// enforcement describe overrides this per-test.)
+process.env.REVENUECAT_WEBHOOK_AUTH_HEADER = "test-secret";
+
 describe("SubscriptionController TRANSFER handling", () => {
   const controller = new SubscriptionController();
 
@@ -60,7 +66,7 @@ describe("SubscriptionController TRANSFER handling", () => {
     const result = await controller.handleRevenueCatWebhook(
       {} as any,
       payload,
-      undefined
+      "test-secret"
     );
 
     expect(result.success).toBe(true);
@@ -90,7 +96,7 @@ describe("SubscriptionController TRANSFER handling", () => {
       } as RevenueCatWebhookPayload["event"],
     };
 
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
 
     expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
       19,
@@ -115,7 +121,7 @@ describe("SubscriptionController TRANSFER handling", () => {
       } as any,
     };
 
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
 
     expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
       19,
@@ -149,7 +155,7 @@ describe("SubscriptionController TRANSFER handling", () => {
     };
     mockedUserService.getUser.mockResolvedValue({ id: 21 } as any);
 
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
 
     expect(mockedSubscriptionService.getUserSubscription).toHaveBeenCalledWith(
       21
@@ -181,7 +187,7 @@ describe("SubscriptionController TRANSFER handling", () => {
       } as any,
     };
 
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
 
     // Should still update to the transferred product, not silently skip
     // because the user already had an active subscription.
@@ -211,7 +217,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018
     const result = await controller.handleRevenueCatWebhook(
       {} as any,
       payload,
-      undefined
+      "test-secret"
     );
 
     expect(result).toEqual({ success: true, message: "Test webhook received" });
@@ -235,7 +241,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018
     const result = await controller.handleRevenueCatWebhook(
       {} as any,
       payload,
-      undefined
+      "test-secret"
     );
 
     expect(result).toEqual({
@@ -263,7 +269,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018
     const result = await controller.handleRevenueCatWebhook(
       {} as any,
       payload,
-      undefined
+      "test-secret"
     );
 
     expect(result.success).toBe(true);
@@ -284,7 +290,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018
       } as any,
     };
 
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
 
     const call = mockedSubscriptionService.updateUserSubscription.mock
       .calls[0][1] as { status: string; subscriptionEndDate: Date };
@@ -306,7 +312,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018
       } as any,
     };
 
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
 
     const call = mockedSubscriptionService.updateUserSubscription.mock
       .calls[0][1] as { status: string; subscriptionEndDate: Date };
@@ -332,7 +338,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018
     const result = await controller.handleRevenueCatWebhook(
       {} as any,
       payload,
-      undefined
+      "test-secret"
     );
 
     expect(result.success).toBe(true);
@@ -352,7 +358,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018
       } as any,
     };
 
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
 
     const call = mockedSubscriptionService.updateUserSubscription.mock
       .calls[0][1] as { status: string; subscriptionEndDate: Date | null };
@@ -381,7 +387,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — EXPIRATION reason b
         expiration_at_ms: Date.now(),
       } as any,
     };
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
     return mockedSubscriptionService.updateUserSubscription.mock.calls[0][1] as {
       status: string;
     };
@@ -446,7 +452,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — PRODUCT_CHANGE [LR-
       } as any,
     };
 
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
 
     expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
       19,
@@ -467,7 +473,7 @@ describe("SubscriptionController.handleRevenueCatWebhook — PRODUCT_CHANGE [LR-
       } as any,
     };
 
-    await controller.handleRevenueCatWebhook({} as any, payload, undefined);
+    await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
 
     expect(mockedSubscriptionService.updateUserSubscription).toHaveBeenCalledWith(
       19,
@@ -579,5 +585,30 @@ describe("SubscriptionController webhook auth header enforcement [LR-003 regress
     );
 
     expect(result.success).toBe(true);
+  });
+
+  it("rejects a webhook call when no auth secret is configured (fail-closed)", async () => {
+    jest.resetModules();
+    delete process.env.REVENUECAT_WEBHOOK_AUTH_HEADER;
+    const { SubscriptionController: FreshController } = await import(
+      "@/controllers/subscription.controller"
+    );
+    const freshController = new FreshController();
+
+    const payload: RevenueCatWebhookPayload = {
+      api_version: "1.0",
+      event: { id: "evt_z", type: "TEST", app_user_id: "19" } as any,
+    };
+
+    // Even a caller supplying *some* header must be rejected when the server
+    // has no secret configured (previously this path accepted all requests).
+    const result = await freshController.handleRevenueCatWebhook(
+      {} as any,
+      payload,
+      "anything"
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe("Unauthorized");
   });
 });

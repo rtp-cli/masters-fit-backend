@@ -1,12 +1,16 @@
 import { Router } from "express";
 import { PromptsController } from "@/controllers";
 import { ZodError } from "zod";
-import { expressAuthentication } from "@/middleware/auth.middleware";
+import {
+  requireAuth,
+  requireSelf,
+  requireBodySelf,
+} from "@/middleware/authz.middleware";
 
 const router = Router();
 const controller = new PromptsController();
 
-// Helper function for consistent error handling
+// Business/controller error mapping (authn/authz handled by middleware).
 const handleError = (error: unknown, res: any) => {
   if (error instanceof Error && error.message === "Invalid or expired token") {
     res.status(401).json({ success: false, error: error.message });
@@ -21,10 +25,9 @@ const handleError = (error: unknown, res: any) => {
   }
 };
 
-// Get all prompts for a user
-router.get("/:userId", async (req, res) => {
+// Get all prompts for a user (user-scoped)
+router.get("/:userId", requireAuth, requireSelf("userId"), async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
     const userId = Number(req.params.userId);
     const prompts = await controller.getUserPrompts(userId);
     res.json(prompts);
@@ -33,16 +36,20 @@ router.get("/:userId", async (req, res) => {
   }
 });
 
-// Create a new prompt
-router.post("/", async (req, res) => {
-  try {
-    await expressAuthentication(req, "bearerAuth");
-    const prompt = req.body;
-    const newPrompt = await controller.createPrompt(prompt);
-    res.json(newPrompt);
-  } catch (error) {
-    handleError(error, res);
+// Create a new prompt (any userId in the body must be the caller)
+router.post(
+  "/",
+  requireAuth,
+  requireBodySelf("userId", { required: false }),
+  async (req, res) => {
+    try {
+      const prompt = req.body;
+      const newPrompt = await controller.createPrompt(prompt);
+      res.json(newPrompt);
+    } catch (error) {
+      handleError(error, res);
+    }
   }
-});
+);
 
 export { router as promptsRouter };

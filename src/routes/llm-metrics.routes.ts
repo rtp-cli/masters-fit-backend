@@ -1,13 +1,14 @@
 import { Router } from "express";
-import { expressAuthentication } from "@/middleware/auth.middleware";
+import { requireAuth, requireAdmin } from "@/middleware/authz.middleware";
 import { llmGenerationLogsService } from "@/services/llm-generation-logs.service";
 
 const router = Router();
 
 // GET /api/admin/llm-metrics?startDate=2026-06-01&endDate=2026-06-30
-router.get("/", async (req, res) => {
+// Org-wide LLM cost/usage report — admin only (previously any authenticated
+// user could read it; there was no role check).
+router.get("/", requireAuth, requireAdmin, async (req, res) => {
   try {
-    await expressAuthentication(req, "bearerAuth");
     const { startDate, endDate } = req.query;
     const report = await llmGenerationLogsService.getReport({
       startDate: startDate as string | undefined,
@@ -15,11 +16,7 @@ router.get("/", async (req, res) => {
     });
     res.json({ success: true, data: report });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Unauthorized")) {
-      res.status(401).json({ success: false, error: "Unauthorized" });
-    } else {
-      res.status(500).json({ success: false, error: "Internal server error" });
-    }
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 

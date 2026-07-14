@@ -27,11 +27,14 @@ import { logger } from "@/utils/logger";
 import { userService } from "@/services/user.service";
 
 /**
- * Environment variable for RevenueCat webhook authorization
- * Set this in your environment to match the value configured in RevenueCat dashboard
+ * RevenueCat webhook authorization secret. Read at CALL TIME (not captured in
+ * a module-level const) so it can't be silently frozen at import and so it is
+ * testable. Set this in the environment to match the value configured in the
+ * RevenueCat dashboard.
  */
-const REVENUECAT_WEBHOOK_AUTH_HEADER =
-  process.env.REVENUECAT_WEBHOOK_AUTH_HEADER;
+function getWebhookAuthSecret(): string | undefined {
+  return process.env.REVENUECAT_WEBHOOK_AUTH_HEADER;
+}
 
 @Route("subscriptions")
 @Tags("Subscriptions")
@@ -135,40 +138,32 @@ export class SubscriptionController extends Controller {
     @Header("Authorization") authHeader?: string
   ): Promise<{ success: boolean; message: string }> {
     try {
-      // Verify authorization header if configured
+      // Verify authorization header — FAIL CLOSED.
       // @see https://www.revenuecat.com/docs/integrations/webhooks#security-and-best-practices
-      if (REVENUECAT_WEBHOOK_AUTH_HEADER) {
-        // Debug logging for authorization issues
-        logger.debug("Webhook authorization check", {
-          operation: "handleRevenueCatWebhook",
-          expectedHeaderConfigured: !!REVENUECAT_WEBHOOK_AUTH_HEADER,
-          expectedHeaderPreview:
-            REVENUECAT_WEBHOOK_AUTH_HEADER?.substring(0, 8) + "...",
-          receivedHeaderPresent: !!authHeader,
-          receivedHeaderPreview: authHeader
-            ? authHeader.substring(0, 8) + "..."
-            : "none",
-          headersMatch: authHeader === REVENUECAT_WEBHOOK_AUTH_HEADER,
-        });
-
-        if (authHeader !== REVENUECAT_WEBHOOK_AUTH_HEADER) {
-          logger.warn("Invalid webhook authorization", {
-            operation: "handleRevenueCatWebhook",
-            receivedHeader: authHeader ? "[PRESENT_BUT_MISMATCH]" : "missing",
-          });
-          this.setStatus(401);
-          return { success: false, message: "Unauthorized" };
-        }
-      } else {
-        // REVENUECAT_WEBHOOK_AUTH_HEADER is unset - this endpoint is
-        // currently accepting unauthenticated requests from anyone who finds
-        // the URL. warn (not debug) so this is visible at default log levels.
+      //
+      // Previously, an unset REVENUECAT_WEBHOOK_AUTH_HEADER caused this endpoint
+      // to accept ALL requests (anyone who found the URL could forge
+      // subscription state). It now rejects every request unless the shared
+      // secret is configured AND matches. If you see these 401s in prod, set
+      // REVENUECAT_WEBHOOK_AUTH_HEADER to the value configured in the
+      // RevenueCat dashboard.
+      const webhookSecret = getWebhookAuthSecret();
+      if (!webhookSecret) {
         logger.warn(
-          "Webhook authorization not configured, accepting all requests",
-          {
-            operation: "handleRevenueCatWebhook",
-          }
+          "Webhook rejected: REVENUECAT_WEBHOOK_AUTH_HEADER is not configured",
+          { operation: "handleRevenueCatWebhook" }
         );
+        this.setStatus(401);
+        return { success: false, message: "Unauthorized" };
+      }
+
+      if (authHeader !== webhookSecret) {
+        logger.warn("Invalid webhook authorization", {
+          operation: "handleRevenueCatWebhook",
+          receivedHeader: authHeader ? "[PRESENT_BUT_MISMATCH]" : "missing",
+        });
+        this.setStatus(401);
+        return { success: false, message: "Unauthorized" };
       }
 
       const event = payload.event;

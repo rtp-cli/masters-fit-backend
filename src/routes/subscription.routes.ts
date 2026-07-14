@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { SubscriptionController } from "@/controllers/subscription.controller";
 import { ZodError } from "zod";
-import { expressAuthentication } from "@/middleware/auth.middleware";
+import { requireAuth } from "@/middleware/authz.middleware";
 
 const router = Router();
 const controller = new SubscriptionController();
@@ -32,9 +32,8 @@ router.get("/plans", async (req, res) => {
 });
 
 // Get the authenticated user's current subscription status
-router.get("/status", async (req, res) => {
+router.get("/status", requireAuth, async (req, res) => {
   try {
-    await expressAuthentication(req as any, "bearerAuth");
     const response = await controller.getSubscriptionStatus(req as any);
     res.json(response);
   } catch (error) {
