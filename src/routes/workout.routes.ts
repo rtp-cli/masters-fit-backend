@@ -1,19 +1,105 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
+import { randomUUID } from "crypto";
 import { WorkoutController } from "@/controllers/workout.controller";
 import { workoutService } from "@/services/workout.service";
 import { ZodError } from "zod";
-import {
-  subscriptionGuard,
-  subscriptionGuardWithOnboarding,
-} from "@/middleware/subscription.middleware";
 import {
   requireAuth,
   requireSelf,
   requireOwnership,
 } from "@/middleware/authz.middleware";
+import {
+  aiOperationService,
+  ReserveResult,
+} from "@/services/ai-operation.service";
+import { AiOperationType } from "@/constants/access-policy";
 
 const router = Router();
 const controller = new WorkoutController();
+
+/**
+ * Orchestrates the AI-operation reservation for a route: atomically reserve
+ * (entitlement + free-allowance + concurrency/rate), then enqueue the Bull job
+ * and link it to the reservation. A denial becomes a 403 paywall (REQUIRES_PLUS
+ * / FREE_ALLOWANCE_EXHAUSTED) or a 409/429 (concurrency/rate). An enqueue
+ * failure releases the reservation so no allowance is charged.
+ */
+async function withReservation(
+  req: Request,
+  res: Response,
+  operationType: AiOperationType,
+  enqueue: () => Promise<{ jobId: number }>
+): Promise<void> {
+  const userId = Number(req.params.userId);
+  const headerKey = req.header("Idempotency-Key");
+  const idempotencyKey =
+    headerKey && headerKey.trim().length > 0
+      ? headerKey.trim()
+      : `srv:${userId}:${operationType}:${randomUUID()}`;
+
+  let reservation: ReserveResult;
+  try {
+    reservation = await aiOperationService.reserve({
+      userId,
+      operationType,
+      idempotencyKey,
+    });
+  } catch (error) {
+    handleError(error, res);
+    return;
+  }
+
+  if (reservation.status === "duplicate") {
+    // Idempotent replay — return the in-flight job, do not start a second one.
+    res.status(202).json({
+      success: true,
+      jobId: reservation.backgroundJobId,
+      message: "Operation already in progress.",
+    });
+    return;
+  }
+
+  if (reservation.status === "denied") {
+    if (reservation.reason === "CONCURRENCY_LIMIT") {
+      res.status(409).json({
+        success: false,
+        error:
+          "A workout is already being generated. Please wait for it to complete.",
+      });
+      return;
+    }
+    if (reservation.reason === "RATE_LIMIT") {
+      res.status(429).json({
+        success: false,
+        error: "Too many requests right now. Please try again shortly.",
+      });
+      return;
+    }
+    // REQUIRES_PLUS | FREE_ALLOWANCE_EXHAUSTED -> paywall (client intercepts 403).
+    const message =
+      reservation.reason === "REQUIRES_PLUS"
+        ? "MastersFit+ is required to keep creating new workout programs."
+        : "You've used your free workout adjustments. Subscribe to MastersFit+ for ongoing adjustments.";
+    res.status(403).json({
+      success: false,
+      error: message,
+      paywall: { type: reservation.reason.toLowerCase(), message },
+    });
+    return;
+  }
+
+  // Reserved — enqueue the job and link it to the reservation.
+  try {
+    const result = await enqueue();
+    await aiOperationService.attachJob(reservation.operationId, result.jobId);
+    res.status(202).json({ success: true, ...result });
+  } catch (error) {
+    await aiOperationService.settleFailed(reservation.operationId, {
+      failureReason: error instanceof Error ? error.message : String(error),
+    });
+    handleError(error, res);
+  }
+}
 
 // Helper function for consistent error handling.
 // NOTE: authn/authz responses are now produced by the authz middleware
@@ -171,14 +257,16 @@ router.post(
   "/:userId/generate-async",
   requireAuth,
   requireSelf("userId"),
-  subscriptionGuardWithOnboarding(),
   async (req, res) => {
     try {
-      const response = await controller.generateWorkoutPlanAsync(
-        Number(req.params.userId),
-        req.body
+      const userId = Number(req.params.userId);
+      // Ledger truth (not workout-row existence): first plan = free INITIAL_PLAN,
+      // any subsequent new plan = NEW_PROGRAM (PLUS-only).
+      const operationType =
+        await aiOperationService.resolveGenerationType(userId);
+      await withReservation(req, res, operationType, () =>
+        controller.generateWorkoutPlanAsync(userId, req.body)
       );
-      res.status(202).json(response);
     } catch (error) {
       handleError(error, res);
     }
@@ -190,17 +278,11 @@ router.post(
   "/:userId/regenerate-async",
   requireAuth,
   requireSelf("userId"),
-  subscriptionGuard("regeneration", "weekly"),
   async (req, res) => {
-    try {
-      const response = await controller.regenerateWorkoutPlanAsync(
-        Number(req.params.userId),
-        req.body
-      );
-      res.status(202).json(response);
-    } catch (error) {
-      handleError(error, res);
-    }
+    const userId = Number(req.params.userId);
+    await withReservation(req, res, AiOperationType.WEEK_ADJUSTMENT, () =>
+      controller.regenerateWorkoutPlanAsync(userId, req.body)
+    );
   }
 );
 
@@ -210,18 +292,12 @@ router.post(
   requireAuth,
   requireSelf("userId"),
   requireOwnership("planDay", "planDayId"),
-  subscriptionGuard("regeneration", "daily"),
   async (req, res) => {
-    try {
-      const response = await controller.regenerateDailyWorkoutAsync(
-        Number(req.params.userId),
-        Number(req.params.planDayId),
-        req.body
-      );
-      res.status(202).json(response);
-    } catch (error) {
-      handleError(error, res);
-    }
+    const userId = Number(req.params.userId);
+    const planDayId = Number(req.params.planDayId);
+    await withReservation(req, res, AiOperationType.DAY_ADJUSTMENT, () =>
+      controller.regenerateDailyWorkoutAsync(userId, planDayId, req.body)
+    );
   }
 );
 
@@ -344,17 +420,11 @@ router.post(
   "/:userId/rest-day-workout",
   requireAuth,
   requireSelf("userId"),
-  subscriptionGuard("generation"),
   async (req, res) => {
-    try {
-      const response = await controller.generateRestDayWorkoutAsync(
-        Number(req.params.userId),
-        req.body
-      );
-      res.status(202).json(response);
-    } catch (error) {
-      handleError(error, res);
-    }
+    const userId = Number(req.params.userId);
+    await withReservation(req, res, AiOperationType.REST_DAY_WORKOUT, () =>
+      controller.generateRestDayWorkoutAsync(userId, req.body)
+    );
   }
 );
 

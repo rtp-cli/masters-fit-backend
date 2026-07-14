@@ -6,6 +6,11 @@ import { notificationService } from "@/services/notification.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
 import { userService } from "@/services/user.service";
 import { profileService } from "@/services/profile.service";
+import { aiOperationService } from "@/services/ai-operation.service";
+import {
+  getLastTokenUsage,
+  clearLastTokenUsage,
+} from "@/services/prompts.service";
 import {
   WorkoutGenerationJobData,
   WorkoutGenerationJobResult,
@@ -120,6 +125,9 @@ export async function processWorkoutGenerationJob(
       emitProgress(userId, 10);
     }
 
+    // Clear any stale token usage before generation.
+    clearLastTokenUsage(userId);
+
     // Generate workout using existing service
     // The service already handles progress updates via emitProgress
     const workout = await withTimeout(
@@ -156,6 +164,16 @@ export async function processWorkoutGenerationJob(
       result,
       workout.id
     );
+
+    // Settle the AI-operation ledger reservation (INITIAL_PLAN or NEW_PROGRAM)
+    // with real token usage. Idempotent on the reserved state.
+    const tokenUsage = getLastTokenUsage(userId);
+    await aiOperationService.settleCompletedByJobId(jobId, {
+      totalTokens: tokenUsage?.totalTokens,
+      inputTokens: tokenUsage?.inputTokens,
+      outputTokens: tokenUsage?.outputTokens,
+      resultWorkoutId: workout.id,
+    });
 
     // Send push notification
     await notificationService.sendWorkoutCompletionNotification(
@@ -253,6 +271,11 @@ export async function processWorkoutGenerationJob(
         undefined,
         (error as Error).message
       );
+
+      // Release the ledger reservation so the failed op costs no allowance.
+      await aiOperationService.settleFailedByJobId(jobId, {
+        failureReason: (error as Error).message,
+      });
 
       // Verify the update worked
       const verifyJob = await jobsService.getJob(jobId);

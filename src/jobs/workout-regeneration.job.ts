@@ -6,7 +6,7 @@ import { notificationService } from "@/services/notification.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
 import { userService } from "@/services/user.service";
 import { profileService } from "@/services/profile.service";
-import { subscriptionService } from "@/services/subscription.service";
+import { aiOperationService } from "@/services/ai-operation.service";
 import {
   getLastTokenUsage,
   clearLastTokenUsage,
@@ -18,7 +18,6 @@ import {
 } from "@/models/jobs.schema";
 import { emitProgress, clearPersistedGenerationStatus } from "@/utils/websocket-progress.utils";
 import { withTimeout } from "@/utils/timeout.utils";
-import { AccessLevel } from "@/constants";
 
 // Server-side watchdog: bound the whole regeneration so a hang anywhere
 // (including the non-abortable serial fallback path) always fails the job
@@ -107,57 +106,10 @@ export async function processWorkoutRegenerationJob(
       emitProgress(userId, 10);
     }
 
-    // Check subscription limits before regeneration
-    const accessLevel =
-      await subscriptionService.getEffectiveAccessLevel(userId);
-    const estimatedTokens = 2000; // Default estimate
-
-    if (accessLevel !== AccessLevel.UNLIMITED) {
-      const limitCheck = await subscriptionService.checkTrialLimits(
-        userId,
-        "regeneration",
-        estimatedTokens,
-        "weekly"
-      );
-      if (!limitCheck.allowed) {
-        const errorMessage =
-          limitCheck.reason || "Daily regeneration limit exceeded";
-        logger.warn("Workout regeneration blocked by subscription limits", {
-          operation: "workoutRegenerationJob",
-          jobId: job.id,
-          userId,
-          reason: errorMessage,
-          limits: limitCheck.limits,
-        });
-
-        // Update job status to failed with paywall reason
-        await jobsService.updateJobStatus(
-          jobId,
-          JobStatus.FAILED,
-          0,
-          undefined,
-          undefined,
-          errorMessage
-        );
-
-        emitProgress(userId, 0, false, errorMessage);
-
-        // Send error notification
-        await notificationService.sendWorkoutErrorNotification(
-          userId,
-          `Workout regeneration failed: ${errorMessage}`
-        );
-
-        // Return error result without consuming retry attempts
-        return {
-          workoutId: 0,
-          workoutName: "Failed Regeneration",
-          planDaysCount: 0,
-          totalExercises: 0,
-          generationTimeMs: Date.now() - startTime,
-        } as WorkoutRegenerationJobResult;
-      }
-    }
+    // Entitlement + free-allowance were enforced atomically at reservation time
+    // (the route reserves before enqueue). The job just does the work and
+    // settles the ledger — no limit check here.
+    const estimatedTokens = 2000; // fallback if real token usage isn't captured
 
     // Get current active workout before regeneration (for reference)
     const previousActiveWorkout =
@@ -187,15 +139,14 @@ export async function processWorkoutRegenerationJob(
       actualTokensUsed,
     });
 
-    // Increment usage after successful regeneration with real token count
-    if (accessLevel !== AccessLevel.UNLIMITED) {
-      await subscriptionService.incrementTrialUsage(
-        userId,
-        "regeneration",
-        actualTokensUsed,
-        "weekly"
-      );
-    }
+    // Settle the AI-operation ledger reservation with real token usage.
+    // Idempotent on the reserved state, so a Bull retry won't double-count.
+    await aiOperationService.settleCompletedByJobId(jobId, {
+      totalTokens: actualTokensUsed,
+      inputTokens: tokenUsage?.inputTokens,
+      outputTokens: tokenUsage?.outputTokens,
+      resultWorkoutId: workout.id,
+    });
 
     const generationTime = Date.now() - startTime;
 
@@ -334,6 +285,11 @@ export async function processWorkoutRegenerationJob(
         undefined,
         (error as Error).message
       );
+
+      // Release the ledger reservation so the failed op costs no allowance.
+      await aiOperationService.settleFailedByJobId(jobId, {
+        failureReason: (error as Error).message,
+      });
 
       logger.info(
         `Workout regeneration job marked as FAILED after final attempt`,

@@ -6,7 +6,7 @@ import { notificationService } from "@/services/notification.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
 import { userService } from "@/services/user.service";
 import { profileService } from "@/services/profile.service";
-import { subscriptionService } from "@/services/subscription.service";
+import { aiOperationService } from "@/services/ai-operation.service";
 import {
   getLastTokenUsage,
   clearLastTokenUsage,
@@ -17,7 +17,6 @@ import {
   JobStatus,
 } from "@/models/jobs.schema";
 import { emitProgress, clearPersistedGenerationStatus } from "@/utils/websocket-progress.utils";
-import { AccessLevel } from "@/constants";
 
 // Check if error is a rate limit error (429) that shouldn't be retried
 function isRateLimitError(error: Error): boolean {
@@ -114,59 +113,9 @@ export async function processDailyRegenerationJob(
     // Emit initial progress
     emitProgress(userId, 10);
 
-    // Check subscription limits before regeneration
-    const accessLevel =
-      await subscriptionService.getEffectiveAccessLevel(userId);
-    const estimatedTokens = (job.data as any)?.estimatedTokens || 2000; // Default estimate
-
-    if (accessLevel !== AccessLevel.UNLIMITED) {
-      const limitCheck = await subscriptionService.checkTrialLimits(
-        userId,
-        "regeneration",
-        estimatedTokens,
-        "daily"
-      );
-      if (!limitCheck.allowed) {
-        const errorMessage =
-          limitCheck.reason || "Daily regeneration limit exceeded";
-        logger.warn(
-          "Daily workout regeneration blocked by subscription limits",
-          {
-            operation: "dailyRegenerationJob",
-            jobId: jobId,
-            userId,
-            planDayId,
-            reason: errorMessage,
-            limits: limitCheck.limits,
-          }
-        );
-
-        // Update job status to failed with paywall reason
-        await jobsService.updateJobStatus(
-          jobId,
-          JobStatus.FAILED,
-          0,
-          undefined,
-          undefined,
-          errorMessage
-        );
-
-        emitProgress(userId, 0, false, errorMessage);
-
-        // Send error notification
-        await notificationService.sendWorkoutErrorNotification(
-          userId,
-          `Daily workout regeneration failed: ${errorMessage}`
-        );
-
-        // Return error result without consuming retry attempts
-        return {
-          planDayId: planDayId,
-          totalExercises: 0,
-          generationTimeMs: Date.now() - startTime,
-        } as DailyRegenerationJobResult;
-      }
-    }
+    // Entitlement + free-allowance were enforced atomically at reservation time
+    // (the route reserves before enqueue). No limit check here.
+    const estimatedTokens = (job.data as any)?.estimatedTokens || 2000;
 
     // Clear any previous token usage before regeneration
     clearLastTokenUsage(userId);
@@ -194,15 +143,13 @@ export async function processDailyRegenerationJob(
       actualTokensUsed,
     });
 
-    // Increment usage after successful regeneration with real token count
-    if (accessLevel !== AccessLevel.UNLIMITED) {
-      await subscriptionService.incrementTrialUsage(
-        userId,
-        "regeneration",
-        actualTokensUsed,
-        "daily"
-      );
-    }
+    // Settle the AI-operation ledger reservation with real token usage.
+    await aiOperationService.settleCompletedByJobId(jobId, {
+      totalTokens: actualTokensUsed,
+      inputTokens: tokenUsage?.inputTokens,
+      outputTokens: tokenUsage?.outputTokens,
+      resultWorkoutId: standaloneWorkoutId ?? undefined,
+    });
 
     // If this was a standalone workout, activate it and update its name from the generated content
     if (standaloneWorkoutId) {
@@ -402,6 +349,11 @@ export async function processDailyRegenerationJob(
           maxAttempts: job.opts.attempts || 3,
         }
       );
+
+      // Release the ledger reservation so the failed op costs no allowance.
+      await aiOperationService.settleFailedByJobId(jobId, {
+        failureReason: (error as Error).message,
+      });
 
       // Emit error progress
       emitProgress(userId, 0, false, (error as Error).message);
