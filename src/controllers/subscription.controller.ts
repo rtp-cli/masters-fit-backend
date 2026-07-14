@@ -14,6 +14,7 @@ import {
 import { subscriptionService } from "@/services/subscription.service";
 import { accessService } from "@/services/access.service";
 import { aiOperationService } from "@/services/ai-operation.service";
+import { revenueCatService } from "@/services/revenuecat.service";
 import { AccessTier } from "@/constants/access-policy";
 import { SubscriptionStatus } from "@/constants";
 import {
@@ -133,6 +134,60 @@ export class SubscriptionController extends Controller {
       });
 
       this.setStatus(500);
+      throw error;
+    }
+  }
+
+  /**
+   * Reconcile the caller's subscription with RevenueCat immediately (closes the
+   * post-purchase webhook race). The client calls this right after a successful
+   * purchase; we look the subscriber up in RC by userId (the app_user_id the
+   * client logs in with) and, if an entitlement is active, flip our DB to ACTIVE
+   * so guarded endpoints stop 403-ing before the webhook lands. Never downgrades
+   * — expirations/cancellations remain the webhook's job.
+   */
+  @Post("/sync")
+  @Security("bearerAuth")
+  @SuccessResponse(200, "Subscription synced")
+  @Response(401, "Unauthorized")
+  @Response(502, "Upstream (RevenueCat) error")
+  public async syncSubscription(
+    @Request() request: any
+  ): Promise<SubscriptionResponse> {
+    const userId = request.userId;
+    try {
+      // Ensure a subscription row exists to update (auto-creates a trial).
+      await subscriptionService.getUserSubscription(userId);
+
+      const active = await revenueCatService.getActiveEntitlement(
+        String(userId)
+      );
+      if (active) {
+        await subscriptionService.updateUserSubscription(userId, {
+          status: SubscriptionStatus.ACTIVE,
+          planId: active.productId ?? undefined,
+          subscriptionEndDate: active.expiresDate ?? null,
+          revenuecatCustomerId: active.revenuecatCustomerId,
+        });
+        logger.info("Subscription synced from RevenueCat (active)", {
+          operation: "syncSubscription",
+          metadata: { userId },
+        });
+      } else {
+        logger.info("Subscription sync: no active RevenueCat entitlement", {
+          operation: "syncSubscription",
+          metadata: { userId },
+        });
+      }
+
+      // Return the freshly-resolved entitlements (same shape as /status).
+      return this.getSubscriptionStatus(request);
+    } catch (error) {
+      logger.error("Subscription sync failed", error as Error, {
+        operation: "syncSubscription",
+        metadata: { userId },
+      });
+      this.setStatus(502);
       throw error;
     }
   }

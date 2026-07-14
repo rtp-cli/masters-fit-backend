@@ -41,6 +41,16 @@ router.get("/status", requireAuth, async (req, res) => {
   }
 });
 
+// Reconcile subscription with RevenueCat immediately (post-purchase race fix)
+router.post("/sync", requireAuth, async (req, res) => {
+  try {
+    const response = await controller.syncSubscription(req as any);
+    res.json(response);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 // RevenueCat webhook endpoint (no auth required - uses authorization header verification)
 // @see https://www.revenuecat.com/docs/integrations/webhooks#security-and-best-practices
 router.post("/webhooks/revenuecat", async (req, res) => {
