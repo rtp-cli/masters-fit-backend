@@ -31,6 +31,7 @@ import {
 } from "@/models/logs.schema";
 import { userSubscriptions, trialUsage } from "@/models/subscription.schema";
 import { backgroundJobs } from "@/models/jobs.schema";
+import { aiOperations } from "@/models/ai-operations.schema";
 import { exercises } from "@/models/exercise.schema";
 import { SubscriptionStatus } from "@/constants";
 import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
@@ -395,6 +396,8 @@ async function deleteDemoUser(): Promise<void> {
         .delete(workoutBlocks)
         .where(inArray(workoutBlocks.planDayId, dayIds));
     await db.delete(planDays).where(inArray(planDays.workoutId, workoutIds));
+    // ai_operations references workouts and background_jobs — clear it first.
+    await db.delete(aiOperations).where(eq(aiOperations.userId, userId));
     // background_jobs references workouts (and the user) — clear before workouts.
     await db.delete(backgroundJobs).where(eq(backgroundJobs.userId, userId));
     await db.delete(workouts).where(eq(workouts.userId, userId));
