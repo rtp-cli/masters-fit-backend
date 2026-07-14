@@ -3,6 +3,7 @@ import { expressAuthentication } from "@/middleware/auth.middleware";
 import { ownershipService, OwnedObjectType } from "@/services/ownership.service";
 import { accessService } from "@/services/access.service";
 import { Capability } from "@/constants/access-policy";
+import { requiresPlusMessageFor } from "@/constants/paywall-copy";
 import { logger } from "@/utils/logger";
 
 /**
@@ -320,7 +321,7 @@ export function requireCapability(capability: Capability): RequestHandler {
         req.userId === undefined ||
         !(await accessService.hasCapability(req.userId, capability))
       ) {
-        const message = "MastersFit+ is required to access this feature.";
+        const message = requiresPlusMessageFor(capability);
         res.status(403).json({
           success: false,
           error: message,

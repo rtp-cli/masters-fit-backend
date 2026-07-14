@@ -13,6 +13,7 @@ import {
   ReserveResult,
 } from "@/services/ai-operation.service";
 import { AiOperationType } from "@/constants/access-policy";
+import { PAYWALL_COPY } from "@/constants/paywall-copy";
 
 const router = Router();
 const controller = new WorkoutController();
@@ -76,10 +77,13 @@ async function withReservation(
       return;
     }
     // REQUIRES_PLUS | FREE_ALLOWANCE_EXHAUSTED -> paywall (client intercepts 403).
+    // For AI ops, REQUIRES_PLUS only fires on NEW_PROGRAM (a new plan) — FREE
+    // has the adjustment capabilities (allowance-metered), so exhaustion is the
+    // other branch.
     const message =
       reservation.reason === "REQUIRES_PLUS"
-        ? "MastersFit+ is required to keep creating new workout programs."
-        : "You've used your free workout adjustments. Subscribe to MastersFit+ for ongoing adjustments.";
+        ? PAYWALL_COPY.REQUIRES_PLUS_NEW_PLAN
+        : PAYWALL_COPY.FREE_ALLOWANCE_EXHAUSTED;
     res.status(403).json({
       success: false,
       error: message,

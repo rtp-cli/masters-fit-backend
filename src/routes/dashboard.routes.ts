@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { DashboardController } from "@/controllers/dashboard.controller";
 import { ZodError } from "zod";
-import { requireAuth, requireSelf } from "@/middleware/authz.middleware";
+import {
+  requireAuth,
+  requireSelf,
+  requireCapability,
+} from "@/middleware/authz.middleware";
+import { accessService } from "@/services/access.service";
+import { Capability } from "@/constants/access-policy";
 
 const router = Router();
 const controller = new DashboardController();
@@ -21,7 +27,29 @@ const handleError = (error: unknown, res: any) => {
   }
 };
 
-// Get comprehensive dashboard metrics
+// Advanced ("progress") sections of the composite /metrics response. These are
+// MastersFit+ only (decision D4); stripped to null for users without
+// VIEW_PROGRESS_ANALYTICS. Basic engagement (weeklySummary, workoutConsistency,
+// dailyWorkoutProgress) stays free.
+const ADVANCED_METRIC_KEYS = [
+  "weightMetrics",
+  "weightAccuracy",
+  "goalProgress",
+  "totalVolumeMetrics",
+  "workoutTypeMetrics",
+];
+function stripAdvancedMetrics(response: any): void {
+  const data = response?.data;
+  if (!data) return;
+  for (const key of ADVANCED_METRIC_KEYS) {
+    if (key in data) data[key] = null;
+  }
+}
+
+const PROGRESS = Capability.VIEW_PROGRESS_ANALYTICS;
+
+// Comprehensive dashboard metrics — FREE gets basic sections; advanced
+// (progress) sections are stripped unless the user has VIEW_PROGRESS_ANALYTICS.
 router.get(
   "/:userId/metrics",
   requireAuth,
@@ -35,6 +63,9 @@ router.get(
         endDate as string,
         timeRange as "1w" | "1m" | "3m" | "6m" | "1y"
       );
+      if (!(await accessService.hasCapability(Number(req.params.userId), PROGRESS))) {
+        stripAdvancedMetrics(response);
+      }
       res.json(response);
     } catch (error) {
       handleError(error, res);
@@ -42,7 +73,7 @@ router.get(
   }
 );
 
-// Get weekly summary
+// Weekly summary (streak + weekly completion) — FREE.
 router.get(
   "/:userId/weekly-summary",
   requireAuth,
@@ -59,7 +90,7 @@ router.get(
   }
 );
 
-// Get workout consistency
+// Workout consistency (engagement — did you show up) — FREE.
 router.get(
   "/:userId/workout-consistency",
   requireAuth,
@@ -80,11 +111,13 @@ router.get(
   }
 );
 
-// Get weight metrics
+// ---- Advanced progress analytics (MastersFit+ only) ------------------------
+
 router.get(
   "/:userId/weight-metrics",
   requireAuth,
   requireSelf("userId"),
+  requireCapability(PROGRESS),
   async (req, res) => {
     try {
       const { startDate, endDate, groupBy, timeRange } = req.query;
@@ -102,11 +135,11 @@ router.get(
   }
 );
 
-// Get weight accuracy
 router.get(
   "/:userId/weight-accuracy",
   requireAuth,
   requireSelf("userId"),
+  requireCapability(PROGRESS),
   async (req, res) => {
     try {
       const { startDate, endDate, timeRange } = req.query;
@@ -123,11 +156,11 @@ router.get(
   }
 );
 
-// Get goal progress
 router.get(
   "/:userId/goal-progress",
   requireAuth,
   requireSelf("userId"),
+  requireCapability(PROGRESS),
   async (req, res) => {
     try {
       const { startDate, endDate, timeRange } = req.query;
@@ -144,11 +177,11 @@ router.get(
   }
 );
 
-// Get total volume metrics
 router.get(
   "/:userId/total-volume",
   requireAuth,
   requireSelf("userId"),
+  requireCapability(PROGRESS),
   async (req, res) => {
     try {
       const { startDate, endDate, timeRange } = req.query;
@@ -165,11 +198,11 @@ router.get(
   }
 );
 
-// Get workout type metrics
 router.get(
   "/:userId/workout-type-metrics",
   requireAuth,
   requireSelf("userId"),
+  requireCapability(PROGRESS),
   async (req, res) => {
     try {
       const { startDate, endDate, timeRange } = req.query;
@@ -186,11 +219,11 @@ router.get(
   }
 );
 
-// Get weight progression metrics
 router.get(
   "/:userId/weight-progression",
   requireAuth,
   requireSelf("userId"),
+  requireCapability(PROGRESS),
   async (req, res) => {
     try {
       const { startDate, endDate, timeRange } = req.query;
@@ -207,11 +240,11 @@ router.get(
   }
 );
 
-// Get raw weight accuracy data by date (for frontend filtering)
 router.get(
   "/:userId/weight-accuracy-by-date",
   requireAuth,
   requireSelf("userId"),
+  requireCapability(PROGRESS),
   async (req, res) => {
     try {
       const { startDate, endDate, timeRange } = req.query;
@@ -228,11 +261,11 @@ router.get(
   }
 );
 
-// Get raw workout type data by date (for frontend filtering)
 router.get(
   "/:userId/workout-type-by-date",
   requireAuth,
   requireSelf("userId"),
+  requireCapability(PROGRESS),
   async (req, res) => {
     try {
       const { startDate, endDate, timeRange } = req.query;
