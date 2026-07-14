@@ -12,6 +12,9 @@ import {
   Header,
 } from "@tsoa/runtime";
 import { subscriptionService } from "@/services/subscription.service";
+import { accessService } from "@/services/access.service";
+import { aiOperationService } from "@/services/ai-operation.service";
+import { AccessTier } from "@/constants/access-policy";
 import { SubscriptionStatus } from "@/constants";
 import {
   RevenueCatWebhookPayload,
@@ -94,10 +97,20 @@ export class SubscriptionController extends Controller {
   ): Promise<SubscriptionResponse> {
     try {
       const userId = request.userId;
-      const [subscription, accessLevel] = await Promise.all([
-        subscriptionService.getUserSubscription(userId),
-        subscriptionService.getEffectiveAccessLevel(userId),
-      ]);
+      const [subscription, accessLevel, tier, capabilities] = await Promise.all(
+        [
+          subscriptionService.getUserSubscription(userId),
+          subscriptionService.getEffectiveAccessLevel(userId),
+          accessService.resolveAccessTier(userId),
+          accessService.getCapabilities(userId),
+        ]
+      );
+
+      // Free-allowance remaining is only meaningful for the metered FREE tier.
+      const freeAllowances =
+        tier === AccessTier.FREE
+          ? await aiOperationService.getFreeAllowanceStatus(userId)
+          : null;
 
       return {
         success: true,
@@ -112,6 +125,7 @@ export class SubscriptionController extends Controller {
             subscription.subscriptionEndDate?.toISOString() ?? null,
           accessLevel,
         },
+        entitlements: { tier, capabilities, freeAllowances },
       };
     } catch (error) {
       logger.error("Failed to retrieve subscription status", error as Error, {

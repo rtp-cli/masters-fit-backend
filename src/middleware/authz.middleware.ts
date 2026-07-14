@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction, RequestHandler } from "express";
 import { expressAuthentication } from "@/middleware/auth.middleware";
 import { ownershipService, OwnedObjectType } from "@/services/ownership.service";
+import { accessService } from "@/services/access.service";
+import { Capability } from "@/constants/access-policy";
 import { logger } from "@/utils/logger";
 
 /**
@@ -300,6 +302,42 @@ function parseAdminIds(): Set<number> {
       .map((s) => Number(s.trim()))
       .filter((n) => Number.isInteger(n) && n > 0)
   );
+}
+
+/**
+ * Server-side entitlement gate: 403s (as a paywall) unless the authenticated
+ * user's tier grants `capability`. For premium read features (advanced
+ * analytics, etc.). Must run after requireAuth.
+ */
+export function requireCapability(capability: Capability): RequestHandler {
+  return async function requireCapabilityGuard(
+    req: AuthedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      if (
+        req.userId === undefined ||
+        !(await accessService.hasCapability(req.userId, capability))
+      ) {
+        const message = "MastersFit+ is required to access this feature.";
+        res.status(403).json({
+          success: false,
+          error: message,
+          paywall: { type: "requires_plus", message },
+        });
+        return;
+      }
+      next();
+    } catch (error) {
+      logger.error("Capability check failed", error as Error, {
+        operation: "requireCapability",
+        userId: req.userId,
+        metadata: { capability },
+      });
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  };
 }
 
 export function requireAdmin(

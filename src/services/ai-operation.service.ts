@@ -132,6 +132,52 @@ export class AiOperationService extends BaseService {
   }
 
   /**
+   * Free-tier lifetime allowance status per bucket (used/limit/remaining),
+   * derived from the ledger. For the /subscriptions/status endpoint so the
+   * client can show remaining adjustments. Rest-day ops count toward the day
+   * bucket. (Meaningful for FREE; PLUS/COMP/BYPASS aren't metered this way.)
+   */
+  async getFreeAllowanceStatus(userId: number): Promise<{
+    initialPlan: { limit: number; used: number; remaining: number };
+    weekAdjustment: { limit: number; used: number; remaining: number };
+    dayAdjustment: { limit: number; used: number; remaining: number };
+  }> {
+    const staleCutoff = new Date(Date.now() - STALE_RESERVATION_MS);
+    const countBucket = async (types: AiOperationType[]): Promise<number> => {
+      const [{ n }] = await this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(aiOperations)
+        .where(
+          and(
+            eq(aiOperations.userId, userId),
+            inArray(aiOperations.operationType, types),
+            inArray(aiOperations.status, CONSUMING_STATUSES),
+            eq(aiOperations.countedAgainstFreeAllowance, true),
+            gt(aiOperations.createdAt, staleCutoff)
+          )
+        );
+      return n;
+    };
+    const mk = (bucket: string, used: number) => {
+      const limit = FREE_ALLOWANCES[bucket] ?? 0;
+      return { limit, used, remaining: Math.max(0, limit - used) };
+    };
+    const [initialUsed, weekUsed, dayUsed] = await Promise.all([
+      countBucket([AiOperationType.INITIAL_PLAN]),
+      countBucket([AiOperationType.WEEK_ADJUSTMENT]),
+      countBucket([
+        AiOperationType.DAY_ADJUSTMENT,
+        AiOperationType.REST_DAY_WORKOUT,
+      ]),
+    ]);
+    return {
+      initialPlan: mk(AiOperationType.INITIAL_PLAN, initialUsed),
+      weekAdjustment: mk(AiOperationType.WEEK_ADJUSTMENT, weekUsed),
+      dayAdjustment: mk(AiOperationType.DAY_ADJUSTMENT, dayUsed),
+    };
+  }
+
+  /**
    * Atomically reserve an AI operation. Returns a reservation, an existing
    * duplicate (same idempotencyKey), or a denial (paywall / concurrency / rate).
    */
