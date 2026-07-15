@@ -9,23 +9,12 @@ import {
   InsertUserSubscription,
   InsertTrialUsage,
   UpdateUserSubscription,
-  UpdateTrialUsage,
 } from "@/models/subscription.schema";
 import { BaseService } from "@/services/base.service";
 import { logger } from "@/utils/logger";
 import { getCurrentUTCDate } from "@/utils/date.utils";
-import { AccessLevel, TRIAL_LIMITS, SubscriptionStatus } from "@/constants";
+import { AccessLevel, SubscriptionStatus } from "@/constants";
 import type { AccessOverride } from "@/constants/access-policy";
-
-export interface TrialLimitCheck {
-  allowed: boolean;
-  reason?: string;
-  limits?: {
-    weeklyGenerations: { used: number; limit: number };
-    dailyRegenerations: { used: number; limit: number };
-    tokens: { used: number; limit: number };
-  };
-}
 
 export class SubscriptionService extends BaseService {
   /**
@@ -163,158 +152,6 @@ export class SubscriptionService extends BaseService {
         return usage;
       },
       { operation: "getTrialUsage", userId }
-    );
-  }
-
-  /**
-   * Note: Weekly generations are tracked as a LIFETIME limit (2 total weekly plan generations)
-   * The count is stored in trial_usage.weeklyGenerationsCount and never resets automatically
-   */
-
-  /**
-   * Check trial limits before allowing operation
-   * For regenerations: Uses OR logic - if ANY limit (weekly, daily, or tokens) is exceeded, user is blocked
-   * For generations: Only checks token limit
-   */
-  async checkTrialLimits(
-    userId: number,
-    operation: "generation" | "regeneration",
-    estimatedTokens: number = 0,
-    scope: "weekly" | "daily" = "weekly"
-  ): Promise<TrialLimitCheck> {
-    const usage = await this.getTrialUsage(userId);
-
-    const limits = {
-      weeklyGenerations: {
-        used: usage.weeklyGenerationsCount,
-        limit: TRIAL_LIMITS.WEEKLY_GENERATIONS,
-      },
-      dailyRegenerations: {
-        used: usage.dailyRegenerationsCount,
-        limit: TRIAL_LIMITS.DAILY_REGENERATIONS,
-      },
-      tokens: {
-        used: usage.tokensUsed,
-        limit: TRIAL_LIMITS.TOKEN_CAP,
-      },
-    };
-
-    // For generations: only check token limit
-    if (operation === "generation") {
-      if (usage.tokensUsed + estimatedTokens > TRIAL_LIMITS.TOKEN_CAP) {
-        return {
-          allowed: false,
-          reason: "Token limit exceeded",
-          limits,
-        };
-      }
-      return {
-        allowed: true,
-        limits,
-      };
-    }
-
-    // For regenerations: Check ALL three limits with OR logic
-    // Check weekly limit, daily limit, AND token limit - if ANY is exceeded, block
-    const exceededLimits: string[] = [];
-
-    // Check weekly regeneration limit (applies to all regenerations)
-    if (usage.weeklyGenerationsCount >= TRIAL_LIMITS.WEEKLY_GENERATIONS) {
-      exceededLimits.push("weekly");
-    }
-
-    // Check daily regeneration limit (applies to all regenerations)
-    if (usage.dailyRegenerationsCount >= TRIAL_LIMITS.DAILY_REGENERATIONS) {
-      exceededLimits.push("daily");
-    }
-
-    // Check token limit (applies to all regenerations)
-    if (usage.tokensUsed + estimatedTokens > TRIAL_LIMITS.TOKEN_CAP) {
-      exceededLimits.push("tokens");
-    }
-
-    // If ANY limit is exceeded, block the user
-    if (exceededLimits.length > 0) {
-      // Determine the primary reason based on which limits are exceeded
-      let reason: string;
-      if (exceededLimits.includes("tokens")) {
-        reason = "Token limit exceeded";
-      } else if (exceededLimits.includes("weekly")) {
-        reason = "Weekly plan regeneration limit exceeded (2 total lifetime)";
-      } else if (exceededLimits.includes("daily")) {
-        reason = "Day-plan regeneration limit exceeded (5 total lifetime)";
-      } else {
-        reason = "Trial limit exceeded";
-      }
-
-      // If multiple limits are exceeded, mention all of them
-      if (exceededLimits.length > 1) {
-        const limitNames = exceededLimits.map((limit) => {
-          if (limit === "weekly") return "weekly regenerations";
-          if (limit === "daily") return "daily regenerations";
-          return "tokens";
-        });
-        reason = `Trial limits exceeded: ${limitNames.join(", ")}. Subscribe to continue.`;
-      }
-
-      return {
-        allowed: false,
-        reason,
-        limits,
-      };
-    }
-
-    return {
-      allowed: true,
-      limits,
-    };
-  }
-
-  /**
-   * Increment trial usage after operation
-   */
-  async incrementTrialUsage(
-    userId: number,
-    operation: "generation" | "regeneration",
-    tokensUsed: number,
-    scope: "weekly" | "daily" = "weekly"
-  ): Promise<void> {
-    await this.executeWithRetry(
-      async () => {
-        const usage = await this.getTrialUsage(userId);
-        const now = getCurrentUTCDate();
-
-        const updateData: UpdateTrialUsage = {
-          tokensUsed: usage.tokensUsed + tokensUsed,
-          updatedAt: now,
-        };
-
-        if (operation === "regeneration") {
-          if (scope === "weekly") {
-            updateData.weeklyGenerationsCount =
-              usage.weeklyGenerationsCount + 1;
-          } else {
-            updateData.dailyRegenerationsCount =
-              usage.dailyRegenerationsCount + 1;
-          }
-        }
-
-        await this.db
-          .update(trialUsage)
-          .set(updateData)
-          .where(eq(trialUsage.userId, userId));
-
-        logger.info("Trial usage incremented", {
-          operation: "incrementTrialUsage",
-          metadata: {
-            userId,
-            operation,
-            tokensUsed,
-            newTotalTokens: updateData.tokensUsed,
-          },
-        });
-      },
-      { operation: "incrementTrialUsage", userId }
     );
   }
 
