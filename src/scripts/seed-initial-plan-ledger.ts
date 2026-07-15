@@ -37,7 +37,10 @@ import {
 // reviewers, invited testers). NOTE: keep genuine free-tier test accounts
 // (e.g. listsimpl+01@gmail.com) OUT of both lists so free-tier gating stays
 // testable.
-const BYPASS_EMAILS: string[] = ["rich.pusateri@conradlabs.com"]; // dev / admin
+const BYPASS_EMAILS: string[] = [
+  "rtp@mastersfit.ai", // dev — prod login
+  "rich.pusateri@conradlabs.com", // dev — not a prod user (skipped there)
+];
 const COMPLIMENTARY_EMAILS: string[] = ["rtp+demo@mastersfit.ai"]; // demo / reviewers
 // -----------------------------------------------------------------------------
 
