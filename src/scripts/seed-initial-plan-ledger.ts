@@ -32,9 +32,13 @@ import {
   AiOperationStatus,
 } from "@/constants/access-policy";
 
-// --- OPTIONAL: fill these in for account classification ----------------------
-const BYPASS_EMAILS: string[] = []; // dev / admin accounts
-const COMPLIMENTARY_EMAILS: string[] = []; // invited testers / reviewers / demo
+// --- Account classification --------------------------------------------------
+// BYPASS = internal/dev (unlimited). COMPLIMENTARY = granted-paid (demo,
+// reviewers, invited testers). NOTE: keep genuine free-tier test accounts
+// (e.g. listsimpl+01@gmail.com) OUT of both lists so free-tier gating stays
+// testable.
+const BYPASS_EMAILS: string[] = ["rich.pusateri@conradlabs.com"]; // dev / admin
+const COMPLIMENTARY_EMAILS: string[] = ["rtp+demo@mastersfit.ai"]; // demo / reviewers
 // -----------------------------------------------------------------------------
 
 const CONSUMING = [AiOperationStatus.RESERVED, AiOperationStatus.COMPLETED];
@@ -126,12 +130,20 @@ async function classify(
       console.log(`  [${tier}] would set access_override for ${email} (user ${u.id})`);
       continue;
     }
-    // getUserSubscription creates a trial row on first access; ensure it exists.
-    await db
+    const updated = await db
       .update(userSubscriptions)
       .set({ accessOverride: tier, accessOverrideExpiresAt: null })
-      .where(eq(userSubscriptions.userId, u.id));
-    console.log(`  [${tier}] set access_override for ${email} (user ${u.id})`);
+      .where(eq(userSubscriptions.userId, u.id))
+      .returning({ userId: userSubscriptions.userId });
+    if (updated.length === 0) {
+      // A user_subscriptions row is created lazily on first getUserSubscription
+      // call; if it doesn't exist yet the UPDATE matches nothing.
+      console.log(
+        `  [${tier}] ⚠️  ${email} (user ${u.id}) has NO user_subscriptions row — override NOT applied. Have them open the app once, then re-run.`
+      );
+    } else {
+      console.log(`  [${tier}] set access_override for ${email} (user ${u.id})`);
+    }
   }
 }
 
