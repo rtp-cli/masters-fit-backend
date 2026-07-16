@@ -14,6 +14,7 @@ import {
 } from "@/services/ai-operation.service";
 import { AiOperationType } from "@/constants/access-policy";
 import { PAYWALL_COPY } from "@/constants/paywall-copy";
+import { clearPersistedGenerationStatus } from "@/utils/websocket-progress.utils";
 
 const router = Router();
 const controller = new WorkoutController();
@@ -94,6 +95,16 @@ async function withReservation(
 
   // Reserved — enqueue the job and link it to the reservation.
   try {
+    // Wipe the previous run's per-day timeline from Redis BEFORE enqueuing, so
+    // the client's first poll of the new job can't read the prior job's stale
+    // `days`/`complete` snapshot (the persisted status is user-scoped, not
+    // job-scoped). The worker also clears at start, but that lands too late:
+    // between enqueue and the worker actually picking the job up, the polled
+    // job-status endpoint would otherwise return the old completed timeline —
+    // which is the "consecutive adjustment shows the prior completed panel"
+    // bug. Clearing here (before enqueue) also avoids racing the new worker's
+    // own early progress events.
+    await clearPersistedGenerationStatus(userId);
     const result = await enqueue();
     await aiOperationService.attachJob(reservation.operationId, result.jobId);
     res.status(202).json({ success: true, ...result });
