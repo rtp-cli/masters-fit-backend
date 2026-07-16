@@ -1002,11 +1002,42 @@ const models: TsoaRoute.Models = {
         "enums": ["unlimited","trial","blocked"],
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "AccessTier": {
+        "dataType": "refEnum",
+        "enums": ["FREE","PLUS","COMPLIMENTARY","BYPASS"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "Record_Capability.boolean_": {
+        "dataType": "refAlias",
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"GENERATE_INITIAL_PLAN":{"dataType":"boolean"},"GENERATE_NEW_PROGRAM":{"dataType":"boolean"},"ADJUST_WEEK":{"dataType":"boolean"},"ADJUST_DAY":{"dataType":"boolean"},"VIEW_PROGRESS_ANALYTICS":{"dataType":"boolean"},"SYNC_HEALTH":{"dataType":"boolean"}},"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "AllowanceStatus": {
+        "dataType": "refObject",
+        "properties": {
+            "limit": {"dataType":"double","required":true},
+            "used": {"dataType":"double","required":true},
+            "remaining": {"dataType":"double","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "EntitlementsInfo": {
+        "dataType": "refObject",
+        "properties": {
+            "tier": {"ref":"AccessTier","required":true},
+            "capabilities": {"ref":"Record_Capability.boolean_","required":true},
+            "freeAllowances": {"dataType":"union","subSchemas":[{"dataType":"nestedObjectLiteral","nestedProperties":{"dayAdjustment":{"ref":"AllowanceStatus","required":true},"weekAdjustment":{"ref":"AllowanceStatus","required":true},"initialPlan":{"ref":"AllowanceStatus","required":true}}},{"dataType":"enum","enums":[null]}],"required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "SubscriptionResponse": {
         "dataType": "refObject",
         "properties": {
             "success": {"dataType":"enum","enums":[true],"required":true},
             "subscription": {"dataType":"nestedObjectLiteral","nestedProperties":{"accessLevel":{"ref":"AccessLevel","required":true},"subscriptionEndDate":{"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},"subscriptionStartDate":{"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},"planId":{"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},"status":{"ref":"SubscriptionStatus","required":true},"userId":{"dataType":"double","required":true},"id":{"dataType":"double","required":true}},"required":true},
+            "entitlements": {"ref":"EntitlementsInfo"},
         },
         "additionalProperties": false,
     },
@@ -1228,7 +1259,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_InsertWorkout_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"isActive":{"dataType":"any"},"startDate":{"dataType":"string"},"endDate":{"dataType":"string"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"completed":{"dataType":"any"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"isActive":{"dataType":"any"},"startDate":{"dataType":"string"},"endDate":{"dataType":"string"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"completed":{"dataType":"any"},"sourceType":{"dataType":"string"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PlanDayResponse": {
@@ -3387,6 +3418,32 @@ export function RegisterRoutes(app: Router) {
 
 
               const promise = controller.getSubscriptionStatus.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/subscriptions/sync',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SubscriptionController)),
+            ...(fetchMiddlewares<RequestHandler>(SubscriptionController.prototype.syncSubscription)),
+
+            function SubscriptionController_syncSubscription(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new SubscriptionController();
+
+
+              const promise = controller.syncSubscription.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 200, next);
             } catch (err) {
                 return next(err);

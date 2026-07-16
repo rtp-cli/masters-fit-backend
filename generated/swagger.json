@@ -2849,6 +2849,101 @@
 				],
 				"type": "string"
 			},
+			"AccessTier": {
+				"description": "Typed access-tier + capability policy — the single server-side source of\ntruth for \"what can a tier do\" in the MastersFit / MastersFit+ model.\n\nEntitlements (capabilities) are separate from usage limits (FREE_ALLOWANCES):\na FREE user HAS the adjustment capabilities but is additionally metered by a\nlifetime allowance. The client mirrors capabilities via GET /subscriptions/\nstatus for UX only; the server remains authoritative.",
+				"enum": [
+					"FREE",
+					"PLUS",
+					"COMPLIMENTARY",
+					"BYPASS"
+				],
+				"type": "string"
+			},
+			"Record_Capability.boolean_": {
+				"properties": {
+					"GENERATE_INITIAL_PLAN": {
+						"type": "boolean"
+					},
+					"GENERATE_NEW_PROGRAM": {
+						"type": "boolean"
+					},
+					"ADJUST_WEEK": {
+						"type": "boolean"
+					},
+					"ADJUST_DAY": {
+						"type": "boolean"
+					},
+					"VIEW_PROGRESS_ANALYTICS": {
+						"type": "boolean"
+					},
+					"SYNC_HEALTH": {
+						"type": "boolean"
+					}
+				},
+				"type": "object",
+				"description": "Construct a type with a set of properties K of type T"
+			},
+			"AllowanceStatus": {
+				"properties": {
+					"limit": {
+						"type": "number",
+						"format": "double"
+					},
+					"used": {
+						"type": "number",
+						"format": "double"
+					},
+					"remaining": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"limit",
+					"used",
+					"remaining"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"EntitlementsInfo": {
+				"description": "The new entitlement model surfaced to the client as its single source of\ntruth (P1/P2). Additive to the legacy `subscription.accessLevel` block so the\ncurrent app keeps working until it's updated to read this.",
+				"properties": {
+					"tier": {
+						"$ref": "#/components/schemas/AccessTier"
+					},
+					"capabilities": {
+						"$ref": "#/components/schemas/Record_Capability.boolean_"
+					},
+					"freeAllowances": {
+						"properties": {
+							"dayAdjustment": {
+								"$ref": "#/components/schemas/AllowanceStatus"
+							},
+							"weekAdjustment": {
+								"$ref": "#/components/schemas/AllowanceStatus"
+							},
+							"initialPlan": {
+								"$ref": "#/components/schemas/AllowanceStatus"
+							}
+						},
+						"required": [
+							"dayAdjustment",
+							"weekAdjustment",
+							"initialPlan"
+						],
+						"type": "object",
+						"nullable": true
+					}
+				},
+				"required": [
+					"tier",
+					"capabilities",
+					"freeAllowances"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SubscriptionResponse": {
 				"properties": {
 					"success": {
@@ -2897,6 +2992,9 @@
 							"id"
 						],
 						"type": "object"
+					},
+					"entitlements": {
+						"$ref": "#/components/schemas/EntitlementsInfo"
 					}
 				},
 				"required": [
@@ -3485,7 +3583,10 @@
 					},
 					"updatedAt": {},
 					"promptId": {},
-					"completed": {}
+					"completed": {},
+					"sourceType": {
+						"type": "string"
+					}
 				},
 				"type": "object",
 				"description": "Make all properties in T optional"
@@ -8258,6 +8359,10 @@
 							"application/json": {
 								"schema": {
 									"properties": {
+										"total": {
+											"type": "number",
+											"format": "double"
+										},
 										"hasMore": {
 											"type": "boolean"
 										},
@@ -8270,6 +8375,7 @@
 										}
 									},
 									"required": [
+										"total",
 										"hasMore",
 										"exercises",
 										"success"
@@ -8604,6 +8710,39 @@
 					}
 				},
 				"description": "Get the authenticated user's current subscription status\nLets the frontend confirm the backend is actually in sync after a purchase\n(e.g. RevenueCat webhook processed) instead of trusting only local SDK state.",
+				"tags": [
+					"Subscriptions"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/subscriptions/sync": {
+			"post": {
+				"operationId": "SyncSubscription",
+				"responses": {
+					"200": {
+						"description": "Subscription synced",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SubscriptionResponse"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"502": {
+						"description": "Upstream (RevenueCat) error"
+					}
+				},
+				"description": "Reconcile the caller's subscription with RevenueCat immediately (closes the\npost-purchase webhook race). The client calls this right after a successful\npurchase; we look the subscriber up in RC by userId (the app_user_id the\nclient logs in with) and, if an entitlement is active, flip our DB to ACTIVE\nso guarded endpoints stop 403-ing before the webhook lands. Never downgrades\n— expirations/cancellations remain the webhook's job.",
 				"tags": [
 					"Subscriptions"
 				],
