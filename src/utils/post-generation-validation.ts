@@ -2,7 +2,7 @@ import { Profile } from "@/models";
 import { validateEquipmentAndFilter } from "@/utils/equipment-validation";
 import { validateLimitationsAndFilter } from "@/utils/limitation-validation";
 import {
-  checkExerciseRepetition,
+  capExerciseRepetition,
   ExerciseRepetitionFinding,
 } from "@/utils/workout-balance-validation";
 
@@ -19,9 +19,11 @@ import {
  * was broken.
  *
  * Order matters here: equipment filtering runs first, its output feeds
- * limitation filtering, and repetition-checking runs against the fully
+ * limitation filtering, and the repetition cap runs against the fully
  * filtered result — a repeated exercise that equipment/limitation filtering
- * already removed shouldn't still be flagged as "repeated."
+ * already removed shouldn't still be counted (or capped) as "repeated."
+ * [LR-049] The repetition step now ENFORCES (drops over-repeats) in addition
+ * to returning findings for logging, mirroring the equipment/limitation filters.
  */
 export function applyPostGenerationValidation(
   rawExercisesToAdd: any[],
@@ -44,7 +46,8 @@ export function applyPostGenerationValidation(
     profile
   );
 
-  const repetitionFindings = checkExerciseRepetition(workoutPlan);
+  const { workoutPlan: cappedPlan, findings: repetitionFindings } =
+    capExerciseRepetition(workoutPlan);
 
-  return { exercisesToAdd, workoutPlan, repetitionFindings };
+  return { exercisesToAdd, workoutPlan: cappedPlan, repetitionFindings };
 }

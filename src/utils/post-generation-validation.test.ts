@@ -85,7 +85,7 @@ describe("applyPostGenerationValidation [LR-019]", () => {
     expect(remainingBlockNames).toEqual(["Push-Up"]);
   });
 
-  it("still flags a genuinely repeated exercise that passes both filters (an existing catalog exercise, not in exercisesToAdd)", () => {
+  it("[LR-049] caps a genuinely repeated exercise that passes both filters — keeps 2, still reports the finding", () => {
     const workoutPlan = [
       dayWithExercises(1, ["Push-Up", "Push-Up", "Push-Up"]),
     ];
@@ -96,7 +96,9 @@ describe("applyPostGenerationValidation [LR-019]", () => {
       homeGymProfile
     );
 
-    expect(result.workoutPlan[0].blocks[0].exercises).toHaveLength(3);
+    // The 3rd copy is now dropped (cap = 2), and the finding is still surfaced
+    // for logging (reporting the original count before capping).
+    expect(result.workoutPlan[0].blocks[0].exercises).toHaveLength(2);
     expect(result.repetitionFindings).toEqual([
       { dayNumber: 1, exerciseName: "Push-Up", count: 3 },
     ]);

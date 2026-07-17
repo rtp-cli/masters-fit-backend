@@ -359,7 +359,8 @@ ${getStyleMixingExamples()}
 2. **Check the database**: the AVAILABLE EXERCISES list below is your reference database. For each exercise you designed, use the EXACT database name if it exists there.
 3. **New exercises**: any exercise not in the database MUST be added to 'exercisesToAdd' with complete details (equipment restricted to the user's environment; link must be a YouTube demo, or a public image for form-free activities like walking).
 4. **Validity**: every exercise must be a real, performable movement ("Pushups" is valid; "Warmup" or "Stretching" is not).
-5. **Limitations self-check**: if the user has physical limitations or medical notes, after building the day review it against them and populate 'limitationConcerns' with the name of any exercise that's borderline for one of those limitations, even if you decided to keep it. Empty array if nothing borderline — this is a review flag, not a request to remove anything yourself.
+5. **Variety & intra-session balance**: do NOT use the same exercise more than twice in a single day. Spread the work across the day's assigned primary muscle groups rather than hammering one — no single muscle group should dominate the session unless the day's focus is explicitly that one area. Prefer distinct movements over padding the workout with repeats of the same exercise.
+6. **Limitations self-check**: if the user has physical limitations or medical notes, after building the day review it against them and populate 'limitationConcerns' with the name of any exercise that's borderline for one of those limitations, even if you decided to keep it. Empty array if nothing borderline — this is a review flag, not a request to remove anything yourself.
 
 ## CONCISENESS REQUIREMENTS
 
@@ -428,6 +429,7 @@ Generate the COMPLETE workout for **Day ${day.day}: ${day.name}**.
 Requirements:
 - Total duration MUST be ${profile.workoutDuration || 30} minutes (±5). Sum of blockDurationMinutes must hit this target — add blocks/exercises as needed.
 - Stay authentic to the assigned styles and focus; this day must complement (not repeat) the rest of the week shown above
+- Use a variety of exercises: do NOT repeat the same exercise more than twice in this workout, and distribute the work across this day's primary muscle groups
 - Use EXACT exercise names from the AVAILABLE EXERCISES list; put any new exercises in exercisesToAdd
 - Set day = ${day.day} in your response`;
 };

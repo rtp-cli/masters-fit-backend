@@ -8,7 +8,10 @@ import {
 } from "@langchain/core/messages";
 import { Profile } from "@/models";
 import { filterExercisesByLimitations } from "@/utils/limitation-validation";
-import { checkConsecutiveMuscleGroupOverload } from "@/utils/workout-balance-validation";
+import {
+  buildMuscleRebalanceFeedback,
+  checkConsecutiveMuscleGroupOverload,
+} from "@/utils/workout-balance-validation";
 import { applyPostGenerationValidation } from "@/utils/post-generation-validation";
 import { buildProgressionContext } from "@/utils/progression-context";
 import { workoutService } from "./workout.service";
@@ -526,18 +529,25 @@ ${exerciseContext}`
       provider: this.currentProvider,
       operation: "generateWeeklyWorkout",
     });
-    const planResult: any = await runWithAbortTimeout(
-      (signal) =>
-        planLlm.invoke(
-          [planningSystemMessage, new HumanMessage(buildPlanningUserMessage(profile, customFeedback))],
-          { signal }
-        ),
-      fanoutAbort.signal,
-      PLANNING_CALL_TIMEOUT_MS,
-      "Fan-out planning call"
+    // Reusable so the LR-049 muscle-balance re-plan below can invoke a second,
+    // corrective planning call without duplicating the timeout/usage plumbing.
+    const runPlanningCall = async (userMessage: string): Promise<WeekPlan> => {
+      const result: any = await runWithAbortTimeout(
+        (signal) =>
+          planLlm.invoke(
+            [planningSystemMessage, new HumanMessage(userMessage)],
+            { signal }
+          ),
+        fanoutAbort.signal,
+        PLANNING_CALL_TIMEOUT_MS,
+        "Fan-out planning call"
+      );
+      recordUsage(result.raw);
+      return result.parsed as WeekPlan;
+    };
+    let weekPlan = await runPlanningCall(
+      buildPlanningUserMessage(profile, customFeedback)
     );
-    recordUsage(planResult.raw);
-    const weekPlan = planResult.parsed as WeekPlan;
     const expectedDayCount = profile.availableDays?.length || 7;
     logger.info("Fan-out planning call completed", {
       userId,
@@ -568,18 +578,61 @@ ${exerciseContext}`
     });
 
     // [LR-049] This is the one point in the pipeline with cross-day context —
-    // the parallel per-day fan-out calls below don't see each other's
-    // output, so consecutive-day muscle-group balance can only be checked
-    // here, against the planning stage's per-day focus assignments.
-    const muscleGroupOverloads = checkConsecutiveMuscleGroupOverload(
+    // the parallel per-day fan-out calls below don't see each other's output,
+    // so consecutive-day muscle-group balance can only be enforced here,
+    // against the planning stage's per-day focus assignments. Detection alone
+    // wasn't enough (the planner sometimes ignores its own "no consecutive
+    // same-muscle" instruction), so on a violation we re-plan ONCE with
+    // corrective feedback naming the offending day pairs — bounded to a single
+    // extra (cheap Haiku) planning call; a best-effort correction that never
+    // fails generation.
+    let muscleGroupOverloads = checkConsecutiveMuscleGroupOverload(
       weekPlan.days
     );
+    if (muscleGroupOverloads.length > 0) {
+      logger.warn(
+        "Plan stacks same-muscle-group on consecutive days — re-planning once",
+        {
+          userId,
+          operation: "generateWeeklyWorkout",
+          metadata: { overloads: muscleGroupOverloads },
+        }
+      );
+      try {
+        const rebalanced = await runPlanningCall(
+          `${buildPlanningUserMessage(profile, customFeedback)}\n\n${buildMuscleRebalanceFeedback(muscleGroupOverloads)}`
+        );
+        // Only accept the re-plan if it returned a usable day count; otherwise
+        // keep the original (already-validated) plan and log the residual below.
+        if ((rebalanced?.days?.length || 0) >= expectedDayCount) {
+          weekPlan = {
+            ...rebalanced,
+            days: rebalanced.days
+              .slice(0, expectedDayCount)
+              .map((day, index) => ({ ...day, day: index + 1 })),
+          };
+          muscleGroupOverloads =
+            checkConsecutiveMuscleGroupOverload(weekPlan.days);
+        }
+      } catch (error) {
+        // Re-plan is a best-effort correction — never fail generation on it.
+        logger.warn("Muscle-balance re-plan failed; keeping original plan", {
+          userId,
+          operation: "generateWeeklyWorkout",
+          error: (error as Error).message,
+        });
+      }
+    }
+    // Any overload still present after the bounded re-plan — surface it.
     for (const finding of muscleGroupOverloads) {
-      logger.warn("Consecutive days share a primary muscle group focus", {
-        userId,
-        operation: "generateWeeklyWorkout",
-        ...finding,
-      });
+      logger.warn(
+        "Consecutive days share a primary muscle group focus (post re-plan)",
+        {
+          userId,
+          operation: "generateWeeklyWorkout",
+          ...finding,
+        }
+      );
     }
     onProgress?.({
       type: "plan_ready",
