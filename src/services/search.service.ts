@@ -539,16 +539,23 @@ export class SearchService extends BaseService {
       // Build WHERE conditions
       const conditions: any[] = [];
 
-      // Text search
+      // Text search — terms hoisted so the ORDER BY below reuses the same ones.
+      const lowerQuery = query ? query.toLowerCase() : "";
+      const searchTerm = query ? `%${lowerQuery}%` : "";
       if (query) {
-        const searchTerm = `%${query.toLowerCase()}%`;
+        // [LR-022] Mirror searchExercises: OR a pg_trgm similarity check so the
+        // filtered search is typo-tolerant too ("bencg press" -> "bench press").
+        // The plain searchExercises path already had this; the filtered path
+        // (used whenever a muscle/equipment/difficulty filter is applied) did
+        // not. 0.3 = pg_trgm's default similarity_threshold GUC.
         conditions.push(sql`
           LOWER(${exercises.name}) LIKE ${searchTerm} OR
           LOWER(${exercises.description}) LIKE ${searchTerm} OR
           EXISTS (
             SELECT 1 FROM unnest(${exercises.muscleGroups}) AS muscle_group
             WHERE LOWER(muscle_group) LIKE ${searchTerm}
-          )
+          ) OR
+          similarity(LOWER(${exercises.name}), ${lowerQuery}) > 0.3
         `);
       }
 
@@ -608,7 +615,24 @@ export class SearchService extends BaseService {
         where: whereClause,
         limit: limit + 1,
         offset,
-        orderBy: (exercises, { asc }) => [asc(exercises.name)],
+        // [LR-022/LR-057] With a query, rank by match quality
+        // (exact > starts-with > contains > fuzzy-only) then similarity, so a
+        // fuzzy/muscle-group hit can't outrank an exact name match; id is the
+        // final tiebreak for stable pagination. Plain name order when browsing
+        // by filters only (no query).
+        orderBy: query
+          ? sql`
+            CASE
+              WHEN LOWER(${exercises.name}) = ${lowerQuery} THEN 0
+              WHEN LOWER(${exercises.name}) LIKE ${lowerQuery + "%"} THEN 1
+              WHEN LOWER(${exercises.name}) LIKE ${searchTerm} THEN 2
+              ELSE 3
+            END,
+            similarity(LOWER(${exercises.name}), ${lowerQuery}) DESC,
+            ${exercises.name} ASC,
+            ${exercises.id} ASC
+          `
+          : (exercises, { asc }) => [asc(exercises.name)],
       });
 
       const pageResults = results.slice(0, limit);
