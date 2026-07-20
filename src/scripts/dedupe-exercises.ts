@@ -73,6 +73,20 @@ const TIER2_PAIRS: [number, number][] = [
   [1951, 2004], [1995, 2016],
 ];
 
+// Tier 3 — LR-035 near-duplicate tier, hand-reviewed 2026-07-19 against a live
+// prod re-query (pg_trgm similarity 0.85–0.99: singular/plural, apostrophe,
+// word-order variants). Deliberately EXCLUDES confirmed false positives found
+// during review — Warrior II vs III (distinct poses), Sumo vs conventional
+// Kettlebell Deadlift High Pull (distinct stance), and plain- vs Wall-Supported
+// hip circles — and the "Barbell … - Warm-up/Drop Set N" generation-artifact
+// rows (distinct set-stages, not dupes; separate cleanup, see LR-064). Prod ids
+// only; resolveClusters() skips any id absent from the targeted database.
+const TIER3_PAIRS: [number, number][] = [
+  [2040, 2067], [636, 1270], [46, 1974], [66, 538], [88, 1924], [940, 1378],
+  [2028, 2093], [1048, 1320], [849, 1712], [619, 777], [213, 1812], [1232, 1880],
+  [506, 598], [514, 963], [1334, 1826], [360, 480], [517, 813], [515, 1883],
+];
+
 class UnionFind {
   private parent = new Map<number, number>();
   private ensure(x: number): number {
@@ -122,20 +136,27 @@ async function resolveClusters(): Promise<Cluster[]> {
     for (let i = 1; i < ids.length; i++) uf.union(ids[0], ids[i]);
   }
 
-  // Tier 2 — vetted pairs, skipping any id absent from this database.
-  let tier2Applied = 0;
-  let tier2Skipped = 0;
-  for (const [a, b] of TIER2_PAIRS) {
-    if (!existingIds.has(a) || !existingIds.has(b)) {
-      tier2Skipped++;
-      continue;
+  // Tier 2 + Tier 3 — vetted pairs, skipping any id absent from this database.
+  const unionVettedPairs = (pairs: [number, number][]) => {
+    let applied = 0;
+    let skipped = 0;
+    for (const [a, b] of pairs) {
+      if (!existingIds.has(a) || !existingIds.has(b)) {
+        skipped++;
+        continue;
+      }
+      uf.union(a, b);
+      applied++;
     }
-    uf.union(a, b);
-    tier2Applied++;
-  }
+    return { applied, skipped };
+  };
+  const tier2 = unionVettedPairs(TIER2_PAIRS);
+  const tier3 = unionVettedPairs(TIER3_PAIRS);
   console.log(
-    `Tier 1: ${tier1Groups} exact-name groups. Tier 2: ${tier2Applied} pairs applied, ` +
-      `${tier2Skipped} skipped (ids not present on this database).`
+    `Tier 1: ${tier1Groups} exact-name groups. ` +
+      `Tier 2: ${tier2.applied} applied, ${tier2.skipped} skipped. ` +
+      `Tier 3: ${tier3.applied} applied, ${tier3.skipped} skipped ` +
+      `(skipped = ids not present on this database).`
   );
 
   const clusterMembers = new Map<number, number[]>();
