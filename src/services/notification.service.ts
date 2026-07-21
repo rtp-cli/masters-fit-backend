@@ -244,6 +244,62 @@ export class NotificationService {
     }
   }
 
+  /**
+   * [LR-007] Notify the user when a payment fails and the subscription enters
+   * the grace period, so a billing issue doesn't silently lapse into an
+   * expiration. Mirrors the other push notifications; no-ops (returns false)
+   * when the user has no push token. `gracePeriodExpiresAt`, when known, rides
+   * along so the app can show a deadline / deep-link to manage-subscription.
+   */
+  async sendBillingIssueNotification(
+    userId: number,
+    gracePeriodExpiresAt?: Date | null
+  ): Promise<boolean> {
+    try {
+      const user = await userService.getUserById(userId);
+
+      if (!user?.pushNotificationToken) {
+        logger.info(
+          'No push token found for user, skipping billing-issue notification',
+          { operation: 'sendBillingIssueNotification', userId }
+        );
+        return false;
+      }
+
+      const message: ExpoPushMessage = {
+        to: user.pushNotificationToken,
+        sound: 'default',
+        title: 'Payment issue with MastersFit+',
+        body: "We couldn't process your latest payment. Update your payment method to keep your MastersFit+ access.",
+        data: {
+          type: 'billing_issue',
+          gracePeriodExpiresAt: gracePeriodExpiresAt
+            ? gracePeriodExpiresAt.toISOString()
+            : null,
+          userId,
+        },
+        categoryId: 'billing_issue',
+        priority: 'high',
+      };
+
+      await this.sendPushNotification([message]);
+
+      logger.info('Billing-issue notification sent', {
+        operation: 'sendBillingIssueNotification',
+        userId,
+        gracePeriodExpiresAt,
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Failed to send billing-issue notification', error as Error, {
+        operation: 'sendBillingIssueNotification',
+        userId,
+      });
+      return false;
+    }
+  }
+
   async sendDailyWorkoutReminderNotification(
     userId: number,
     workoutName: string

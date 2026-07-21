@@ -29,6 +29,7 @@ import {
 } from "@/types/subscription/responses";
 import { logger } from "@/utils/logger";
 import { userService } from "@/services/user.service";
+import { notificationService } from "@/services/notification.service";
 
 /**
  * RevenueCat webhook authorization secret. Read at CALL TIME (not captured in
@@ -861,9 +862,16 @@ export class SubscriptionController extends Controller {
       originalTransactionId: event.original_transaction_id,
     });
 
-    // TODO: Consider sending notification to user about payment issue
-    // The EXPIRATION event with cancel_reason BILLING_ERROR will be sent
-    // if grace period ends without payment recovery
+    // [LR-007] Notify the user so a billing failure doesn't silently lapse
+    // into expiration while they still have grace-period access to recover.
+    // Fire-and-forget: the notification must never block or fail the webhook
+    // response to RevenueCat (the method self-contains its errors). The
+    // EXPIRATION event with cancel_reason BILLING_ERROR still fires if the
+    // grace period ends without payment recovery.
+    void notificationService.sendBillingIssueNotification(
+      userId,
+      gracePeriodExpiresAt
+    );
   }
 
   /**

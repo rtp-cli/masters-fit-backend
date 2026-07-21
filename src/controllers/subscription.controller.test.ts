@@ -2,6 +2,7 @@ import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals
 import { SubscriptionController } from "@/controllers/subscription.controller";
 import { subscriptionService } from "@/services/subscription.service";
 import { userService } from "@/services/user.service";
+import { notificationService } from "@/services/notification.service";
 import { RevenueCatWebhookPayload } from "@/types/subscription/requests";
 
 jest.mock("@/services/subscription.service", () => ({
@@ -22,8 +23,20 @@ jest.mock("@/services/user.service", () => ({
   },
 }));
 
+// [LR-007] handleBillingIssue fires a (fire-and-forget) billing notification.
+// Mock it so the un-awaited call resolves synchronously in tests — without the
+// mock it reaches expo-server-sdk and logs after teardown ("Cannot log after
+// tests are done"). Keeping it fire-and-forget in prod is deliberate (must not
+// block/fail the webhook response).
+jest.mock("@/services/notification.service", () => ({
+  notificationService: {
+    sendBillingIssueNotification: jest.fn(async () => true),
+  },
+}));
+
 const mockedSubscriptionService = jest.mocked(subscriptionService);
 const mockedUserService = jest.mocked(userService);
+const mockedNotificationService = jest.mocked(notificationService);
 
 // Webhook auth is now fail-closed: the secret must be configured AND match.
 // Configure it for the business-logic webhook tests below; the calls pass the
@@ -346,6 +359,11 @@ describe("SubscriptionController.handleRevenueCatWebhook — event types [LR-018
       .calls[0][1] as { status: string; subscriptionEndDate: Date | null };
     expect(call.status).toBe("grace_period");
     expect(call.subscriptionEndDate?.getTime()).toBe(graceExpiry);
+    // [LR-007] user is notified of the billing issue while in grace period
+    const notifyArgs =
+      mockedNotificationService.sendBillingIssueNotification.mock.calls[0];
+    expect(notifyArgs[0]).toBe(19);
+    expect((notifyArgs[1] as Date)?.getTime()).toBe(graceExpiry);
   });
 
   it("puts the user into grace period on BILLING_ISSUE even with no grace_period_expiration_at_ms field", async () => {
