@@ -12,6 +12,7 @@ export interface ExerciseSetLog {
   weight: number | null;
   reps: number | null;
   restAfter: number | null;
+  durationSeconds: number | null;
   createdAt: Date;
 }
 

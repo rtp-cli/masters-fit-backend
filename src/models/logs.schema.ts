@@ -76,6 +76,10 @@ export const exerciseSetLogs = pgTable(
     weight: decimal("weight", { precision: 6, scale: 2 }),
     reps: integer("reps"),
     restAfter: integer("rest_after"),
+    // Actual time performed for duration-based sets (holds, carries, cardio).
+    // Previously time-only efforts had no set-level home and were invisible
+    // to analytics (gap-analysis Phase 3).
+    durationSeconds: integer("duration_seconds"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -230,6 +234,7 @@ export const insertExerciseSetLogSchema = createInsertSchema(exerciseSetLogs, {
   weight: z.number().min(0).optional(),
   reps: z.number().min(0).optional(),
   restAfter: z.number().min(0).optional(),
+  durationSeconds: z.number().min(0).optional(),
 }).omit({
   id: true,
   createdAt: true,
@@ -310,6 +315,7 @@ export const updateExerciseSetLogSchema = z.object({
   weight: z.number().min(0).optional(),
   reps: z.number().min(0).optional(),
   restAfter: z.number().min(0).optional(),
+  durationSeconds: z.number().min(0).optional(),
 });
 
 export const updateBlockLogSchema = z.object({
@@ -380,6 +386,7 @@ export interface ExerciseSetLog {
   weight: number | null;
   reps: number | null;
   restAfter: number | null;
+  durationSeconds: number | null;
   createdAt: Date;
 }
 
