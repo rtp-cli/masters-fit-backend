@@ -93,6 +93,10 @@ export const workoutBlocks = pgTable("workout_blocks", {
     .notNull()
     .references(() => planDays.id),
   blockType: text("block_type").default("traditional"), // Type of workout block
+  // How this block is scored, independent of structure (gap-analysis Phase 2):
+  // completion | rounds_reps | time | reps | load | quality | none.
+  // Nullable — old rows derive a default from blockType in code.
+  scoringType: text("scoring_type"),
   blockName: text("block_name"), // Name of the workout block
   blockDurationMinutes: integer("block_duration_minutes"), // Calculated duration of the block in minutes
   timeCapMinutes: integer("time_cap_minutes"), // Time cap for AMRAP/EMOM blocks
@@ -214,6 +218,7 @@ export interface WorkoutBlock {
   id: number;
   planDayId: number;
   blockType: string | null;
+  scoringType: string | null;
   blockName: string | null;
   blockDurationMinutes: number | null;
   timeCapMinutes: number | null;

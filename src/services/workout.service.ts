@@ -51,6 +51,7 @@ import {
   determineRounds,
 } from "@/utils/workout-block-configuration.utils";
 import { emitProgress, emitGenerationStatus } from "@/utils/websocket-progress.utils";
+import { deriveScoringType } from "@/utils/scoring-type";
 
 type DBWorkoutResult = {
   id: number;
@@ -1144,6 +1145,7 @@ export class WorkoutService extends BaseService {
           workoutBlocksData.push({
             planDayId: planDay.id,
             blockType: block.blockType,
+            scoringType: deriveScoringType(block.blockType),
             blockName: block.blockName,
             blockDurationMinutes: block.blockDurationMinutes != null ? Math.floor(block.blockDurationMinutes) : undefined,
             timeCapMinutes: block.timeCapMinutes != null ? Math.floor(block.timeCapMinutes) : undefined,
@@ -1554,6 +1556,7 @@ export class WorkoutService extends BaseService {
           const newBlock = await this.createWorkoutBlock({
             planDayId,
             blockType: block.blockType,
+            scoringType: deriveScoringType(block.blockType),
             blockName: block.blockName,
             blockDurationMinutes: block.blockDurationMinutes != null ? Math.floor(block.blockDurationMinutes) : undefined,
             timeCapMinutes: block.timeCapMinutes != null ? Math.floor(block.timeCapMinutes) : undefined,
@@ -2016,6 +2019,9 @@ export class WorkoutService extends BaseService {
             .values({
               planDayId: newPlanDay.id,
               blockType: originalBlock.blockType,
+              scoringType:
+                originalBlock.scoringType ??
+                deriveScoringType(originalBlock.blockType),
               blockName: originalBlock.blockName,
               blockDurationMinutes: originalBlock.blockDurationMinutes,
               timeCapMinutes: originalBlock.timeCapMinutes,
@@ -2076,6 +2082,9 @@ export class WorkoutService extends BaseService {
             .values({
               planDayId: newPlanDay.id,
               blockType: originalBlock.blockType,
+              scoringType:
+                originalBlock.scoringType ??
+                deriveScoringType(originalBlock.blockType),
               blockName: originalBlock.blockName,
               blockDurationMinutes: originalBlock.blockDurationMinutes,
               timeCapMinutes: originalBlock.timeCapMinutes,
@@ -2387,6 +2396,8 @@ export class WorkoutService extends BaseService {
         .values({
           planDayId: newPlanDay.id,
           blockType: sourceBlock.blockType,
+          scoringType:
+            sourceBlock.scoringType ?? deriveScoringType(sourceBlock.blockType),
           blockName: sourceBlock.blockName,
           blockDurationMinutes: sourceBlock.blockDurationMinutes,
           timeCapMinutes: sourceBlock.timeCapMinutes,

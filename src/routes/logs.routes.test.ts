@@ -27,6 +27,7 @@ describe("logsRouter wiring", () => {
     ["get", "/exercise/:planDayId"],
     ["post", "/block"],
     ["put", "/block/:blockLogId"],
+    ["get", "/block/history"],
     ["get", "/block/plan-day/:planDayId"],
     ["post", "/workout/day/:planDayId/complete"],
     ["post", "/workout/day/:planDayId/reopen"],

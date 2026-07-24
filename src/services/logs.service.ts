@@ -23,6 +23,7 @@ import {
   workouts,
 } from "@/models/workout.schema";
 import { users } from "@/models/user.schema";
+import { deriveScoringType } from "@/utils/scoring-type";
 import { BaseService } from "./base.service";
 import { eventTrackingService } from "./event-tracking.service";
 import { eq, and, or, inArray, desc, count, sum } from "drizzle-orm";
@@ -453,6 +454,86 @@ export class LogsService extends BaseService {
       where: inArray(blockLogs.workoutBlockId, blockIds),
       orderBy: [desc(blockLogs.createdAt)],
     });
+  }
+
+  /**
+   * Recent block-level results for a user (score history), newest first.
+   * Each row carries block context (type, scoring type, name, day date)
+   * plus an isBest flag: whether it is the user's best result among all
+   * their block logs with the same effective scoring type.
+   *   rounds_reps -> max (roundsCompleted, then totalReps)
+   *   time        -> min positive time (actualTimeMinutes, else totalDuration)
+   *   reps        -> max totalReps
+   * completion/load results never get the flag.
+   */
+  async getBlockResultHistory(userId: number, limit: number = 20) {
+    const rows = await this.db
+      .select({
+        id: blockLogs.id,
+        workoutBlockId: blockLogs.workoutBlockId,
+        roundsCompleted: blockLogs.roundsCompleted,
+        totalReps: blockLogs.totalReps,
+        actualTimeMinutes: blockLogs.actualTimeMinutes,
+        totalDuration: blockLogs.totalDuration,
+        score: blockLogs.score,
+        createdAt: blockLogs.createdAt,
+        blockType: workoutBlocks.blockType,
+        scoringType: workoutBlocks.scoringType,
+        blockName: workoutBlocks.blockName,
+        planDayId: planDays.id,
+        planDayDate: planDays.date,
+      })
+      .from(blockLogs)
+      .innerJoin(workoutBlocks, eq(blockLogs.workoutBlockId, workoutBlocks.id))
+      .innerJoin(planDays, eq(workoutBlocks.planDayId, planDays.id))
+      .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+      .where(and(eq(workouts.userId, userId), eq(blockLogs.isComplete, true)))
+      .orderBy(desc(blockLogs.createdAt));
+
+    const effectiveScoring = (row: (typeof rows)[number]) =>
+      row.scoringType ?? deriveScoringType(row.blockType);
+    const timeOf = (row: (typeof rows)[number]) => {
+      const seconds =
+        (row.totalDuration ?? 0) > 0
+          ? row.totalDuration!
+          : (row.actualTimeMinutes ?? 0) * 60;
+      return seconds > 0 ? seconds : null;
+    };
+
+    const isBest = (row: (typeof rows)[number]): boolean => {
+      const scoring = effectiveScoring(row);
+      const peers = rows.filter((r) => effectiveScoring(r) === scoring);
+      switch (scoring) {
+        case "rounds_reps":
+          return peers.every(
+            (r) =>
+              (r.roundsCompleted ?? 0) < (row.roundsCompleted ?? 0) ||
+              ((r.roundsCompleted ?? 0) === (row.roundsCompleted ?? 0) &&
+                (r.totalReps ?? 0) <= (row.totalReps ?? 0))
+          );
+        case "reps":
+          return (
+            (row.totalReps ?? 0) > 0 &&
+            peers.every((r) => (r.totalReps ?? 0) <= (row.totalReps ?? 0))
+          );
+        case "time": {
+          const t = timeOf(row);
+          if (t === null) return false;
+          return peers.every((r) => {
+            const rt = timeOf(r);
+            return rt === null || rt >= t;
+          });
+        }
+        default:
+          return false;
+      }
+    };
+
+    return rows.slice(0, limit).map((row) => ({
+      ...row,
+      scoringType: effectiveScoring(row),
+      isBest: isBest(row),
+    }));
   }
 
   // ==================== PLAN DAY LOGS ====================

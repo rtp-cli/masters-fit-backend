@@ -280,6 +280,20 @@ router.put(
   }
 );
 
+// Recent block-level results for the authenticated user (score history)
+router.get("/block/history", requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const results = await logsService.getBlockResultHistory(
+      (req as any).userId,
+      limit
+    );
+    res.json({ success: true, results });
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 router.get(
   "/block/plan-day/:planDayId",
   requireAuth,
