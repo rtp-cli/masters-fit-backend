@@ -2328,7 +2328,17 @@ export class WorkoutService extends BaseService {
 
       targetWorkoutId = activeWorkout.id;
     } else {
-      // No active workout — create a new standalone single-day workout
+      // No active workout *for today* — create a new standalone single-day workout.
+      // fetchActiveWorkout is date-bounded (is_active AND today in [start,end]), but
+      // the idx_workouts_user_active unique index is date-agnostic (one is_active=true
+      // row per user). A user whose current plan window has already elapsed can still
+      // have an is_active=true row, so deactivate any lingering active workout first —
+      // otherwise the insert below collides with the unique index (400 duplicate key).
+      await this.db
+        .update(workouts)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
+
       const prompt = await promptsService.createPrompt({
         userId,
         prompt: "Repeated past day workout",
