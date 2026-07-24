@@ -54,7 +54,7 @@ export interface BlockLog {
 export interface PlanDayLog {
   id: number;
   planDayId: number;
-  totalTimeMinutes: number | null;
+  totalTimeSeconds: number | null;
   blocksCompleted: number | null;
   exercisesCompleted: number | null;
   totalVolume: number | null;
@@ -78,10 +78,14 @@ export interface WorkoutLog {
   daysCompleted: number | null;
   totalDays: number | null;
   totalVolume: number | null;
-  averageRating: number | null;
+  // Drizzle returns decimal columns as strings; some service paths
+  // normalize to number before returning
+  averageRating: number | string | null;
   completedExercises: number[] | null;
   completedBlocks: number[] | null;
   completedDays: number[] | null;
+  skippedExercises: number[] | null;
+  skippedBlocks: number[] | null;
   isComplete: boolean;
   isActive: boolean;
   notes: string | null;

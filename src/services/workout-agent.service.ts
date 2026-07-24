@@ -34,6 +34,10 @@ import { AIProvider } from "@/constants/ai-providers";
 import { llmGenerationLogsService } from "./llm-generation-logs.service";
 import { runWithAbortTimeout } from "@/utils/timeout.utils";
 import { Semaphore } from "@/utils/concurrency.utils";
+import {
+  validateDailyGenerationResponse,
+  validateWeeklyGenerationResponse,
+} from "@/utils/generation-response-validation";
 
 // Hard per-call ceilings for the fan-out LLM calls. Without these a stalled
 // provider connection (one that never sends an RST) hangs the await forever,
@@ -400,12 +404,18 @@ Please generate the workout now, addressing this feedback while following all sy
       // Clean up the active generation
       this.activeGenerations.delete(generationKey);
 
-      // Parse and return the workout with token usage
+      // Parse and validate: this serial path has no structured-output
+      // enforcement (unlike fan-out), so shape problems must be caught here
+      // rather than surfacing as persistence failures or silent drops.
       const cleanedResponse = this.cleanJsonResponse(
         response.content as string
       );
+      const parsed = JSON.parse(cleanedResponse);
+      const workout = dayNumber
+        ? validateDailyGenerationResponse(parsed)
+        : validateWeeklyGenerationResponse(parsed);
       return {
-        workout: JSON.parse(cleanedResponse),
+        workout,
         tokenUsage,
       };
     } catch (error) {

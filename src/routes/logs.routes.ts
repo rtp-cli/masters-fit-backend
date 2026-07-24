@@ -248,6 +248,54 @@ router.post(
   }
 );
 
+// Block log routes — block-level results (rounds completed, time, score)
+router.post(
+  "/block",
+  requireAuth,
+  requireOwnershipFromBody("workoutBlock", "workoutBlockId"),
+  async (req, res) => {
+    try {
+      const response = await controller.createBlockLog(req.body);
+      res.status(201).json(response);
+    } catch (error) {
+      handleError(error, res);
+    }
+  }
+);
+
+router.put(
+  "/block/:blockLogId",
+  requireAuth,
+  requireOwnership("blockLog", "blockLogId"),
+  async (req, res) => {
+    try {
+      const response = await controller.updateBlockLog(
+        Number(req.params.blockLogId),
+        req.body
+      );
+      res.json(response);
+    } catch (error) {
+      handleError(error, res);
+    }
+  }
+);
+
+router.get(
+  "/block/plan-day/:planDayId",
+  requireAuth,
+  requireOwnership("planDay", "planDayId"),
+  async (req, res) => {
+    try {
+      const response = await controller.getBlockLogsForPlanDay(
+        Number(req.params.planDayId)
+      );
+      res.json(response);
+    } catch (error) {
+      handleError(error, res);
+    }
+  }
+);
+
 // Mark workout as complete
 router.post(
   "/workout/:workoutId/complete",
