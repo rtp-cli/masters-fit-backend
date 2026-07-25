@@ -52,6 +52,7 @@ import {
 } from "@/utils/workout-block-configuration.utils";
 import { emitProgress, emitGenerationStatus } from "@/utils/websocket-progress.utils";
 import { deriveScoringType } from "@/utils/scoring-type";
+import { normalizeProtocolConfig } from "@/utils/protocol-config";
 
 type DBWorkoutResult = {
   id: number;
@@ -1146,6 +1147,7 @@ export class WorkoutService extends BaseService {
             planDayId: planDay.id,
             blockType: block.blockType,
             scoringType: deriveScoringType(block.blockType),
+            protocolConfig: normalizeProtocolConfig(block.protocolConfig),
             blockName: block.blockName,
             blockDurationMinutes: block.blockDurationMinutes != null ? Math.floor(block.blockDurationMinutes) : undefined,
             timeCapMinutes: block.timeCapMinutes != null ? Math.floor(block.timeCapMinutes) : undefined,
@@ -1185,9 +1187,12 @@ export class WorkoutService extends BaseService {
                 exerciseId: exerciseDetails.id,
                 sets: exercise.sets,
                 reps: exercise.reps,
+                repsMin: exercise.repsMin,
+                repsMax: exercise.repsMax,
                 weight: exercise.weight,
                 duration: exercise.duration,
                 restTime: exercise.restTime,
+                rpe: exercise.rpe,
                 notes: exercise.notes,
                 order: exercise.order,
               });
@@ -1557,6 +1562,7 @@ export class WorkoutService extends BaseService {
             planDayId,
             blockType: block.blockType,
             scoringType: deriveScoringType(block.blockType),
+            protocolConfig: normalizeProtocolConfig(block.protocolConfig),
             blockName: block.blockName,
             blockDurationMinutes: block.blockDurationMinutes != null ? Math.floor(block.blockDurationMinutes) : undefined,
             timeCapMinutes: block.timeCapMinutes != null ? Math.floor(block.timeCapMinutes) : undefined,
@@ -1579,9 +1585,12 @@ export class WorkoutService extends BaseService {
                   exerciseId: exerciseDetails.id,
                   sets: exercise.sets,
                   reps: exercise.reps,
+                  repsMin: exercise.repsMin,
+                  repsMax: exercise.repsMax,
                   weight: exercise.weight,
                   duration: exercise.duration,
                   restTime: exercise.restTime,
+                  rpe: exercise.rpe,
                   notes: exercise.notes,
                   order: exercise.order,
                 });
@@ -2022,6 +2031,7 @@ export class WorkoutService extends BaseService {
               scoringType:
                 originalBlock.scoringType ??
                 deriveScoringType(originalBlock.blockType),
+              protocolConfig: originalBlock.protocolConfig,
               blockName: originalBlock.blockName,
               blockDurationMinutes: originalBlock.blockDurationMinutes,
               timeCapMinutes: originalBlock.timeCapMinutes,
@@ -2040,9 +2050,12 @@ export class WorkoutService extends BaseService {
               exerciseId: originalExercise.exerciseId,
               sets: originalExercise.sets,
               reps: originalExercise.reps,
+              repsMin: originalExercise.repsMin,
+              repsMax: originalExercise.repsMax,
               weight: originalExercise.weight,
               duration: originalExercise.duration,
               restTime: originalExercise.restTime,
+              rpe: originalExercise.rpe,
               completed: false, // Reset completion status
               notes: originalExercise.notes,
               order: originalExercise.order,
@@ -2085,6 +2098,7 @@ export class WorkoutService extends BaseService {
               scoringType:
                 originalBlock.scoringType ??
                 deriveScoringType(originalBlock.blockType),
+              protocolConfig: originalBlock.protocolConfig,
               blockName: originalBlock.blockName,
               blockDurationMinutes: originalBlock.blockDurationMinutes,
               timeCapMinutes: originalBlock.timeCapMinutes,
@@ -2103,9 +2117,12 @@ export class WorkoutService extends BaseService {
               exerciseId: originalExercise.exerciseId,
               sets: originalExercise.sets,
               reps: originalExercise.reps,
+              repsMin: originalExercise.repsMin,
+              repsMax: originalExercise.repsMax,
               weight: originalExercise.weight,
               duration: originalExercise.duration,
               restTime: originalExercise.restTime,
+              rpe: originalExercise.rpe,
               completed: false, // Reset completion status
               notes: originalExercise.notes,
               order: originalExercise.order,
@@ -2398,6 +2415,7 @@ export class WorkoutService extends BaseService {
           blockType: sourceBlock.blockType,
           scoringType:
             sourceBlock.scoringType ?? deriveScoringType(sourceBlock.blockType),
+          protocolConfig: sourceBlock.protocolConfig,
           blockName: sourceBlock.blockName,
           blockDurationMinutes: sourceBlock.blockDurationMinutes,
           timeCapMinutes: sourceBlock.timeCapMinutes,
@@ -2415,9 +2433,12 @@ export class WorkoutService extends BaseService {
           exerciseId: sourceExercise.exerciseId,
           sets: sourceExercise.sets,
           reps: sourceExercise.reps,
+          repsMin: sourceExercise.repsMin,
+          repsMax: sourceExercise.repsMax,
           weight: sourceExercise.weight,
           duration: sourceExercise.duration,
           restTime: sourceExercise.restTime,
+          rpe: sourceExercise.rpe,
           completed: false,
           isSkipped: false,
           notes: sourceExercise.notes,

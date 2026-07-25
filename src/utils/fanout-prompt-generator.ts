@@ -145,6 +145,21 @@ const EXERCISE_SCHEMA = {
       description:
         "Seconds rest between sets; for circuits/AMRAP, rest between exercises within a round",
     },
+    repsMin: {
+      type: "number",
+      description:
+        "Optional lower bound of a rep range (e.g. 8 in '8-12 reps'); omit when reps is a fixed target",
+    },
+    repsMax: {
+      type: "number",
+      description:
+        "Optional upper bound of a rep range (e.g. 12 in '8-12 reps'); omit when reps is a fixed target",
+    },
+    rpe: {
+      type: "number",
+      description:
+        "Optional target effort, RPE 1-10 (e.g. 7 = could do ~3 more reps); prefer this over putting RPE in notes",
+    },
     notes: {
       type: "string",
       description: "One concise coaching cue, max ~12 words",
@@ -186,6 +201,34 @@ const BLOCK_SCHEMA = {
     rounds: {
       type: "number",
       description: "Rounds for circuit/flow types; 1 for traditional sets",
+    },
+    protocolConfig: {
+      type: "object",
+      description:
+        "Optional structured protocol details. Use INSTEAD of describing these in prose.",
+      properties: {
+        repScheme: {
+          type: "array",
+          items: { type: "number" },
+          description:
+            "Per-round rep targets for descending/ascending schemes, e.g. [21, 15, 9]. When set, rounds MUST equal its length and each exercise's reps should be 0.",
+        },
+        workSeconds: {
+          type: "number",
+          description:
+            "Work interval in seconds for interval formats (tabata = 20, '30s on/15s off' = 30)",
+        },
+        restSeconds: {
+          type: "number",
+          description:
+            "Rest interval in seconds for interval formats (tabata = 10, '30s on/15s off' = 15)",
+        },
+        intervalSeconds: {
+          type: "number",
+          description:
+            "Slot length for EMOM-family blocks: 60 = EMOM, 90 = every 90s, 120 = E2MOM",
+        },
+      },
     },
     instructions: {
       type: "string",

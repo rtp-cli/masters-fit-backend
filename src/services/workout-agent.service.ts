@@ -748,9 +748,12 @@ ${exerciseContext}`
             operation: "generateWeeklyWorkout",
           });
           onProgress?.({ type: "day_done", dayNumber: day.day });
-          // Don't trust the model's echoed day number — it determines week
-          // ordering and date assignment downstream.
-          return { ...res.parsed, day: day.day };
+          // Same zod normalization as the serial path (heals scalars, drops
+          // invalid protocolConfig, reconciles repScheme vs rounds) so both
+          // generation paths persist identical semantics. Don't trust the
+          // model's echoed day number — it determines week ordering and
+          // date assignment downstream.
+          return { ...validateDailyGenerationResponse(res.parsed), day: day.day };
         } catch (error) {
           lastError = error;
           if (fanoutAbort.signal.aborted) break;

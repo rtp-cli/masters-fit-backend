@@ -71,7 +71,7 @@ Each workout style requires distinct programming philosophy, structure, and coac
 **Option 1: Pure CrossFit Format** (Recommended for shorter sessions)
 - **AMRAP (As Many Rounds As Possible):** Prescribe a set time limit (e.g., 20 minutes) and a list of exercises with reps. The goal is to complete as many rounds of the circuit as possible before time runs out.
   - *Example Structure:* "20-minute AMRAP: 8 Dumbbell Thrusters, 12 Kettlebell Swings, 15 Box Jumps."
-- **FOR TIME:** Prescribe a set number of rounds or a rep scheme (e.g., 21-15-9). The goal is to complete the work as fast as possible.
+- **FOR TIME:** Prescribe a set number of rounds or a rep scheme (e.g., 21-15-9 — encode it as protocolConfig.repScheme=[21,15,9], not just prose). The goal is to complete the work as fast as possible.
   - *Example Structure:* "3 Rounds For Time: 400m Row, 21 Wall Balls." or "21-15-9 Reps For Time: Deadlifts, Burpees Over Bar."
 - **EMOM (Every Minute On the Minute):** Prescribe a total time (e.g., 10 minutes) and specific work to be done each minute.
   - *Example Structure:* "10-minute EMOM: Odd Minutes - 15 Push-ups, Even Minutes - 15 Air Squats."
@@ -92,7 +92,7 @@ Each workout style requires distinct programming philosophy, structure, and coac
 - **Weight Assignment:** 
   * For weighted exercises (e.g., dumbbell thrusters, kettlebell swings, weighted squats), specify appropriate weights
   * Use moderate weights that allow for sustained high intensity throughout intervals
-  * Include RPE guidance in notes (e.g., "Weight at RPE 7/10")
+  * Set the exercise's rpe field for target effort (RPE 1-10) instead of describing it in notes
   * For bodyweight exercises, set weight to 0
 
 ### Strength Programming
@@ -104,7 +104,7 @@ Each workout style requires distinct programming philosophy, structure, and coac
   * Specify weights for all resistance exercises
   * Main lifts: Use percentage of 1RM or specific weight ranges
   * Accessory work: Specify weights based on rep ranges and training goals
-  * Include %1RM or RPE guidance in notes
+  * Set the exercise's rpe field for target effort; use repsMin/repsMax for rep ranges (e.g. 8-12); %1RM guidance may go in notes
   * For bodyweight exercises, set weight to 0
 
 ### Functional Programming
@@ -187,10 +187,10 @@ export const getBlockTypeGuide = (): string => {
 - **"amrap"**: As Many Rounds As Possible. Set timeCapMinutes (15-25), use sets=1 for all exercises, specify target reps per round, minimal restTime (0-15s). Instructions must explain the AMRAP format. Include weights for weighted movements.
   * **Duration Calculation:** Exactly timeCapMinutes (e.g., 20-minute AMRAP = 20 minutes total)
 
-- **"emom"**: Every Minute On the Minute. Set timeCapMinutes (8-20), use sets=1, specify work per minute, restTime=remaining time in minute. Instructions must explain EMOM format. Include weights for weighted movements.
+- **"emom"**: Every Minute On the Minute. Set timeCapMinutes (8-20), use sets=1, specify work per minute, restTime=remaining time in minute. Set protocolConfig.intervalSeconds (60 for classic EMOM; 90 or 120 for every-90s / E2MOM variants). Instructions must explain EMOM format. Include weights for weighted movements.
   * **Duration Calculation:** Exactly timeCapMinutes (e.g., 12-minute EMOM = 12 minutes total)
 
-- **"for_time"**: Complete prescribed work as fast as possible. Set rounds (3-5), use sets=1, specify reps per round, minimal restTime. Instructions must include total work and time goal. Include weights for weighted movements.
+- **"for_time"**: Complete prescribed work as fast as possible. Set rounds (3-5), use sets=1, specify reps per round, minimal restTime. For descending/ascending rep schemes (e.g. 21-15-9), set protocolConfig.repScheme=[21,15,9], rounds=3, and each exercise's reps=0 — the scheme is the data, do NOT describe it only in prose. Instructions must include total work and time goal. Include weights for weighted movements.
   * **Duration Calculation:** Estimated completion time (typically 15-25 minutes including rest/transitions)
 
 - **"circuit"**: Timed circuit training. Set rounds (3-6), use sets=1, specify work duration or reps, short restTime (15-30s). Instructions explain circuit flow. Include weights for weighted exercises.
@@ -199,7 +199,7 @@ export const getBlockTypeGuide = (): string => {
 - **"flow"**: Continuous movement sequence (yoga, pilates). Set rounds (3-8), use sets=1, specify hold duration or transitions, minimal restTime. Instructions explain flow sequence. Typically weight is 0, but may include light weights for pilates.
   * **Duration Calculation:** Sum of all pose/movement durations × rounds + transitions
 
-- **"tabata"**: 20s work, 10s rest format. Set rounds (4-8), use sets=1, duration=20, restTime=10. Instructions explain Tabata protocol. Include weights for weighted exercises.
+- **"tabata"**: 20s work, 10s rest format. Set rounds (4-8), use sets=1, duration=20, restTime=10, and protocolConfig.workSeconds=20, protocolConfig.restSeconds=10 (use protocolConfig for any other work:rest ratio too, e.g. 30/15). Instructions explain Tabata protocol. Include weights for weighted exercises.
   * **Duration Calculation:** (20s + 10s) × 8 rounds = 4 minutes per exercise × number of exercises
 
 - **"warmup"**: Simple dynamic warm-up movements to prepare the body for exercise. Set rounds (1), use sets=1, specify movement duration (10-15s) or reps (3-5), minimal restTime (0-10s). Instructions explain warm-up flow and purpose. Weight is typically 0 for bodyweight movements.
@@ -534,7 +534,7 @@ Prioritize coaching quality over token efficiency:
     - **Rehabilitation:** Use light weights for resistance exercises when appropriate
     - **Bodyweight/Yoga/Mobility:** Set weight to 0 for these exercise types
     - **Professional Judgment:** Use your expertise to determine appropriate weights based on exercise type, user fitness level, and training goals
-    - **Weight Guidance:** Include RPE, %1RM, or descriptive guidance in exercise notes when helpful
+    - **Weight Guidance:** Set the rpe field for target effort (1-10); %1RM or descriptive guidance may go in exercise notes when helpful
 - **LOGICAL PROGRESSION**: Structure exercises in coaching-appropriate order with proper flow
 - **PROFESSIONAL QUALITY**: Better to have fewer, well-programmed exercises than many poorly structured ones
 - **DURATION BALANCE**: Use style-appropriate methods to reach target duration while maintaining workout integrity
@@ -585,6 +585,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
           "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
           "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
           "rounds": number (number of rounds for circuit/flow types, use 1 for traditional sets),
+          "protocolConfig": { "repScheme": [number] (per-round rep targets like [21,15,9] — when set, rounds MUST equal its length and exercise reps=0), "workSeconds": number, "restSeconds": number (work:rest interval as data, e.g. tabata 20/10), "intervalSeconds": number (EMOM slot length: 60/90/120) } (optional object — include only the relevant keys, or omit entirely),
           "instructions": "string (block-specific coaching instructions that explain this block's format, pacing, and execution)",
           "order": number (order of this block within the day, starting from 1),
           "exercises": [
@@ -595,6 +596,9 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
               "weight": number,
               "duration": number (seconds per set/hold, 0 for rep-based exercises),
               "restTime": number (seconds rest between sets; for circuits/AMRAP, rest between exercises within a round),
+              "repsMin": number (optional lower bound of a rep range like 8-12; omit key or use 0 when reps is fixed),
+              "repsMax": number (optional upper bound of a rep range; omit key or use 0 when reps is fixed),
+              "rpe": number (optional target effort RPE 1-10; prefer this over putting RPE in notes; 0 when not applicable),
               "notes": "string (exercise-specific coaching cues)",
               "order": number (order of this exercise within the block, starting from 1)
             }
@@ -955,6 +959,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
           "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
           "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
           "rounds": number (number of rounds for circuit/flow types, use 1 for traditional sets),
+          "protocolConfig": { "repScheme": [number] (per-round rep targets like [21,15,9] — when set, rounds MUST equal its length and exercise reps=0), "workSeconds": number, "restSeconds": number (work:rest interval as data, e.g. tabata 20/10), "intervalSeconds": number (EMOM slot length: 60/90/120) } (optional object — include only the relevant keys, or omit entirely),
           "instructions": "string (block-specific coaching instructions that explain this block's format, pacing, and execution)",
           "order": number (order of this block within the day, starting from 1),
           "exercises": [
@@ -965,6 +970,9 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
               "weight": number,
               "duration": number (seconds per set/hold, 0 for rep-based exercises),
               "restTime": number (seconds rest between sets; for circuits/AMRAP, rest between exercises within a round),
+              "repsMin": number (optional lower bound of a rep range like 8-12; omit key or use 0 when reps is fixed),
+              "repsMax": number (optional upper bound of a rep range; omit key or use 0 when reps is fixed),
+              "rpe": number (optional target effort RPE 1-10; prefer this over putting RPE in notes; 0 when not applicable),
               "notes": "string (exercise-specific coaching cues)",
               "order": number (order of this exercise within the block, starting from 1)
             }
@@ -1288,6 +1296,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
       "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
       "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
       "rounds": number (number of rounds for circuit/flow types, use 1 for traditional sets),
+      "protocolConfig": { "repScheme": [number] (per-round rep targets like [21,15,9] — when set, rounds MUST equal its length and exercise reps=0), "workSeconds": number, "restSeconds": number (work:rest interval as data, e.g. tabata 20/10), "intervalSeconds": number (EMOM slot length: 60/90/120) } (optional object — include only the relevant keys, or omit entirely),
       "instructions": "string (block-specific coaching instructions that explain this block's format, pacing, and execution)",
       "order": number (order of this block within the day, starting from 1),
       "exercises": [
@@ -1298,6 +1307,9 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
           "weight": number,
           "duration": number (seconds per set/hold, 0 for rep-based exercises),
           "restTime": number (seconds rest between sets; for circuits/AMRAP, rest between exercises within a round),
+          "repsMin": number (optional lower bound of a rep range like 8-12; omit key or use 0 when reps is fixed),
+          "repsMax": number (optional upper bound of a rep range; omit key or use 0 when reps is fixed),
+          "rpe": number (optional target effort RPE 1-10; prefer this over putting RPE in notes; 0 when not applicable),
           "notes": "string (exercise-specific coaching cues)",
           "order": number (order of this exercise within the block, starting from 1)
         }

@@ -128,6 +128,65 @@ describe("validateWeeklyGenerationResponse (serial path)", () => {
     expect(result.exercisesToAdd).toEqual([]);
   });
 
+  it("normalizes protocolConfig: repScheme wins over a contradictory rounds count", () => {
+    const result = validateWeeklyGenerationResponse({
+      workoutPlan: [
+        {
+          ...validDay,
+          blocks: [
+            {
+              ...validBlock,
+              blockType: "for_time",
+              rounds: 5,
+              protocolConfig: { repScheme: [21, 15, 9] },
+            },
+          ],
+        },
+      ],
+    });
+    const block = result.workoutPlan[0].blocks[0];
+    expect(block.protocolConfig).toEqual({ repScheme: [21, 15, 9] });
+    expect(block.rounds).toBe(3);
+  });
+
+  it("drops an invalid protocolConfig to null instead of failing", () => {
+    const result = validateWeeklyGenerationResponse({
+      workoutPlan: [
+        {
+          ...validDay,
+          blocks: [
+            { ...validBlock, protocolConfig: { repScheme: "21-15-9" } },
+          ],
+        },
+      ],
+    });
+    expect(result.workoutPlan[0].blocks[0].protocolConfig).toBeNull();
+  });
+
+  it("heals rep ranges: swaps inverted bounds, drops one-sided ranges, keeps rpe", () => {
+    const result = validateWeeklyGenerationResponse({
+      workoutPlan: [
+        {
+          ...validDay,
+          blocks: [
+            {
+              ...validBlock,
+              exercises: [
+                { ...validExercise, repsMin: 12, repsMax: 8, rpe: 7 },
+                { ...validExercise, exerciseName: "Row", repsMin: 8 },
+                { ...validExercise, exerciseName: "Press", rpe: 0 },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const [a, b, c] = result.workoutPlan[0].blocks[0].exercises;
+    expect([a.repsMin, a.repsMax, a.rpe]).toEqual([8, 12, 7]);
+    expect([b.repsMin, b.repsMax]).toEqual([undefined, undefined]);
+    expect(c.rpe).toBeUndefined(); // 0 = "not applicable" per prompt
+  });
+
   it("keeps off-list blockType values (frontend falls back to traditional rendering)", () => {
     const result = validateWeeklyGenerationResponse({
       workoutPlan: [

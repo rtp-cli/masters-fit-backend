@@ -7,7 +7,12 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  jsonb,
 } from "drizzle-orm/pg-core";
+import {
+  protocolConfigSchema,
+  type ProtocolConfig,
+} from "@/utils/protocol-config";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -97,6 +102,11 @@ export const workoutBlocks = pgTable("workout_blocks", {
   // completion | rounds_reps | time | reps | load | quality | none.
   // Nullable — old rows derive a default from blockType in code.
   scoringType: text("scoring_type"),
+  // Typed protocol details the scalar columns can't hold (gap-analysis
+  // Phase 4): repScheme (21-15-9), work/rest intervals, EMOM interval
+  // length. Validated by protocolConfigSchema before persistence —
+  // essential behavior must NOT depend on this being present.
+  protocolConfig: jsonb("protocol_config").$type<ProtocolConfig>(),
   blockName: text("block_name"), // Name of the workout block
   blockDurationMinutes: integer("block_duration_minutes"), // Calculated duration of the block in minutes
   timeCapMinutes: integer("time_cap_minutes"), // Time cap for AMRAP/EMOM blocks
@@ -135,9 +145,15 @@ export const planDayExercises = pgTable("plan_day_exercises", {
     .references(() => exercises.id),
   sets: integer("sets"),
   reps: integer("reps"),
+  // Optional rep range around `reps` (e.g. 8-12); display + progression
+  // context, reps stays the single prefill target (gap-analysis Phase 4)
+  repsMin: integer("reps_min"),
+  repsMax: integer("reps_max"),
   weight: integer("weight"),
   duration: integer("duration"), // in seconds
   restTime: integer("rest_time"), // in seconds
+  // Prescribed target effort (RPE 1-10), previously prose-only in notes
+  rpe: integer("rpe"),
   notes: text("notes"),
   completed: boolean("completed").default(false),
   isSkipped: boolean("is_skipped").default(false),
@@ -177,7 +193,10 @@ export const insertPlanDaySchema = createInsertSchema(planDays).omit({
   id: true,
 });
 
-export const insertWorkoutBlockSchema = createInsertSchema(workoutBlocks).omit({
+export const insertWorkoutBlockSchema = createInsertSchema(workoutBlocks, {
+  // drizzle-zod types jsonb as a generic Json union; pin it to the real shape
+  protocolConfig: protocolConfigSchema.nullable().optional(),
+}).omit({
   id: true,
 });
 
@@ -219,6 +238,7 @@ export interface WorkoutBlock {
   planDayId: number;
   blockType: string | null;
   scoringType: string | null;
+  protocolConfig: ProtocolConfig | null;
   blockName: string | null;
   blockDurationMinutes: number | null;
   timeCapMinutes: number | null;
@@ -235,9 +255,12 @@ export interface PlanDayExercise {
   exerciseId: number;
   sets: number | null;
   reps: number | null;
+  repsMin: number | null;
+  repsMax: number | null;
   weight: number | null;
   duration: number | null;
   restTime: number | null;
+  rpe: number | null;
   notes: string | null;
   completed: boolean | null;
   isSkipped: boolean | null;
