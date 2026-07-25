@@ -16,7 +16,8 @@
     "db:studio": "drizzle-kit studio",
     "tsoa": "tsoa spec-and-routes",
     "tsc": "tsc --noEmit",
-    "reset-user-trial": "tsx src/scripts/reset-user-trial.ts"
+    "reset-user-trial": "tsx src/scripts/reset-user-trial.ts",
+    "reset-workout-day": "tsx src/scripts/reset-workout-day.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",
