@@ -13,6 +13,7 @@ export interface ExerciseSetLog {
   reps: number | null;
   restAfter: number | null;
   durationSeconds: number | null;
+  distanceM: number | null;
   createdAt: Date;
 }
 

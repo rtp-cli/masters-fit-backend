@@ -48,6 +48,7 @@ const generatedExerciseSchema = z
     duration: healedNumber(0),
     restTime: healedNumber(0),
     rpe: optionalPositive(10),
+    distanceM: optionalPositive(100_000),
     notes: healedString(),
     order: healedNumber(1),
   })

@@ -80,6 +80,9 @@ export const exerciseSetLogs = pgTable(
     // Previously time-only efforts had no set-level home and were invisible
     // to analytics (gap-analysis Phase 3).
     durationSeconds: integer("duration_seconds"),
+    // Actual distance performed in meters (runs, rows, carries) —
+    // gap-analysis Phase 5; Apple Health import lands into this later
+    distanceM: integer("distance_m"),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
@@ -235,6 +238,7 @@ export const insertExerciseSetLogSchema = createInsertSchema(exerciseSetLogs, {
   reps: z.number().min(0).optional(),
   restAfter: z.number().min(0).optional(),
   durationSeconds: z.number().min(0).optional(),
+  distanceM: z.number().min(0).optional(),
 }).omit({
   id: true,
   createdAt: true,
@@ -316,6 +320,7 @@ export const updateExerciseSetLogSchema = z.object({
   reps: z.number().min(0).optional(),
   restAfter: z.number().min(0).optional(),
   durationSeconds: z.number().min(0).optional(),
+  distanceM: z.number().min(0).optional(),
 });
 
 export const updateBlockLogSchema = z.object({
@@ -387,6 +392,7 @@ export interface ExerciseSetLog {
   reps: number | null;
   restAfter: number | null;
   durationSeconds: number | null;
+  distanceM: number | null;
   createdAt: Date;
 }
 

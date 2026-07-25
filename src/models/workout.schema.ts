@@ -152,6 +152,8 @@ export const planDayExercises = pgTable("plan_day_exercises", {
   weight: integer("weight"),
   duration: integer("duration"), // in seconds
   restTime: integer("rest_time"), // in seconds
+  // Prescribed distance in meters (runs, rows, carries) — the Murph runs
+  distanceM: integer("distance_m"),
   // Prescribed target effort (RPE 1-10), previously prose-only in notes
   rpe: integer("rpe"),
   notes: text("notes"),
@@ -260,6 +262,7 @@ export interface PlanDayExercise {
   weight: number | null;
   duration: number | null;
   restTime: number | null;
+  distanceM: number | null;
   rpe: number | null;
   notes: string | null;
   completed: boolean | null;

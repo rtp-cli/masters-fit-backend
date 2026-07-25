@@ -48,6 +48,7 @@ export class LogsService extends BaseService {
       reps: number;
       restAfter?: number;
       durationSeconds?: number;
+      distanceM?: number;
     }>;
     durationCompleted?: number;
     timeTaken?: number;
@@ -96,6 +97,7 @@ export class LogsService extends BaseService {
         reps: set.reps,
         restAfter: set.restAfter,
         durationSeconds: set.durationSeconds,
+            distanceM: set.distanceM,
       }));
 
       createdSetLogs = await this.db
@@ -127,6 +129,7 @@ export class LogsService extends BaseService {
         reps: number;
         restAfter?: number;
         durationSeconds?: number;
+      distanceM?: number;
       }>;
       durationCompleted?: number;
       timeTaken?: number;
@@ -184,6 +187,7 @@ export class LogsService extends BaseService {
       reps: number;
       restAfter?: number;
       durationSeconds?: number;
+      distanceM?: number;
     }> = [];
 
     for (let i = 0; i < logsWithRounds.length; i++) {
@@ -198,6 +202,7 @@ export class LogsService extends BaseService {
             reps: set.reps,
             restAfter: set.restAfter,
             durationSeconds: set.durationSeconds,
+            distanceM: set.distanceM,
           });
         }
       }

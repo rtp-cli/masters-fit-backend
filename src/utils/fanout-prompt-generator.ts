@@ -56,6 +56,7 @@ const VALID_TAGS = Object.values(PreferredStyles);
 
 const BLOCK_TYPES = [
   "traditional",
+  "superset",
   "amrap",
   "emom",
   "for_time",
@@ -159,6 +160,11 @@ const EXERCISE_SCHEMA = {
       type: "number",
       description:
         "Optional target effort, RPE 1-10 (e.g. 7 = could do ~3 more reps); prefer this over putting RPE in notes",
+    },
+    distanceM: {
+      type: "number",
+      description:
+        "Optional prescribed distance in METERS for runs/rows/carries (1 mile = 1609); use with reps=0. Prefer this over describing distance in notes",
     },
     notes: {
       type: "string",

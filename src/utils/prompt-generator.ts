@@ -82,6 +82,13 @@ Each workout style requires distinct programming philosophy, structure, and coac
 - **METCON Segment** (15-25 minutes): High-intensity conditioning
   - *Example:* "METCON: 'Upper Body Burnout' For Time (15-minute cap): 50 Push-ups, 40 Dumbbell Rows, 30 Dips, 20 Pull-ups, 10 Burpees"
 
+**Option 3: Hero/Benchmark WOD Format** (buy-in → main work → cash-out, e.g. Murph)
+Model these as ORDERED BLOCKS within one day — blocks are the app's segments:
+- Block 1 (buy-in, for_time): the opening run/row — one exercise with distanceM set (e.g. 1609 for 1 mile), reps=0
+- Block 2 (main work, circuit or for_time): the partitioned rounds — e.g. rounds=20 with 5 Pull-ups / 10 Push-ups / 15 Squats per round, or a chipper as for_time with rounds=1 and total reps per exercise
+- Block 3 (cash-out, for_time): the closing run/row with distanceM
+Scale hero WODs aggressively for the user's fitness level (half Murph, reduced rounds) and say so in instructions.
+
 **STRUCTURE IS KEY:** Do not just create a list of exercises. Build the workout around one of these core CrossFit structures. The coaching instructions should clearly state the format (e.g., "Today's WOD is a 15-minute AMRAP..." or "Today's session: Strength + METCON").
 
 ### HIIT Programming
@@ -183,6 +190,9 @@ export const getBlockTypeGuide = (): string => {
 
 - **"traditional"**: Standard sets x reps format. Use actual sets (3-5), reps (5-15), and rest periods (30-120s). Best for strength, bodybuilding. Specify weights for resistance exercises, 0 for bodyweight.
   * **Duration Calculation:** Sum of [(exercise_execution_time + rest_time) × sets] for each exercise in block
+
+- **"superset"**: Two exercises alternated back-to-back (A then B, rest, repeat). EXACTLY 2 exercises per superset block. Set rounds = number of paired sets (3-4), use sets=1, specify reps per exercise per round, restTime = rest AFTER the pair (60-120s). Pair non-competing movements (e.g. push + pull). The app logs supersets round-by-round.
+  * **Duration Calculation:** (both exercises' execution time + rest_time) × rounds
 
 - **"amrap"**: As Many Rounds As Possible. Set timeCapMinutes (15-25), use sets=1 for all exercises, specify target reps per round, minimal restTime (0-15s). Instructions must explain the AMRAP format. Include weights for weighted movements.
   * **Duration Calculation:** Exactly timeCapMinutes (e.g., 20-minute AMRAP = 20 minutes total)
@@ -580,7 +590,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
       "instructions": "string (comprehensive day-level coaching instructions that explain the overall workout flow, pacing, intensity, and how to execute this specific workout structure)",
       "blocks": [
         {
-          "blockType": "traditional" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
+          "blockType": "traditional" | "superset" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
           "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow')",
           "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
           "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
@@ -599,6 +609,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
               "repsMin": number (optional lower bound of a rep range like 8-12; omit key or use 0 when reps is fixed),
               "repsMax": number (optional upper bound of a rep range; omit key or use 0 when reps is fixed),
               "rpe": number (optional target effort RPE 1-10; prefer this over putting RPE in notes; 0 when not applicable),
+              "distanceM": number (optional prescribed distance in METERS for runs/rows/carries, 1 mile = 1609; use with reps=0; 0 when not applicable),
               "notes": "string (exercise-specific coaching cues)",
               "order": number (order of this exercise within the block, starting from 1)
             }
@@ -954,7 +965,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
       "instructions": "string (comprehensive day-level coaching instructions that explain the overall workout flow, pacing, intensity, and how to execute this specific workout structure)",
       "blocks": [
         {
-          "blockType": "traditional" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
+          "blockType": "traditional" | "superset" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
           "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow')",
           "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
           "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
@@ -973,6 +984,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
               "repsMin": number (optional lower bound of a rep range like 8-12; omit key or use 0 when reps is fixed),
               "repsMax": number (optional upper bound of a rep range; omit key or use 0 when reps is fixed),
               "rpe": number (optional target effort RPE 1-10; prefer this over putting RPE in notes; 0 when not applicable),
+              "distanceM": number (optional prescribed distance in METERS for runs/rows/carries, 1 mile = 1609; use with reps=0; 0 when not applicable),
               "notes": "string (exercise-specific coaching cues)",
               "order": number (order of this exercise within the block, starting from 1)
             }
@@ -1291,7 +1303,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
   "instructions": "string (comprehensive day-level coaching instructions that explain the overall workout flow, pacing, intensity, and how to execute this specific workout structure)",
   "blocks": [
     {
-      "blockType": "traditional" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
+      "blockType": "traditional" | "superset" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
       "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow')",
       "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
       "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
@@ -1310,6 +1322,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
           "repsMin": number (optional lower bound of a rep range like 8-12; omit key or use 0 when reps is fixed),
           "repsMax": number (optional upper bound of a rep range; omit key or use 0 when reps is fixed),
           "rpe": number (optional target effort RPE 1-10; prefer this over putting RPE in notes; 0 when not applicable),
+          "distanceM": number (optional prescribed distance in METERS for runs/rows/carries, 1 mile = 1609; use with reps=0; 0 when not applicable),
           "notes": "string (exercise-specific coaching cues)",
           "order": number (order of this exercise within the block, starting from 1)
         }
