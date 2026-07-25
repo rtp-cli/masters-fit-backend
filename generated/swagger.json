@@ -1440,7 +1440,7 @@
 						"type": "number",
 						"format": "double"
 					},
-					"totalTimeMinutes": {
+					"totalTimeSeconds": {
 						"type": "number",
 						"format": "double",
 						"nullable": true
@@ -1505,7 +1505,7 @@
 				"required": [
 					"id",
 					"planDayId",
-					"totalTimeMinutes",
+					"totalTimeSeconds",
 					"blocksCompleted",
 					"exercisesCompleted",
 					"totalVolume",
@@ -1597,8 +1597,15 @@
 						"nullable": true
 					},
 					"averageRating": {
-						"type": "number",
-						"format": "double",
+						"anyOf": [
+							{
+								"type": "number",
+								"format": "double"
+							},
+							{
+								"type": "string"
+							}
+						],
 						"nullable": true
 					},
 					"completedExercises": {
@@ -1618,6 +1625,22 @@
 						"nullable": true
 					},
 					"completedDays": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"skippedExercises": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"skippedBlocks": {
 						"items": {
 							"type": "number",
 							"format": "double"
@@ -1655,6 +1678,8 @@
 					"completedExercises",
 					"completedBlocks",
 					"completedDays",
+					"skippedExercises",
+					"skippedBlocks",
 					"isComplete",
 					"isActive",
 					"notes",
@@ -1890,6 +1915,113 @@
 					"success",
 					"completedExercises",
 					"count"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"FeedbackEffort": {
+				"type": "string",
+				"enum": [
+					"too_easy",
+					"just_right",
+					"too_hard"
+				]
+			},
+			"FeedbackTimeFit": {
+				"type": "string",
+				"enum": [
+					"finished_early",
+					"about_right",
+					"ran_out"
+				]
+			},
+			"FeedbackEndedEarlyReason": {
+				"type": "string",
+				"enum": [
+					"ran_out_of_time",
+					"too_hard",
+					"something_hurt",
+					"lost_interest",
+					"interrupted"
+				]
+			},
+			"FeedbackNoteSource": {
+				"type": "string",
+				"enum": [
+					"text",
+					"voice"
+				]
+			},
+			"PlanDayFeedback": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"userId": {
+						"type": "number",
+						"format": "double"
+					},
+					"planDayId": {
+						"type": "number",
+						"format": "double"
+					},
+					"effort": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/FeedbackEffort"
+							}
+						],
+						"nullable": true
+					},
+					"timeFit": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/FeedbackTimeFit"
+							}
+						],
+						"nullable": true
+					},
+					"endedEarlyReason": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/FeedbackEndedEarlyReason"
+							}
+						],
+						"nullable": true
+					},
+					"note": {
+						"type": "string",
+						"nullable": true
+					},
+					"noteSource": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/FeedbackNoteSource"
+							}
+						],
+						"nullable": true
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"planDayId",
+					"effort",
+					"timeFit",
+					"endedEarlyReason",
+					"note",
+					"noteSource",
+					"createdAt",
+					"updatedAt"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -3736,8 +3868,12 @@
 					"exerciseId": {},
 					"sets": {},
 					"reps": {},
+					"repsMin": {},
+					"repsMax": {},
 					"duration": {},
 					"restTime": {},
+					"distanceM": {},
+					"rpe": {},
 					"notes": {
 						"type": "string"
 					},
@@ -7904,6 +8040,63 @@
 								"type": "object",
 								"description": "Workout completion data"
 							}
+						}
+					}
+				}
+			}
+		},
+		"/logs/feedback": {
+			"put": {
+				"operationId": "UpsertPlanDayFeedback",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"feedback": {
+											"$ref": "#/components/schemas/PlanDayFeedback"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"feedback",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Upsert post-workout feedback for a plan day. Partial answers are valid —\nonly the fields present in the body are written; one row per plan day.",
+				"tags": [
+					"Logs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {}
 						}
 					}
 				}

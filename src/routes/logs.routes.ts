@@ -28,6 +28,21 @@ const handleError = (error: unknown, res: any) => {
   }
 };
 
+// Upsert post-workout feedback for a plan day (partial answers valid)
+router.put(
+  "/feedback",
+  requireAuth,
+  requireOwnershipFromBody("planDay", "planDayId"),
+  async (req, res) => {
+    try {
+      const result = await controller.upsertPlanDayFeedback(req, req.body);
+      res.json(result);
+    } catch (error) {
+      handleError(error, res);
+    }
+  }
+);
+
 // Create exercise logs (batch) — ownership of every referenced plan-day-exercise
 router.post(
   "/exercise/batch",

@@ -1,5 +1,6 @@
 import { InsertPrompt, Profile, Prompt, prompts } from "@/models";
 import { BaseService } from "./base.service";
+import { logsService } from "./logs.service";
 import { profileService } from "./profile.service";
 import { eq, and, asc } from "drizzle-orm";
 import { logger } from "@/utils/logger";
@@ -51,9 +52,76 @@ export function clearLastTokenUsage(userId: number): void {
   lastTokenUsageByUser.delete(userId);
 }
 
+// Answer values → prompt-friendly phrases for the recent-feedback digest.
+const FEEDBACK_PHRASES: Record<string, string> = {
+  too_easy: "too easy",
+  just_right: "just right",
+  too_hard: "too hard",
+  finished_early: "finished early",
+  about_right: "about right",
+  ran_out: "ran out of time",
+  ran_out_of_time: "ran out of time",
+  something_hurt: "something hurt",
+  lost_interest: "lost interest",
+  interrupted: "just got interrupted",
+};
+
 export class PromptsService extends BaseService {
   constructor() {
     super();
+  }
+
+  /**
+   * Append the user's recent post-workout feedback to the generation input.
+   * Effort answers steer intensity; time answers steer volume — the reason
+   * the feedback card asks them separately. Failure-safe: generation must
+   * never break because the digest couldn't be built.
+   */
+  private async withRecentFeedback(
+    userId: number,
+    base: string
+  ): Promise<string> {
+    try {
+      const recent = await logsService.getRecentPlanDayFeedback(userId, 5);
+      const lines = recent
+        .map((f) => {
+          const parts: string[] = [];
+          if (f.effort)
+            parts.push(`effort felt ${FEEDBACK_PHRASES[f.effort] || f.effort}`);
+          if (f.timeFit)
+            parts.push(
+              `session length: ${FEEDBACK_PHRASES[f.timeFit] || f.timeFit}`
+            );
+          if (f.endedEarlyReason)
+            parts.push(
+              `ended the workout early (${
+                FEEDBACK_PHRASES[f.endedEarlyReason] || f.endedEarlyReason
+              })`
+            );
+          if (f.note) parts.push(`note: "${f.note.slice(0, 200)}"`);
+          if (parts.length === 0) return null;
+          const day = f.updatedAt.toISOString().slice(0, 10);
+          return `- ${day}: ${parts.join("; ")}`;
+        })
+        .filter((line): line is string => line !== null);
+      if (lines.length === 0) return base;
+
+      return (
+        `${base}\n\n` +
+        `Recent post-workout feedback from the user (newest first). ` +
+        `Adjust INTENSITY for effort signals and total VOLUME (exercise count / sets) ` +
+        `for time signals — a session that "ran out of time" means too much volume ` +
+        `for the prescribed duration, not that the user wants harder exercises:\n` +
+        lines.join("\n")
+      );
+    } catch (error) {
+      logger.warn("Failed to build recent-feedback digest; continuing without", {
+        userId,
+        error: (error as Error).message,
+        operation: "withRecentFeedback",
+      });
+      return base;
+    }
   }
 
   // Create user-specific workout agent based on their AI provider preferences
@@ -142,13 +210,19 @@ export class PromptsService extends BaseService {
     // Generate a thread ID if not provided to enable conversation memory for all users
     const workoutThreadId = threadId || `workout_${userId}_${Date.now()}`;
 
+    // Recent post-workout feedback rides along as generation input
+    const enrichedFeedback = await this.withRecentFeedback(
+      userId,
+      customFeedback || "Generate weekly workout plan"
+    );
+
     try {
       const result = await workoutAgent.regenerateWorkout(
         userId,
         profile,
         [], // exerciseNames no longer needed - agent uses tools
         workoutThreadId,
-        customFeedback || "Generate weekly workout plan",
+        enrichedFeedback,
         undefined, // dayNumber
         false, // isRestDay
         signal // Pass abort signal through
@@ -223,11 +297,17 @@ export class PromptsService extends BaseService {
       return Math.round(25 + 70 * (done / total));
     };
 
+    // Recent post-workout feedback rides along as generation input
+    const enrichedFeedback = await this.withRecentFeedback(
+      userId,
+      customFeedback || "Generate weekly workout plan"
+    );
+
     try {
       const result = await workoutAgent.generateWeeklyWorkout(
         userId,
         profile,
-        customFeedback || "Generate weekly workout plan",
+        enrichedFeedback,
         {
           signal,
           onProgress: (update) => {
@@ -352,14 +432,20 @@ export class PromptsService extends BaseService {
     // Generate a thread ID for conversation memory
     const workoutThreadId = `workout_regen_${userId}_${Date.now()}`;
 
+    // Recent post-workout feedback rides along as generation input
+    const enrichedFeedback = await this.withRecentFeedback(
+      userId,
+      regenerationData.customFeedback ||
+        "Regenerate weekly workout plan with updated preferences"
+    );
+
     try {
       const result = await workoutAgent.regenerateWorkout(
         userId,
         updatedProfile,
         [], // exerciseNames no longer needed - agent uses tools
         workoutThreadId,
-        regenerationData.customFeedback ||
-          "Regenerate weekly workout plan with updated preferences",
+        enrichedFeedback,
         undefined, // dayNumber
         false, // isRestDay
         signal // Pass abort signal through
@@ -421,13 +507,19 @@ export class PromptsService extends BaseService {
     // Generate a thread ID if not provided to enable conversation memory for all users
     const workoutThreadId = threadId || `workout_daily_${userId}_${Date.now()}`;
 
+    // Recent post-workout feedback rides along as generation input
+    const enrichedReason = await this.withRecentFeedback(
+      userId,
+      regenerationReason
+    );
+
     try {
       const result = await workoutAgent.regenerateWorkout(
         userId,
         profile,
         [], // exerciseNames no longer needed - agent uses tools
         workoutThreadId,
-        regenerationReason,
+        enrichedReason,
         dayNumber,
         isRestDay,
         signal // Pass abort signal through

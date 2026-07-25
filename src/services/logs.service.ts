@@ -15,6 +15,8 @@ import {
   UpdatePlanDayLog,
   UpdateWorkoutLog,
   ExerciseSetLog,
+  planDayFeedback,
+  UpsertPlanDayFeedback,
 } from "@/models";
 import {
   planDayExercises,
@@ -1277,6 +1279,57 @@ export class LogsService extends BaseService {
         .set({ completed: false, updatedAt: new Date() })
         .where(eq(workouts.id, planDay.workoutId));
     }
+  }
+
+  // ==================== PLAN DAY FEEDBACK ====================
+
+  /**
+   * Upsert post-workout feedback for a plan day (one row per plan day).
+   * Answers arrive independently as the user taps, so only the fields
+   * present in this call are overwritten — an effort-only answer must not
+   * null out a previously saved timeFit.
+   */
+  async upsertPlanDayFeedback(userId: number, data: UpsertPlanDayFeedback) {
+    const provided: Record<string, unknown> = { updatedAt: new Date() };
+    for (const key of [
+      "effort",
+      "timeFit",
+      "endedEarlyReason",
+      "note",
+      "noteSource",
+    ] as const) {
+      if (data[key] !== undefined) provided[key] = data[key];
+    }
+
+    const [feedback] = await this.db
+      .insert(planDayFeedback)
+      .values({
+        userId,
+        planDayId: data.planDayId,
+        effort: data.effort ?? null,
+        timeFit: data.timeFit ?? null,
+        endedEarlyReason: data.endedEarlyReason ?? null,
+        note: data.note ?? null,
+        noteSource: data.noteSource ?? null,
+      })
+      .onConflictDoUpdate({
+        target: planDayFeedback.planDayId,
+        set: provided,
+      })
+      .returning();
+    return feedback;
+  }
+
+  /**
+   * Recent feedback for a user, newest first — generation input so the next
+   * plan can correct for "too hard" / "ran out of time" signals.
+   */
+  async getRecentPlanDayFeedback(userId: number, limit: number = 10) {
+    return await this.db.query.planDayFeedback.findMany({
+      where: eq(planDayFeedback.userId, userId),
+      orderBy: [desc(planDayFeedback.updatedAt)],
+      limit,
+    });
   }
 }
 

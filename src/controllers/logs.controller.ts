@@ -8,6 +8,8 @@ import {
   updatePlanDayLogSchema,
   updateWorkoutLogSchema,
   ExerciseLog,
+  upsertPlanDayFeedbackSchema,
+  PlanDayFeedback,
 } from "@/models";
 import { logsService } from "@/services";
 import {
@@ -37,6 +39,7 @@ import {
   Path,
   Security,
   Put,
+  Request,
 } from "@tsoa/runtime";
 import { logger } from "@/utils/logger";
 
@@ -793,6 +796,25 @@ export class LogsController extends Controller {
     return {
       success: true,
     };
+  }
+
+  /**
+   * Upsert post-workout feedback for a plan day. Partial answers are valid —
+   * only the fields present in the body are written; one row per plan day.
+   */
+  @Put("/feedback")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async upsertPlanDayFeedback(
+    @Request() request: any,
+    @Body() requestBody: any
+  ): Promise<{ success: boolean; feedback: PlanDayFeedback }> {
+    const validated = upsertPlanDayFeedbackSchema.parse(requestBody);
+    const feedback = await logsService.upsertPlanDayFeedback(
+      request.userId,
+      validated
+    );
+    return { success: true, feedback };
   }
 }
 

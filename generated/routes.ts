@@ -533,7 +533,7 @@ const models: TsoaRoute.Models = {
         "properties": {
             "id": {"dataType":"double","required":true},
             "planDayId": {"dataType":"double","required":true},
-            "totalTimeMinutes": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
+            "totalTimeSeconds": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "blocksCompleted": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "exercisesCompleted": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "totalVolume": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
@@ -582,10 +582,12 @@ const models: TsoaRoute.Models = {
             "daysCompleted": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "totalDays": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
             "totalVolume": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
-            "averageRating": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
+            "averageRating": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "completedExercises": {"dataType":"union","subSchemas":[{"dataType":"array","array":{"dataType":"double"}},{"dataType":"enum","enums":[null]}],"required":true},
             "completedBlocks": {"dataType":"union","subSchemas":[{"dataType":"array","array":{"dataType":"double"}},{"dataType":"enum","enums":[null]}],"required":true},
             "completedDays": {"dataType":"union","subSchemas":[{"dataType":"array","array":{"dataType":"double"}},{"dataType":"enum","enums":[null]}],"required":true},
+            "skippedExercises": {"dataType":"union","subSchemas":[{"dataType":"array","array":{"dataType":"double"}},{"dataType":"enum","enums":[null]}],"required":true},
+            "skippedBlocks": {"dataType":"union","subSchemas":[{"dataType":"array","array":{"dataType":"double"}},{"dataType":"enum","enums":[null]}],"required":true},
             "isComplete": {"dataType":"boolean","required":true},
             "isActive": {"dataType":"boolean","required":true},
             "notes": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
@@ -686,6 +688,43 @@ const models: TsoaRoute.Models = {
             "data": {"dataType":"void"},
             "completedExercises": {"dataType":"array","array":{"dataType":"double"},"required":true},
             "count": {"dataType":"double","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "FeedbackEffort": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["too_easy"]},{"dataType":"enum","enums":["just_right"]},{"dataType":"enum","enums":["too_hard"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "FeedbackTimeFit": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["finished_early"]},{"dataType":"enum","enums":["about_right"]},{"dataType":"enum","enums":["ran_out"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "FeedbackEndedEarlyReason": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ran_out_of_time"]},{"dataType":"enum","enums":["too_hard"]},{"dataType":"enum","enums":["something_hurt"]},{"dataType":"enum","enums":["lost_interest"]},{"dataType":"enum","enums":["interrupted"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "FeedbackNoteSource": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["text"]},{"dataType":"enum","enums":["voice"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "PlanDayFeedback": {
+        "dataType": "refObject",
+        "properties": {
+            "id": {"dataType":"double","required":true},
+            "userId": {"dataType":"double","required":true},
+            "planDayId": {"dataType":"double","required":true},
+            "effort": {"dataType":"union","subSchemas":[{"ref":"FeedbackEffort"},{"dataType":"enum","enums":[null]}],"required":true},
+            "timeFit": {"dataType":"union","subSchemas":[{"ref":"FeedbackTimeFit"},{"dataType":"enum","enums":[null]}],"required":true},
+            "endedEarlyReason": {"dataType":"union","subSchemas":[{"ref":"FeedbackEndedEarlyReason"},{"dataType":"enum","enums":[null]}],"required":true},
+            "note": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+            "noteSource": {"dataType":"union","subSchemas":[{"ref":"FeedbackNoteSource"},{"dataType":"enum","enums":[null]}],"required":true},
+            "createdAt": {"dataType":"datetime","required":true},
+            "updatedAt": {"dataType":"datetime","required":true},
         },
         "additionalProperties": false,
     },
@@ -1317,7 +1356,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_InsertPlanDayExercise_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"weight":{"dataType":"any"},"order":{"dataType":"any"},"createdAt":{"dataType":"any"},"updatedAt":{"dataType":"any"},"completed":{"dataType":"any"},"workoutBlockId":{"dataType":"any"},"exerciseId":{"dataType":"any"},"sets":{"dataType":"any"},"reps":{"dataType":"any"},"duration":{"dataType":"any"},"restTime":{"dataType":"any"},"notes":{"dataType":"string"},"isSkipped":{"dataType":"any"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"weight":{"dataType":"any"},"order":{"dataType":"any"},"createdAt":{"dataType":"any"},"updatedAt":{"dataType":"any"},"completed":{"dataType":"any"},"workoutBlockId":{"dataType":"any"},"exerciseId":{"dataType":"any"},"sets":{"dataType":"any"},"reps":{"dataType":"any"},"repsMin":{"dataType":"any"},"repsMax":{"dataType":"any"},"duration":{"dataType":"any"},"restTime":{"dataType":"any"},"distanceM":{"dataType":"any"},"rpe":{"dataType":"any"},"notes":{"dataType":"string"},"isSkipped":{"dataType":"any"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "GenerationDayStatus": {
@@ -3066,6 +3105,33 @@ export function RegisterRoutes(app: Router) {
 
 
               const promise = controller.markWorkoutDayComplete.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.put('/logs/feedback',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LogsController)),
+            ...(fetchMiddlewares<RequestHandler>(LogsController.prototype.upsertPlanDayFeedback)),
+
+            function LogsController_upsertPlanDayFeedback(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"any"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new LogsController();
+
+
+              const promise = controller.upsertPlanDayFeedback.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 200, next);
             } catch (err) {
                 return next(err);
