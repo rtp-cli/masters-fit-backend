@@ -51,8 +51,16 @@ import { eq, inArray } from "drizzle-orm";
 // ---------------------------------------------------------------------------
 // Guardrails
 // ---------------------------------------------------------------------------
-const DEMO_EMAIL = "rtp+demo@mastersfit.ai";
-const DEMO_NAME = "Dave Walker";
+// Email/name default to the marketing demo user, but can be overridden with
+// --email / --name so the same generator can stand up other seeded accounts
+// (e.g. a dedicated QA account for logging tests). Everything below keys off
+// these two values, so overriding them fully retargets the seed/delete.
+function seedArg(flag: string): string | undefined {
+  const idx = process.argv.indexOf(flag);
+  return idx !== -1 ? process.argv[idx + 1] : undefined;
+}
+const DEMO_EMAIL = seedArg("--email") ?? "rtp+demo@mastersfit.ai";
+const DEMO_NAME = seedArg("--name") ?? "Dave Walker";
 // Anchored to the current UTC date so the demo never goes stale: the active
 // week's final session lands on TODAY (left as the in-progress workout) and
 // everything before it is complete — giving a live streak that always includes
