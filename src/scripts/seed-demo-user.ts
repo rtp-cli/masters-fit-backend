@@ -28,6 +28,7 @@ import {
   exerciseSetLogs,
   planDayLogs,
   workoutLogs,
+  blockLogs,
 } from "@/models/logs.schema";
 import { userSubscriptions, trialUsage } from "@/models/subscription.schema";
 import { backgroundJobs } from "@/models/jobs.schema";
@@ -399,6 +400,11 @@ async function deleteDemoUser(): Promise<void> {
       await db
         .delete(planDayExercises)
         .where(inArray(planDayExercises.workoutBlockId, blockIds));
+    // block_logs reference workout_blocks — clear them before the blocks.
+    if (blockIds.length)
+      await db
+        .delete(blockLogs)
+        .where(inArray(blockLogs.workoutBlockId, blockIds));
     if (dayIds.length)
       await db
         .delete(workoutBlocks)
