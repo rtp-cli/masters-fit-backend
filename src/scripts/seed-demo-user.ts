@@ -130,11 +130,11 @@ const EX_NAMES: Record<string, string[]> = {
   inclinePress: ["Incline Dumbbell Press"], // weighted (dumbbells)
   benchPress: ["Barbell Bench Press"], // weighted
   airSquat: ["Air Squat", "Air Squats"],
-  pushUp: ["Push-Up"],
-  ringRow: ["Ring Row"],
+  pushUp: ["Push-Up", "Push-Ups (Standard)"], // prod dedup renamed the plain variant
+  ringRow: ["Ring Row", "Ring Rows"], // prod catalog pluralizes
   tricepDips: ["Tricep Dips"],
   kettlebellSwing: ["Kettlebell Swing"],
-  burpee: ["Burpee"],
+  burpee: ["Burpee", "Burpees"], // prod merged to "Burpees" (id 2025) in LR-035 dedup
   boxJump: ["Box Jump"],
   hamstringStretch: ["Hamstring Stretch", "Standing Hamstring Stretch"],
   chestStretch: ["Chest Stretch", "Standing Chest Stretch"],
