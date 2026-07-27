@@ -1472,12 +1472,16 @@ export class WorkoutService extends BaseService {
       // Emit 70% — AI request starting. Show a single-day timeline in the
       // modal so the user sees a spinner circle instead of a blank spinner.
       const dayNumber = (existingPlanDay as any).dayNumber || 1;
+      // Use a neutral placeholder while generating — the NEW title isn't known
+      // until the AI responds. Emitting the existing day's name here would show
+      // the current (pre-adjustment) workout title, which is misleading. The
+      // real title is sent in the 99% event below and adopted by the client.
       emitGenerationStatus(userId, {
         progress: 70,
         phase: "generating_days",
         days: [{
           dayNumber,
-          label: existingPlanDay.name || "Today's Workout",
+          label: "Adjusting your workout…",
           status: "generating",
         }],
       });
