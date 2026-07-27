@@ -23,7 +23,7 @@ async function seedSubscriptionPlans() {
         name: "Monthly Premium",
         description: "Unlimited workouts and regenerations",
         billingPeriod: BillingPeriod.MONTHLY,
-        priceUsd: 9.99, // $9.99
+        priceUsd: 6.99, // $6.99
         isActive: true,
       },
       {
@@ -43,9 +43,24 @@ async function seedSubscriptionPlans() {
       });
 
       if (existing) {
-        logger.info("Subscription plan already exists, skipping", {
+        // Upsert: converge the existing row to the desired config (price, name,
+        // etc.) rather than skipping. Makes re-running the seed the canonical way
+        // to sync plan changes — the old skip-if-exists silently left stale prices.
+        await db
+          .update(subscriptionPlans)
+          .set({
+            name: plan.name,
+            description: plan.description,
+            billingPeriod: plan.billingPeriod,
+            priceUsd: plan.priceUsd,
+            isActive: plan.isActive,
+            updatedAt: new Date(),
+          })
+          .where(eq(subscriptionPlans.planId, plan.planId));
+
+        logger.info("Subscription plan updated", {
           operation: "seedSubscriptionPlans",
-          metadata: { planId: plan.planId },
+          metadata: { planId: plan.planId, priceUsd: plan.priceUsd },
         });
         continue;
       }
