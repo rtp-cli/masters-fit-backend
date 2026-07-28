@@ -111,6 +111,7 @@ type DBWorkoutResult = {
           difficulty: string | null;
           equipment: string[] | null;
           link: string | null;
+          hasDemo: boolean | null;
           createdAt: Date | null;
           updatedAt: Date | null;
         };
@@ -176,6 +177,7 @@ type DBWorkoutQueryResult = {
           difficulty: string | null;
           equipment: string[] | null;
           link: string | null;
+          hasDemo: boolean | null;
           createdAt: Date | null;
           updatedAt: Date | null;
         };
@@ -278,6 +280,7 @@ export class WorkoutService extends BaseService {
                 : (exercise.exercise.equipment ?? undefined),
               instructions: exercise.exercise.instructions ?? undefined,
               link: exercise.exercise.link ?? undefined,
+              hasDemo: exercise.exercise.hasDemo,
               muscles_targeted: exercise.exercise.muscleGroups || [],
               created_at: new Date(exercise.exercise.createdAt ?? Date.now()),
               updated_at: new Date(exercise.exercise.updatedAt ?? Date.now()),
@@ -428,6 +431,7 @@ export class WorkoutService extends BaseService {
                 difficulty: ex.exercise.difficulty,
                 equipment: ex.exercise.equipment,
                 link: ex.exercise.link,
+                hasDemo: ex.exercise.hasDemo,
                 createdAt: ex.exercise.createdAt,
                 updatedAt: ex.exercise.updatedAt,
               },
@@ -524,6 +528,7 @@ export class WorkoutService extends BaseService {
                 difficulty: ex.exercise.difficulty,
                 equipment: ex.exercise.equipment,
                 link: ex.exercise.link,
+                hasDemo: ex.exercise.hasDemo,
                 createdAt: ex.exercise.createdAt,
                 updatedAt: ex.exercise.updatedAt,
               },
