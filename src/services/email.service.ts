@@ -62,10 +62,10 @@ export class EmailService {
   }
 
   /**
-   * Fan out an app-feedback submission to the triage inbox(es). Always
-   * feedback@; additionally bug@ for bug reports so it lands in both the
-   * filtered stream and the full one. Reply-To is the user's own address —
-   * the one thing that makes the promised reply a single tap.
+   * Fan out an app-feedback submission to a triage inbox. Bugs go to bug@
+   * (sender "MastersFit Bug" so they stand out in the inbox); everything else
+   * goes to feedback@. Reply-To is the user's own address — the one thing that
+   * makes the promised reply a single tap.
    *
    * Throws on send failure so the caller (which has already committed the row
    * and responded 201) can leave email_sent_at null and retry/alert.
@@ -74,8 +74,9 @@ export class EmailService {
     const { feedbackId, category, message, userName, userEmail, diagnostics } =
       params;
 
-    const to =
-      category === "bug" ? [FEEDBACK_INBOX, BUG_INBOX] : [FEEDBACK_INBOX];
+    const isBug = category === "bug";
+    const to = isBug ? [BUG_INBOX] : [FEEDBACK_INBOX];
+    const senderName = isBug ? "MastersFit Bug" : "MastersFit Feedback";
 
     // Category first so Gmail filters match on it; the gist rides the preview.
     const gist = message.replace(/\s+/g, " ").trim().slice(0, 60);
@@ -97,7 +98,7 @@ export class EmailService {
     lines.push("", `Feedback record: #${feedbackId} (status: new)`);
 
     const response = await resend.emails.send({
-      from: `MastersFit Feedback <${FROM_EMAIL}>`,
+      from: `${senderName} <${FROM_EMAIL}>`,
       to,
       // The single reason the bug confirmation can honestly say "we'll email
       // you": a reply from the inbox goes straight to the user.
