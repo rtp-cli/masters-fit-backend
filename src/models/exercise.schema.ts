@@ -4,6 +4,7 @@ import {
   serial,
   timestamp,
   integer,
+  boolean,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -28,6 +29,11 @@ export const exercises = pgTable(
     difficulty: text("difficulty").$type<IntensityLevel>(),
     instructions: text("instructions").notNull(),
     link: text("link"),
+    // oEmbed verdict on `link`: true = playable YouTube demo, false =
+    // dead/unparseable, null = not yet validated. Written at exercise
+    // create/link-update time and by the backfill script — the client renders
+    // demo affordances synchronously off this instead of N oEmbed calls.
+    hasDemo: boolean("has_demo"),
     tag: text("tag"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -78,6 +84,7 @@ export interface Exercise {
   difficulty: IntensityLevel | null;
   instructions: string;
   link: string | null;
+  hasDemo: boolean | null;
   tag: string | null;
   createdAt: Date;
   updatedAt: Date;

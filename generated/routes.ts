@@ -415,6 +415,7 @@ const models: TsoaRoute.Models = {
             "equipment": {"dataType":"string"},
             "instructions": {"dataType":"string"},
             "link": {"dataType":"string"},
+            "hasDemo": {"dataType":"union","subSchemas":[{"dataType":"boolean"},{"dataType":"enum","enums":[null]}]},
             "muscles_targeted": {"dataType":"array","array":{"dataType":"string"}},
             "created_at": {"dataType":"datetime","required":true},
             "updated_at": {"dataType":"datetime","required":true},

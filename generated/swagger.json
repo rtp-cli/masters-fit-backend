@@ -1124,6 +1124,11 @@
 					"link": {
 						"type": "string"
 					},
+					"hasDemo": {
+						"type": "boolean",
+						"nullable": true,
+						"description": "Stored oEmbed verdict on `link`; null = not yet validated."
+					},
 					"muscles_targeted": {
 						"items": {
 							"type": "string"

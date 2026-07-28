@@ -12,6 +12,8 @@ export interface Exercise {
   equipment?: string;
   instructions?: string;
   link?: string;
+  /** Stored oEmbed verdict on `link`; null = not yet validated. */
+  hasDemo?: boolean | null;
   muscles_targeted?: string[];
   created_at: Date;
   updated_at: Date;

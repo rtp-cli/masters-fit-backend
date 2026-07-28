@@ -11,6 +11,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { logger } from "@/utils/logger";
+import { checkDemoLink } from "@/utils/video-validation";
 import { AvailableEquipment, IntensityLevels } from "@/constants";
 
 // Interface for exercise metadata (minimal data for LLM)
@@ -74,6 +75,7 @@ export class ExerciseService extends BaseService {
           difficulty: data.difficulty,
           tag: data.tag,
           link: data.link,
+          hasDemo: await checkDemoLink(data.link),
         },
       ])
       .returning();
@@ -163,6 +165,7 @@ export class ExerciseService extends BaseService {
           difficulty: data.difficulty,
           tag: data.tag,
           link: data.link,
+          hasDemo: await checkDemoLink(data.link),
         },
       ])
       .onConflictDoNothing()
@@ -196,6 +199,10 @@ export class ExerciseService extends BaseService {
       instructions: Array.isArray(data.instructions)
         ? data.instructions.join("\n")
         : data.instructions,
+      // Revalidate the demo verdict whenever the link is part of the update
+      ...(data.link !== undefined
+        ? { hasDemo: await checkDemoLink(data.link) }
+        : {}),
     };
 
     const result = await this.db
@@ -245,7 +252,7 @@ export class ExerciseService extends BaseService {
   async updateExerciseLink(id: number, link: string | null) {
     const result = await this.db
       .update(exercises)
-      .set({ link })
+      .set({ link, hasDemo: await checkDemoLink(link) })
       .where(eq(exercises.id, id))
       .returning();
 
