@@ -20,3 +20,5 @@ export * from "@/services/goal-progress.service";
 export * from "@/services/jobs.service";
 export * from "@/services/notification.service";
 export * from "@/services/subscription.service";
+export * from "@/services/app-feedback.service";
+export * from "@/services/email.service";

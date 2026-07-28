@@ -1198,6 +1198,26 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"CreateFeedbackResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"feedbackId": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"ExerciseLog": {
 				"properties": {
 					"id": {
@@ -6072,6 +6092,61 @@
 								"type": "object",
 								"description": "Link update data"
 							}
+						}
+					}
+				}
+			}
+		},
+		"/feedback": {
+			"post": {
+				"operationId": "CreateFeedback",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateFeedbackResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too Many Requests",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Submit app feedback. The user is taken from the session, never the body.\nResponds 201 as soon as the row commits — the email fan-out runs after,\noff the response path, so a slow SMTP hop never makes the user think the\nmessage was lost.",
+				"tags": [
+					"Feedback"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {}
 						}
 					}
 				}
