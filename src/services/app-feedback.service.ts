@@ -16,7 +16,9 @@ export class FeedbackRateLimitError extends Error {
   }
 }
 
-const MAX_PER_HOUR = 5;
+// Prod default is 5/hour per user; override via env for local testing so a
+// QA session isn't throttled (unset/invalid → 5).
+const MAX_PER_HOUR = Number(process.env.FEEDBACK_MAX_PER_HOUR) || 5;
 
 interface CreateFeedbackInput {
   clientId: string;
