@@ -9,6 +9,10 @@ export const videoEngagementSchema = z.object({
   exercise_id: z.number().int().positive(),
   exercise_name: z.string().min(1),
   video_url: z.string().url(),
+  // Where the demo was opened from. Optional so older clients still validate.
+  surface: z
+    .enum(["workout", "calendar_scheduled", "calendar_complete"])
+    .optional(),
 });
 
 /**

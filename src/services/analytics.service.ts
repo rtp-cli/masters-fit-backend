@@ -29,6 +29,7 @@ export class AnalyticsService extends BaseService {
       exercise_id: data.exercise_id,
       exercise_name: data.exercise_name,
       video_url: data.video_url,
+      ...(data.surface ? { surface: data.surface } : {}),
     }, ip);
 
     logger.info("Video engagement tracked", {

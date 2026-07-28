@@ -8,6 +8,7 @@ export interface VideoEngagementRequest {
   exercise_id: number;
   exercise_name: string;
   video_url: string;
+  surface?: "workout" | "calendar_scheduled" | "calendar_complete";
 }
 
 /**
