@@ -342,6 +342,28 @@ export class ProfileController extends Controller {
       needsOnboarding: false,
     };
   }
+
+  /**
+   * Update the user's display name (fix-a-typo affordance in Account).
+   * Deliberately name-only: email is immutable from the app.
+   */
+  @Put("/user/{userId}/name")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async updateUserName(
+    @Path() userId: number,
+    @Body() requestBody: { name: string }
+  ): Promise<ApiResponse & { name?: string }> {
+    const name = (requestBody.name ?? "").trim();
+    if (!name) {
+      return { success: false, error: "Name cannot be empty" };
+    }
+    if (name.length > 80) {
+      return { success: false, error: "Name must be 80 characters or fewer" };
+    }
+    const updated = await userService.updateUser(userId, { name });
+    return { success: true, name: updated.name };
+  }
 }
 
 export const profileController = new ProfileController();

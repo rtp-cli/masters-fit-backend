@@ -8315,6 +8315,83 @@
 				}
 			}
 		},
+		"/profile/user/{userId}/name": {
+			"put": {
+				"operationId": "UpdateUserName",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/ApiResponse"
+										},
+										{
+											"properties": {
+												"name": {
+													"type": "string"
+												}
+											},
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Update the user's display name (fix-a-typo affordance in Account).\nDeliberately name-only: email is immutable from the app.",
+				"tags": [
+					"Profile"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"name": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"name"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/prompts/{userId}": {
 			"get": {
 				"operationId": "GetUserPrompts",

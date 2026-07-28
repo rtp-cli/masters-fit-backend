@@ -84,4 +84,22 @@ router.put(
   }
 );
 
+// Update the user's display name (typo fix from Account; email is immutable)
+router.put(
+  "/user/:userId/name",
+  requireAuth,
+  requireSelf("userId"),
+  async (req, res) => {
+    try {
+      const response = await controller.updateUserName(
+        Number(req.params.userId),
+        req.body
+      );
+      res.json(response);
+    } catch (error) {
+      handleError(error, res);
+    }
+  }
+);
+
 export { router as profileRouter };
