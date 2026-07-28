@@ -79,6 +79,8 @@ type LoadedPlanDay = {
   workout: { id: number; userId: number; name: string; description: string | null };
   blocks: Array<{
     order: number | null;
+    blockType: string | null;
+    blockName: string | null;
     blockDurationMinutes: number | null;
     exercises: Array<{
       order: number | null;
@@ -231,7 +233,19 @@ export class ShareService extends BaseService {
     // included-and-hidden (§3.2).
     const includeWeights = input.kind === "completed" && input.showWeights;
 
-    const flat = pd.blocks
+    // Warmup/cooldown/mobility blocks are dropped from the card's rows AND its
+    // exercise/set counts so the card leads with the working sets and the
+    // "N exercises · N sets" reads honestly. Minutes stays the full session
+    // (wall-clock time is time). Fall back to all blocks if a plan is *only*
+    // warmup/cooldown, so a card is never empty.
+    const isWarmupCooldown = (b: { blockType: string | null; blockName: string | null }) =>
+      /warm|cool|mobility|stretch|activation|prehab/i.test(
+        `${b.blockType || ""} ${b.blockName || ""}`
+      );
+    const workingBlocks = pd.blocks.filter((b) => !isWarmupCooldown(b));
+    const rowBlocks = workingBlocks.length > 0 ? workingBlocks : pd.blocks;
+
+    const flat = rowBlocks
       .flatMap((b) => b.exercises)
       .filter((e) => e && e.exercise);
 
