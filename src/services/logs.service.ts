@@ -1089,6 +1089,8 @@ export class LogsService extends BaseService {
       exercisesCompleted?: number;
       blocksCompleted?: number;
       notes?: string;
+      averageHeartRate?: number;
+      maxHeartRate?: number;
     }
   ): Promise<void> {
     console.log('🐛 markWorkoutDayComplete called:', {
@@ -1126,6 +1128,8 @@ export class LogsService extends BaseService {
         blocksCompleted: completionData.blocksCompleted,
         isComplete: true,
         notes: completionData.notes,
+        averageHeartRate: completionData.averageHeartRate,
+        maxHeartRate: completionData.maxHeartRate,
       };
 
       // Try to find existing plan day log first

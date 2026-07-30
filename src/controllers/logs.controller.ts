@@ -790,6 +790,8 @@ export class LogsController extends Controller {
       exercisesCompleted?: number;
       blocksCompleted?: number;
       notes?: string;
+      averageHeartRate?: number;
+      maxHeartRate?: number;
     }
   ): Promise<ApiResponse> {
     await logsService.markWorkoutDayComplete(planDayId, requestBody);
