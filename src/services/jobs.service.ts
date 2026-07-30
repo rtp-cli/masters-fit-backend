@@ -9,6 +9,20 @@ import {
 import { BaseService } from "@/services/base.service";
 import { logger } from "@/utils/logger";
 
+/**
+ * Thrown when a job run discovers another run of the SAME background job has
+ * already reached a terminal state (Bull stalled-lock reclaims and multi-worker
+ * races run the same job more than once). Processors treat it as a silent
+ * no-op: no status update, no ledger settle, no notification — the winning
+ * run already did all of that.
+ */
+export class JobSupersededError extends Error {
+  constructor(jobId: number, status: string) {
+    super(`Job ${jobId} already ${status} by another run`);
+    this.name = "JobSupersededError";
+  }
+}
+
 export class JobsService extends BaseService {
   async createJob(
     userId: number,

@@ -51,6 +51,8 @@ import {
   determineRounds,
 } from "@/utils/workout-block-configuration.utils";
 import { emitProgress, emitGenerationStatus } from "@/utils/websocket-progress.utils";
+import { jobsService, JobSupersededError } from "@/services/jobs.service";
+import { JobStatus } from "@/models/jobs.schema";
 import { deriveScoringType } from "@/utils/scoring-type";
 import { normalizeProtocolConfig } from "@/utils/protocol-config";
 
@@ -1372,7 +1374,8 @@ export class WorkoutService extends BaseService {
     planDayId: number,
     regenerationReason: string,
     regenerationStyles?: string[],
-    threadId?: string
+    threadId?: string,
+    jobId?: number
   ): Promise<PlanDayWithExercises> {
     const startTime = Date.now();
 
@@ -1535,6 +1538,21 @@ export class WorkoutService extends BaseService {
         }
       }
 
+      // Duplicate-run guard: Bull stalled-lock reclaims and multi-worker races
+      // can run the same job twice; the loser's write would silently replace a
+      // workout the user is already looking at. Re-check just before the
+      // destructive rewrite below and bail if another run already finished.
+      if (jobId !== undefined) {
+        const dbJob = await jobsService.getJob(jobId);
+        if (
+          dbJob &&
+          (dbJob.status === JobStatus.COMPLETED ||
+            dbJob.status === JobStatus.FAILED)
+        ) {
+          throw new JobSupersededError(jobId, dbJob.status);
+        }
+      }
+
       // First, delete all exercise logs that reference these plan day exercises
       const planDayExerciseIds = (allExistingExercises || []).map(
         (ex) => ex.id
@@ -1684,6 +1702,18 @@ export class WorkoutService extends BaseService {
       return updatedPlanDay as PlanDayWithExercises;
     } catch (error) {
       const totalDuration = Date.now() - startTime;
+
+      // A superseded duplicate run is not a failure — the winning run already
+      // delivered the workout. Don't emit an error to the user for it.
+      if (error instanceof JobSupersededError) {
+        logger.info("Daily regeneration run superseded, skipping rewrite", {
+          userId,
+          planDayId,
+          operation: "regenerateDailyWorkout",
+          metadata: { jobId, totalDuration: `${totalDuration}ms` },
+        });
+        throw error;
+      }
 
       logger.error("Daily workout regeneration failed", error as Error, {
         userId,

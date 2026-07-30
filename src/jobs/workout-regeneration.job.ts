@@ -90,6 +90,32 @@ export async function processWorkoutRegenerationJob(
   });
 
   try {
+    // Duplicate-run guard: Bull can hand the same job to a second worker
+    // (stalled-lock reclaim, multi-instance race). If another run already
+    // finished this job, skip — a second run would create a duplicate workout.
+    const existingJob = await jobsService.getJob(jobId);
+    if (
+      existingJob &&
+      (existingJob.status === JobStatus.COMPLETED ||
+        existingJob.status === JobStatus.FAILED)
+    ) {
+      logger.warn("Skipping duplicate workout regeneration run — job already terminal", {
+        operation: "workoutRegenerationJob",
+        jobId,
+        userId,
+        metadata: { status: existingJob.status, attemptsMade: job.attemptsMade },
+      });
+      return (
+        (existingJob.result as WorkoutRegenerationJobResult) ?? {
+          workoutId: existingJob.workoutId ?? 0,
+          workoutName: "Duplicate run skipped",
+          planDaysCount: 0,
+          totalExercises: 0,
+          generationTimeMs: 0,
+        }
+      );
+    }
+
     // A fresh job must not surface the previous run's per-day timeline — clear
     // any stale persisted status before emitting this job's own progress.
     await clearPersistedGenerationStatus(userId);

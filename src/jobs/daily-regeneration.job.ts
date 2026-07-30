@@ -1,7 +1,7 @@
 import { Job } from "bull";
 import { logger } from "@/utils/logger";
 import { workoutService } from "@/services/workout.service";
-import { jobsService } from "@/services/jobs.service";
+import { jobsService, JobSupersededError } from "@/services/jobs.service";
 import { notificationService } from "@/services/notification.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
 import { userService } from "@/services/user.service";
@@ -95,6 +95,33 @@ export async function processDailyRegenerationJob(
   });
 
   try {
+    // Duplicate-run guard: Bull can hand the same job to a second worker
+    // (stalled-lock reclaim, multi-instance race). If another run already
+    // finished this job, do nothing — rewriting the plan day now would
+    // silently replace a workout the user may already be looking at.
+    const existingJob = await jobsService.getJob(jobId);
+    if (
+      existingJob &&
+      (existingJob.status === JobStatus.COMPLETED ||
+        existingJob.status === JobStatus.FAILED)
+    ) {
+      logger.warn("Skipping duplicate daily regeneration run — job already terminal", {
+        operation: "processDailyRegenerationJob",
+        jobId,
+        userId,
+        planDayId,
+        metadata: { status: existingJob.status, attemptsMade: job.attemptsMade },
+      });
+      return (
+        (existingJob.result as DailyRegenerationJobResult) ?? {
+          planDayId,
+          planDayName: "Duplicate run skipped",
+          totalExercises: 0,
+          generationTimeMs: 0,
+        }
+      );
+    }
+
     // A fresh job must not surface the previous run's per-day timeline — daily
     // regen emits no per-day events, so without this it would show the prior
     // weekly run's completed days.
@@ -127,7 +154,8 @@ export async function processDailyRegenerationJob(
       planDayId,
       regenerationReason,
       regenerationStyles,
-      threadId
+      threadId,
+      jobId
     );
 
     // Get real token usage from regeneration (or fallback to estimate)
@@ -254,6 +282,29 @@ export async function processDailyRegenerationJob(
     return result;
   } catch (error) {
     const generationTime = Date.now() - startTime;
+
+    // Superseded duplicate: the winning run already settled the ledger, set
+    // the job status, and notified the user. Do none of that again — return
+    // its result so Bull records this run as complete without side effects.
+    if (error instanceof JobSupersededError) {
+      logger.warn("Duplicate daily regeneration run superseded mid-flight", {
+        operation: "processDailyRegenerationJob",
+        jobId,
+        userId,
+        planDayId,
+        metadata: { attemptsMade: job.attemptsMade, generationTimeMs: generationTime },
+      });
+      const terminalJob = await jobsService.getJob(jobId);
+      return (
+        (terminalJob?.result as DailyRegenerationJobResult) ?? {
+          planDayId,
+          planDayName: "Duplicate run skipped",
+          totalExercises: 0,
+          generationTimeMs: generationTime,
+        }
+      );
+    }
+
     // Bull queue attemptsMade: 1=first attempt, 2=first retry, 3=second retry (final)
     const maxAttempts = job.opts.attempts || 3;
     const isLastAttempt = job.attemptsMade === maxAttempts;
