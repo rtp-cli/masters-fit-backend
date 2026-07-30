@@ -25,27 +25,59 @@ import type { ExerciseMetadata } from "@/services/exercise.service";
  * shoulder repair — so those rely solely on the LLM self-report signal for now, not a rule filter.
  * This is a judgment call, not a completeness guarantee; documented here so it's easy to revisit.
  */
+/**
+ * Two-tier model (2026-07-30, product-approved): HARD BANS below strip an
+ * exercise from the catalog entirely — reserved for movements with broad
+ * consensus contraindication. Everything that a trainer would PROGRAM
+ * CAUTIOUSLY rather than avoid lives in CAUTION_RULES instead: those
+ * exercises stay available, and the system prompt requires conservative
+ * programming for them. The original single-tier list banned whole movement
+ * families (all 45 deadlift variants for lower_back_pain, bike sprints for
+ * knee_pain, forearm planks for wrist_pain) that modern rehab practice
+ * actively uses — making reasonable user requests silently unsatisfiable.
+ */
 const CONTRAINDICATION_RULES: Partial<Record<PhysicalLimitation, RegExp>> = {
-  [PhysicalLimitations.KNEE_PAIN]:
-    /\b(jump|plyo|box jump|jumping jack|burpee|pistol squat|deep squat|sprint)\b/i,
+  [PhysicalLimitations.KNEE_PAIN]: /\b(pistol squat|box jump|plyo)\b/i,
   [PhysicalLimitations.SHOULDER_PAIN]:
-    /\b(overhead press|military press|behind[- ]the[- ]neck|push press|snatch|dip|kipping)\b/i,
+    /\b(behind[- ]the[- ]neck|kipping|snatch)\b/i,
   [PhysicalLimitations.LOWER_BACK_PAIN]:
-    /\b(deadlift|good morning|russian twist|sit-?up|back extension|superman|straight[- ]leg)\b/i,
+    /\b(good morning|russian twist|sit-?up)\b|(stiff|straight)[- ]?leg(ged)?[- ]deadlift/i,
   [PhysicalLimitations.NECK_PAIN]:
     /\b(neck bridge|shoulder stand|headstand|behind[- ]the[- ]neck)\b/i,
-  [PhysicalLimitations.WRIST_PAIN]:
-    /\b(push-?up|handstand|front rack|clean|snatch|plank)\b/i,
-  [PhysicalLimitations.ELBOW_PAIN]:
-    /\b(tricep dip|skull crusher|close[- ]grip|hammer curl)\b/i,
+  [PhysicalLimitations.WRIST_PAIN]: /\b(handstand|snatch)\b/i,
+  [PhysicalLimitations.ELBOW_PAIN]: /\b(skull crusher)\b/i,
   [PhysicalLimitations.OSTEOPOROSIS]:
     /\b(russian twist|sit-?up|toe touch|forward fold|spinal flexion|twist)\b/i,
+  // Sciatica is nerve-root territory: heavier hinges stay banned; only
+  // light-implement hinge variants (kettlebell/dumbbell/single-leg/banded)
+  // drop to caution.
   [PhysicalLimitations.SCIATICA]:
-    /\b(deadlift|good morning|sit-?up|toe touch)\b/i,
-  [PhysicalLimitations.ANKLE_INSTABILITY]:
-    /\b(box jump|jump rope|sprint|plyo)\b/i,
+    /\b(good morning|sit-?up|toe touch)\b|^(?=.*deadlift)(?!.*(kettlebell|dumbbell|single[- ]leg|band|stability)).*$/i,
+  [PhysicalLimitations.ANKLE_INSTABILITY]: /\b(box jump|jump rope|plyo)\b/i,
   [PhysicalLimitations.BALANCE_ISSUES]:
     /\b(bosu|single[- ]leg.*(jump|hop)|eyes closed)\b/i,
+};
+
+/**
+ * Caution tier: permitted, but the system prompt requires conservative
+ * programming (light-to-moderate load, RPE <= 7, controlled tempo, never in
+ * an AMRAP/max-effort circuit, safety cue in the notes). Checked against the
+ * post-hard-ban catalog, so overlap with CONTRAINDICATION_RULES is fine —
+ * e.g. a stiff-leg deadlift never reaches the lower-back caution check.
+ */
+const CAUTION_RULES: Partial<Record<PhysicalLimitation, RegExp>> = {
+  [PhysicalLimitations.KNEE_PAIN]:
+    /\b(jump|jumping jack|burpee|deep squat|sprint)\b/i,
+  [PhysicalLimitations.SHOULDER_PAIN]:
+    /\b(overhead press|military press|push press|dip)\b/i,
+  [PhysicalLimitations.LOWER_BACK_PAIN]:
+    /\b(deadlift|back extension|superman)\b/i,
+  [PhysicalLimitations.WRIST_PAIN]:
+    /\b(push-?up|plank|front rack|clean)\b/i,
+  [PhysicalLimitations.ELBOW_PAIN]:
+    /\b(tricep dip|close[- ]grip|hammer curl)\b/i,
+  [PhysicalLimitations.SCIATICA]: /\bdeadlift\b/i,
+  [PhysicalLimitations.ANKLE_INSTABILITY]: /\b(sprint|jump)\b/i,
 };
 
 /**
@@ -57,26 +89,42 @@ const CONTRAINDICATION_RULES: Partial<Record<PhysicalLimitation, RegExp>> = {
  * contain, with no way to understand why.
  */
 const CONTRAINDICATED_MOVEMENTS: Partial<Record<PhysicalLimitation, string>> = {
-  [PhysicalLimitations.KNEE_PAIN]:
-    "jumping/plyometric movements, box jumps, jumping jacks, burpees, pistol squats, deep squats, sprints",
+  [PhysicalLimitations.KNEE_PAIN]: "pistol squats, box jumps, plyometrics",
   [PhysicalLimitations.SHOULDER_PAIN]:
-    "overhead/military presses, behind-the-neck movements, push presses, snatches, dips, kipping movements",
+    "behind-the-neck movements, kipping movements, snatches",
   [PhysicalLimitations.LOWER_BACK_PAIN]:
-    "deadlifts, good mornings, russian twists, sit-ups, back extensions, supermans, straight-leg movements",
+    "good mornings, russian twists, sit-ups, stiff-leg/straight-leg deadlifts",
   [PhysicalLimitations.NECK_PAIN]:
     "neck bridges, shoulder stands, headstands, behind-the-neck movements",
-  [PhysicalLimitations.WRIST_PAIN]:
-    "push-ups, handstands, front-rack positions, cleans, snatches, planks",
-  [PhysicalLimitations.ELBOW_PAIN]:
-    "tricep dips, skull crushers, close-grip movements, hammer curls",
+  [PhysicalLimitations.WRIST_PAIN]: "handstands, snatches",
+  [PhysicalLimitations.ELBOW_PAIN]: "skull crushers",
   [PhysicalLimitations.OSTEOPOROSIS]:
     "russian twists, sit-ups, toe touches, forward folds, spinal flexion/twisting movements",
   [PhysicalLimitations.SCIATICA]:
-    "deadlifts, good mornings, sit-ups, toe touches",
-  [PhysicalLimitations.ANKLE_INSTABILITY]:
-    "box jumps, jump rope, sprints, plyometrics",
+    "good mornings, sit-ups, toe touches, barbell/heavier deadlift variants",
+  [PhysicalLimitations.ANKLE_INSTABILITY]: "box jumps, jump rope, plyometrics",
   [PhysicalLimitations.BALANCE_ISSUES]:
     "bosu work, single-leg jumps/hops, eyes-closed movements",
+};
+
+/**
+ * Human-readable caution-tier lists, mirroring CAUTION_RULES the same way
+ * CONTRAINDICATED_MOVEMENTS mirrors the hard bans.
+ */
+const CAUTION_MOVEMENTS: Partial<Record<PhysicalLimitation, string>> = {
+  [PhysicalLimitations.KNEE_PAIN]:
+    "jumps, jumping jacks, burpees, deep squats, sprints",
+  [PhysicalLimitations.SHOULDER_PAIN]:
+    "overhead/military presses, push presses, dips",
+  [PhysicalLimitations.LOWER_BACK_PAIN]:
+    "deadlift variants, back extensions, supermans",
+  [PhysicalLimitations.WRIST_PAIN]:
+    "push-ups, planks, front-rack positions, cleans",
+  [PhysicalLimitations.ELBOW_PAIN]:
+    "tricep dips, close-grip movements, hammer curls",
+  [PhysicalLimitations.SCIATICA]:
+    "light-implement deadlifts (kettlebell/dumbbell/single-leg/banded)",
+  [PhysicalLimitations.ANKLE_INSTABILITY]: "sprints, jumps",
 };
 
 /**
@@ -95,6 +143,25 @@ export function describeContraindications(
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
       return `${label}: ${CONTRAINDICATED_MOVEMENTS[limitation] ?? "certain high-risk movements"}`;
+    });
+}
+
+/**
+ * One "<Limitation Label>: <caution movements>" line per active limitation
+ * with a caution rule — the prompt uses these to require conservative
+ * programming instead of exclusion. Empty array when none apply.
+ */
+export function describeCautions(
+  limitations: PhysicalLimitation[] | null | undefined
+): string[] {
+  return (limitations ?? [])
+    .filter((limitation) => CAUTION_RULES[limitation])
+    .map((limitation) => {
+      const label = limitation
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+      return `${label}: ${CAUTION_MOVEMENTS[limitation] ?? "certain movements"}`;
     });
 }
 

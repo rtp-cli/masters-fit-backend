@@ -8,6 +8,7 @@ import {
 } from "@langchain/core/messages";
 import { Profile } from "@/models";
 import {
+  describeCautions,
   describeContraindications,
   filterExercisesByLimitations,
 } from "@/utils/limitation-validation";
@@ -265,11 +266,34 @@ export class WorkoutAgentService {
 For safety, the exercise list above ALREADY EXCLUDES these movement patterns, because of limitations on the user's profile:
 ${contraindications.map((line) => `- ${line}`).join("\n")}
 
-If the user's request asks for an excluded movement (e.g. they ask for deadlifts but their profile lists Lower Back Pain):
+If the user's request asks for an excluded movement (e.g. they ask for good mornings but their profile lists Lower Back Pain):
 1. Do NOT name the workout or any block after the excluded movement — names must describe what the workout actually contains.
 2. Choose the closest safe alternatives from the available exercise list.
-3. In the workout "description" field, state plainly which requested movement was excluded and which profile limitation excluded it, and tell the user they can change this under Profile > Limitations if it no longer applies. Example: "You asked for deadlifts, but they're excluded by the Lower Back Pain setting on your profile — this session uses back-friendly hip-hinge work instead. If deadlifts should be allowed, update your limitations in your profile."
+3. In the workout "description" field, state plainly which requested movement was excluded and which profile limitation excluded it, and tell the user they can change this under Profile > Limitations if it no longer applies. Example: "You asked for good mornings, but they're excluded by the Lower Back Pain setting on your profile — this session uses back-friendly hip-hinge work instead. If they should be allowed, update your limitations in your profile."
 NEVER silently substitute and present the workout as if it contained the requested movement.`;
+
+    // Caution tier: these movements stayed IN the catalog despite the user's
+    // limitations, on the condition that the model programs them
+    // conservatively. Without this section the model would treat them like
+    // any other exercise.
+    const cautions = describeCautions(
+      profile.limitations as PhysicalLimitation[] | null
+    );
+    const limitationCautions =
+      cautions.length === 0
+        ? ""
+        : `
+
+## LIMITATION CAUTION MOVEMENTS — PROGRAM CONSERVATIVELY
+
+These movement patterns are PERMITTED despite the user's limitations, but ONLY with conservative programming:
+${cautions.map((line) => `- ${line}`).join("\n")}
+
+Whenever you include one of them:
+1. Light-to-moderate load only (RPE 7 max), controlled tempo, modest volume.
+2. NEVER place it inside an AMRAP, EMOM, or max-effort circuit.
+3. Add a short form/safety cue to that exercise's "notes" field referencing the limitation (e.g. "Keep spine neutral; stop if your lower back tightens").
+4. Prefer an unrestricted alternative when it serves the session's goal equally well — use caution movements when the user asks for them or they clearly fit the goal.`;
 
     // Add exercise context to the comprehensive prompt
     const enhancedSystemContent = `${systemContent}
@@ -287,7 +311,7 @@ ${exerciseContext}
 3. **Consider muscle groups and difficulty** when selecting exercises
 4. **Choose appropriate variations** - multiple variations of exercises are available
 5. **Follow workout style requirements** - some exercises may be tagged for specific styles
-${limitationTransparency}
+${limitationTransparency}${limitationCautions}
 ## CRITICAL REMINDER: VALID JSON OUTPUT ONLY
 
 Your final response MUST be a valid JSON workout plan following the exact structure specified in the prompt above.
