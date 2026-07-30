@@ -139,13 +139,26 @@ export async function expressAuthentication(
 
     return decoded;
   } catch (error) {
-    // Handle waiver validation errors with specific status codes
-    if ((error as any).status === 426) {
-      const waiverError = new Error((error as Error).message);
-      (waiverError as any).status = 426;
-      throw waiverError;
+    // Errors that already carry an explicit HTTP status (waiver 426 etc.)
+    // pass through unchanged for the caller to map.
+    if (typeof (error as any)?.status === "number") {
+      throw error;
     }
 
-    throw new Error("Invalid or expired token");
+    // Only genuine auth failures may become a 401: an invalid/expired JWT or
+    // a deleted account. Anything else caught here is an infrastructure
+    // failure (DB blip during user lookup or waiver validation, IP
+    // enrichment) — mapping those to 401 made healthy clients burn a refresh
+    // rotation and log users out mid-session on a transient server error.
+    const isAuthError =
+      error instanceof jwt.JsonWebTokenError ||
+      (error instanceof Error && error.message === "Account has been deleted");
+    if (isAuthError) {
+      throw new Error("Invalid or expired token");
+    }
+
+    const infraError = new Error("Service temporarily unavailable");
+    (infraError as any).status = 503;
+    throw infraError;
   }
 }

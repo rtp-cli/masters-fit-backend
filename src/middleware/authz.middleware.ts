@@ -40,6 +40,17 @@ function sendAuthError(error: unknown, res: Response): void {
     }
     return;
   }
+  // Non-auth statuses set by expressAuthentication (e.g. 503 for an infra
+  // failure during auth) pass through — a 401 here would push clients into
+  // token refresh/logout for a server-side blip.
+  const explicitStatus = (error as any)?.status;
+  if (typeof explicitStatus === "number" && explicitStatus !== 401) {
+    res.status(explicitStatus).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Error",
+    });
+    return;
+  }
   if (error instanceof Error && error.message === "Invalid or expired token") {
     res.status(401).json({ success: false, error: error.message });
     return;
