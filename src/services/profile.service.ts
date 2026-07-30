@@ -47,15 +47,17 @@ export class ProfileService extends BaseService {
     const existingProfile = await this.getProfileByUserId(profileData.userId);
 
     if (existingProfile) {
-      // For updates, only include fields that have meaningful values
-      // Remove undefined, null, empty strings, empty arrays, etc.
+      // For updates, skip only fields the caller didn't provide (undefined, or
+      // the `?? null` convention used by full-payload callers). Empty strings
+      // and empty arrays are deliberate clears and MUST be written — dropping
+      // them made it impossible to remove your last limitation, erase medical
+      // notes, or clear equipment (the save silently no-opped).
       const updateFields: Partial<InsertProfile> = {};
-      
+
       Object.keys(processedData).forEach(key => {
         const value = processedData[key];
-        
-        // Only include non-empty values
-        if (this.hasValue(value)) {
+
+        if (value !== undefined && value !== null) {
           updateFields[key as keyof InsertProfile] = value;
         }
       });
@@ -91,50 +93,22 @@ export class ProfileService extends BaseService {
       if (processed.environment === WorkoutEnvironments.COMMERCIAL_GYM) {
         // Override equipment for commercial gym - has all equipment
         processed.equipment = getEquipmentForEnvironment(processed.environment);
-        // Clear other equipment for commercial gym since they have everything
-        processed.otherEquipment = null;
+        // Clear other equipment for commercial gym since they have everything.
+        // "" not null: null means "not provided" to the update path and would
+        // be skipped, while empty string is written as a real clear.
+        processed.otherEquipment = "";
       } else if (
         processed.environment === WorkoutEnvironments.BODYWEIGHT_ONLY
       ) {
         // Override equipment for bodyweight-only - no equipment
         processed.equipment = [];
         // Clear other equipment for bodyweight since no equipment is used
-        processed.otherEquipment = null;
+        processed.otherEquipment = "";
       }
       // For HOME_GYM, keep the user-selected equipment and otherEquipment
     }
 
     return processed;
-  }
-
-  /**
-   * Check if a value is meaningful and should be saved to the database
-   * Returns false for undefined, null, empty strings, empty arrays, empty objects
-   */
-  private hasValue(value: any): boolean {
-    // Undefined or null
-    if (value === undefined || value === null) {
-      return false;
-    }
-    
-    // Empty string
-    if (typeof value === 'string' && value.trim() === '') {
-      return false;
-    }
-    
-    // Empty array
-    if (Array.isArray(value) && value.length === 0) {
-      return false;
-    }
-    
-    // Empty object (but not Date objects or other special objects)
-    if (typeof value === 'object' && 
-        !(value instanceof Date) && 
-        Object.keys(value).length === 0) {
-      return false;
-    }
-    
-    return true;
   }
 }
 
