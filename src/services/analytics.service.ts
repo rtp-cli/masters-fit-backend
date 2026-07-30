@@ -1,5 +1,6 @@
 import { BaseService } from "@/services/base.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
+import { BACKEND_ANALYTICS_EVENT } from "@/constants/analytics-events";
 import { logger } from "@/utils/logger";
 import {
   VideoEngagementRequest,
@@ -25,7 +26,7 @@ export class AnalyticsService extends BaseService {
     data: VideoEngagementRequest,
     ip?: string
   ): Promise<void> {
-    await eventTrackingService.trackEvent(userUuid, "Video Link Opened", {
+    await eventTrackingService.trackEvent(userUuid, BACKEND_ANALYTICS_EVENT.VIDEO_LINK_OPENED, {
       exercise_id: data.exercise_id,
       exercise_name: data.exercise_name,
       video_url: data.video_url,
@@ -47,7 +48,7 @@ export class AnalyticsService extends BaseService {
     data: AppOpenedRequest,
     ip?: string
   ): Promise<void> {
-    await eventTrackingService.trackEvent(userUuid, "App Opened", {
+    await eventTrackingService.trackEvent(userUuid, BACKEND_ANALYTICS_EVENT.APP_OPENED, {
       app_version: data.app_version,
       platform: data.platform,
       $os: data.platform,
@@ -68,7 +69,7 @@ export class AnalyticsService extends BaseService {
     data: WorkoutAbandonedRequest,
     ip?: string
   ): Promise<void> {
-    await eventTrackingService.trackEvent(userUuid, "Workout Abandoned", {
+    await eventTrackingService.trackEvent(userUuid, BACKEND_ANALYTICS_EVENT.WORKOUT_ABANDONED, {
       workout_id: data.workout_id,
       plan_day_id: data.plan_day_id,
       current_exercise: data.current_exercise,
@@ -126,20 +127,6 @@ export class AnalyticsService extends BaseService {
       planDayId: data.plan_day_id,
       duration: data.duration,
       completionPercentage: data.completion_percentage
-    });
-  }
-
-  /**
-   * Track onboarding started
-   */
-  async trackOnboardingStarted(
-    userUuid: string,
-    ip?: string
-  ): Promise<void> {
-    await eventTrackingService.trackOnboardingStarted(userUuid, ip);
-
-    logger.info("Onboarding started tracked", {
-      userUuid
     });
   }
 }

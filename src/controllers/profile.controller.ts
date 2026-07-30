@@ -135,10 +135,12 @@ export class ProfileController extends Controller {
       needsOnboarding: false,
     });
 
-    // Track onboarding completed if this was the first time setting it to false
+    // On first completion, sync the people-profile enrichment. NOTE: the
+    // `onboarding_completed` EVENT is owned by the CLIENT (frontend
+    // lib/analytics-events.ts) — the backend only updates the profile here, it no
+    // longer emits a duplicate completion event.
     if (currentUser?.needsOnboarding === true && currentUser.uuid) {
       const clientIP = getClientIP(request);
-      await eventTrackingService.trackOnboardingCompleted(currentUser.uuid, clientIP);
       // Clear profile cache to ensure updated profile gets synced
       eventTrackingService.clearProfileCache(currentUser.uuid);
       // Update user profile with onboarding completion status
@@ -206,10 +208,12 @@ export class ProfileController extends Controller {
       needsOnboarding: false,
     });
 
-    // Track onboarding completed if this was the first time setting it to false
+    // On first completion, sync the people-profile enrichment. NOTE: the
+    // `onboarding_completed` EVENT is owned by the CLIENT (frontend
+    // lib/analytics-events.ts) — the backend only updates the profile here, it no
+    // longer emits a duplicate completion event.
     if (currentUser?.needsOnboarding === true && currentUser.uuid) {
       const clientIP = getClientIP(request);
-      await eventTrackingService.trackOnboardingCompleted(currentUser.uuid, clientIP);
       // Clear profile cache to ensure updated profile gets synced
       eventTrackingService.clearProfileCache(currentUser.uuid);
       // Update user profile with onboarding completion status
@@ -297,10 +301,12 @@ export class ProfileController extends Controller {
       needsOnboarding: false,
     });
 
-    // Track onboarding completed if this was the first time setting it to false
+    // On first completion, sync the people-profile enrichment. NOTE: the
+    // `onboarding_completed` EVENT is owned by the CLIENT (frontend
+    // lib/analytics-events.ts) — the backend only updates the profile here, it no
+    // longer emits a duplicate completion event.
     if (currentUser?.needsOnboarding === true && currentUser.uuid) {
       const clientIP = getClientIP(request);
-      await eventTrackingService.trackOnboardingCompleted(currentUser.uuid, clientIP);
       // Clear profile cache to ensure updated profile gets synced
       eventTrackingService.clearProfileCache(currentUser.uuid);
       // Update user profile with onboarding completion status

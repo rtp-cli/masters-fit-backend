@@ -98,18 +98,4 @@ router.post("/workout-completed", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/onboarding-started", requireAuth, async (req, res) => {
-  try {
-    const authReq = req as AuthenticatedRequest;
-    const response = await controller.trackOnboardingStarted(
-      req.body,
-      authReq,
-      authReq.userUuid
-    );
-    res.json(response);
-  } catch (error) {
-    handleError(error, res);
-  }
-});
-
 export const analyticsRouter = router;

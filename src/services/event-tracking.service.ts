@@ -1,4 +1,5 @@
 import { mixpanelService } from "./mixpanel.service";
+import { BACKEND_ANALYTICS_EVENT } from "@/constants/analytics-events";
 import { logger } from "@/utils/logger";
 
 /**
@@ -56,13 +57,6 @@ export class EventTrackingService {
   }
 
   /**
-   * Track onboarding completion
-   */
-  async trackOnboardingCompleted(userUuid: string, ip?: string): Promise<void> {
-    await this.trackEvent(userUuid, "Onboarding Completed", {}, ip);
-  }
-
-  /**
    * Track workout generation
    */
   async trackWorkoutGenerated(
@@ -78,7 +72,12 @@ export class EventTrackingService {
     },
     ip?: string
   ): Promise<void> {
-    await this.trackEvent(userUuid, "Workout Generated", data, ip);
+    await this.trackEvent(
+      userUuid,
+      BACKEND_ANALYTICS_EVENT.SERVER_WORKOUT_GENERATED,
+      data,
+      ip
+    );
   }
 
   /**
@@ -100,7 +99,12 @@ export class EventTrackingService {
     },
     ip?: string
   ): Promise<void> {
-    await this.trackEvent(userUuid, "Workout Generation Failed", data, ip);
+    await this.trackEvent(
+      userUuid,
+      BACKEND_ANALYTICS_EVENT.SERVER_WORKOUT_GENERATION_FAILED,
+      data,
+      ip
+    );
   }
 
   /**
@@ -119,7 +123,12 @@ export class EventTrackingService {
     },
     ip?: string
   ): Promise<void> {
-    await this.trackEvent(userUuid, "Exercise Replaced", data, ip);
+    await this.trackEvent(
+      userUuid,
+      BACKEND_ANALYTICS_EVENT.EXERCISE_REPLACED,
+      data,
+      ip
+    );
   }
 
   /**
@@ -133,7 +142,12 @@ export class EventTrackingService {
     },
     ip?: string
   ): Promise<void> {
-    await this.trackEvent(userUuid, "Workout Started", data, ip);
+    await this.trackEvent(
+      userUuid,
+      BACKEND_ANALYTICS_EVENT.WORKOUT_STARTED,
+      data,
+      ip
+    );
   }
 
   /**
@@ -149,14 +163,12 @@ export class EventTrackingService {
     },
     ip?: string
   ): Promise<void> {
-    await this.trackEvent(userUuid, "Workout Completed", data, ip);
-  }
-
-  /**
-   * Track onboarding started
-   */
-  async trackOnboardingStarted(userUuid: string, ip?: string): Promise<void> {
-    await this.trackEvent(userUuid, "Onboarding Started", {}, ip);
+    await this.trackEvent(
+      userUuid,
+      BACKEND_ANALYTICS_EVENT.WORKOUT_COMPLETED,
+      data,
+      ip
+    );
   }
 
   /**

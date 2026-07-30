@@ -51,10 +51,3 @@ export interface WorkoutCompletedRequest {
   duration: number;
   completion_percentage: number;
 }
-
-/**
- * Onboarding started tracking request
- */
-export interface OnboardingStartedRequest {
-  user_id: string; // UUID
-}

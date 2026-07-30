@@ -9,7 +9,6 @@ import {
   workoutAbandonedSchema,
   workoutStartedSchema,
   workoutCompletedSchema,
-  onboardingStartedSchema,
 } from "@/models/analytics.schema";
 import {
   VideoEngagementRequest,
@@ -17,7 +16,6 @@ import {
   WorkoutAbandonedRequest,
   WorkoutStartedRequest,
   WorkoutCompletedRequest,
-  OnboardingStartedRequest,
 } from "@/types/analytics/requests";
 
 // Helper function to get client IP from request
@@ -234,43 +232,4 @@ export class AnalyticsController {
     }
   }
 
-  /**
-   * Track onboarding started
-   *
-   * @param requestBody Onboarding started event data
-   * @param request Express request object
-   */
-  public async trackOnboardingStarted(
-    requestBody: OnboardingStartedRequest,
-    request: ExpressRequest,
-    userUuid?: string
-  ): Promise<ApiResponse> {
-    try {
-      // Validate request data
-      const validatedData = onboardingStartedSchema.parse(requestBody);
-
-      // Use authenticated user UUID (required)
-      if (!userUuid) {
-        throw new Error("User UUID not available from authentication");
-      }
-
-      // Track the event via service
-      const clientIP = getClientIP(request);
-      await analyticsService.trackOnboardingStarted(userUuid, clientIP);
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      logger.error("Failed to track onboarding started", error as Error, {
-        userUuid: requestBody.user_id,
-        operation: "trackOnboardingStarted",
-      });
-
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to track event",
-      };
-    }
-  }
 }

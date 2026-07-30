@@ -51,10 +51,3 @@ export const workoutCompletedSchema = z.object({
   duration_ms: z.number().min(0),
   completion_percentage: z.number().min(0).max(100),
 });
-
-/**
- * Onboarding started tracking schema - validates when user begins onboarding
- */
-export const onboardingStartedSchema = z.object({
-  // No fields needed - user_id comes from authentication
-});
