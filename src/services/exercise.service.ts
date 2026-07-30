@@ -20,6 +20,77 @@ export interface ExerciseMetadata {
   equipment: string[] | null;
   muscleGroups: string[];
   difficulty: string | null;
+  /** Style tag (hiit/crossfit/strength/…) — present on the generation-catalog path. */
+  tag?: string | null;
+  /** Whether a demo video is attached — present on the generation-catalog path. */
+  hasDemo?: boolean | null;
+}
+
+/**
+ * Deterministic stratified selection for the generation catalog.
+ *
+ * The LLM's menu used to be `LIMIT 200` with no ORDER BY over ~1,690 rows —
+ * an arbitrary slice that changed between generations and could omit whole
+ * movement families (the majority experience: ~65% of users are
+ * commercial_gym and get no equipment narrowing). This picks round-robin
+ * across muscle-group buckets so every family is represented, and within a
+ * bucket prefers the user's preferred styles, then exercises with demo
+ * videos, then name — same inputs, same menu, every time.
+ *
+ * Pure and exported for tests.
+ */
+export function stratifyCatalog(
+  pool: ExerciseMetadata[],
+  options: { preferredStyles?: string[] | null; limit: number }
+): ExerciseMetadata[] {
+  // No small-pool shortcut: even when everything fits, the pool arrives in
+  // arbitrary DB row order, and the menu must be deterministic regardless.
+  const styles = new Set(
+    (options.preferredStyles ?? []).map((s) => s.toLowerCase())
+  );
+  const styleMatch = (ex: ExerciseMetadata) =>
+    ex.tag && styles.has(ex.tag.toLowerCase()) ? 1 : 0;
+
+  // Bucket by first muscle group, normalized ("Lower back"/"lower_back" merge).
+  const buckets = new Map<string, ExerciseMetadata[]>();
+  for (const ex of pool) {
+    const key = (ex.muscleGroups?.[0] ?? "general")
+      .toLowerCase()
+      .replace(/[\s_]+/g, " ")
+      .trim();
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(ex);
+    else buckets.set(key, [ex]);
+  }
+
+  for (const bucket of buckets.values()) {
+    bucket.sort(
+      (a, b) =>
+        styleMatch(b) - styleMatch(a) ||
+        Number(b.hasDemo ?? false) - Number(a.hasDemo ?? false) ||
+        a.name.localeCompare(b.name)
+    );
+  }
+
+  // Round-robin across buckets (alphabetical bucket order for determinism)
+  // until the limit is reached or the pool runs dry.
+  const orderedBuckets = [...buckets.keys()].sort();
+  const selected: ExerciseMetadata[] = [];
+  let depth = 0;
+  while (selected.length < options.limit) {
+    let drewAny = false;
+    for (const key of orderedBuckets) {
+      const bucket = buckets.get(key)!;
+      if (depth < bucket.length) {
+        selected.push(bucket[depth]);
+        drewAny = true;
+        if (selected.length >= options.limit) break;
+      }
+    }
+    if (!drewAny) break;
+    depth++;
+  }
+  return selected;
 }
 
 // The real canonical enums (@/constants/profile) already exist and are even
@@ -329,32 +400,9 @@ export class ExerciseService extends BaseService {
       }
 
       // Filter by equipment with strict enforcement
-      if (filters.equipment && filters.equipment.length > 0) {
-        // Check if this is a bodyweight-only request
-        const isBodyweightOnly = filters.equipment.length === 1 &&
-          (filters.equipment[0].toLowerCase().includes('bodyweight') ||
-           filters.equipment[0].toLowerCase().includes('none'));
-
-        if (isBodyweightOnly) {
-          // For bodyweight-only: include exercises with null, empty, or "bodyweight" equipment
-          conditions.push(
-            or(
-              isNull(exercises.equipment),
-              eq(exercises.equipment, []),
-              arrayOverlaps(exercises.equipment, ["bodyweight"])
-            )
-          );
-        } else {
-          // For specific equipment: include exercises that use ANY of the specified equipment
-          // AND also include bodyweight exercises as alternatives
-          conditions.push(
-            or(
-              arrayOverlaps(exercises.equipment, filters.equipment as any),
-              isNull(exercises.equipment),
-              eq(exercises.equipment, [])
-            )
-          );
-        }
+      const equipmentCondition = this.buildEquipmentCondition(filters.equipment);
+      if (equipmentCondition) {
+        conditions.push(equipmentCondition);
       }
 
       // Filter by difficulty
@@ -394,6 +442,60 @@ export class ExerciseService extends BaseService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Equipment predicate shared by searchExercises and the generation
+   * catalog. Bodyweight-only requests match null/empty/"bodyweight"
+   * equipment; specific equipment matches any overlap, plus bodyweight
+   * exercises as always-available alternatives. Undefined = no filtering.
+   */
+  private buildEquipmentCondition(equipment?: string[]) {
+    if (!equipment || equipment.length === 0) return undefined;
+
+    const isBodyweightOnly =
+      equipment.length === 1 &&
+      (equipment[0].toLowerCase().includes("bodyweight") ||
+        equipment[0].toLowerCase().includes("none"));
+
+    if (isBodyweightOnly) {
+      return or(
+        isNull(exercises.equipment),
+        eq(exercises.equipment, []),
+        arrayOverlaps(exercises.equipment, ["bodyweight"])
+      );
+    }
+    return or(
+      arrayOverlaps(exercises.equipment, equipment as any),
+      isNull(exercises.equipment),
+      eq(exercises.equipment, [])
+    );
+  }
+
+  /**
+   * The exercise menu shown to the LLM during generation: the full
+   * equipment-eligible pool (with tag + hasDemo so the stratifier can rank),
+   * NOT truncated here — callers run the limitation filter first, then
+   * stratifyCatalog, so banned exercises never consume catalog slots.
+   */
+  async getGenerationCatalogPool(equipment?: string[]): Promise<ExerciseMetadata[]> {
+    let query = this.db
+      .select({
+        name: exercises.name,
+        equipment: exercises.equipment,
+        muscleGroups: exercises.muscleGroups,
+        difficulty: exercises.difficulty,
+        tag: exercises.tag,
+        hasDemo: exercises.hasDemo,
+      })
+      .from(exercises);
+
+    const condition = this.buildEquipmentCondition(equipment);
+    if (condition) {
+      query = query.where(condition) as any;
+    }
+    const result = await query;
+    return result as ExerciseMetadata[];
   }
 }
 

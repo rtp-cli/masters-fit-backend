@@ -21,7 +21,11 @@ import { applyPostGenerationValidation } from "@/utils/post-generation-validatio
 import { buildProgressionContext } from "@/utils/progression-context";
 import { workoutService } from "./workout.service";
 import { logger } from "@/utils/logger";
-import { exerciseService, ExerciseMetadata } from "./exercise.service";
+import {
+  exerciseService,
+  ExerciseMetadata,
+  stratifyCatalog,
+} from "./exercise.service";
 import {
   buildClaudePrompt,
   buildClaudeDailyPrompt,
@@ -60,6 +64,10 @@ const FANOUT_PLANNING_MODEL =
   process.env.FANOUT_PLANNING_MODEL || "claude-haiku-4-5-20251001";
 const FANOUT_DAY_MODEL =
   process.env.FANOUT_DAY_MODEL || "claude-haiku-4-5-20251001";
+
+// Size of the exercise menu shown to the LLM — same count as the old
+// LIMIT 200, but now a deterministic stratified selection.
+const GENERATION_CATALOG_SIZE = 200;
 
 // The daily prompt demands "workoutDuration ±5 minutes"; the budget check
 // uses the same tolerance so the model is only re-asked when it broke the
@@ -140,7 +148,12 @@ export class WorkoutAgentService {
     const limitations = Array.isArray(profile.limitations)
       ? [...profile.limitations].sort().join(",")
       : "";
-    return `${profile.environment}:${equipment}:${limitations}`;
+    // Preferred styles rank exercises within stratifyCatalog's buckets, so
+    // two users differing only in styles get different menus — key on them.
+    const styles = Array.isArray(profile.preferredStyles)
+      ? [...profile.preferredStyles].sort().join(",")
+      : "";
+    return `${profile.environment}:${equipment}:${limitations}:${styles}`;
   }
 
   private async getFilteredExercises(
@@ -153,27 +166,37 @@ export class WorkoutAgentService {
     }
 
     try {
-      const filters: any = { limit: 200 };
-
+      let equipment: string[] | undefined;
       if (profile.environment === "bodyweight_only") {
-        filters.equipment = ["bodyweight"];
+        equipment = ["bodyweight"];
       } else if (profile.environment === "home_gym" && profile.equipment) {
-        filters.equipment = Array.isArray(profile.equipment)
+        equipment = Array.isArray(profile.equipment)
           ? profile.equipment
           : [profile.equipment];
       }
 
-      const rawExercises = await exerciseService.searchExercises(filters);
+      // Full equipment-eligible pool -> limitation filter -> stratified
+      // selection. Order matters twice: limitations run over the whole pool
+      // so banned movements never consume menu slots, and stratifyCatalog
+      // replaces the old unordered LIMIT 200 (an arbitrary, non-deterministic
+      // slice for commercial-gym users) with per-muscle-group round-robin
+      // ranked by the user's preferred styles, demo availability, then name.
+      const pool = await exerciseService.getGenerationCatalogPool(equipment);
       // [LR-013] The primary enforcement point: exclude contraindicated
       // exercises before the LLM ever sees them as an option, rather than
       // relying solely on the post-generation check below for exercisesToAdd.
-      const exercises = filterExercisesByLimitations(rawExercises, profile);
+      const allowed = filterExercisesByLimitations(pool, profile);
+      const exercises = stratifyCatalog(allowed, {
+        preferredStyles: profile.preferredStyles as string[] | null,
+        limit: GENERATION_CATALOG_SIZE,
+      });
       exerciseCache.set(cacheKey, { exercises, expiresAt: Date.now() + EXERCISE_CACHE_TTL_MS });
 
-      logger.info("Exercise search completed", {
+      logger.info("Generation catalog selected", {
         cacheKey,
         resultCount: exercises.length,
-        excludedByLimitations: rawExercises.length - exercises.length,
+        poolCount: pool.length,
+        excludedByLimitations: pool.length - allowed.length,
       });
 
       return exercises;
