@@ -60,6 +60,23 @@ const FANOUT_PLANNING_MODEL =
 const FANOUT_DAY_MODEL =
   process.env.FANOUT_DAY_MODEL || "claude-haiku-4-5-20251001";
 
+// The daily prompt demands "workoutDuration ±5 minutes"; the budget check
+// uses the same tolerance so the model is only re-asked when it broke the
+// rule it was already given.
+const DURATION_TOLERANCE_MINUTES = 5;
+
+// Total scheduled minutes of a generated day: the sum of its blocks'
+// blockDurationMinutes (the same definition the prompt instructs the model
+// to use for the session total).
+function sumBlockMinutes(workout: any): number {
+  const blocks = Array.isArray(workout?.blocks) ? workout.blocks : [];
+  return blocks.reduce(
+    (total: number, block: any) =>
+      total + (Number(block?.blockDurationMinutes) || 0),
+    0
+  );
+}
+
 // Result type that includes token usage
 export interface WorkoutGenerationResult {
   workout: any;
@@ -439,9 +456,86 @@ Please generate the workout now, addressing this feedback while following all sy
         response.content as string
       );
       const parsed = JSON.parse(cleanedResponse);
-      const workout = dayNumber
+      let workout = dayNumber
         ? validateDailyGenerationResponse(parsed)
         : validateWeeklyGenerationResponse(parsed);
+
+      // [Duration budget] The prompt demands workoutDuration ±5 min but
+      // nothing checked the answer, so overshoots persisted unchecked (prod:
+      // a 20-min request produced a 40-min day). One corrective retry on
+      // overshoot; if it still doesn't fit, keep the closer attempt rather
+      // than failing the user's request.
+      if (dayNumber && !isRestDay) {
+        const targetMinutes = profile.workoutDuration || 30;
+        const totalMinutes = sumBlockMinutes(workout);
+        if (totalMinutes > targetMinutes + DURATION_TOLERANCE_MINUTES) {
+          logger.warn("Daily workout exceeds duration budget — corrective retry", {
+            userId,
+            operation: "regenerateWorkout",
+            metadata: { targetMinutes, totalMinutes },
+          });
+          try {
+            const correctiveMessage = new HumanMessage(
+              `The workout you just returned totals ${totalMinutes} minutes of blockDurationMinutes, but the session budget is ${targetMinutes} minutes (at most ${targetMinutes + DURATION_TOLERANCE_MINUTES}). Trim it to fit: reduce sets, drop accessory exercises, or shorten/remove blocks while keeping the session's focus and all naming/transparency rules. Respond with the corrected complete workout JSON only.`
+            );
+            const retryStartedAt = Date.now();
+            const retryResponse = await this.llm.invoke(
+              [systemMessage, ...existingMessages, userMessage, response, correctiveMessage],
+              { signal: abortController.signal }
+            );
+            const retryDurationMs = Date.now() - retryStartedAt;
+
+            const retryUsage = (retryResponse as AIMessage).usage_metadata;
+            tokenUsage.inputTokens += retryUsage?.input_tokens || 0;
+            tokenUsage.outputTokens += retryUsage?.output_tokens || 0;
+            tokenUsage.totalTokens += retryUsage?.total_tokens || 0;
+            void llmGenerationLogsService.insert({
+              userId,
+              operation: "regenerateWorkout",
+              provider: this.currentProvider,
+              model: this.currentModel,
+              llmDurationMs: retryDurationMs,
+              inputTokens: retryUsage?.input_tokens || 0,
+              outputTokens: retryUsage?.output_tokens || 0,
+              totalTokens: retryUsage?.total_tokens || 0,
+              cacheReadInputTokens: retryUsage?.input_token_details?.cache_read ?? 0,
+              cacheCreationInputTokens: retryUsage?.input_token_details?.cache_creation ?? 0,
+            });
+
+            const retryWorkout = validateDailyGenerationResponse(
+              JSON.parse(this.cleanJsonResponse(retryResponse.content as string))
+            );
+            const retryTotal = sumBlockMinutes(retryWorkout);
+            // Keep whichever attempt lands closer to the budget.
+            if (
+              Math.abs(retryTotal - targetMinutes) <
+              Math.abs(totalMinutes - targetMinutes)
+            ) {
+              workout = retryWorkout;
+              await messageHistory.addMessage(correctiveMessage);
+              await messageHistory.addMessage(retryResponse);
+            }
+            logger.info("Duration corrective retry finished", {
+              userId,
+              operation: "regenerateWorkout",
+              metadata: {
+                targetMinutes,
+                firstTotal: totalMinutes,
+                retryTotal,
+                kept: workout === retryWorkout ? "retry" : "original",
+              },
+            });
+          } catch (retryError) {
+            // Never fail the user's request because the corrective pass broke.
+            logger.warn("Duration corrective retry failed — keeping original", {
+              userId,
+              operation: "regenerateWorkout",
+              metadata: { error: (retryError as Error).message },
+            });
+          }
+        }
+      }
+
       return {
         workout,
         tokenUsage,

@@ -427,8 +427,18 @@ export class WorkoutController extends Controller {
       styles?: string[];
       limitations?: string[];
       threadId?: string;
+      durationOverride?: number;
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
+    // Session-minutes override from the Adjust modal. Clamp to a sane range;
+    // out-of-range or non-numeric values fall back to the profile duration.
+    const durationOverride =
+      typeof requestBody.durationOverride === "number" &&
+      requestBody.durationOverride >= 10 &&
+      requestBody.durationOverride <= 180
+        ? Math.floor(requestBody.durationOverride)
+        : undefined;
+
     logger.info("Async daily workout regeneration requested", {
       userId,
       planDayId,
@@ -450,6 +460,7 @@ export class WorkoutController extends Controller {
           regenerationReason: requestBody.reason,
           regenerationStyles: requestBody.styles,
           threadId: requestBody.threadId,
+          durationOverride,
         }
       );
 
@@ -464,6 +475,7 @@ export class WorkoutController extends Controller {
         regenerationReason: requestBody.reason,
         regenerationStyles: requestBody.styles,
         threadId: requestBody.threadId,
+        durationOverride,
       };
 
       await workoutGenerationQueue.add("regenerate-daily-workout", jobData, {
@@ -832,8 +844,18 @@ export class WorkoutController extends Controller {
       styles?: string[];
       limitations?: string[];
       threadId?: string;
+      durationOverride?: number;
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
+    // Same clamp as regenerateDailyWorkoutAsync — this path shares the
+    // Adjust modal UX and its session-minutes override.
+    const durationOverride =
+      typeof requestBody.durationOverride === "number" &&
+      requestBody.durationOverride >= 10 &&
+      requestBody.durationOverride <= 180
+        ? Math.floor(requestBody.durationOverride)
+        : undefined;
+
     logger.info("Rest day workout generation requested", {
       userId,
       operation: "generateRestDayWorkoutAsync",
@@ -884,6 +906,7 @@ export class WorkoutController extends Controller {
           threadId: requestBody.threadId,
           isRestDayGeneration: true,
           standaloneWorkoutId,
+          durationOverride,
         }
       );
 
@@ -899,6 +922,7 @@ export class WorkoutController extends Controller {
         regenerationStyles: requestBody.styles,
         threadId: requestBody.threadId,
         standaloneWorkoutId,
+        durationOverride,
       };
 
       await workoutGenerationQueue.add("regenerate-daily-workout", jobData, {

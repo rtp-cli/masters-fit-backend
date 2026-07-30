@@ -163,6 +163,12 @@ export interface DailyRegenerationJobData {
   regenerationStyles?: string[];
   threadId?: string;
   standaloneWorkoutId?: number;
+  /**
+   * Session-minutes override from the Adjust modal. Structured, not prose:
+   * as text inside the reason it never reached the prompt's numeric duration
+   * constraint, which kept demanding profile.workoutDuration.
+   */
+  durationOverride?: number;
 }
 
 export interface DailyRegenerationJobResult {

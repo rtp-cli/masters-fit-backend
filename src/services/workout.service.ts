@@ -1375,7 +1375,8 @@ export class WorkoutService extends BaseService {
     regenerationReason: string,
     regenerationStyles?: string[],
     threadId?: string,
-    jobId?: number
+    jobId?: number,
+    durationOverride?: number
   ): Promise<PlanDayWithExercises> {
     const startTime = Date.now();
 
@@ -1504,7 +1505,9 @@ export class WorkoutService extends BaseService {
         previousWorkout,
         regenerationReason,
         isRestDayContext,
-        threadId
+        threadId,
+        undefined, // signal
+        durationOverride
       );
 
       // Emit 85% — AI response received; mark the day done so the checkmark

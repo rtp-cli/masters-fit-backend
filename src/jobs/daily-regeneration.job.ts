@@ -80,6 +80,7 @@ export async function processDailyRegenerationJob(
     regenerationStyles,
     threadId,
     standaloneWorkoutId,
+    durationOverride,
   } = job.data;
 
   logger.info("Starting daily workout regeneration job processing", {
@@ -155,7 +156,8 @@ export async function processDailyRegenerationJob(
       regenerationReason,
       regenerationStyles,
       threadId,
-      jobId
+      jobId,
+      durationOverride
     );
 
     // Get real token usage from regeneration (or fallback to estimate)

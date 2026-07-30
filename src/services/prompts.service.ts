@@ -494,12 +494,23 @@ export class PromptsService extends BaseService {
     regenerationReason: string,
     isRestDay: boolean = false,
     threadId?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    durationOverride?: number
   ): Promise<PromptGenerationResult> {
-    const profile = await profileService.getProfileByUserId(userId);
-    if (!profile) {
+    const storedProfile = await profileService.getProfileByUserId(userId);
+    if (!storedProfile) {
       throw new Error("Profile not found");
     }
+
+    // The Adjust modal's session-minutes override applies to THIS generation
+    // only. Substituting it into the profile here means every numeric
+    // duration constraint in the prompt (and the post-generation budget
+    // check) uses it — previously it rode along as prose in the reason while
+    // the prompt kept demanding the stored profile duration.
+    const profile =
+      durationOverride !== undefined
+        ? { ...storedProfile, workoutDuration: durationOverride }
+        : storedProfile;
 
     // Create user-specific workout agent
     const workoutAgent = await this.createUserWorkoutAgent(userId);
