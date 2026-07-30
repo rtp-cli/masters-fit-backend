@@ -7,7 +7,11 @@ import {
   type UsageMetadata,
 } from "@langchain/core/messages";
 import { Profile } from "@/models";
-import { filterExercisesByLimitations } from "@/utils/limitation-validation";
+import {
+  describeContraindications,
+  filterExercisesByLimitations,
+} from "@/utils/limitation-validation";
+import type { PhysicalLimitation } from "@/types";
 import {
   buildMuscleRebalanceFeedback,
   checkConsecutiveMuscleGroupOverload,
@@ -226,6 +230,30 @@ export class WorkoutAgentService {
     const availableExercises = await this.getFilteredExercises(profile);
     const exerciseContext = this.formatExerciseContext(availableExercises);
 
+    // [LR-013 transparency] When the limitation filter has removed movement
+    // patterns from the catalog, the model must SAY so instead of naming a
+    // block after a movement it wasn't allowed to include (the "Deadlift
+    // Strength with no deadlifts" failure — the request is unsatisfiable and
+    // the user has no way to know why or that retrying can't help).
+    const contraindications = describeContraindications(
+      profile.limitations as PhysicalLimitation[] | null
+    );
+    const limitationTransparency =
+      contraindications.length === 0
+        ? ""
+        : `
+
+## PHYSICAL LIMITATION EXCLUSIONS — BE TRANSPARENT
+
+For safety, the exercise list above ALREADY EXCLUDES these movement patterns, because of limitations on the user's profile:
+${contraindications.map((line) => `- ${line}`).join("\n")}
+
+If the user's request asks for an excluded movement (e.g. they ask for deadlifts but their profile lists Lower Back Pain):
+1. Do NOT name the workout or any block after the excluded movement — names must describe what the workout actually contains.
+2. Choose the closest safe alternatives from the available exercise list.
+3. In the workout "description" field, state plainly which requested movement was excluded and which profile limitation excluded it, and tell the user they can change this under Profile > Limitations if it no longer applies. Example: "You asked for deadlifts, but they're excluded by the Lower Back Pain setting on your profile — this session uses back-friendly hip-hinge work instead. If deadlifts should be allowed, update your limitations in your profile."
+NEVER silently substitute and present the workout as if it contained the requested movement.`;
+
     // Add exercise context to the comprehensive prompt
     const enhancedSystemContent = `${systemContent}
 
@@ -242,7 +270,7 @@ ${exerciseContext}
 3. **Consider muscle groups and difficulty** when selecting exercises
 4. **Choose appropriate variations** - multiple variations of exercises are available
 5. **Follow workout style requirements** - some exercises may be tagged for specific styles
-
+${limitationTransparency}
 ## CRITICAL REMINDER: VALID JSON OUTPUT ONLY
 
 Your final response MUST be a valid JSON workout plan following the exact structure specified in the prompt above.

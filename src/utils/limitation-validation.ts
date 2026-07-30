@@ -48,6 +48,56 @@ const CONTRAINDICATION_RULES: Partial<Record<PhysicalLimitation, RegExp>> = {
     /\b(bosu|single[- ]leg.*(jump|hop)|eyes closed)\b/i,
 };
 
+/**
+ * Human-readable versions of CONTRAINDICATION_RULES, used to tell the LLM (and
+ * through it, the user) WHICH movements were excluded and WHY. Keep in sync
+ * with the regexes above — this is the transparency half of the filter: without
+ * it, a user who asks for an excluded movement (e.g. deadlifts with
+ * LOWER_BACK_PAIN) gets a workout silently titled after a movement it doesn't
+ * contain, with no way to understand why.
+ */
+const CONTRAINDICATED_MOVEMENTS: Partial<Record<PhysicalLimitation, string>> = {
+  [PhysicalLimitations.KNEE_PAIN]:
+    "jumping/plyometric movements, box jumps, jumping jacks, burpees, pistol squats, deep squats, sprints",
+  [PhysicalLimitations.SHOULDER_PAIN]:
+    "overhead/military presses, behind-the-neck movements, push presses, snatches, dips, kipping movements",
+  [PhysicalLimitations.LOWER_BACK_PAIN]:
+    "deadlifts, good mornings, russian twists, sit-ups, back extensions, supermans, straight-leg movements",
+  [PhysicalLimitations.NECK_PAIN]:
+    "neck bridges, shoulder stands, headstands, behind-the-neck movements",
+  [PhysicalLimitations.WRIST_PAIN]:
+    "push-ups, handstands, front-rack positions, cleans, snatches, planks",
+  [PhysicalLimitations.ELBOW_PAIN]:
+    "tricep dips, skull crushers, close-grip movements, hammer curls",
+  [PhysicalLimitations.OSTEOPOROSIS]:
+    "russian twists, sit-ups, toe touches, forward folds, spinal flexion/twisting movements",
+  [PhysicalLimitations.SCIATICA]:
+    "deadlifts, good mornings, sit-ups, toe touches",
+  [PhysicalLimitations.ANKLE_INSTABILITY]:
+    "box jumps, jump rope, sprints, plyometrics",
+  [PhysicalLimitations.BALANCE_ISSUES]:
+    "bosu work, single-leg jumps/hops, eyes-closed movements",
+};
+
+/**
+ * One "<Limitation Label>: <excluded movements>" line per active limitation
+ * that actually has a filter rule. Empty array when nothing is filtered, so
+ * callers can skip the transparency section entirely.
+ */
+export function describeContraindications(
+  limitations: PhysicalLimitation[] | null | undefined
+): string[] {
+  return (limitations ?? [])
+    .filter((limitation) => CONTRAINDICATION_RULES[limitation])
+    .map((limitation) => {
+      const label = limitation
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
+      return `${label}: ${CONTRAINDICATED_MOVEMENTS[limitation] ?? "certain high-risk movements"}`;
+    });
+}
+
 function matchedLimitation(
   exerciseName: string,
   limitations: PhysicalLimitation[]
