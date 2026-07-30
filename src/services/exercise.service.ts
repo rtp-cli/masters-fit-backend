@@ -83,8 +83,14 @@ export class ExerciseService extends BaseService {
   }
 
   async createExerciseIfNotExists(data: InsertExercise) {
-    // First check if exercise with this name already exists
-    const existing = await this.getExerciseByName(data.name);
+    // Reuse an existing row only when it's the SAME exercise: exact name, or
+    // equal after stripping case/punctuation/whitespace ("Push-Ups" ==
+    // "Push Ups"). The old check reused any substring match, so a proposed
+    // "Deadlift" was treated as already existing because "Romanian Deadlift"
+    // contained it — the workout then silently got the wrong variant.
+    const existing =
+      (await this.getExerciseByExactName(data.name)) ??
+      (await this.getExerciseByNormalizedName(data.name));
     if (existing) {
       logger.debug(
         `Exercise "${data.name}" already exists with ID ${existing.id}, skipping creation`,
@@ -179,6 +185,19 @@ export class ExerciseService extends BaseService {
     });
   }
 
+  /**
+   * Same-name-modulo-formatting match: case, punctuation, and whitespace
+   * stripped on both sides ("Push-Ups" == "push ups"). Sequential scan, but
+   * only runs on the rare new-exercise create path, never during persistence.
+   */
+  private async getExerciseByNormalizedName(name: string) {
+    const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!normalized) return undefined;
+    return await this.db.query.exercises.findFirst({
+      where: sql`regexp_replace(lower(${exercises.name}), '[^a-z0-9]', '', 'g') = ${normalized}`,
+    });
+  }
+
   async getExerciseById(id: number) {
     const result = await this.db.query.exercises.findFirst({
       where: eq(exercises.id, id),
@@ -218,12 +237,38 @@ export class ExerciseService extends BaseService {
     await this.db.delete(exercises).where(eq(exercises.id, id));
   }
 
+  /**
+   * Resolve an LLM-chosen exercise name to a catalog row.
+   *
+   * Exact case-insensitive match first (hits idx_exercises_name_unique,
+   * unambiguous). Only on a miss does it fall back to substring matching —
+   * and then deterministically, preferring the SHORTEST containing name so
+   * "Back Squat" resolves to "Back Squat"-like variants before
+   * "Box Back Squat". The old findFirst with no ORDER BY returned whichever
+   * row the planner produced first, silently swapping in wrong variants.
+   * Every fuzzy substitution is logged so mismatches are visible in prod.
+   */
   async getExerciseByName(name: string) {
-    const result = await this.db.query.exercises.findFirst({
-      where: ilike(exercises.name, `%${name}%`),
-    });
+    const trimmed = name.trim();
+    if (!trimmed) return undefined;
 
-    return result;
+    const exact = await this.getExerciseByExactName(trimmed);
+    if (exact) return exact;
+
+    const [fuzzy] = await this.db
+      .select()
+      .from(exercises)
+      .where(ilike(exercises.name, `%${trimmed}%`))
+      .orderBy(sql`length(${exercises.name}) asc`, exercises.name)
+      .limit(1);
+
+    if (fuzzy) {
+      logger.warn("Exercise resolved by fuzzy fallback — name substituted", {
+        operation: "getExerciseByName",
+        metadata: { requested: trimmed, resolved: fuzzy.name, resolvedId: fuzzy.id },
+      });
+    }
+    return fuzzy;
   }
 
   /**

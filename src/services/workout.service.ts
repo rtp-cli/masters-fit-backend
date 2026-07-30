@@ -1627,6 +1627,21 @@ export class WorkoutService extends BaseService {
                   order: exercise.order,
                 });
                 newExercises.push(newExercise);
+              } else {
+                // No catalog row even via fuzzy fallback. The exercise
+                // vanishes from the block (there is nothing to reference),
+                // which previously happened with no trace — a block could
+                // lose its anchor lift and nobody knew why. Keep the drop,
+                // make it loud.
+                logger.warn("Dropping generated exercise — no catalog match", {
+                  userId,
+                  planDayId,
+                  operation: "regenerateDailyWorkout",
+                  metadata: {
+                    exerciseName: exercise.exerciseName,
+                    blockName: block.blockName,
+                  },
+                });
               }
             }
           }
