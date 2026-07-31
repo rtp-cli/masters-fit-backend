@@ -13,3 +13,4 @@ export * from "@/models/llm-generation-logs.schema";
 export * from "@/models/ai-operations.schema";
 export * from "@/models/plan-day-feedback.schema";
 export * from "@/models/app-feedback.schema";
+export * from "@/models/exercise-exclusion.schema";

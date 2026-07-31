@@ -1097,6 +1097,130 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"ExerciseExclusionReason": {
+				"type": "string",
+				"enum": [
+					"hurts",
+					"no_equipment",
+					"too_hard",
+					"dislike"
+				]
+			},
+			"ReplacementCandidate": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"muscleGroups": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"equipment": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"difficulty": {
+						"type": "string",
+						"nullable": true
+					},
+					"hasDemo": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"overlapCount": {
+						"type": "number",
+						"format": "double",
+						"description": "Count of the ORIGINAL's muscle groups this candidate also trains."
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"muscleGroups",
+					"equipment",
+					"difficulty",
+					"hasDemo",
+					"overlapCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelatedScheduledExercise": {
+				"properties": {
+					"exerciseId": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"muscleGroups": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"dayName": {
+						"type": "string",
+						"description": "Weekday of the earliest upcoming day it appears, e.g. \"Tuesday\"."
+					}
+				},
+				"required": [
+					"exerciseId",
+					"name",
+					"muscleGroups",
+					"dayName"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExclusionItem": {
+				"properties": {
+					"exerciseId": {
+						"type": "number",
+						"format": "double"
+					},
+					"reason": {
+						"$ref": "#/components/schemas/ExerciseExclusionReason"
+					}
+				},
+				"required": [
+					"exerciseId",
+					"reason"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AddExclusionsBody": {
+				"properties": {
+					"exclusions": {
+						"items": {
+							"$ref": "#/components/schemas/ExclusionItem"
+						},
+						"type": "array",
+						"description": "The originating exercise plus any ticked in the 1d pain branch."
+					},
+					"addLimitation": {
+						"type": "string",
+						"nullable": true,
+						"description": "A PhysicalLimitations enum value to add to the profile — a separate,\nexplicit opt-in from 1d. Never inferred from an exclusion."
+					}
+				},
+				"required": [
+					"exclusions"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"Exercise": {
 				"properties": {
 					"id": {
@@ -5764,6 +5888,395 @@
 				]
 			}
 		},
+		"/exclusions/{userId}": {
+			"get": {
+				"operationId": "ListExclusions",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"exclusions": {
+											"items": {
+												"properties": {
+													"createdAt": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"reason": {
+														"$ref": "#/components/schemas/ExerciseExclusionReason"
+													},
+													"muscleGroups": {
+														"items": {
+															"type": "string"
+														},
+														"type": "array"
+													},
+													"name": {
+														"type": "string"
+													},
+													"exerciseId": {
+														"type": "number",
+														"format": "double"
+													}
+												},
+												"required": [
+													"createdAt",
+													"reason",
+													"muscleGroups",
+													"name",
+													"exerciseId"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"exclusions",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "List the user's excluded exercises (flat, ordered by reason then date) so\nthe client can group them for Settings → Excluded exercises.",
+				"tags": [
+					"Exclusions"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "AddExclusions",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"sweptDayNames": {
+											"items": {
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"sweptDayNames",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Commit exclusions: persist them, optionally add a limitation (explicit\nopt-in), and sweep future plan days. Returns the swept day names.",
+				"tags": [
+					"Exclusions"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AddExclusionsBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/exclusions/{userId}/replacements": {
+			"get": {
+				"operationId": "GetReplacements",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"candidates": {
+											"items": {
+												"$ref": "#/components/schemas/ReplacementCandidate"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"candidates",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Ranked replacements for a slot: muscle-overlap desc → difficulty distance\nasc → hasDemo first, over owned equipment only, with the original and all\nexclusions filtered out.",
+				"tags": [
+					"Exclusions"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "exerciseId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/exclusions/{userId}/sweep-preview": {
+			"get": {
+				"operationId": "GetSweepPreview",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"dayNames": {
+											"items": {
+												"type": "string"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"dayNames",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Future incomplete plan days that still contain the exercise — day names\nonly, for the 1c sweep disclosure.",
+				"tags": [
+					"Exclusions"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "exerciseId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/exclusions/{userId}/related": {
+			"get": {
+				"operationId": "GetRelated",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"related": {
+											"items": {
+												"$ref": "#/components/schemas/RelatedScheduledExercise"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"related",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Other exercises scheduled in the upcoming plan that overlap on muscle group\n— the 1d list.",
+				"tags": [
+					"Exclusions"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "exerciseId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/exclusions/{userId}/{exerciseId}": {
+			"delete": {
+				"operationId": "RemoveExclusion",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Allow an exercise back (the 1g reversal).",
+				"tags": [
+					"Exclusions"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "path",
+						"name": "exerciseId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/exercises": {
 			"get": {
 				"operationId": "GetExercises",
@@ -8101,6 +8614,14 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"maxHeartRate": {
+										"type": "number",
+										"format": "double"
+									},
+									"averageHeartRate": {
+										"type": "number",
+										"format": "double"
+									},
 									"notes": {
 										"type": "string"
 									},
@@ -9976,6 +10497,10 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"durationOverride": {
+										"type": "number",
+										"format": "double"
+									},
 									"threadId": {
 										"type": "string"
 									},
@@ -10893,6 +11418,10 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"durationOverride": {
+										"type": "number",
+										"format": "double"
+									},
 									"threadId": {
 										"type": "string"
 									},

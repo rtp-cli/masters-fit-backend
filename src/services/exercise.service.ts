@@ -126,6 +126,13 @@ export class ExerciseService extends BaseService {
       problems.push("muscleGroups is empty");
     } else if (data.muscleGroups.some((g) => !g || !g.trim())) {
       problems.push("muscleGroups contains an empty value");
+    } else if (data.muscleGroups.some((g) => g.includes(","))) {
+      // Comma-packed values ("chest, triceps" as one element) silently defeat
+      // arrayOverlaps — the muscle-overlap ranking and exclusion search both
+      // rely on one muscle per array element. Prod is clean today (verified);
+      // this seed-time assert keeps it that way so a future regression surfaces
+      // here instead of as silently-missing search matches.
+      problems.push("muscleGroups contains a comma-packed value");
     }
 
     return problems;
