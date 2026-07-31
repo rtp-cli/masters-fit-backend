@@ -850,11 +850,22 @@ export class WorkoutService extends BaseService {
       throw new Error("Plan day exercise not found");
     }
 
-    // Update the exercise ID while preserving all other workout parameters
+    // Preserve the prescription (sets/reps/duration) across the swap, but clear
+    // the weight when the replacement is a bodyweight movement — carrying the
+    // old load onto e.g. Air Squats would prescribe "3 × 10 · 30 lb" for an
+    // unloaded exercise, a claim the movement can't hold. Bodyweight = no
+    // equipment, or equipment that is only bodyweight/none.
+    const eq0 = (newExercise.equipment ?? []).map((e) => e.toLowerCase());
+    const isBodyweight =
+      eq0.length === 0 ||
+      eq0.every((e) => e.includes("bodyweight") || e.includes("none"));
+
+    // Update the exercise ID while preserving the other workout parameters.
     const [updatedExercise] = await this.db
       .update(planDayExercises)
       .set({
         exerciseId: newExerciseId,
+        ...(isBodyweight ? { weight: null } : {}),
         updatedAt: new Date(),
       })
       .where(eq(planDayExercises.id, planDayExerciseId))

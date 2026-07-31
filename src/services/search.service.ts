@@ -608,6 +608,19 @@ export class SearchService extends BaseService {
         conditions.push(sql`${exercises.id} != ${excludeId}`);
       }
 
+      // Always drop the user's permanently-excluded exercises from edit-search,
+      // so a "never prescribe this again" choice can never be offered back —
+      // including as the replacement for a different exclusion.
+      // Raw column/table names in the subquery: interpolating the foreign
+      // table's Drizzle columns inside this relational-query `where` mis-scopes
+      // them onto the aliased main table. The outer ${exercises.id} still
+      // resolves to the correct alias, matching the sibling conditions above.
+      conditions.push(sql`
+        ${exercises.id} NOT IN (
+          SELECT exercise_id FROM exercise_exclusions WHERE user_id = ${userId}
+        )
+      `);
+
       // Combine all conditions
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
