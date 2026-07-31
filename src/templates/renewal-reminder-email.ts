@@ -1,4 +1,4 @@
-const LOGO_URL = process.env.LOGO_URL || "https://mastersfit.ai/email/logo-dark.png";
+const LOGO_URL = process.env.LOGO_URL || "https://mastersfit.ai/assets/logo-dark.png";
 
 interface RenewalReminderTemplateProps {
   /** User's display name; a first name is derived for the greeting. */
@@ -36,8 +36,6 @@ export const renewalReminderTemplate = ({
     planLabel === "annual"
       ? "will automatically continue for another year"
       : "will continue automatically";
-
-  const pricePhrase = price ? ` for ${price}` : "";
 
   const html = `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
@@ -103,7 +101,7 @@ export const renewalReminderTemplate = ({
                 ${greeting}
               </p>
               <p style="margin:14px 0 0 0; font-family:${FONT}; font-size:16px; line-height:1.6; color:#3C3C3C;">
-                Just a heads-up: your <strong style="color:#0A0A0A;">MastersFit+ ${membership}</strong> renews on <strong style="color:#0A0A0A;">${renewalDate}</strong>, and your subscription${pricePhrase} ${continues}.
+                Just a heads-up: your <strong style="color:#0A0A0A;">MastersFit+ ${membership}</strong> renews on <strong style="color:#0A0A0A;">${renewalDate}</strong>, and your subscription ${continues}.
               </p>
             </td>
           </tr>
@@ -200,7 +198,7 @@ export const renewalReminderTemplate = ({
 
   const text = `${greeting}
 
-Just a heads-up: your MastersFit+ ${membership} renews on ${renewalDate}, and your subscription${pricePhrase} ${continues}.
+Just a heads-up: your MastersFit+ ${membership} renews on ${renewalDate}, and your subscription ${continues}.
 
 Renews on: ${renewalDate}${price ? ` (${price}, ${planLine})` : ` (${planLine})`}
 

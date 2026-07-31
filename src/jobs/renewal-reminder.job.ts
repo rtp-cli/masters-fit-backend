@@ -22,13 +22,9 @@ function formatRenewalDate(date: Date): string {
   }).format(date);
 }
 
-// v1 intentionally omits the price. A single plan list price can't be trusted
-// per-recipient: grandfathered subscribers renew at their locked-in price, and
-// the stores may still charge the old price until ASC/Play are switched. The
-// date alone delivers the "no silent renewal" value without ever being wrong.
-// candidate.priceUsd is left in place for a future per-subscriber price sourced
-// from the RevenueCat webhook.
-const RENEWAL_EMAIL_PRICE: string | null = null;
+function formatPrice(priceUsd: number | null): string | null {
+  return priceUsd != null ? `$${priceUsd.toFixed(2)}` : null;
+}
 
 /**
  * Find subscriptions renewing within their per-period reminder window and email
@@ -64,7 +60,7 @@ export async function runRenewalReminderScan(
         to: c.email,
         name: c.name,
         planLabel: c.billingPeriod ?? "",
-        price: RENEWAL_EMAIL_PRICE,
+        price: formatPrice(c.priceUsd),
         renewalDate: formatRenewalDate(c.subscriptionEndDate),
         manageUrl: MANAGE_SUBSCRIPTION_URL,
       });
