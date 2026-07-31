@@ -144,8 +144,18 @@ Implement as a per-period window in the query; keep the numbers in a constant
 Tone matches the existing OTP email: warm, plain, "Train well, The MastersFit team." Transparent,
 zero pressure — the entire point is the opposite of a dark pattern.
 
-Merge fields: `{{firstName}}`, `{{planLabel}}` ("annual"/"monthly"), `{{price}}` (e.g. "$49.99"),
-`{{renewalDate}}` (e.g. "August 12, 2026"), `{{manageUrl}}`.
+Merge fields: `{{firstName}}`, `{{planLabel}}` ("annual"/"monthly"), `{{price}}` (e.g. "$89.99",
+pulled live from `subscription_plans.price_usd`), `{{renewalDate}}` (e.g. "August 12, 2026"),
+`{{manageUrl}}`.
+
+> ⚠️ **Price accuracy caveat.** `price_usd` is the plan's current *list* price. It can differ from
+> what a given subscriber is actually charged: (a) grandfathered subscribers renew at the price they
+> originally locked in, and (b) if App Store Connect / Google Play list prices haven't been switched
+> to the new values yet, the store charges the old price.
+> **DECISION (2026-07-31): v1 omits the amount.** The job passes `price = null`; the email states the
+> renewal date without a dollar figure — accurate for every subscriber. `candidate.priceUsd` and the
+> template's price support are retained for a future upgrade to a real per-subscriber price sourced
+> from the RevenueCat webhook (`price`/`currency` on renewal events).
 
 ### Annual
 
