@@ -7,7 +7,7 @@ import {
 } from "@/models/jobs.schema";
 
 // Build robust Redis options for Bull (ioredis under the hood)
-function buildBullRedisOptions(): any {
+export function buildBullRedisOptions(): any {
   const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
   try {

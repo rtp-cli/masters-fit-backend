@@ -69,6 +69,17 @@ export const userSubscriptions = pgTable(
     accessOverrideExpiresAt: timestamp("access_override_expires_at", {
       withTimezone: true,
     }), // null = no expiry (permanent grant)
+    // Renewal-reminder email idempotency. We stamp when a reminder was sent AND
+    // the subscription_end_date it was sent FOR. The scan claims a row only when
+    // renewalReminderForPeriodEnd differs from the current subscriptionEndDate,
+    // so it can't re-send within a period, and a RENEWAL (new end date) makes
+    // the next period eligible again. Cleared on RENEWAL/INITIAL_PURCHASE.
+    renewalReminderSentAt: timestamp("renewal_reminder_sent_at", {
+      withTimezone: true,
+    }),
+    renewalReminderForPeriodEnd: timestamp("renewal_reminder_for_period_end", {
+      withTimezone: true,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -212,6 +223,8 @@ export interface UserSubscription {
   subscriptionEndDate: Date | null;
   accessOverride: AccessOverride | null;
   accessOverrideExpiresAt: Date | null;
+  renewalReminderSentAt: Date | null;
+  renewalReminderForPeriodEnd: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

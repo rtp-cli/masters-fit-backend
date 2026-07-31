@@ -10,9 +10,15 @@ import { createClient } from "redis";
 import { setSocketIOInstance } from "./utils/websocket-progress.utils";
 import { initializeRedis, closeRedis } from "./utils/redis";
 import { workoutGenerationQueue, closeWorkoutGenerationQueue } from "./queues/workout-generation.queue";
+import {
+  renewalReminderQueue,
+  scheduleRenewalReminderJob,
+  closeRenewalReminderQueue,
+} from "./queues/renewal-reminder.queue";
 import { processWorkoutGenerationJob } from "./jobs/workout-generation.job";
 import { processWorkoutRegenerationJob } from "./jobs/workout-regeneration.job";
 import { processDailyRegenerationJob } from "./jobs/daily-regeneration.job";
+import { processRenewalReminderJob } from "./jobs/renewal-reminder.job";
 
 const port = parseInt(process.env.PORT || "5000", 10);
 
@@ -86,6 +92,12 @@ async function initializeServices() {
       }
     });
 
+    // Renewal-reminder scan: register the processor, then schedule the daily
+    // repeatable job (idempotent — Redis-coordinated, so overlapping instances
+    // during a deploy still yield one schedule).
+    renewalReminderQueue.process('renewal-reminder', 1, processRenewalReminderJob);
+    await scheduleRenewalReminderJob();
+
   } catch (error) {
     logger.error('Failed to initialize services', error as Error);
     process.exit(1);
@@ -97,9 +109,10 @@ async function gracefulShutdown() {
   logger.info('Graceful shutdown initiated');
   
   try {
-    // Close queue
+    // Close queues
     await closeWorkoutGenerationQueue();
-    
+    await closeRenewalReminderQueue();
+
     // Close Redis
     await closeRedis();
     

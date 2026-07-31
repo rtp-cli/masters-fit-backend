@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { otpEmailTemplate } from "@/templates/otp-email";
+import { renewalReminderTemplate } from "@/templates/renewal-reminder-email";
 import { logger } from "@/utils/logger";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -11,6 +12,18 @@ const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "noreply@alif.care";
 // On To (never Bcc): Bcc strips the alias the Gmail filters key on.
 const FEEDBACK_INBOX = "feedback@mastersfit.ai";
 const BUG_INBOX = "bug@mastersfit.ai";
+
+interface RenewalReminderEmailParams {
+  to: string;
+  name: string;
+  /** "annual" | "monthly" */
+  planLabel: string;
+  /** Formatted price, e.g. "$49.99", or null when the plan is unknown. */
+  price: string | null;
+  /** Formatted renewal date, e.g. "August 12, 2026". */
+  renewalDate: string;
+  manageUrl: string;
+}
 
 interface FeedbackEmailParams {
   feedbackId: number;
@@ -59,6 +72,48 @@ export class EmailService {
       });
       throw new Error("Failed to send OTP email");
     }
+  }
+
+  /**
+   * Send a pre-renewal reminder so an auto-renewal is never a silent surprise.
+   * Throws on send failure so the caller can leave the reminder unclaimed and
+   * retry on a later scan.
+   */
+  async sendRenewalReminderEmail(
+    params: RenewalReminderEmailParams
+  ): Promise<void> {
+    const { to, name, planLabel, price, renewalDate, manageUrl } = params;
+
+    const { html, text } = renewalReminderTemplate({
+      name,
+      planLabel,
+      price,
+      renewalDate,
+      manageUrl,
+    });
+
+    const response = await resend.emails.send({
+      from: `MastersFit <${FROM_EMAIL}>`,
+      to,
+      subject: `Your MastersFit+ renews on ${renewalDate}`,
+      html,
+      text,
+      replyTo: REPLY_TO_EMAIL,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Renewal reminder email sent", {
+      operation: "sendRenewalReminderEmail",
+      metadata: {
+        recipient: to,
+        planLabel,
+        renewalDate,
+        messageId: response.data?.id,
+      },
+    });
   }
 
   /**

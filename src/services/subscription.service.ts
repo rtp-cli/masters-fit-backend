@@ -1,4 +1,4 @@
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, gte, lte, isNull, sql } from "drizzle-orm";
 import {
   subscriptionPlans,
   userSubscriptions,
@@ -10,11 +10,31 @@ import {
   InsertTrialUsage,
   UpdateUserSubscription,
 } from "@/models/subscription.schema";
+import { users } from "@/models/user.schema";
 import { BaseService } from "@/services/base.service";
 import { logger } from "@/utils/logger";
 import { getCurrentUTCDate } from "@/utils/date.utils";
-import { AccessLevel, SubscriptionStatus } from "@/constants";
+import {
+  AccessLevel,
+  BillingPeriod,
+  RENEWAL_REMINDER_DAYS,
+  RENEWAL_REMINDER_FALLBACK_DAYS,
+  SubscriptionStatus,
+} from "@/constants";
 import type { AccessOverride } from "@/constants/access-policy";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** A subscription due for a renewal-reminder email, with the data the email needs. */
+export interface RenewalReminderCandidate {
+  subscriptionId: number;
+  userId: number;
+  email: string;
+  name: string;
+  billingPeriod: BillingPeriod | null;
+  priceUsd: number | null;
+  subscriptionEndDate: Date;
+}
 
 export class SubscriptionService extends BaseService {
   /**
@@ -275,6 +295,134 @@ export class SubscriptionService extends BaseService {
       },
       { operation: "findUserByRevenueCatCustomerId" }
     );
+  }
+
+  /**
+   * Subscriptions whose auto-renewal is close enough to warrant a reminder email
+   * and that haven't been reminded for this billing period yet.
+   *
+   * Only ACTIVE subs qualify: CANCELLED means auto-renew is off (they already
+   * know it's ending), and comped users (accessOverride set) are never charged.
+   * We fetch the widest lead-time window in SQL, then narrow per billing period
+   * in JS (annual 7d / monthly 3d), so the query stays simple. Plan (hence
+   * billing period + price) is a LEFT join — a plan miss still gets a reminder
+   * at the fallback lead time, just without the price line.
+   */
+  async getRenewalReminderCandidates(
+    now: Date
+  ): Promise<RenewalReminderCandidate[]> {
+    const maxWindowDays = Math.max(
+      RENEWAL_REMINDER_DAYS[BillingPeriod.ANNUAL],
+      RENEWAL_REMINDER_DAYS[BillingPeriod.MONTHLY],
+      RENEWAL_REMINDER_FALLBACK_DAYS
+    );
+    const windowEnd = new Date(now.getTime() + maxWindowDays * MS_PER_DAY);
+
+    const rows = await this.db
+      .select({
+        subscriptionId: userSubscriptions.id,
+        userId: userSubscriptions.userId,
+        email: users.email,
+        name: users.name,
+        billingPeriod: subscriptionPlans.billingPeriod,
+        priceUsd: subscriptionPlans.priceUsd,
+        subscriptionEndDate: userSubscriptions.subscriptionEndDate,
+      })
+      .from(userSubscriptions)
+      .innerJoin(users, eq(users.id, userSubscriptions.userId))
+      .leftJoin(
+        subscriptionPlans,
+        eq(subscriptionPlans.planId, userSubscriptions.planId)
+      )
+      .where(
+        and(
+          eq(userSubscriptions.status, SubscriptionStatus.ACTIVE),
+          isNull(userSubscriptions.accessOverride),
+          gte(userSubscriptions.subscriptionEndDate, now),
+          lte(userSubscriptions.subscriptionEndDate, windowEnd),
+          // Not already reminded for this exact renewal date (null = never).
+          sql`${userSubscriptions.renewalReminderForPeriodEnd} IS DISTINCT FROM ${userSubscriptions.subscriptionEndDate}`
+        )
+      );
+
+    return rows
+      .filter(
+        (r): r is typeof r & { subscriptionEndDate: Date } =>
+          r.subscriptionEndDate != null
+      )
+      .filter((r) => {
+        const period = r.billingPeriod as BillingPeriod | null;
+        const leadDays =
+          (period && RENEWAL_REMINDER_DAYS[period]) ??
+          RENEWAL_REMINDER_FALLBACK_DAYS;
+        const sendFrom = new Date(
+          r.subscriptionEndDate.getTime() - leadDays * MS_PER_DAY
+        );
+        return now >= sendFrom;
+      })
+      .map((r) => ({
+        subscriptionId: r.subscriptionId,
+        userId: r.userId,
+        email: r.email,
+        name: r.name,
+        billingPeriod: (r.billingPeriod as BillingPeriod | null) ?? null,
+        priceUsd: r.priceUsd != null ? Number(r.priceUsd) : null,
+        subscriptionEndDate: r.subscriptionEndDate,
+      }));
+  }
+
+  /**
+   * Atomically claim a subscription's renewal reminder before sending. The
+   * UPDATE only matches if the row is still ACTIVE, still has this exact
+   * period-end, and hasn't already been claimed for it — so under concurrent
+   * instances exactly one worker's UPDATE returns a row and gets to send. The
+   * loser matches zero rows. Returns true iff this caller won the claim.
+   */
+  async claimRenewalReminder(
+    subscriptionId: number,
+    periodEnd: Date
+  ): Promise<boolean> {
+    const [claimed] = await this.db
+      .update(userSubscriptions)
+      .set({
+        renewalReminderSentAt: getCurrentUTCDate(),
+        renewalReminderForPeriodEnd: periodEnd,
+        updatedAt: getCurrentUTCDate(),
+      })
+      .where(
+        and(
+          eq(userSubscriptions.id, subscriptionId),
+          eq(userSubscriptions.status, SubscriptionStatus.ACTIVE),
+          eq(userSubscriptions.subscriptionEndDate, periodEnd),
+          sql`${userSubscriptions.renewalReminderForPeriodEnd} IS DISTINCT FROM ${periodEnd}`
+        )
+      )
+      .returning({ id: userSubscriptions.id });
+
+    return !!claimed;
+  }
+
+  /**
+   * Undo a claim when the email send fails, so a later run can retry. Guarded on
+   * the period-end so we never clobber a claim a concurrent renewal has moved on.
+   */
+  async releaseRenewalReminderClaim(
+    subscriptionId: number,
+    periodEnd: Date
+  ): Promise<void> {
+    await this.db
+      .update(userSubscriptions)
+      .set({
+        renewalReminderSentAt: null,
+        renewalReminderForPeriodEnd: null,
+        updatedAt: getCurrentUTCDate(),
+      })
+      .where(
+        and(
+          eq(userSubscriptions.id, subscriptionId),
+          eq(userSubscriptions.renewalReminderForPeriodEnd, periodEnd)
+        )
+      );
   }
 
   /**

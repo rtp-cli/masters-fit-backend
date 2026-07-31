@@ -574,6 +574,9 @@ export class SubscriptionController extends Controller {
       status,
       subscriptionStartDate: purchasedAt,
       subscriptionEndDate: expiresAt,
+      // Fresh period → no reminder sent for it yet.
+      renewalReminderSentAt: null,
+      renewalReminderForPeriodEnd: null,
     });
 
     logger.info("Initial purchase processed", {
@@ -622,6 +625,9 @@ export class SubscriptionController extends Controller {
       status: SubscriptionStatus.ACTIVE,
       subscriptionStartDate: purchasedAt,
       subscriptionEndDate: expiresAt,
+      // New period → clear the reminder stamp so the next renewal gets its own.
+      renewalReminderSentAt: null,
+      renewalReminderForPeriodEnd: null,
     });
 
     logger.info("Renewal processed", {
