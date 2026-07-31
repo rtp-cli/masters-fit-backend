@@ -17,7 +17,8 @@
     "tsoa": "tsoa spec-and-routes",
     "tsc": "tsc --noEmit",
     "reset-user-trial": "tsx src/scripts/reset-user-trial.ts",
-    "reset-workout-day": "tsx src/scripts/reset-workout-day.ts"
+    "reset-workout-day": "tsx src/scripts/reset-workout-day.ts",
+    "send-renewal-reminder": "tsx src/scripts/send-renewal-reminder.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",
