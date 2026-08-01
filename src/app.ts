@@ -15,6 +15,7 @@ import { analyticsRouter } from "@/routes/analytics.routes";
 import dashboardRouter from "@/routes/dashboard.routes";
 import { subscriptionRouter } from "@/routes/subscription.routes";
 import { llmMetricsRouter } from "@/routes/llm-metrics.routes";
+import { adminRouter } from "@/routes/admin.routes";
 import { feedbackRouter } from "@/routes/feedback.routes";
 import { shareRouter } from "@/routes/share.routes";
 import * as Sentry from "@sentry/node";
@@ -134,6 +135,7 @@ app.use("/api/analytics", analyticsRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/subscriptions", subscriptionRouter);
 app.use("/api/admin/llm-metrics", llmMetricsRouter);
+app.use("/api/admin", adminRouter);
 app.use("/api/feedback", feedbackRouter);
 app.use("/api/share", shareRouter);
 
