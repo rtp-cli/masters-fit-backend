@@ -1,4 +1,4 @@
-const LOGO_URL = process.env.LOGO_URL || "https://mastersfit.ai/assets/logo-dark.png";
+const LOGO_URL = process.env.LOGO_URL || "https://mastersfit.ai/email/logo-dark.png";
 
 interface RenewalReminderTemplateProps {
   /** User's display name; a first name is derived for the greeting. */

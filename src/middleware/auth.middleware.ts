@@ -13,6 +13,11 @@ interface AuthenticatedRequest extends Request {
   userId: number;
   userUuid?: string;
   clientIP?: string;
+  // Present only when the caller is an admin acting as another user via an
+  // impersonation token (see /api/admin/impersonate). Holds the admin's own
+  // user id + the audit session id from the `imp` JWT claim.
+  impersonatedBy?: number;
+  impersonationSessionId?: string;
 }
 
 /**
@@ -67,10 +72,29 @@ export async function expressAuthentication(
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
       id: string;
       email: string;
+      imp?: { by: number; sid: string };
     };
+
+    // Impersonation tokens (admin "view as user") are strictly READ-ONLY. This
+    // is the security model, not just UX: even if the app has a bug, the token
+    // physically cannot mutate prod. Enforced here at the single auth choke
+    // point so it covers both the requireAuth-composed routers and the older
+    // routers that call expressAuthentication() inline. HEAD/OPTIONS are safe
+    // reads; everything else (POST/PUT/PATCH/DELETE) is refused.
+    if (decoded.imp && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+      const roError = new Error(
+        "Read-only session: impersonation cannot modify data. Exit impersonation to make changes."
+      );
+      (roError as any).status = 403;
+      throw roError;
+    }
 
     // Set userId in request for logging context
     request.userId = parseInt(decoded.id);
+    if (decoded.imp) {
+      request.impersonatedBy = decoded.imp.by;
+      request.impersonationSessionId = decoded.imp.sid;
+    }
 
     // Capture and enhance client IP for analytics
     const rawIP = getClientIP(request);
@@ -122,7 +146,10 @@ export async function expressAuthentication(
       `[Auth Middleware] Path: ${request.path}, isAuth: ${isAuthEndpoint}, isWaiver: ${isWaiverEndpoint}`
     );
 
-    if (!isAuthEndpoint && !isWaiverEndpoint) {
+    // Impersonation is read-only viewing, so the target's waiver state must not
+    // block an admin from looking at their account (and must not push the admin
+    // into the waiver-acceptance flow on the target's behalf).
+    if (!isAuthEndpoint && !isWaiverEndpoint && !decoded.imp) {
       // Validate current waiver for all non-auth and non-waiver endpoints
       try {
         await validateCurrentWaiver(request.userId, request.path);
