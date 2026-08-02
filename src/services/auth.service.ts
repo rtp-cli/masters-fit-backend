@@ -43,6 +43,11 @@ export class AuthService extends BaseService {
     });
   }
 
+  // SECURITY — auth hardening #2 (OPEN, see issue #19 / AUTH-SECURITY-HOTFIX.md):
+  // lookup is by `code` only — NOT bound to email, and callers apply no attempt cap,
+  // so a 4-digit code (~9000 values) is brute-forceable. Fix = add an `email` predicate
+  // + per-code attempt cap. Requires `email` on the verify request; land it with the
+  // frontend auth redesign (shipped client sends only { authCode }).
   async getValidAuthCode(code: string): Promise<AuthCode | undefined> {
     const result = await this.db
       .select()
