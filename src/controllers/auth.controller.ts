@@ -416,6 +416,12 @@ export class AuthController extends Controller {
       };
     }
 
+    // SECURITY — auth hardening #2 & #3 still OPEN. See issue #19 / AUTH-SECURITY-HOTFIX.md.
+    // #2: code lookup below is NOT bound to email and has no attempt cap (brute-forceable).
+    // #3: the 9876 bypass is not email-gated and 9876 is inside the normal code range.
+    // DO NOT fix here in isolation — the fix requires `email` on the verify request, which
+    // the shipped client does not send. Land it in lockstep with the frontend auth redesign.
+
     // Handle bypass OTP 9876 for test emails
     if (authCode === "9876") {
       // First try to find the code in authCodes table (normal flow)
