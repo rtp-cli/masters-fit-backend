@@ -344,6 +344,13 @@
 					"error": {
 						"type": "string"
 					},
+					"errorCode": {
+						"type": "string"
+					},
+					"attemptsLeft": {
+						"type": "number",
+						"format": "double"
+					},
 					"needsOnboarding": {
 						"type": "boolean"
 					},
@@ -424,6 +431,15 @@
 					},
 					"needsOnboarding": {
 						"type": "boolean"
+					},
+					"needsWaiverUpdate": {
+						"type": "boolean"
+					},
+					"token": {
+						"type": "string"
+					},
+					"refreshToken": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -4347,6 +4363,7 @@
 						}
 					}
 				},
+				"description": "§5 (Work C) — create a user and authorize on the onboarding token.\n\nAuthenticated path (merged client): the email is taken from the verified\nonboarding token, NOT the request body, and the response carries a real\naccess + refresh token — the email was already proven at /verify, so no OTP.\n\nUnauthenticated path (shipped client, no token): preserves the old behavior\n— create the user from the body email and send an OTP; the client then\nverifies to get its session. Returns NO tokens, so this transitional path\nnever mints a session for an unauthenticated caller. Work E deletes it and\nmakes the token mandatory. See issue #19 / AUTH-SECURITY-HOTFIX.md.",
 				"tags": [
 					"Authentication"
 				],

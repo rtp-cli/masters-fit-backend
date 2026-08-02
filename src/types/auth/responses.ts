@@ -18,6 +18,10 @@ export interface AuthUserResponse {
 export interface AuthVerifyResponse {
   success: boolean;
   error?: string;
+  // §4.4 — machine-readable verify failure: INVALID_CODE | EXPIRED_CODE | CODE_EXHAUSTED
+  errorCode?: string;
+  // §4.4 — remaining attempts on the code (drives the "n tries left" copy)
+  attemptsLeft?: number;
   needsOnboarding?: boolean;
   needsWaiverUpdate?: boolean;
   user?: AuthUserResponse;
@@ -44,6 +48,11 @@ export interface AuthSignupResponse {
   message?: string;
   user?: AuthUserResponse;
   needsOnboarding?: boolean;
+  needsWaiverUpdate?: boolean;
+  // §5 — the authenticated (onboarding-token) path returns a real session so the
+  // merged client goes straight to the waiver; the legacy path omits these.
+  token?: string;
+  refreshToken?: string;
 }
 
 /**

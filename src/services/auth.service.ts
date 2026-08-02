@@ -1,9 +1,19 @@
 import { BaseService } from "./base.service";
 import { authCodes } from "@/models";
 import type { AuthCode, InsertAuthCode } from "@/models";
-import { and, eq, gt } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { logger } from "@/utils/logger";
 import { systemConfigService } from "./system-config.service";
+
+// §4.3 — a code is invalidated after this many failed verify attempts.
+export const MAX_VERIFY_ATTEMPTS = 5;
+
+// §4.4 — discriminated result so the controller can return distinct error codes.
+export type VerifyCodeResult =
+  | { status: "VALID"; authCode: AuthCode }
+  | { status: "INVALID_CODE"; attemptsLeft: number }
+  | { status: "EXPIRED_CODE" }
+  | { status: "CODE_EXHAUSTED" };
 
 export class AuthService extends BaseService {
   /**
@@ -43,32 +53,82 @@ export class AuthService extends BaseService {
     });
   }
 
-  // SECURITY — auth hardening #2 (OPEN, see issue #19 / AUTH-SECURITY-HOTFIX.md):
-  // lookup is by `code` only — NOT bound to email, and callers apply no attempt cap,
-  // so a 4-digit code (~9000 values) is brute-forceable. Fix = add an `email` predicate
-  // + per-code attempt cap. Requires `email` on the verify request; land it with the
-  // frontend auth redesign (shipped client sends only { authCode }).
-  async getValidAuthCode(code: string): Promise<AuthCode | undefined> {
-    const result = await this.db
-      .select()
-      .from(authCodes)
-      .where(
-        and(
-          eq(authCodes.code, code),
-          eq(authCodes.used, false),
-          gt(authCodes.expires_at, new Date())
-        )
-      )
-      .limit(1);
-
-    return result[0];
-  }
-
   async invalidateAuthCode(code: string) {
     await this.db
       .update(authCodes)
       .set({ used: true })
       .where(eq(authCodes.code, code));
+  }
+
+  /**
+   * §4.2/4.3/4.4 — verify a submitted code and return a distinct status.
+   *
+   * When `email` is provided (the merged client), the lookup is bound to the
+   * email: we load that email's most recent unused code and compare, so a wrong
+   * code increments a per-code attempt counter and the code is invalidated at
+   * MAX_VERIFY_ATTEMPTS. This is what actually closes the brute-force hole.
+   *
+   * When `email` is absent (shipped client — sends only { authCode }), we fall
+   * back to the legacy code-keyed lookup so live users keep working. That path
+   * can't count attempts (a wrong guess is simply a different, non-existent
+   * code); it fully closes when Work E makes `email` required. See issue #19.
+   */
+  async verifyCode(
+    submittedCode: string,
+    email?: string
+  ): Promise<VerifyCodeResult> {
+    if (email) {
+      // Email-bound path — load this email's newest unused code.
+      const [row] = await this.db
+        .select()
+        .from(authCodes)
+        .where(and(eq(authCodes.email, email), eq(authCodes.used, false)))
+        .orderBy(desc(authCodes.created_at))
+        .limit(1);
+
+      if (!row) {
+        return { status: "INVALID_CODE", attemptsLeft: 0 };
+      }
+      if (row.attempts >= MAX_VERIFY_ATTEMPTS) {
+        return { status: "CODE_EXHAUSTED" };
+      }
+      if (row.expires_at < new Date()) {
+        return { status: "EXPIRED_CODE" };
+      }
+      if (row.code !== submittedCode) {
+        const attempts = row.attempts + 1;
+        const exhausted = attempts >= MAX_VERIFY_ATTEMPTS;
+        await this.db
+          .update(authCodes)
+          .set({ attempts, used: exhausted })
+          .where(eq(authCodes.id, row.id));
+        return exhausted
+          ? { status: "CODE_EXHAUSTED" }
+          : {
+              status: "INVALID_CODE",
+              attemptsLeft: MAX_VERIFY_ATTEMPTS - attempts,
+            };
+      }
+      return { status: "VALID", authCode: row };
+    }
+
+    // Legacy code-keyed path (no email) — backward compat for shipped clients.
+    const [row] = await this.db
+      .select()
+      .from(authCodes)
+      .where(eq(authCodes.code, submittedCode))
+      .limit(1);
+
+    if (!row || row.used) {
+      return { status: "INVALID_CODE", attemptsLeft: 0 };
+    }
+    if (row.attempts >= MAX_VERIFY_ATTEMPTS) {
+      return { status: "CODE_EXHAUSTED" };
+    }
+    if (row.expires_at < new Date()) {
+      return { status: "EXPIRED_CODE" };
+    }
+    return { status: "VALID", authCode: row };
   }
 
   async generateAuthCode(email: string): Promise<string> {

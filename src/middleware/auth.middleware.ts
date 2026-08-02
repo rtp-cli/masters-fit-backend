@@ -72,8 +72,28 @@ export async function expressAuthentication(
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
       id: string;
       email: string;
+      isOnboarding?: boolean;
       imp?: { by: number; sid: string };
     };
+
+    // §4.8 — onboarding tokens ({ email, isOnboarding: true }) carry NO `id`. They
+    // authorize only the /auth/signup exchange (which is public and decodes the
+    // token itself), so anything reaching this middleware with one is illegitimate.
+    // Reject it outright — previously it fell through to parseInt(undefined) = NaN
+    // and was silently accepted with userId = NaN on every guarded route.
+    if (decoded.isOnboarding) {
+      const err = new Error("Unauthorized");
+      (err as any).status = 401;
+      throw err;
+    }
+
+    // Guard against any other token whose id isn't a real user id — never set NaN.
+    const parsedUserId = parseInt(decoded.id);
+    if (Number.isNaN(parsedUserId)) {
+      const err = new Error("Unauthorized");
+      (err as any).status = 401;
+      throw err;
+    }
 
     // Impersonation tokens (admin "view as user") are strictly READ-ONLY. This
     // is the security model, not just UX: even if the app has a bug, the token
@@ -90,7 +110,7 @@ export async function expressAuthentication(
     }
 
     // Set userId in request for logging context
-    request.userId = parseInt(decoded.id);
+    request.userId = parsedUserId;
     if (decoded.imp) {
       request.impersonatedBy = decoded.imp.by;
       request.impersonationSessionId = decoded.imp.sid;
@@ -104,7 +124,7 @@ export async function expressAuthentication(
 
     // Fetch user information and store UUID in request for analytics
     try {
-      const user = await userService.getUser(parseInt(decoded.id));
+      const user = await userService.getUser(parsedUserId);
 
       // Check if account is active
       if (user && user.isActive === false) {

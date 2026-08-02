@@ -42,7 +42,7 @@ router.post("/login", async (req, res) => {
 // Signup endpoint
 router.post("/signup", async (req, res) => {
   try {
-    const response = await controller.signup(req.body);
+    const response = await controller.signup(req, req.body);
     res.json(response);
   } catch (error) {
     if (error instanceof ZodError) {

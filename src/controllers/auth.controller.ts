@@ -110,84 +110,189 @@ export class AuthController extends Controller {
 
     const isTestAccount = this.isTestAccountEmail(email);
 
+    let authCode: string;
     try {
-      const authCode = await authService.generateAuthCode(email);
+      authCode = await authService.generateAuthCode(email);
+    } catch (error) {
+      logger.error("Failed to generate auth code during login", error as Error, {
+        operation: "login",
+        metadata: { email, isTestAccount },
+      });
+      return {
+        success: false,
+        error: "We couldn't send your code. Please try again.",
+      };
+    }
 
-      // Skip sending email for test accounts to save costs
-      if (!isTestAccount) {
+    // §4.6 — surface send failures instead of swallowing them; the shipped client
+    // otherwise sits waiting for a code that will never arrive (frame 1h).
+    if (!isTestAccount) {
+      try {
         await emailService.sendOtpEmail(
           email,
           authCode,
           user?.name ?? email.split("@")[0]
         );
-      }
-
-      if (process.env.NODE_ENV !== "production") {
-        logger.info("Auth code generated for login", {
+      } catch (error) {
+        logger.error("Failed to send OTP email during login", error as Error, {
           operation: "login",
-          metadata: {
-            email,
-            isTestAccount,
-            authCode:
-              process.env.NODE_ENV === "development" ? authCode : "[REDACTED]",
-          },
+          metadata: { email, isTestAccount },
         });
+        return {
+          success: false,
+          error: "We couldn't send your code. Check your connection and try again.",
+        };
       }
-    } catch (error) {
-      logger.error("Failed to send OTP email during login", error as Error, {
-        operation: "login",
-        metadata: { email, isTestAccount },
-      });
-      // Depending on desired behavior, you might want to stop the process here
-      // For now, we'll just log it and let the user continue without an email
     }
 
+    if (process.env.NODE_ENV !== "production") {
+      logger.info("Auth code generated for login", {
+        operation: "login",
+        metadata: {
+          email,
+          isTestAccount,
+          authCode:
+            process.env.NODE_ENV === "development" ? authCode : "[REDACTED]",
+        },
+      });
+    }
+
+    // §4.7 — no enumeration fields (userExists / needsOnboarding); the response is
+    // identical for every address so login can't be used to probe who has an account.
     return {
       success: true,
       message: "Authorization code generated successfully",
-      userExists: !!user,
-      needsOnboarding: user?.needsOnboarding ?? true,
     };
   }
 
+  /**
+   * Returns the verified email from an onboarding token on the request, or
+   * undefined. Only `{ isOnboarding: true }` tokens qualify — signup is the one
+   * route allowed to consume them (auth.middleware.ts rejects them everywhere
+   * else, §4.8). An invalid/absent/real-access token falls through to undefined.
+   */
+  private emailFromOnboardingToken(request: any): string | undefined {
+    const authHeader = request?.headers?.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) return undefined;
+    const token = authHeader.split(" ")[1];
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
+        email?: string;
+        isOnboarding?: boolean;
+      };
+      return decoded.isOnboarding && decoded.email ? decoded.email : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * §5 (Work C) — create a user and authorize on the onboarding token.
+   *
+   * Authenticated path (merged client): the email is taken from the verified
+   * onboarding token, NOT the request body, and the response carries a real
+   * access + refresh token — the email was already proven at /verify, so no OTP.
+   *
+   * Unauthenticated path (shipped client, no token): preserves the old behavior
+   * — create the user from the body email and send an OTP; the client then
+   * verifies to get its session. Returns NO tokens, so this transitional path
+   * never mints a session for an unauthenticated caller. Work E deletes it and
+   * makes the token mandatory. See issue #19 / AUTH-SECURITY-HOTFIX.md.
+   */
   @Post("signup")
   @Response<AuthSignupResponse>(400, "Bad Request")
   @SuccessResponse(200, "Success")
   public async signup(
+    @Request() request: any,
     @Body() requestBody: SignUpRequest
   ): Promise<AuthSignupResponse> {
+    const onboardingEmail = this.emailFromOnboardingToken(request);
+
+    // ---- Authenticated path: the onboarding token proves the email ----
+    if (onboardingEmail) {
+      const name = (requestBody.name ?? "").trim();
+      if (!name) {
+        return { success: false, error: "Name is required" };
+      }
+
+      let user = await userService.getUserByEmail(onboardingEmail);
+      if (!user) {
+        user = await userService.createUser({ email: onboardingEmail, name });
+      }
+
+      const { token, refreshToken } = await this.mintUserTokens(user);
+
+      return {
+        success: true,
+        message: "User created successfully",
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          needsOnboarding: user.needsOnboarding ?? true,
+          waiverAcceptedAt: user.waiverAcceptedAt,
+          waiverVersion: user.waiverVersion,
+          themeMode: user.themeMode ?? "auto",
+          colorTheme: user.colorTheme ?? "original",
+        },
+        needsOnboarding: user.needsOnboarding ?? true,
+        needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
+        token,
+        refreshToken,
+      };
+    }
+
+    // ---- Unauthenticated path (shipped client): create + send OTP, no tokens ----
     const validatedData = insertUserSchema.parse(requestBody);
     const { email, name } = validatedData;
-    const user = await userService.createUser({
-      email,
-      name,
-    });
+
+    // Idempotent so a retry after a send failure doesn't hit a unique violation.
+    let user = await userService.getUserByEmail(email);
+    if (!user) {
+      user = await userService.createUser({ email, name });
+    }
 
     const isTestAccount = this.isTestAccountEmail(email);
 
+    let authCode: string;
     try {
-      const authCode = await authService.generateAuthCode(email);
-
-      // Skip sending email for test accounts to save costs
-      if (!isTestAccount) {
-        await emailService.sendOtpEmail(email, authCode, name);
-      }
-
-      if (process.env.NODE_ENV !== "production") {
-        logger.info("Auth code generated for signup", {
-          operation: "signup",
-          metadata: {
-            email,
-            isTestAccount,
-            authCode:
-              process.env.NODE_ENV === "development" ? authCode : "[REDACTED]",
-          },
-        });
-      }
+      authCode = await authService.generateAuthCode(email);
     } catch (error) {
-      logger.error("Failed to send OTP email during signup", error as Error, {
+      logger.error("Failed to generate auth code during signup", error as Error, {
         operation: "signup",
         metadata: { email, isTestAccount },
+      });
+      return {
+        success: false,
+        error: "We couldn't send your code. Please try again.",
+      };
+    }
+
+    // §4.6 — surface send failures instead of returning success with no code sent.
+    if (!isTestAccount) {
+      try {
+        await emailService.sendOtpEmail(email, authCode, name);
+      } catch (error) {
+        logger.error("Failed to send OTP email during signup", error as Error, {
+          operation: "signup",
+          metadata: { email, isTestAccount },
+        });
+        return {
+          success: false,
+          error: "We couldn't send your code. Check your connection and try again.",
+        };
+      }
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      logger.info("Auth code generated for signup", {
+        operation: "signup",
+        metadata: {
+          email,
+          isTestAccount,
+          authCode:
+            process.env.NODE_ENV === "development" ? authCode : "[REDACTED]",
+        },
       });
     }
 
@@ -239,6 +344,8 @@ export class AuthController extends Controller {
         });
       }
     } catch (error) {
+      // §4.6 — surface the failure so the client can prompt a retry (frame 1h)
+      // instead of the user waiting on a code that never sends.
       logger.error(
         "Failed to send OTP email during generation",
         error as Error,
@@ -247,6 +354,10 @@ export class AuthController extends Controller {
           metadata: { email },
         }
       );
+      return {
+        success: false,
+        error: "We couldn't send your code. Check your connection and try again.",
+      };
     }
 
     return {
@@ -416,141 +527,95 @@ export class AuthController extends Controller {
       };
     }
 
-    // SECURITY — auth hardening #2 & #3 still OPEN. See issue #19 / AUTH-SECURITY-HOTFIX.md.
-    // #2: code lookup below is NOT bound to email and has no attempt cap (brute-forceable).
-    // #3: the 9876 bypass is not email-gated and 9876 is inside the normal code range.
-    // DO NOT fix here in isolation — the fix requires `email` on the verify request, which
-    // the shipped client does not send. Land it in lockstep with the frontend auth redesign.
-
-    // Handle bypass OTP 9876 for test emails
+    // §4.5 — 9876 test bypass, now email-gated: it only works for an email on the
+    // system_config.test_email allowlist (the Apple-reviewer path). Previously the
+    // branch trusted whatever account held the 9876 row, so anyone submitting 9876
+    // could take that account. Verification is now gated the same way generation is.
     if (authCode === "9876") {
-      // First try to find the code in authCodes table (normal flow)
-      let codeInfo = await authService.getValidAuthCode(authCode);
-      let userEmail: string | undefined;
-
-      if (codeInfo) {
-        // Code exists in database, use the email from there
-        userEmail = codeInfo.email;
-        await authService.invalidateAuthCode(authCode);
-      } else if (email) {
-        // Code not found, but email provided - validate it's a bypass email
-        const isBypassEmail = await systemConfigService.isTestEmail(email);
-        if (!isBypassEmail) {
-          return {
-            success: false,
-            error: "Invalid auth code or email not authorized for bypass",
-          };
-        }
-        userEmail = email;
-      } else {
-        // No code found and no email provided
+      if (!email || !(await systemConfigService.isTestEmail(email))) {
         return {
           success: false,
-          error: "Invalid or expired auth code",
+          errorCode: "INVALID_CODE",
+          error: "Invalid auth code or email not authorized for bypass",
         };
       }
-
-      // Authenticate the user
-      const user = await userService.getUserByEmail(userEmail);
-
-      if (!user) {
-        // Generate a token for the pending user (keep 1h for onboarding)
-        const token = jwt.sign(
-          {
-            email: userEmail,
-            isOnboarding: true,
-          },
-          process.env.JWT_SECRET!,
-          { expiresIn: "7d" }
-        );
-
-        return {
-          success: true,
-          needsOnboarding: true,
-          email: userEmail,
-          token: token,
-        };
-      }
-
-      // Generate token for existing user
-      const token = jwt.sign(
-        {
-          id: user.id,
-          email: user.email,
-        },
-        process.env.JWT_SECRET!,
-        { expiresIn: "7d" }
-      );
-
-      // Generate refresh token
-      const refreshToken = await refreshTokenService.createRefreshToken(
-        user.id
-      );
-
-      return {
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          needsOnboarding: user.needsOnboarding ?? false,
-          waiverAcceptedAt: user.waiverAcceptedAt,
-          waiverVersion: user.waiverVersion,
-          themeMode: user.themeMode ?? "auto",
-          colorTheme: user.colorTheme ?? "original",
-        },
-        needsOnboarding: user.needsOnboarding ?? false,
-        needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
-        token: token,
-        refreshToken: refreshToken,
-      };
+      // Best-effort: consume any issued bypass row so it can't be replayed.
+      await authService.invalidateAuthCode("9876");
+      return this.issueSessionForEmail(email);
     }
 
-    // Normal auth code validation flow
-    const codeInfo = await authService.getValidAuthCode(authCode);
+    // §4.2/4.3/4.4 — normal verification. Bound to email when the client sends it
+    // (attempt-capped, brute-force-resistant); legacy code-only fallback otherwise.
+    const result = await authService.verifyCode(authCode, email);
 
-    if (!codeInfo) {
-      return {
-        success: false,
-        error: "Invalid or expired auth code",
-      };
+    if (result.status !== "VALID") {
+      switch (result.status) {
+        case "EXPIRED_CODE":
+          return {
+            success: false,
+            errorCode: "EXPIRED_CODE",
+            error: "That code has expired.",
+          };
+        case "CODE_EXHAUSTED":
+          return {
+            success: false,
+            errorCode: "CODE_EXHAUSTED",
+            error: "No tries left on that code. Send a new one.",
+          };
+        default:
+          return {
+            success: false,
+            errorCode: "INVALID_CODE",
+            attemptsLeft: result.attemptsLeft,
+            error: "That code didn't match.",
+          };
+      }
     }
 
     await authService.invalidateAuthCode(authCode);
+    return this.issueSessionForEmail(result.authCode.email);
+  }
 
-    const user = await userService.getUserByEmail(codeInfo.email);
+  /** Mint a full access + refresh token pair for a real (existing) user. */
+  private async mintUserTokens(user: {
+    id: number;
+    email: string;
+  }): Promise<{ token: string; refreshToken: string }> {
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET!,
+      { expiresIn: "7d" }
+    );
+    const refreshToken = await refreshTokenService.createRefreshToken(user.id);
+    return { token, refreshToken };
+  }
+
+  /**
+   * Mint the verify/bypass success payload for a verified email. New emails get a
+   * short-lived onboarding token (§4.8, 1h, no user id) that signup exchanges for a
+   * real session (§5); existing users get a full access + refresh token.
+   */
+  private async issueSessionForEmail(
+    userEmail: string
+  ): Promise<AuthVerifyResponse> {
+    const user = await userService.getUserByEmail(userEmail);
 
     if (!user) {
-      // Generate a token for the pending user (keep 1h for onboarding)
       const token = jwt.sign(
-        {
-          email: codeInfo.email,
-          isOnboarding: true,
-        },
+        { email: userEmail, isOnboarding: true },
         process.env.JWT_SECRET!,
-        { expiresIn: "7d" }
+        { expiresIn: "1h" }
       );
 
       return {
         success: true,
         needsOnboarding: true,
-        email: codeInfo.email,
-        token: token,
+        email: userEmail,
+        token,
       };
     }
 
-    // Generate token for existing user
-    const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
-
-    // Generate refresh token
-    const refreshToken = await refreshTokenService.createRefreshToken(user.id);
+    const { token, refreshToken } = await this.mintUserTokens(user);
 
     return {
       success: true,
@@ -566,8 +631,8 @@ export class AuthController extends Controller {
       },
       needsOnboarding: user.needsOnboarding ?? false,
       needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
-      token: token,
-      refreshToken: refreshToken,
+      token,
+      refreshToken,
     };
   }
 
