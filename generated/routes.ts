@@ -111,6 +111,8 @@ const models: TsoaRoute.Models = {
         "properties": {
             "success": {"dataType":"boolean","required":true},
             "error": {"dataType":"string"},
+            "errorCode": {"dataType":"string"},
+            "attemptsLeft": {"dataType":"double"},
             "needsOnboarding": {"dataType":"boolean"},
             "needsWaiverUpdate": {"dataType":"boolean"},
             "user": {"ref":"AuthUserResponse"},
@@ -150,6 +152,9 @@ const models: TsoaRoute.Models = {
             "message": {"dataType":"string"},
             "user": {"ref":"AuthUserResponse"},
             "needsOnboarding": {"dataType":"boolean"},
+            "needsWaiverUpdate": {"dataType":"boolean"},
+            "token": {"dataType":"string"},
+            "refreshToken": {"dataType":"string"},
         },
         "additionalProperties": false,
     },
@@ -1577,6 +1582,7 @@ export function RegisterRoutes(app: Router) {
 
             function AuthController_signup(request: any, response: any, next: any) {
             const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
                     requestBody: {"in":"body","name":"requestBody","required":true,"ref":"SignUpRequest"},
             };
 

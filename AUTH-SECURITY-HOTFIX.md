@@ -62,6 +62,39 @@ independently and sooner.
   remove the hardcoded `9876` constant (replace with the same allowlist check on *both* generate and
   verify, or drop it entirely if review is done).
 
+## Batch 2 — SPEC §4/§5 hardening (BUILT + locally verified 2026-08-02, branch `feat/auth-hardening-batch`)
+
+Implements the full SPEC (`SPEC.md`) backend scope beyond #1, backward-compatible so it can
+deploy ahead of the new mobile build. **Not yet merged — awaiting user go-ahead + prod DB push.**
+
+- **§4.2/4.3/4.4 (was #2):** `authService.verifyCode(code, email?)` — email-bound lookup with a
+  per-code attempt cap (`auth_codes.attempts`, invalidate at 5) and distinct statuses. `verify`
+  returns `errorCode` ∈ `INVALID_CODE | EXPIRED_CODE | CODE_EXHAUSTED` + `attemptsLeft`. **Soft**:
+  when the client sends no `email` it falls back to the legacy code-only lookup (shipped client
+  keeps working); Work E flips `email` to required and deletes the fallback.
+- **§4.5 (was #3):** `9876` bypass is now **email-gated** on verify to `system_config.test_email`
+  (keeps the Apple reviewer working; closes the take-any-account hole). Not deleted — see the
+  Apple Reviewer note.
+- **§4.6:** `login`/`signup`/`generateAuthCode` now return `success:false` on a send failure
+  instead of swallowing it.
+- **§4.7:** `login` no longer returns `userExists`/`needsOnboarding` (enumeration). Verified the
+  shipped client ignores them.
+- **§4.8:** `auth.middleware.ts` rejects `isOnboarding` tokens (401) on every guarded route and
+  never sets `userId = NaN`; onboarding token lifetime `7d → 1h`.
+- **§5 / Work C:** `signup` takes the request. **Authenticated path** (onboarding token) derives
+  the email from the token, mints a real access+refresh session, sends no OTP. **Unauthenticated
+  path** (shipped client) keeps create-user + send-OTP and returns **no tokens** — so it never
+  mints a session for an anonymous caller. Route wiring passes `req` to `controller.signup`.
+
+**DB:** adds `auth_codes.attempts integer not null default 0`. Pushed to **local** only. Prod Neon
+push is pending (`/deploy-db`), must land with this code.
+
+### ⚠️ Work E cutover gates (do NOT drop — gated on new-build adoption)
+1. Make `email` **required** on `/verify`; delete the legacy code-only branch in `verifyCode`.
+2. Delete the **unauthenticated** `signup` path (leave only the onboarding-token path).
+3. Delete `/check-email` entirely (already returns no tokens since #1).
+4. Re-evaluate the `9876` bypass once Apple review is done (delete vs keep email-gated).
+
 ## Suggested sequence
 1. Trace the FE `auth-context.checkEmail` dependency (read-only) → decide if #1 is safe to strip.
 2. Implement + locally test the #1 fix on a branch. Get user go-ahead → merge → Render.
