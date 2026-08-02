@@ -79,6 +79,10 @@ router.post("/verify", async (req, res) => {
       res.json({
         success: true,
         token: response.token,
+        // Returning users authenticate solely through /verify now that the #1
+        // hotfix stopped check-email minting tokens — the route must forward the
+        // refresh token the controller mints, or the session dies at token expiry.
+        refreshToken: response.refreshToken,
         needsOnboarding: response.needsOnboarding,
         user: response.user,
         email: response.email,
