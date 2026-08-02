@@ -73,20 +73,10 @@ export class AuthController extends Controller {
       };
     }
 
-    const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-      },
-      process.env.JWT_SECRET!,
-      {
-        expiresIn: "7d",
-      }
-    );
-
-    // Generate refresh token
-    const refreshToken = await refreshTokenService.createRefreshToken(user.id);
-
+    // SECURITY: check-email is a public, unauthenticated endpoint. It must NOT
+    // mint a session — doing so let anyone take over any account by POSTing a
+    // known email. The real session is issued at /verify after the OTP. Here we
+    // return only existence/onboarding/waiver flags the client needs to route.
     return {
       success: true,
       user: {
@@ -101,8 +91,6 @@ export class AuthController extends Controller {
       },
       needsOnboarding: user.needsOnboarding ?? false,
       needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
-      token: token,
-      refreshToken: refreshToken,
     };
   }
 
