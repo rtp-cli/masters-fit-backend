@@ -35,6 +35,7 @@ import { backgroundJobs } from "@/models/jobs.schema";
 import { aiOperations } from "@/models/ai-operations.schema";
 import { exercises } from "@/models/exercise.schema";
 import { shareLinks } from "@/models/share.schema";
+import { impersonationAudit } from "@/models/impersonation-audit.schema";
 import { SubscriptionStatus } from "@/constants";
 import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
 import {
@@ -48,7 +49,7 @@ import {
   AvailableEquipment,
   getEquipmentForEnvironment,
 } from "@/constants/profile";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Guardrails
@@ -424,6 +425,18 @@ async function deleteDemoUser(): Promise<void> {
   await db.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
   await db.delete(profiles).where(eq(profiles.userId, userId));
   await db.delete(prompts).where(eq(prompts.userId, userId));
+  // impersonation_audit references users twice (admin + target) and is NOT
+  // cascade-deleted by design. The demo user isn't a real account, so its audit
+  // rows can go — clear any where the demo user is the admin or the target
+  // before the hard delete below.
+  await db
+    .delete(impersonationAudit)
+    .where(
+      or(
+        eq(impersonationAudit.targetUserId, userId),
+        eq(impersonationAudit.adminUserId, userId)
+      )
+    );
   await db.delete(users).where(eq(users.id, userId));
   console.log("  ✓ demo user removed");
 }
