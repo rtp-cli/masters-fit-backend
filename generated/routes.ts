@@ -102,6 +102,7 @@ const models: TsoaRoute.Models = {
             "waiverVersion": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "themeMode": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "colorTheme": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+            "isAdmin": {"dataType":"boolean","required":true},
         },
         "additionalProperties": false,
     },

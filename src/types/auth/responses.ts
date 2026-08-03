@@ -10,6 +10,10 @@ export interface AuthUserResponse {
   waiverVersion: string | null;
   themeMode: string | null;
   colorTheme: string | null;
+  // True only for ids in ADMIN_USER_IDS. Lets the client gate admin-only surfaces
+  // (e.g. enabling Developer Tools). Not a security boundary — sensitive admin
+  // actions remain server-enforced via requireAdmin.
+  isAdmin: boolean;
 }
 
 /**

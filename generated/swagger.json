@@ -321,6 +321,9 @@
 					"colorTheme": {
 						"type": "string",
 						"nullable": true
+					},
+					"isAdmin": {
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -331,7 +334,8 @@
 					"waiverAcceptedAt",
 					"waiverVersion",
 					"themeMode",
-					"colorTheme"
+					"colorTheme",
+					"isAdmin"
 				],
 				"type": "object",
 				"additionalProperties": false

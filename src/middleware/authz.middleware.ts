@@ -317,6 +317,15 @@ function parseAdminIds(): Set<number> {
 }
 
 /**
+ * Whether a user id is in the ADMIN_USER_IDS allowlist. Same source of truth as
+ * requireAdmin, exposed so auth responses can surface an `isAdmin` flag to the
+ * client. Fail-closed: unset env → false for everyone.
+ */
+export function isAdminUserId(userId: number): boolean {
+  return parseAdminIds().has(userId);
+}
+
+/**
  * Server-side entitlement gate: 403s (as a paywall) unless the authenticated
  * user's tier grants `capability`. For premium read features (advanced
  * analytics, etc.). Must run after requireAuth.
