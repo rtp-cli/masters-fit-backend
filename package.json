@@ -19,7 +19,11 @@
     "reset-user-trial": "tsx src/scripts/reset-user-trial.ts",
     "reset-workout-day": "tsx src/scripts/reset-workout-day.ts",
     "send-renewal-reminder": "tsx src/scripts/send-renewal-reminder.ts",
-    "comp-user": "tsx src/scripts/grant-comp-single.ts"
+    "comp-user": "tsx src/scripts/grant-comp-single.ts",
+    "delete-user": "tsx src/scripts/delete-users.ts",
+    "check-deletion": "tsx src/scripts/check-deletion.ts",
+    "preflight-user-fk": "tsx src/scripts/preflight-user-fk.ts",
+    "test-emails": "tsx src/scripts/add-test-emails.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",
