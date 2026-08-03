@@ -26,6 +26,7 @@ import {
   RefreshTokenRequest,
 } from "@/types";
 import { userService, authService, refreshTokenService, profileService } from "@/services";
+import { mixpanelService } from "@/services/mixpanel.service";
 import { systemConfigService } from "@/services/system-config.service";
 import { emailService } from "@/services/email.service";
 import { emailAuthSchema, InsertUser, insertUserSchema } from "@/models";
@@ -803,10 +804,20 @@ export class AuthController extends Controller {
     }
 
     try {
-      await userService.deleteAccount(userId);
+      // Hard delete: removes the user + all owned rows in one transaction.
+      // refresh_tokens are FK-CASCADE, so sessions die with the user row.
+      const { uuid } = await userService.deleteAccount(userId);
 
-      // Revoke all refresh tokens for the user
-      await refreshTokenService.revokeAllUserTokens(userId);
+      // Best-effort: purge the external analytics profile too. Never let an
+      // analytics failure block (or appear to un-do) the account deletion.
+      try {
+        await mixpanelService.deleteUser(uuid);
+      } catch (e) {
+        logger.warn("Account deleted but Mixpanel profile purge failed", {
+          operation: "deleteAccount",
+          metadata: { userId },
+        });
+      }
 
       logger.info("User account deleted successfully", {
         operation: "deleteAccount",
