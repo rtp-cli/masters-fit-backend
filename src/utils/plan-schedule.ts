@@ -104,6 +104,68 @@ export function buildPlanDaySchedule(
   return slots;
 }
 
+export interface ScheduleOverride {
+  daysOfWeek?: string[];
+  dayCount?: number;
+  startWeekday?: string;
+}
+
+export interface EffectiveSchedule {
+  availableDays: string[];
+  startDate: string;
+  dayCount: number;
+  /** True when any override field actually changed the effective schedule. */
+  overridden: boolean;
+}
+
+/**
+ * [GQ-02] Resolves the user's explicit scheduling override (extracted by the
+ * planning call) into concrete effective schedule inputs, deterministically:
+ *   - daysOfWeek  -> replaces the profile's available days for this week
+ *   - startWeekday-> shifts the start to that weekday's next occurrence
+ *   - dayCount    -> number of workout days (clamped to 1..7)
+ * `todayStartDate` is the already-timezone-resolved YYYY-MM-DD "today". Invalid /
+ * absent fields fall back to the profile defaults, so a normal week (no override)
+ * returns exactly what the pre-GQ-02 code did (overridden=false).
+ */
+export function resolveEffectiveSchedule(
+  override: ScheduleOverride | undefined,
+  profileAvailableDays: string[] | null | undefined,
+  todayStartDate: string
+): EffectiveSchedule {
+  const clean = (arr?: string[]) =>
+    (arr || [])
+      .map((d) => (d || "").trim().toLowerCase())
+      .filter((d) => DAYS_OF_WEEK.includes(d));
+
+  const baseDays =
+    profileAvailableDays && profileAvailableDays.length > 0
+      ? profileAvailableDays
+      : [...DAYS_OF_WEEK];
+
+  const overrideDays = clean(override?.daysOfWeek);
+  const availableDays = overrideDays.length > 0 ? overrideDays : baseDays;
+
+  const startWeekday = (override?.startWeekday || "").trim().toLowerCase();
+  const hasStart = DAYS_OF_WEEK.includes(startWeekday);
+  const startDate = hasStart
+    ? getDateForWeekday(startWeekday, todayStartDate)
+    : todayStartDate;
+
+  const rawCount =
+    override?.dayCount != null && Number.isFinite(override.dayCount)
+      ? Math.round(override.dayCount)
+      : availableDays.length;
+  const dayCount = Math.max(1, Math.min(7, rawCount));
+
+  const overridden =
+    overrideDays.length > 0 ||
+    hasStart ||
+    (override?.dayCount != null && dayCount !== baseDays.length);
+
+  return { availableDays, startDate, dayCount, overridden };
+}
+
 const WEEKDAY_MENTION_RE =
   /\b(mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?|weekdays?)\b/i;
 

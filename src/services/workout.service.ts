@@ -1041,7 +1041,17 @@ export class WorkoutService extends BaseService {
     const persistStartedAt = Date.now();
     // profile + startDate resolved up front (before generation) so the schedule
     // the prompts used and the dates stamped here share one clock. [GQ-01]
-    const endDate = addDays(startDate, 6);
+    // startDate stays "today" so the workout is active immediately, even if a
+    // [GQ-02] start-day shift places the first session later in the week.
+    // endDate must reach the LAST scheduled day — a "start next Monday" shift can
+    // push plan days past today+6, and they must fall inside [startDate, endDate]
+    // or the active-workout window would hide them.
+    const weekEnd = addDays(startDate, 6);
+    const lastScheduledDate =
+      genSchedule && genSchedule.length > 0
+        ? genSchedule[genSchedule.length - 1].date
+        : weekEnd;
+    const endDate = lastScheduledDate > weekEnd ? lastScheduledDate : weekEnd;
 
     const workout = await this.createWorkout({
       userId,

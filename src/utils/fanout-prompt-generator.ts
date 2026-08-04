@@ -59,6 +59,17 @@ export interface WeekConstraints {
    * on the model honoring the prose.
    */
   avoidExerciseTerms?: string[];
+  /**
+   * [GQ-02] Explicit scheduling overrides the user asked for THIS week — which
+   * weekdays, how many days, and which weekday to start on. Only present when
+   * the user actually requested a change; resolved deterministically into the
+   * generation schedule (see resolveEffectiveSchedule).
+   */
+  schedule?: {
+    daysOfWeek?: string[];
+    dayCount?: number;
+    startWeekday?: string;
+  };
 }
 
 export interface WeekPlan {
@@ -141,6 +152,49 @@ export const WEEK_PLAN_SCHEMA = {
           items: { type: "string" },
           description:
             "The literal exercise-NAME fragments implied by the avoid rules, lowercased, that code will use to hard-filter the generated exercises. Give the specific matchable term(s) for each avoid rule: 'no deadlifts' -> ['deadlift']; 'no barbell work' -> ['barbell']; 'no burpees or box jumps' -> ['burpee', 'box jump']. Prefer the shortest fragment that still uniquely identifies the banned movement so all variations are caught (e.g. 'deadlift' catches 'Romanian Deadlift'). Empty array if no exclusion-type requests.",
+        },
+        schedule: {
+          type: "object",
+          description:
+            "[GQ-02] ONLY populate a field here if the user EXPLICITLY asked to change WHEN/HOW MANY days they train this week. Omit fields (or the whole object) otherwise — never infer from the profile's normal schedule.",
+          properties: {
+            daysOfWeek: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: [
+                  "monday",
+                  "tuesday",
+                  "wednesday",
+                  "thursday",
+                  "friday",
+                  "saturday",
+                  "sunday",
+                ],
+              },
+              description:
+                "The specific weekdays to train THIS week if the user named them (e.g. 'just Mon/Wed/Fri' -> [monday, wednesday, friday]; 'weekends only' -> [saturday, sunday]). Omit if the user didn't specify particular days.",
+            },
+            dayCount: {
+              type: "number",
+              description:
+                "The number of workout days if the user asked for a specific count (e.g. 'only 3 days this week' -> 3). If set, return exactly this many day entries in `days`. Omit if not specified.",
+            },
+            startWeekday: {
+              type: "string",
+              enum: [
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+              ],
+              description:
+                "The weekday the user wants the plan to START on if they asked (e.g. 'start me on Monday' -> monday). Omit if not specified.",
+            },
+          },
         },
       },
       required: ["must", "avoid", "avoidExerciseTerms"],
@@ -545,7 +599,7 @@ ${renderScheduleLines(schedule)}
 
 ## TASK: WEEK PLANNING
 
-Design the weekly split for this user. Return exactly ${dayCount} days, numbered sequentially 1 to ${dayCount}, matching the dates listed above.
+Design the weekly split for this user. By default, return exactly ${dayCount} days, numbered sequentially 1 to ${dayCount}, matching the dates listed above. **Exception:** if the user's current request specifies a different number of workout days or particular training days (e.g. "only 3 days this week", "just Mondays and Wednesdays", "weekends only"), return THAT many day entries instead and record it under \`constraints.schedule\` — the real dates are re-derived from your schedule fields, so just return the right COUNT of days.
 
 This is the WEEK PLANNING mode described in your instructions: produce only the high-level split (names, focus, muscle groups, styles). The day-generation requirements (duration compliance, block structure, exercise selection) apply to the per-day calls that follow, not to this plan.
 
@@ -558,7 +612,9 @@ Requirements:
 
 ## CAPTURE THE USER'S REQUESTS
 
-Populate the \`constraints\` field by extracting EVERY explicit instruction from the current request above into concrete \`must\` / \`avoid\` rules (e.g. "no deadlifts" → avoid: "no deadlift variations of any kind"; "bodyweight only on Wednesday" → must: "Wednesday's workout must use no equipment"). For any exclusion of a movement/equipment, ALSO list the literal lowercased name fragment(s) in \`avoidExerciseTerms\` so code can hard-enforce it (e.g. "no deadlifts" → avoidExerciseTerms: ["deadlift"]; "no burpees or box jumps" → ["burpee", "box jump"]). These rules are passed verbatim to each day's generation, so be specific and complete. If there is no current request, use empty arrays — never invent constraints the user didn't state.`;
+Populate the \`constraints\` field by extracting EVERY explicit instruction from the current request above into concrete \`must\` / \`avoid\` rules (e.g. "no deadlifts" → avoid: "no deadlift variations of any kind"; "bodyweight only on Wednesday" → must: "Wednesday's workout must use no equipment"). For any exclusion of a movement/equipment, ALSO list the literal lowercased name fragment(s) in \`avoidExerciseTerms\` so code can hard-enforce it (e.g. "no deadlifts" → avoidExerciseTerms: ["deadlift"]; "no burpees or box jumps" → ["burpee", "box jump"]). These rules are passed verbatim to each day's generation, so be specific and complete. If there is no current request, use empty arrays — never invent constraints the user didn't state.
+
+If (and ONLY if) the user explicitly asked to change WHEN or HOW MANY days they train this week, also fill \`constraints.schedule\` (\`daysOfWeek\`, \`dayCount\`, and/or \`startWeekday\`) — e.g. "just Mon/Wed/Fri" → daysOfWeek: [monday, wednesday, friday]; "only 3 days" → dayCount: 3; "start me on Monday" → startWeekday: monday. Leave it empty for a normal week.`;
 };
 
 export const buildDayUserMessage = (

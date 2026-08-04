@@ -4,6 +4,7 @@ import {
   formatSlotLabel,
   renderScheduleLines,
   mentionsWeekday,
+  resolveEffectiveSchedule,
 } from "@/utils/plan-schedule";
 import { getDateForWeekday, addDays } from "@/utils/date.utils";
 
@@ -107,6 +108,72 @@ describe("buildPlanDaySchedule [GQ-01]", () => {
       const mine = buildPlanDaySchedule(days, start).map((s) => s.date);
       expect(mine).toEqual(legacySchedule(days, start));
     }
+  });
+});
+
+describe("resolveEffectiveSchedule [GQ-02]", () => {
+  const profileDays = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+  const today = "2026-08-04"; // Tuesday
+
+  it("no override -> identical to profile defaults (overridden=false)", () => {
+    const r = resolveEffectiveSchedule(undefined, profileDays, today);
+    expect(r).toEqual({
+      availableDays: profileDays,
+      startDate: today,
+      dayCount: 5,
+      overridden: false,
+    });
+    expect(resolveEffectiveSchedule({}, profileDays, today).overridden).toBe(false);
+  });
+
+  it("daysOfWeek override replaces available days and sets count", () => {
+    const r = resolveEffectiveSchedule(
+      { daysOfWeek: ["monday", "wednesday", "friday"] },
+      profileDays,
+      today
+    );
+    expect(r.availableDays).toEqual(["monday", "wednesday", "friday"]);
+    expect(r.dayCount).toBe(3);
+    expect(r.overridden).toBe(true);
+  });
+
+  it("dayCount override is clamped to 1..7", () => {
+    expect(resolveEffectiveSchedule({ dayCount: 3 }, profileDays, today).dayCount).toBe(3);
+    expect(resolveEffectiveSchedule({ dayCount: 0 }, profileDays, today).dayCount).toBe(1);
+    expect(resolveEffectiveSchedule({ dayCount: 99 }, profileDays, today).dayCount).toBe(7);
+  });
+
+  it("startWeekday shifts the start date to that weekday's next occurrence", () => {
+    // From Tue 2026-08-04, next Monday is 2026-08-10.
+    const r = resolveEffectiveSchedule({ startWeekday: "monday" }, profileDays, today);
+    expect(r.startDate).toBe("2026-08-10");
+    expect(r.overridden).toBe(true);
+  });
+
+  it("ignores invalid weekday names and non-finite counts (falls back, not overridden)", () => {
+    const r = resolveEffectiveSchedule(
+      { daysOfWeek: ["funday", ""], startWeekday: "someday", dayCount: NaN },
+      profileDays,
+      today
+    );
+    expect(r.availableDays).toEqual(profileDays);
+    expect(r.startDate).toBe(today);
+    expect(r.dayCount).toBe(5);
+    expect(r.overridden).toBe(false);
+  });
+
+  it("combines daysOfWeek + startWeekday", () => {
+    const r = resolveEffectiveSchedule(
+      { daysOfWeek: ["saturday", "sunday"], startWeekday: "saturday" },
+      profileDays,
+      today
+    );
+    expect(r.availableDays).toEqual(["saturday", "sunday"]);
+    expect(r.dayCount).toBe(2);
+    expect(r.startDate).toBe("2026-08-08"); // next Saturday
+    // buildPlanDaySchedule with these effective inputs lands on Sat/Sun.
+    const sched = buildPlanDaySchedule(r.availableDays, r.startDate, r.dayCount);
+    expect(sched.map((s) => s.weekday)).toEqual(["saturday", "sunday"]);
   });
 });
 

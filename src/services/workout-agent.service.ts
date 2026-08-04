@@ -44,6 +44,7 @@ import {
   buildPlanDaySchedule,
   PlanDaySlot,
   mentionsWeekday,
+  resolveEffectiveSchedule,
 } from "@/utils/plan-schedule";
 import {
   getCurrentDateString,
@@ -711,7 +712,9 @@ Please generate the workout now, addressing this feedback while following all sy
       (profile.timezone
         ? getCurrentDateStringInTimezone(profile.timezone)
         : getCurrentDateString());
-    const schedule = buildPlanDaySchedule(
+    // `let` because a GQ-02 scheduling override (extracted by the planning call)
+    // can recompute this after planning.
+    let schedule = buildPlanDaySchedule(
       profile.availableDays,
       scheduleStartDate
     );
@@ -840,7 +843,35 @@ ${exerciseContext}`;
     );
     promptSnapshot.planning.user = planningUserMessage; // [GQ-14]
     let weekPlan = await runPlanningCall(planningUserMessage);
-    const expectedDayCount = profile.availableDays?.length || 7;
+
+    // [GQ-02] Resolve any explicit scheduling override the planner extracted
+    // (specific weekdays, day count, or start weekday) into effective schedule
+    // inputs. When present, RECOMPUTE the schedule so the day-call labels and
+    // the stamped dates reflect the user's request; the expected day count also
+    // becomes the requested count. No override -> identical to the prior code
+    // (effective.dayCount === profile.availableDays.length, schedule unchanged).
+    const effective = resolveEffectiveSchedule(
+      weekPlan.constraints?.schedule,
+      profile.availableDays,
+      scheduleStartDate
+    );
+    const expectedDayCount = effective.dayCount;
+    if (effective.overridden) {
+      schedule = buildPlanDaySchedule(
+        effective.availableDays,
+        effective.startDate,
+        effective.dayCount
+      );
+      logger.info("Applied GQ-02 scheduling override", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        metadata: {
+          availableDays: effective.availableDays,
+          dayCount: effective.dayCount,
+          startDate: effective.startDate,
+        },
+      });
+    }
     logger.info("Fan-out planning call completed", {
       userId,
       returnedDayCount: weekPlan?.days?.length || 0,
@@ -853,9 +884,9 @@ ${exerciseContext}`;
         `Week planning returned ${weekPlan?.days?.length || 0} days, expected ${expectedDayCount}`
       );
     }
-    // The model controls the day fields — renumber sequentially so the day
-    // count and numbering always match the user's available days, no matter
-    // what the planning call returned.
+    // The model controls the day fields — renumber sequentially and clamp to the
+    // expected count so numbering always matches the (possibly overridden)
+    // schedule, no matter what the planning call returned.
     weekPlan.days = weekPlan.days
       .slice(0, expectedDayCount)
       .map((day, index) => ({ ...day, day: index + 1 }));
