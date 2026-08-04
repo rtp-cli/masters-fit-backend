@@ -9,3 +9,6 @@ dist/
 generated/
 # GQ-13 generation eval harness run outputs (local, machine-specific)
 eval-runs/
+
+# GQ-09 migration rollback snapshots (contain exercise data)
+muscle-taxonomy-rollback-*.json
