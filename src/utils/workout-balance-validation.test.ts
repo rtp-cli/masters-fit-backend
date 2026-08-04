@@ -4,6 +4,7 @@ import {
   capExerciseRepetition,
   checkConsecutiveMuscleGroupOverload,
   buildMuscleRebalanceFeedback,
+  reorderToMinimizeConsecutiveOverload,
 } from "@/utils/workout-balance-validation";
 
 describe("checkExerciseRepetition [LR-049]", () => {
@@ -147,5 +148,43 @@ describe("checkConsecutiveMuscleGroupOverload [LR-049]", () => {
       { day: 2, primaryMuscleGroups: ["legs"] },
     ]);
     expect(findings).toHaveLength(1);
+  });
+});
+
+describe("reorderToMinimizeConsecutiveOverload [GQ-10]", () => {
+  it("breaks up consecutive same-muscle days without dropping any", () => {
+    // Two quad days adjacent (1,2); reorder should separate them.
+    const days = [
+      { day: 1, name: "A", primaryMuscleGroups: ["quads", "glutes"] },
+      { day: 2, name: "B", primaryMuscleGroups: ["quads", "hamstrings"] },
+      { day: 3, name: "C", primaryMuscleGroups: ["chest", "triceps"] },
+      { day: 4, name: "D", primaryMuscleGroups: ["back", "biceps"] },
+    ];
+    const reordered = reorderToMinimizeConsecutiveOverload(days);
+    expect(reordered).toHaveLength(4);
+    // No dropped days — same set of names.
+    expect(reordered.map((d) => d.name).sort()).toEqual(["A", "B", "C", "D"]);
+    // Renumbered 1..N.
+    expect(reordered.map((d) => d.day)).toEqual([1, 2, 3, 4]);
+    // The two quad days are no longer adjacent.
+    expect(checkConsecutiveMuscleGroupOverload(reordered)).toHaveLength(0);
+  });
+
+  it("is a stable no-op (renumber only) for 2 or fewer days", () => {
+    const days = [
+      { day: 1, primaryMuscleGroups: ["quads"] },
+      { day: 2, primaryMuscleGroups: ["quads"] },
+    ];
+    expect(reorderToMinimizeConsecutiveOverload(days)).toEqual(days);
+  });
+
+  it("leaves an already-balanced week unchanged in overlap count", () => {
+    const days = [
+      { day: 1, primaryMuscleGroups: ["chest"] },
+      { day: 2, primaryMuscleGroups: ["back"] },
+      { day: 3, primaryMuscleGroups: ["legs"] },
+    ];
+    const reordered = reorderToMinimizeConsecutiveOverload(days);
+    expect(checkConsecutiveMuscleGroupOverload(reordered)).toHaveLength(0);
   });
 });

@@ -1,5 +1,6 @@
 import { Profile } from "@/models";
 import { AvailableEquipment, PreferredStyles } from "@/constants/profile";
+import { CANONICAL_MUSCLE_GROUPS } from "@/constants/muscle-groups";
 import {
   PlanDaySlot,
   formatSlotLabel,
@@ -164,8 +165,9 @@ export const WEEK_PLAN_SCHEMA = {
           },
           primaryMuscleGroups: {
             type: "array",
-            items: { type: "string" },
-            description: "Primary muscle groups trained on this day",
+            items: { type: "string", enum: CANONICAL_MUSCLE_GROUPS },
+            description:
+              "Primary muscle groups trained on this day, chosen ONLY from the canonical list. Use the specific groups (e.g. quads, hamstrings, glutes) rather than umbrellas so cross-day balance can be checked.",
           },
           styles: {
             type: "array",
