@@ -50,6 +50,14 @@ export interface WeekPlanDay {
 export interface WeekConstraints {
   must: string[];
   avoid: string[];
+  /**
+   * [GQ-07] Literal, lowercased exercise-name fragments implied by the avoid
+   * rules (e.g. ["deadlift", "barbell"]). Used for DETERMINISTIC post-generation
+   * enforcement — any generated exercise whose name contains one of these is
+   * swapped from the catalog or dropped, so AVOID compliance no longer depends
+   * on the model honoring the prose.
+   */
+  avoidExerciseTerms?: string[];
 }
 
 export interface WeekPlan {
@@ -127,8 +135,14 @@ export const WEEK_PLAN_SCHEMA = {
           description:
             "Things the plan MUST NOT include, each a short concrete rule, e.g. 'no deadlift variations of any kind', 'no barbell exercises'.",
         },
+        avoidExerciseTerms: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "The literal exercise-NAME fragments implied by the avoid rules, lowercased, that code will use to hard-filter the generated exercises. Give the specific matchable term(s) for each avoid rule: 'no deadlifts' -> ['deadlift']; 'no barbell work' -> ['barbell']; 'no burpees or box jumps' -> ['burpee', 'box jump']. Prefer the shortest fragment that still uniquely identifies the banned movement so all variations are caught (e.g. 'deadlift' catches 'Romanian Deadlift'). Empty array if no exclusion-type requests.",
+        },
       },
-      required: ["must", "avoid"],
+      required: ["must", "avoid", "avoidExerciseTerms"],
     },
     days: {
       type: "array",
@@ -542,7 +556,7 @@ Requirements:
 
 ## CAPTURE THE USER'S REQUESTS
 
-Populate the \`constraints\` field by extracting EVERY explicit instruction from the current request above into concrete \`must\` / \`avoid\` rules (e.g. "no deadlifts" → avoid: "no deadlift variations of any kind"; "bodyweight only on Wednesday" → must: "Wednesday's workout must use no equipment"). These rules are passed verbatim to each day's generation, so be specific and complete. If there is no current request, use empty arrays — never invent constraints the user didn't state.`;
+Populate the \`constraints\` field by extracting EVERY explicit instruction from the current request above into concrete \`must\` / \`avoid\` rules (e.g. "no deadlifts" → avoid: "no deadlift variations of any kind"; "bodyweight only on Wednesday" → must: "Wednesday's workout must use no equipment"). For any exclusion of a movement/equipment, ALSO list the literal lowercased name fragment(s) in \`avoidExerciseTerms\` so code can hard-enforce it (e.g. "no deadlifts" → avoidExerciseTerms: ["deadlift"]; "no burpees or box jumps" → ["burpee", "box jump"]). These rules are passed verbatim to each day's generation, so be specific and complete. If there is no current request, use empty arrays — never invent constraints the user didn't state.`;
 };
 
 export const buildDayUserMessage = (

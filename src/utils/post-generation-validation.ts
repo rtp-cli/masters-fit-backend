@@ -5,6 +5,11 @@ import {
   capExerciseRepetition,
   ExerciseRepetitionFinding,
 } from "@/utils/workout-balance-validation";
+import {
+  enforceAvoidConstraints,
+  EnforcementCatalogItem,
+  ConstraintViolationFinding,
+} from "@/utils/constraint-enforcement";
 
 /**
  * [LR-019] The post-generation validation pipeline used by
@@ -28,11 +33,21 @@ import {
 export function applyPostGenerationValidation(
   rawExercisesToAdd: any[],
   rawWorkoutPlan: any[],
-  profile: Profile
+  profile: Profile,
+  // [GQ-07] Optional AVOID enforcement: when the planning call extracted
+  // avoid-terms from the user's request, deterministically swap/drop any
+  // generated exercise that matches one, drawing swaps from the same filtered
+  // catalog the generation used. Runs BEFORE the repetition cap so a swapped-in
+  // exercise is still subject to the "no >2× per day" rule.
+  constraintOptions?: {
+    avoidExerciseTerms?: string[];
+    catalog?: EnforcementCatalogItem[];
+  }
 ): {
   exercisesToAdd: any[];
   workoutPlan: any[];
   repetitionFindings: ExerciseRepetitionFinding[];
+  constraintFindings: ConstraintViolationFinding[];
 } {
   const equipmentFiltered = validateEquipmentAndFilter(
     rawExercisesToAdd,
@@ -40,14 +55,28 @@ export function applyPostGenerationValidation(
     profile
   );
 
-  const { exercisesToAdd, workoutPlan } = validateLimitationsAndFilter(
+  const limitationFiltered = validateLimitationsAndFilter(
     equipmentFiltered.exercisesToAdd,
     equipmentFiltered.workoutPlan,
     profile
   );
 
-  const { workoutPlan: cappedPlan, findings: repetitionFindings } =
-    capExerciseRepetition(workoutPlan);
+  // [GQ-07] Deterministic AVOID enforcement (no-op when there are no avoid
+  // terms or no violation — the common case).
+  const enforced = enforceAvoidConstraints(
+    limitationFiltered.workoutPlan,
+    limitationFiltered.exercisesToAdd,
+    constraintOptions?.avoidExerciseTerms,
+    constraintOptions?.catalog || []
+  );
 
-  return { exercisesToAdd, workoutPlan: cappedPlan, repetitionFindings };
+  const { workoutPlan: cappedPlan, findings: repetitionFindings } =
+    capExerciseRepetition(enforced.workoutPlan);
+
+  return {
+    exercisesToAdd: enforced.exercisesToAdd,
+    workoutPlan: cappedPlan,
+    repetitionFindings,
+    constraintFindings: enforced.findings,
+  };
 }

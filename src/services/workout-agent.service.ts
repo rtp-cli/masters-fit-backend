@@ -1110,15 +1110,35 @@ ${exerciseContext}`;
       });
 
     // [LR-012/LR-013/LR-049] Post-generation validation pipeline — equipment
-    // filter, then limitation filter, then repetition check against the
-    // final filtered plan. Extracted to post-generation-validation.ts
-    // [LR-019] so the wiring between these three is directly testable, not
-    // just each validator individually.
-    const { exercisesToAdd, workoutPlan, repetitionFindings } =
-      applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile);
+    // filter, then limitation filter, then [GQ-07] AVOID enforcement, then
+    // repetition check against the final filtered plan. Extracted to
+    // post-generation-validation.ts [LR-019] so the wiring between these
+    // validators is directly testable, not just each validator individually.
+    const { exercisesToAdd, workoutPlan, repetitionFindings, constraintFindings } =
+      applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile, {
+        // [GQ-07] Deterministic backstop for the user's exclusion requests: swap
+        // or drop any generated exercise matching a banned term, drawing swaps
+        // from the same catalog the generation used. Makes AVOID compliance
+        // reliable instead of relying on the model honoring the prose.
+        avoidExerciseTerms: weekPlan.constraints?.avoidExerciseTerms,
+        catalog: availableExercises.map((e: any) => ({
+          name: e.name,
+          muscleGroups: e.muscleGroups,
+        })),
+      });
 
     for (const finding of repetitionFindings) {
       logger.warn("Exercise repeated more than expected within one day", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+
+    // [GQ-07] Surface every AVOID violation the model let through and how it was
+    // repaired — these are exactly the "feature didn't listen" moments to watch.
+    for (const finding of constraintFindings) {
+      logger.warn("AVOID constraint violation repaired post-generation", {
         userId,
         operation: "generateWeeklyWorkout",
         ...finding,
