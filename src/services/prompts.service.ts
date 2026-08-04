@@ -16,6 +16,7 @@ import {
   AI_PROVIDERS,
   getModelConfig,
 } from "@/constants/ai-providers";
+import { PlanDaySlot } from "@/utils/plan-schedule";
 // Result type that includes token usage
 export interface PromptGenerationResult {
   response: any;
@@ -25,6 +26,10 @@ export interface PromptGenerationResult {
     outputTokens: number;
     totalTokens: number;
   };
+  // [GQ-01] Day-number -> {weekday, date} schedule the fan-out prompts were
+  // built against, so persistence stamps the identical dates. Only the fan-out
+  // path (generateChunkedPrompt) sets it; the serial path leaves it undefined.
+  schedule?: PlanDaySlot[];
 }
 
 // Token usage type for export
@@ -72,15 +77,16 @@ export class PromptsService extends BaseService {
   }
 
   /**
-   * Append the user's recent post-workout feedback to the generation input.
-   * Effort answers steer intensity; time answers steer volume — the reason
-   * the feedback card asks them separately. Failure-safe: generation must
-   * never break because the digest couldn't be built.
+   * [GQ-08] Build the recent post-workout feedback digest as a STANDALONE block
+   * (no base string prepended), so the fan-out path can present it as its own
+   * precedence-labeled section separate from the live request. Effort answers
+   * steer intensity; time answers steer volume — the reason the feedback card
+   * asks them separately. Returns undefined when there is nothing to say.
+   * Failure-safe: generation must never break because the digest couldn't build.
    */
-  private async withRecentFeedback(
-    userId: number,
-    base: string
-  ): Promise<string> {
+  private async buildRecentFeedbackDigest(
+    userId: number
+  ): Promise<string | undefined> {
     try {
       const recent = await logsService.getRecentPlanDayFeedback(userId, 5);
       const lines = recent
@@ -104,10 +110,9 @@ export class PromptsService extends BaseService {
           return `- ${day}: ${parts.join("; ")}`;
         })
         .filter((line): line is string => line !== null);
-      if (lines.length === 0) return base;
+      if (lines.length === 0) return undefined;
 
       return (
-        `${base}\n\n` +
         `Recent post-workout feedback from the user (newest first). ` +
         `Adjust INTENSITY for effort signals and total VOLUME (exercise count / sets) ` +
         `for time signals — a session that "ran out of time" means too much volume ` +
@@ -118,10 +123,23 @@ export class PromptsService extends BaseService {
       logger.warn("Failed to build recent-feedback digest; continuing without", {
         userId,
         error: (error as Error).message,
-        operation: "withRecentFeedback",
+        operation: "buildRecentFeedbackDigest",
       });
-      return base;
+      return undefined;
     }
+  }
+
+  /**
+   * Serial-path helper: append the recent-feedback digest to a base string. The
+   * fan-out path uses buildRecentFeedbackDigest directly (separate section);
+   * this preserves the blended behavior the serial prompt builders still expect.
+   */
+  private async withRecentFeedback(
+    userId: number,
+    base: string
+  ): Promise<string> {
+    const digest = await this.buildRecentFeedbackDigest(userId);
+    return digest ? `${base}\n\n${digest}` : base;
   }
 
   // Create user-specific workout agent based on their AI provider preferences
@@ -297,19 +315,20 @@ export class PromptsService extends BaseService {
       return Math.round(25 + 70 * (done / total));
     };
 
-    // Recent post-workout feedback rides along as generation input
-    const enrichedFeedback = await this.withRecentFeedback(
-      userId,
-      customFeedback || "Generate weekly workout plan"
-    );
+    // [GQ-08] Keep the live request and the recent-feedback digest SEPARATE —
+    // the fan-out prompt presents them as distinct, precedence-labeled sections
+    // (current request wins) instead of blending them into one string where a
+    // stale note carried the same weight as an explicit ask.
+    const recentFeedback = await this.buildRecentFeedbackDigest(userId);
 
     try {
       const result = await workoutAgent.generateWeeklyWorkout(
         userId,
         profile,
-        enrichedFeedback,
+        customFeedback,
         {
           signal,
+          recentFeedback,
           onProgress: (update) => {
             if (update.type === "plan_ready") {
               // Start every day as "pending" — each transitions to "generating"
@@ -372,6 +391,9 @@ export class PromptsService extends BaseService {
         response: result.workout,
         promptId: createdPrompt.id,
         tokenUsage: result.tokenUsage,
+        // [GQ-01] Bubble the generation schedule up so the persistence layer
+        // stamps the exact dates the prompts were built against.
+        schedule: result.schedule,
       };
     } catch (error) {
       // INFO level so it survives any higher log-level filter — this is the

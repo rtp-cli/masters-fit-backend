@@ -38,10 +38,10 @@ import {
   getCurrentDateString,
   getCurrentDateStringInTimezone,
   getDateForWeekday,
-  getDateForWeekdayInTimezone,
   addDays,
   formatDateAsString,
 } from "@/utils/date.utils";
+import { buildPlanDaySchedule, PlanDaySlot } from "@/utils/plan-schedule";
 import { workoutLogs } from "../models/logs.schema";
 import { logger } from "@/utils/logger";
 import {
@@ -962,6 +962,9 @@ export class WorkoutService extends BaseService {
     // Try chunked generation first, fallback to regular generation if it fails
     const generationStartedAt = Date.now();
     let response, promptId;
+    // [GQ-01] Schedule the fan-out prompts were built against; used below to
+    // stamp the exact dates the model saw. Undefined on the serial fallback path.
+    let genSchedule: PlanDaySlot[] | undefined;
     try {
       const result = await promptsService.generateChunkedPrompt(
         userId,
@@ -969,6 +972,7 @@ export class WorkoutService extends BaseService {
       );
       response = result.response;
       promptId = result.promptId;
+      genSchedule = result.schedule;
     } catch (chunkedError: any) {
       // Logged at INFO so it's never hidden by a higher log-level filter —
       // the fan-out path is the primary path (it drives the per-day progress
@@ -1058,42 +1062,19 @@ export class WorkoutService extends BaseService {
     // Same value as startDate above — reuse it rather than resolving twice.
     const today = startDate;
 
-    // Get today's weekday in the specified timezone
-    const todayDay = timezone
-      ? new Date()
-          .toLocaleDateString("en-US", {
-            weekday: "long",
-            timeZone: timezone,
-          })
-          .toLowerCase()
-      : new Date()
-          .toLocaleDateString("en-US", { weekday: "long" })
-          .toLowerCase();
-
-    // New logic for rotating available days
-    const daysOfWeek = [
-      "sunday",
-      "monday",
-      "tuesday",
-      "wednesday",
-      "thursday",
-      "friday",
-      "saturday",
-    ];
-    const todayIndex = daysOfWeek.indexOf(todayDay);
-    const sortedAvailable = availableDays
-      .map((day) => ({ day, index: daysOfWeek.indexOf(day) }))
-      .sort(
-        (a, b) =>
-          ((a.index - todayIndex + 7) % 7) - ((b.index - todayIndex + 7) % 7)
-      )
-      .map((obj) => obj.day);
-    const rotatedDays = sortedAvailable;
+    // [GQ-01] Stamp plan-day dates from the SAME day-number -> {weekday, date}
+    // schedule the fan-out prompts were built against, so the dates the model
+    // saw ("Day 3 — Thursday, Aug 6") are exactly the dates we save. On the
+    // serial fallback path there's no returned schedule, so recompute it with
+    // the identical pure helper — byte-identical to the old inline rotation,
+    // now a single source of truth shared with the prompt builders.
+    const schedule =
+      genSchedule && genSchedule.length > 0
+        ? genSchedule
+        : buildPlanDaySchedule(availableDays, today);
 
     // Optimize database operations with bulk inserts and transactions
     await this.db.transaction(async (tx) => {
-      let referenceDate = today;
-
       // Prepare bulk data for plan days
       const planDaysData: InsertPlanDay[] = [];
       const workoutBlocksData: InsertWorkoutBlock[] = [];
@@ -1128,13 +1109,9 @@ export class WorkoutService extends BaseService {
 
       // Second pass: prepare all data structures
       for (let i = 0; i < workoutPlan.length; i++) {
-        const availableDay = rotatedDays[i % rotatedDays.length];
-        const scheduledDate = timezone
-          ? getDateForWeekdayInTimezone(availableDay, referenceDate, timezone)
-          : getDateForWeekday(availableDay, referenceDate);
-
-        // Move reference date to the day after the scheduledDate to prevent same day reuse
-        referenceDate = addDays(scheduledDate, 1);
+        // [GQ-01] Same schedule the prompts used; wrap defensively if the plan
+        // somehow has more days than available slots (matches the old modulo).
+        const scheduledDate = schedule[i % schedule.length].date;
 
         planDaysData.push({
           workoutId: workout.id,
