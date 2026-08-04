@@ -61,7 +61,10 @@ export function enforceAvoidConstraints(
 } {
   const terms = (avoidExerciseTerms || [])
     .map((t) => norm(t))
-    .filter((t) => t.length > 0);
+    // Require >=3 chars: a bare-substring match on a 1-2 char term ("ab") would
+    // mass-match unrelated names ("Cable Crossover", "Stability Ball") and
+    // scramble the week. Real movement/equipment fragments are all >=3.
+    .filter((t) => t.length >= 3);
   if (terms.length === 0) {
     return { workoutPlan, exercisesToAdd, findings: [] };
   }
@@ -133,7 +136,20 @@ export function enforceAvoidConstraints(
               action: "swapped",
               replacement: replacement.name,
             });
-            newExercises.push({ ...ex, exerciseName: replacement.name });
+            newExercises.push({
+              ...ex,
+              exerciseName: replacement.name,
+              // The replacement is a DIFFERENT movement, so the removed
+              // exercise's load/format numbers don't transfer (else "no
+              // deadlifts" could yield "Hamstring Curl @ 185 lb" or a strength
+              // move with a 20-min duration). Keep sets/rest/order structure;
+              // zero the load/format fields and ensure a sane rep target.
+              weight: 0,
+              duration: 0,
+              distanceM: 0,
+              reps: ex.reps && ex.reps > 0 ? ex.reps : 10,
+              notes: "Substituted to honor your exclusions — adjust load as needed.",
+            });
           } else {
             // No compliant candidate — drop it (guarantees compliance).
             findings.push({

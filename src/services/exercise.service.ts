@@ -243,12 +243,18 @@ export class ExerciseService extends BaseService {
   private async createExerciseInsertIgnoringConflict(
     data: InsertExercise
   ): Promise<Exercise | undefined> {
+    // [GQ-09] Normalize here too — this is the insert path the GENERATION uses
+    // (createExerciseIfNotExists -> here), the actual re-pollution vector. The
+    // admin-only createExercise normalizes separately.
+    const normalizedMuscles = normalizeMuscleGroups(data.muscleGroups).groups;
+    const muscleGroups =
+      normalizedMuscles.length > 0 ? normalizedMuscles : ["full_body"];
     const result = await this.db
       .insert(exercises)
       .values([
         {
           name: data.name,
-          muscleGroups: data.muscleGroups,
+          muscleGroups,
           instructions: Array.isArray(data.instructions)
             ? data.instructions.join("\n")
             : data.instructions,

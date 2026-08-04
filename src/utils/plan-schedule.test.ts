@@ -3,6 +3,7 @@ import {
   buildPlanDaySchedule,
   formatSlotLabel,
   renderScheduleLines,
+  mentionsWeekday,
 } from "@/utils/plan-schedule";
 import { getDateForWeekday, addDays } from "@/utils/date.utils";
 
@@ -106,6 +107,23 @@ describe("buildPlanDaySchedule [GQ-01]", () => {
       const mine = buildPlanDaySchedule(days, start).map((s) => s.date);
       expect(mine).toEqual(legacySchedule(days, start));
     }
+  });
+});
+
+describe("mentionsWeekday [GQ-10 reorder gate]", () => {
+  it("detects weekday and weekend references", () => {
+    expect(mentionsWeekday("keep Fridays easy")).toBe(true);
+    expect(mentionsWeekday("long run on Saturday")).toBe(true);
+    expect(mentionsWeekday("no workouts on weekends")).toBe(true);
+    expect(mentionsWeekday("MONDAY should be light")).toBe(true);
+  });
+  it("returns false for non-calendar requests and empty input", () => {
+    expect(mentionsWeekday("no deadlifts, more upper body")).toBe(false);
+    expect(mentionsWeekday("")).toBe(false);
+    expect(mentionsWeekday(null)).toBe(false);
+    expect(mentionsWeekday(undefined)).toBe(false);
+    // Must not false-match substrings inside other words.
+    expect(mentionsWeekday("summon strength, satiate hunger")).toBe(false);
   });
 });
 

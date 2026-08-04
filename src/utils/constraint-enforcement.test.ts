@@ -81,6 +81,38 @@ describe("enforceAvoidConstraints [GQ-07]", () => {
     expect(res.exercisesToAdd).toHaveLength(0);
   });
 
+  it("resets load/format fields on a swap so no phantom prescription carries over", () => {
+    const plan = [
+      {
+        day: 1,
+        blocks: [
+          {
+            blockType: "traditional",
+            exercises: [
+              { exerciseName: "Barbell Deadlift", sets: 4, reps: 5, weight: 185, duration: 0, distanceM: 0, restTime: 120 },
+            ],
+          },
+        ],
+      },
+    ];
+    const res = enforceAvoidConstraints(plan, [], ["deadlift"], catalog);
+    const swapped = res.workoutPlan[0].blocks[0].exercises[0];
+    expect(swapped.exerciseName.toLowerCase()).not.toContain("deadlift");
+    expect(swapped.weight).toBe(0);
+    expect(swapped.duration).toBe(0);
+    expect(swapped.distanceM).toBe(0);
+    expect(swapped.reps).toBe(5); // preserved (was > 0)
+    expect(swapped.restTime).toBe(120); // structure preserved
+  });
+
+  it("ignores avoid terms shorter than 3 chars (blast-radius guard)", () => {
+    const plan = [day(1, ["Cable Crossover", "Stability Ball Rollout"])];
+    // "ab" would substring-match both if not filtered.
+    const res = enforceAvoidConstraints(plan, [], ["ab"], catalog);
+    expect(res.findings).toHaveLength(0);
+    expect(namesIn(res.workoutPlan)).toEqual(["Cable Crossover", "Stability Ball Rollout"]);
+  });
+
   it("handles multiple avoid terms", () => {
     const plan = [day(1, ["Romanian Deadlift", "Barbell Back Squat", "Push-up"])];
     const res = enforceAvoidConstraints(plan, [], ["deadlift", "barbell"], catalog);

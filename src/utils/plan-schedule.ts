@@ -104,6 +104,18 @@ export function buildPlanDaySchedule(
   return slots;
 }
 
+const WEEKDAY_MENTION_RE =
+  /\b(mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?|weekdays?)\b/i;
+
+/**
+ * True when the text references a specific weekday or weekend — i.e. the user's
+ * request is calendar-sensitive (e.g. "keep Fridays easy", "long run Saturday").
+ * Used to protect date-locked day content from muscle-balance reordering.
+ */
+export function mentionsWeekday(text: string | null | undefined): boolean {
+  return !!text && WEEKDAY_MENTION_RE.test(text);
+}
+
 /**
  * Human/LLM-friendly label for a slot, e.g. "Thursday, Aug 6". Pure string math
  * off the YYYY-MM-DD date — never constructs a Date in a way that could shift

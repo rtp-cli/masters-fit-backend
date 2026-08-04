@@ -11,9 +11,10 @@
  *     a 3rd+ copy of the SAME exercise is safe (it reads as the model running
  *     out of variety, not intentional structure) and mirrors how the limitation
  *     filter rewrites blocks.
- *   - consecutive-day muscle overload → the caller re-plans once using
- *     `buildMuscleRebalanceFeedback` (the fan-out day calls run in parallel with
- *     no shared context, so the planning stage is the only place to fix it).
+ *   - consecutive-day muscle overload → [GQ-10] the caller now deterministically
+ *     REORDERS the days (`reorderToMinimizeConsecutiveOverload`) to break up
+ *     same-muscle pairs, replacing the old corrective second planning LLM call.
+ *     (`buildMuscleRebalanceFeedback` is retained for reference/tests.)
  * The MAX threshold is a considered default, not settled — easy to tune here.
  */
 

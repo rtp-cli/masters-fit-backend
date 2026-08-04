@@ -43,6 +43,7 @@ import {
 import {
   buildPlanDaySchedule,
   PlanDaySlot,
+  mentionsWeekday,
 } from "@/utils/plan-schedule";
 import {
   getCurrentDateString,
@@ -881,7 +882,15 @@ ${exerciseContext}`;
     let muscleGroupOverloads = checkConsecutiveMuscleGroupOverload(
       weekPlan.days
     );
-    if (muscleGroupOverloads.length > 0) {
+    // [GQ-10/GQ-01] Reordering moves a day's designed content onto a different
+    // calendar slot. When the user referenced a specific weekday (GQ-01 tells
+    // the planner to honor "keep Fridays easy", "light before my Saturday run"),
+    // that content is date-locked — reordering would silently break exactly the
+    // calendar request we just enabled. So skip the reorder when the request is
+    // calendar-sensitive; muscle balance yields to the explicit user ask (the
+    // residual overload is still logged below).
+    const calendarSensitive = mentionsWeekday(customFeedback);
+    if (muscleGroupOverloads.length > 0 && !calendarSensitive) {
       const reordered = reorderToMinimizeConsecutiveOverload(weekPlan.days);
       const reorderedOverloads = checkConsecutiveMuscleGroupOverload(reordered);
       if (reorderedOverloads.length < muscleGroupOverloads.length) {
@@ -896,6 +905,11 @@ ${exerciseContext}`;
         weekPlan = { ...weekPlan, days: reordered };
         muscleGroupOverloads = reorderedOverloads;
       }
+    } else if (muscleGroupOverloads.length > 0 && calendarSensitive) {
+      logger.info(
+        "Skipping muscle-overload reorder — request references a weekday, preserving calendar intent",
+        { userId, operation: "generateWeeklyWorkout" }
+      );
     }
     // Any overload still present after the deterministic reorder — surface it.
     for (const finding of muscleGroupOverloads) {
