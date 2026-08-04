@@ -13,6 +13,7 @@ import {
 import { logger } from "@/utils/logger";
 import { checkDemoLink } from "@/utils/video-validation";
 import { AvailableEquipment, IntensityLevels } from "@/constants";
+import { normalizeMuscleGroups } from "@/constants/muscle-groups";
 
 // Interface for exercise metadata (minimal data for LLM)
 export interface ExerciseMetadata {
@@ -139,12 +140,19 @@ export class ExerciseService extends BaseService {
   }
 
   async createExercise(data: InsertExercise) {
+    // [GQ-09] Normalize muscle groups to the canonical taxonomy at the single
+    // insert point, so exercises created by generation (exercisesToAdd, from
+    // LLM free-text) can't slowly re-pollute the column we just migrated. Falls
+    // back to full_body if normalization empties it (column is NOT NULL).
+    const normalizedMuscles = normalizeMuscleGroups(data.muscleGroups).groups;
+    const muscleGroups =
+      normalizedMuscles.length > 0 ? normalizedMuscles : ["full_body"];
     const result = await this.db
       .insert(exercises)
       .values([
         {
           name: data.name,
-          muscleGroups: data.muscleGroups,
+          muscleGroups,
           instructions: Array.isArray(data.instructions)
             ? data.instructions.join("\n")
             : data.instructions,
@@ -235,12 +243,18 @@ export class ExerciseService extends BaseService {
   private async createExerciseInsertIgnoringConflict(
     data: InsertExercise
   ): Promise<Exercise | undefined> {
+    // [GQ-09] Normalize here too — this is the insert path the GENERATION uses
+    // (createExerciseIfNotExists -> here), the actual re-pollution vector. The
+    // admin-only createExercise normalizes separately.
+    const normalizedMuscles = normalizeMuscleGroups(data.muscleGroups).groups;
+    const muscleGroups =
+      normalizedMuscles.length > 0 ? normalizedMuscles : ["full_body"];
     const result = await this.db
       .insert(exercises)
       .values([
         {
           name: data.name,
-          muscleGroups: data.muscleGroups,
+          muscleGroups,
           instructions: Array.isArray(data.instructions)
             ? data.instructions.join("\n")
             : data.instructions,

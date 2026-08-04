@@ -11,9 +11,10 @@
  *     a 3rd+ copy of the SAME exercise is safe (it reads as the model running
  *     out of variety, not intentional structure) and mirrors how the limitation
  *     filter rewrites blocks.
- *   - consecutive-day muscle overload → the caller re-plans once using
- *     `buildMuscleRebalanceFeedback` (the fan-out day calls run in parallel with
- *     no shared context, so the planning stage is the only place to fix it).
+ *   - consecutive-day muscle overload → [GQ-10] the caller now deterministically
+ *     REORDERS the days (`reorderToMinimizeConsecutiveOverload`) to break up
+ *     same-muscle pairs, replacing the old corrective second planning LLM call.
+ *     (`buildMuscleRebalanceFeedback` is retained for reference/tests.)
  * The MAX threshold is a considered default, not settled — easy to tune here.
  */
 
@@ -144,6 +145,47 @@ export function checkConsecutiveMuscleGroupOverload(
  * redistribute, rather than repeating the same soft "balance the week" hint it
  * already ignored. Returns "" when there is nothing to correct.
  */
+/**
+ * [GQ-10] Deterministically reorder the week's days to avoid consecutive
+ * training days sharing a primary muscle group — replacing the old corrective
+ * SECOND planning call (an extra LLM round-trip that the planner often ignored
+ * anyway). Greedy: anchor on the first day, then repeatedly append the remaining
+ * day with the least primary-muscle overlap with the previously placed day.
+ * Returns a NEW array, renumbered 1..N; never drops or adds a day. Now that
+ * primaryMuscleGroups are drawn from the canonical enum (GQ-09), the overlap
+ * comparison actually matches (previously "Lower Body" vs "quads" never did).
+ */
+export function reorderToMinimizeConsecutiveOverload<
+  T extends { day: number; primaryMuscleGroups?: string[] }
+>(days: T[]): T[] {
+  if (days.length <= 2) {
+    return days.map((d, i) => ({ ...d, day: i + 1 }));
+  }
+  const remaining = [...days];
+  const result: T[] = [remaining.shift() as T];
+  while (remaining.length > 0) {
+    const lastMuscles = new Set(
+      (result[result.length - 1].primaryMuscleGroups || []).map((g) =>
+        g.toLowerCase()
+      )
+    );
+    let bestIdx = 0;
+    let bestOverlap = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const overlap = (remaining[i].primaryMuscleGroups || []).filter((g) =>
+        lastMuscles.has(g.toLowerCase())
+      ).length;
+      if (overlap < bestOverlap) {
+        bestOverlap = overlap;
+        bestIdx = i;
+        if (overlap === 0) break; // can't do better than zero
+      }
+    }
+    result.push(remaining.splice(bestIdx, 1)[0]);
+  }
+  return result.map((d, i) => ({ ...d, day: i + 1 }));
+}
+
 export function buildMuscleRebalanceFeedback(
   findings: MuscleGroupOverloadFinding[]
 ): string {

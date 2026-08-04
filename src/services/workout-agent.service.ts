@@ -14,8 +14,8 @@ import {
 } from "@/utils/limitation-validation";
 import type { PhysicalLimitation } from "@/types";
 import {
-  buildMuscleRebalanceFeedback,
   checkConsecutiveMuscleGroupOverload,
+  reorderToMinimizeConsecutiveOverload,
 } from "@/utils/workout-balance-validation";
 import { applyPostGenerationValidation } from "@/utils/post-generation-validation";
 import { buildProgressionContext } from "@/utils/progression-context";
@@ -26,6 +26,7 @@ import {
   ExerciseMetadata,
   stratifyCatalog,
 } from "./exercise.service";
+import { exerciseExclusionService } from "./exercise-exclusion.service";
 import {
   buildClaudePrompt,
   buildClaudeDailyPrompt,
@@ -42,6 +43,7 @@ import {
 import {
   buildPlanDaySchedule,
   PlanDaySlot,
+  mentionsWeekday,
 } from "@/utils/plan-schedule";
 import {
   getCurrentDateString,
@@ -170,6 +172,57 @@ export class WorkoutAgentService {
   }
 
   private async getFilteredExercises(
+    profile: Profile
+  ): Promise<ExerciseMetadata[]> {
+    // [GQ-16] The shared catalog is cached WITHOUT a userId (the cache key is
+    // environment:equipment:limitations:styles), so per-user exercise
+    // exclusions can't live in it. Fetch the shared catalog, then post-filter
+    // this user's exclusions — preserving cache reuse across users while
+    // finally honoring exclusions in generation (they were previously applied
+    // only in the in-app search/replace path, never in weekly OR daily gen).
+    const shared = await this.getSharedGenerationCatalog(profile);
+    return this.applyUserExclusions(shared, profile);
+  }
+
+  // [GQ-16] Per-user exclusion post-filter. Matches on NAME because the cached
+  // catalog items carry name but no id. Failure-safe: never block generation.
+  private async applyUserExclusions(
+    catalog: ExerciseMetadata[],
+    profile: Profile
+  ): Promise<ExerciseMetadata[]> {
+    const userId = profile.userId;
+    if (!userId) return catalog;
+    try {
+      const exclusions = await exerciseExclusionService.listExclusions(userId);
+      if (exclusions.length === 0) return catalog;
+      const excludedNames = new Set(
+        exclusions.map((e) => e.name.trim().toLowerCase())
+      );
+      const filtered = catalog.filter(
+        (ex) => !excludedNames.has(ex.name.trim().toLowerCase())
+      );
+      if (filtered.length !== catalog.length) {
+        logger.info("Applied per-user exercise exclusions to generation catalog", {
+          userId,
+          excludedCount: catalog.length - filtered.length,
+          operation: "getFilteredExercises",
+        });
+      }
+      return filtered;
+    } catch (error) {
+      logger.warn(
+        "Failed to apply user exercise exclusions; continuing with full catalog",
+        {
+          userId,
+          error: (error as Error).message,
+          operation: "getFilteredExercises",
+        }
+      );
+      return catalog;
+    }
+  }
+
+  private async getSharedGenerationCatalog(
     profile: Profile
   ): Promise<ExerciseMetadata[]> {
     const cacheKey = this.exerciseCacheKey(profile);
@@ -763,8 +816,9 @@ ${exerciseContext}`;
       provider: this.currentProvider,
       operation: "generateWeeklyWorkout",
     });
-    // Reusable so the LR-049 muscle-balance re-plan below can invoke a second,
-    // corrective planning call without duplicating the timeout/usage plumbing.
+    // Wraps the planning call's timeout/usage plumbing. (The old muscle-balance
+    // corrective SECOND planning call was replaced by a deterministic reorder in
+    // GQ-10, so this now runs exactly once.)
     const runPlanningCall = async (userMessage: string): Promise<WeekPlan> => {
       const result: any = await runWithAbortTimeout(
         (signal) =>
@@ -815,59 +869,52 @@ ${exerciseContext}`;
       operation: "generateWeeklyWorkout",
     });
 
-    // [LR-049] This is the one point in the pipeline with cross-day context —
-    // the parallel per-day fan-out calls below don't see each other's output,
-    // so consecutive-day muscle-group balance can only be enforced here,
+    // [LR-049/GQ-10] This is the one point in the pipeline with cross-day
+    // context — the parallel per-day fan-out calls below don't see each other's
+    // output, so consecutive-day muscle-group balance can only be enforced here,
     // against the planning stage's per-day focus assignments. Detection alone
     // wasn't enough (the planner sometimes ignores its own "no consecutive
-    // same-muscle" instruction), so on a violation we re-plan ONCE with
-    // corrective feedback naming the offending day pairs — bounded to a single
-    // extra (cheap Haiku) planning call; a best-effort correction that never
-    // fails generation.
+    // same-muscle" instruction). GQ-10: instead of a second corrective LLM
+    // planning call (which the planner often re-violated anyway), we DETERMINE-
+    // istically reorder the days to break up consecutive same-muscle pairs — no
+    // extra LLM call (a latency win), and reliable now that primaryMuscleGroups
+    // come from the canonical enum so the overlap check actually matches.
     let muscleGroupOverloads = checkConsecutiveMuscleGroupOverload(
       weekPlan.days
     );
-    if (muscleGroupOverloads.length > 0) {
-      logger.warn(
-        "Plan stacks same-muscle-group on consecutive days — re-planning once",
-        {
+    // [GQ-10/GQ-01] Reordering moves a day's designed content onto a different
+    // calendar slot. When the user referenced a specific weekday (GQ-01 tells
+    // the planner to honor "keep Fridays easy", "light before my Saturday run"),
+    // that content is date-locked — reordering would silently break exactly the
+    // calendar request we just enabled. So skip the reorder when the request is
+    // calendar-sensitive; muscle balance yields to the explicit user ask (the
+    // residual overload is still logged below).
+    const calendarSensitive = mentionsWeekday(customFeedback);
+    if (muscleGroupOverloads.length > 0 && !calendarSensitive) {
+      const reordered = reorderToMinimizeConsecutiveOverload(weekPlan.days);
+      const reorderedOverloads = checkConsecutiveMuscleGroupOverload(reordered);
+      if (reorderedOverloads.length < muscleGroupOverloads.length) {
+        logger.info("Reordered week to reduce consecutive muscle overload", {
           userId,
           operation: "generateWeeklyWorkout",
-          metadata: { overloads: muscleGroupOverloads },
-        }
-      );
-      try {
-        const rebalanceUserMessage = `${buildPlanningUserMessage(profile, schedule, promptFeedback)}\n\n${buildMuscleRebalanceFeedback(muscleGroupOverloads)}`;
-        const rebalanced = await runPlanningCall(rebalanceUserMessage);
-        // Only accept the re-plan if it returned a usable day count; otherwise
-        // keep the original (already-validated) plan and log the residual below.
-        if ((rebalanced?.days?.length || 0) >= expectedDayCount) {
-          weekPlan = {
-            ...rebalanced,
-            days: rebalanced.days
-              .slice(0, expectedDayCount)
-              .map((day, index) => ({ ...day, day: index + 1 })),
-          };
-          muscleGroupOverloads =
-            checkConsecutiveMuscleGroupOverload(weekPlan.days);
-          // [GQ-14] The rebalance planning call is what actually produced the
-          // final week — snapshot THAT message, not the discarded first one, so
-          // forensics on overload-triggered generations reflect reality.
-          promptSnapshot.planning.user = rebalanceUserMessage;
-        }
-      } catch (error) {
-        // Re-plan is a best-effort correction — never fail generation on it.
-        logger.warn("Muscle-balance re-plan failed; keeping original plan", {
-          userId,
-          operation: "generateWeeklyWorkout",
-          error: (error as Error).message,
+          metadata: {
+            before: muscleGroupOverloads.length,
+            after: reorderedOverloads.length,
+          },
         });
+        weekPlan = { ...weekPlan, days: reordered };
+        muscleGroupOverloads = reorderedOverloads;
       }
+    } else if (muscleGroupOverloads.length > 0 && calendarSensitive) {
+      logger.info(
+        "Skipping muscle-overload reorder — request references a weekday, preserving calendar intent",
+        { userId, operation: "generateWeeklyWorkout" }
+      );
     }
-    // Any overload still present after the bounded re-plan — surface it.
+    // Any overload still present after the deterministic reorder — surface it.
     for (const finding of muscleGroupOverloads) {
       logger.warn(
-        "Consecutive days share a primary muscle group focus (post re-plan)",
+        "Consecutive days share a primary muscle group focus (post reorder)",
         {
           userId,
           operation: "generateWeeklyWorkout",
@@ -1110,15 +1157,35 @@ ${exerciseContext}`;
       });
 
     // [LR-012/LR-013/LR-049] Post-generation validation pipeline — equipment
-    // filter, then limitation filter, then repetition check against the
-    // final filtered plan. Extracted to post-generation-validation.ts
-    // [LR-019] so the wiring between these three is directly testable, not
-    // just each validator individually.
-    const { exercisesToAdd, workoutPlan, repetitionFindings } =
-      applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile);
+    // filter, then limitation filter, then [GQ-07] AVOID enforcement, then
+    // repetition check against the final filtered plan. Extracted to
+    // post-generation-validation.ts [LR-019] so the wiring between these
+    // validators is directly testable, not just each validator individually.
+    const { exercisesToAdd, workoutPlan, repetitionFindings, constraintFindings } =
+      applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile, {
+        // [GQ-07] Deterministic backstop for the user's exclusion requests: swap
+        // or drop any generated exercise matching a banned term, drawing swaps
+        // from the same catalog the generation used. Makes AVOID compliance
+        // reliable instead of relying on the model honoring the prose.
+        avoidExerciseTerms: weekPlan.constraints?.avoidExerciseTerms,
+        catalog: availableExercises.map((e: any) => ({
+          name: e.name,
+          muscleGroups: e.muscleGroups,
+        })),
+      });
 
     for (const finding of repetitionFindings) {
       logger.warn("Exercise repeated more than expected within one day", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+
+    // [GQ-07] Surface every AVOID violation the model let through and how it was
+    // repaired — these are exactly the "feature didn't listen" moments to watch.
+    for (const finding of constraintFindings) {
+      logger.warn("AVOID constraint violation repaired post-generation", {
         userId,
         operation: "generateWeeklyWorkout",
         ...finding,
