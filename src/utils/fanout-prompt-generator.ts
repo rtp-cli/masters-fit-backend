@@ -1,6 +1,11 @@
 import { Profile } from "@/models";
 import { AvailableEquipment, PreferredStyles } from "@/constants/profile";
 import {
+  PlanDaySlot,
+  formatSlotLabel,
+  renderScheduleLines,
+} from "./plan-schedule";
+import {
   getEquipmentDescription,
   getStyleInterpretationGuide,
   getConstraintIntegrationProtocol,
@@ -36,10 +41,36 @@ export interface WeekPlanDay {
   styles: string[];
 }
 
+/**
+ * [GQ-05] Normalized, explicit constraints the planning call extracts from the
+ * user's custom feedback, restated as concrete rules. Injected verbatim into
+ * every day call so each day enforces the same rules instead of re-deriving them
+ * from the raw prose (which is how "no deadlifts" leaked through per-day before).
+ */
+export interface WeekConstraints {
+  must: string[];
+  avoid: string[];
+}
+
 export interface WeekPlan {
   name: string;
   description: string;
+  constraints?: WeekConstraints;
   days: WeekPlanDay[];
+}
+
+/**
+ * [GQ-08] Two separate feedback channels with explicit precedence. The live
+ * request is what the user asked for THIS generation and wins; the recent digest
+ * is background signal from past post-workout feedback. They used to be blended
+ * into one opaque string, so a strong current request and a stale note carried
+ * equal weight.
+ */
+export interface PromptFeedback {
+  /** The user's current explicit request (highest priority). */
+  customFeedback?: string;
+  /** Digest of recent post-workout feedback (background signal, lower priority). */
+  recentFeedback?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +110,26 @@ export const WEEK_PLAN_SCHEMA = {
       type: "string",
       description: "Very short plan description (10-15 words)",
     },
+    constraints: {
+      type: "object",
+      description:
+        "Normalized restatement of the user's EXPLICIT requests from their current custom feedback, turned into concrete rules the per-day generation must follow. Extract every specific instruction the user gave. Use empty arrays if there is no custom feedback — do NOT invent constraints the user did not state.",
+      properties: {
+        must: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Things the plan MUST do/include, each a short concrete rule, e.g. 'Wednesday must be a bodyweight-only workout', 'include an AMRAP finisher every day'.",
+        },
+        avoid: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Things the plan MUST NOT include, each a short concrete rule, e.g. 'no deadlift variations of any kind', 'no barbell exercises'.",
+        },
+      },
+      required: ["must", "avoid"],
+    },
     days: {
       type: "array",
       description:
@@ -113,7 +164,7 @@ export const WEEK_PLAN_SCHEMA = {
       },
     },
   },
-  required: ["name", "description", "days"],
+  required: ["name", "description", "constraints", "days"],
 } as const;
 
 const EXERCISE_SCHEMA = {
@@ -420,21 +471,65 @@ Quality of programming over volume of prose:
 Never sacrifice exercise count, block count, or duration compliance for brevity — trim words, not programming.`;
 };
 
+/**
+ * [GQ-08] Renders the two feedback channels as separate, precedence-labeled
+ * sections so the model treats the current request as authoritative and the
+ * recent digest as background.
+ */
+const renderFeedbackSections = (feedback?: PromptFeedback): string => {
+  const current = feedback?.customFeedback?.trim();
+  const recent = feedback?.recentFeedback?.trim();
+  return `**Your current request (HIGHEST priority — honor this specifically):** ${
+    current || "None"
+  }
+
+**Recent post-workout feedback (background signal only — the current request above wins if they conflict):** ${
+    recent || "None"
+  }`;
+};
+
+/**
+ * [GQ-05] Renders the normalized MUST/AVOID constraints for a day call. Empty
+ * string when there are no constraints (no custom feedback), so unconstrained
+ * generations look exactly as before.
+ */
+const renderConstraintsSection = (constraints?: WeekConstraints): string => {
+  const must = constraints?.must?.filter((c) => c.trim()) || [];
+  const avoid = constraints?.avoid?.filter((c) => c.trim()) || [];
+  if (must.length === 0 && avoid.length === 0) return "";
+
+  const mustLines = must.length ? must.map((m) => `- ${m}`).join("\n") : "- (none)";
+  const avoidLines = avoid.length ? avoid.map((a) => `- ${a}`).join("\n") : "- (none)";
+  return `## USER CONSTRAINTS (extracted from the user's request — apply to THIS day exactly)
+
+**MUST:**
+${mustLines}
+
+**AVOID — never include any exercise matching these, no variations, no substitutions that reintroduce them:**
+${avoidLines}
+
+`;
+};
+
 export const buildPlanningUserMessage = (
   profile: Profile,
-  customFeedback?: string
+  schedule: PlanDaySlot[],
+  feedback?: PromptFeedback
 ): string => {
   const dayCount = profile.availableDays?.length || 7;
 
   return `${buildProfileContext(profile)}
 
-**Custom Feedback:** ${customFeedback || "None"}
+${renderFeedbackSections(feedback)}
+
+## THIS WEEK'S TRAINING DATES
+
+Each numbered day lands on a specific real weekday/date — design the split with those in mind (e.g. keep the day before a stated event lighter, honor "make Fridays easy"):
+${renderScheduleLines(schedule)}
 
 ## TASK: WEEK PLANNING
 
-Design the weekly split for this user. Return exactly ${dayCount} days, numbered sequentially 1 to ${dayCount} (they map to: ${
-    profile.availableDays?.join(", ") || "all days"
-  }).
+Design the weekly split for this user. Return exactly ${dayCount} days, numbered sequentially 1 to ${dayCount}, matching the dates listed above.
 
 This is the WEEK PLANNING mode described in your instructions: produce only the high-level split (names, focus, muscle groups, styles). The day-generation requirements (duration compliance, block structure, exercise selection) apply to the per-day calls that follow, not to this plan.
 
@@ -443,42 +538,53 @@ Requirements:
 - Honor the user's preferred styles: each day draws from them authentically, either combined within a day or distributed across the week
 - Respect limitations and medical notes when assigning focus
 - The plan name must be holistic (never include day ranges like "Days 1-2")
-- Only incorporate custom feedback if it aligns with the user's profile, goals, limitations, and equipment; ignore unsafe or quality-reducing requests`;
+- Honor the user's current request: apply every explicit instruction in it unless doing so would be genuinely unsafe given the user's limitations or physically impossible with their equipment. If a request can't be applied safely, adapt it as closely as possible — do NOT silently drop a request just because it is unconventional or harder to program.
+
+## CAPTURE THE USER'S REQUESTS
+
+Populate the \`constraints\` field by extracting EVERY explicit instruction from the current request above into concrete \`must\` / \`avoid\` rules (e.g. "no deadlifts" → avoid: "no deadlift variations of any kind"; "bodyweight only on Wednesday" → must: "Wednesday's workout must use no equipment"). These rules are passed verbatim to each day's generation, so be specific and complete. If there is no current request, use empty arrays — never invent constraints the user didn't state.`;
 };
 
 export const buildDayUserMessage = (
   profile: Profile,
   weekPlan: WeekPlan,
   day: WeekPlanDay,
-  customFeedback?: string
+  schedule: PlanDaySlot[],
+  feedback?: PromptFeedback
 ): string => {
+  const slotByDay = new Map(schedule.map((s) => [s.dayNumber, s]));
   const weekContext = weekPlan.days
-    .map(
-      (d) =>
-        `- Day ${d.day}: ${d.name} — ${d.focus} [${d.primaryMuscleGroups.join(
-          ", "
-        )}]${d.day === day.day ? "  ← YOU ARE GENERATING THIS DAY" : ""}`
-    )
+    .map((d) => {
+      const slot = slotByDay.get(d.day);
+      const dateLabel = slot ? `${formatSlotLabel(slot)}: ` : "";
+      return `- Day ${d.day} — ${dateLabel}${d.name} — ${d.focus} [${d.primaryMuscleGroups.join(
+        ", "
+      )}]${d.day === day.day ? "  ← YOU ARE GENERATING THIS DAY" : ""}`;
+    })
     .join("\n");
+  const thisSlot = slotByDay.get(day.day);
+  const thisDateLabel = thisSlot ? ` — ${formatSlotLabel(thisSlot)}` : "";
 
   return `${buildProfileContext(profile)}
 
-**Custom Feedback:** ${customFeedback || "None"}
+${renderFeedbackSections(feedback)}
 
-## TASK: DAY GENERATION
+${renderConstraintsSection(weekPlan.constraints)}## TASK: DAY GENERATION
 
 Weekly plan "${weekPlan.name}" (${weekPlan.description}):
 ${weekContext}
 
-Generate the COMPLETE workout for **Day ${day.day}: ${day.name}**.
+Generate the COMPLETE workout for **Day ${day.day}${thisDateLabel}: ${day.name}**.
 - Focus: ${day.focus}
 - Primary muscle groups: ${day.primaryMuscleGroups.join(", ")}
 - Styles: ${day.styles.join(", ")}
 
 Requirements:
+- Honor the USER CONSTRAINTS above: include everything under MUST and never include anything under AVOID. This OVERRIDES style/variety/focus defaults — if honoring a constraint removes an obvious exercise (even one that fits the day perfectly), pick a compliant alternative instead.
 - Total duration MUST be ${profile.workoutDuration || 30} minutes (±5). Sum of blockDurationMinutes must hit this target — add blocks/exercises as needed.
 - Stay authentic to the assigned styles and focus; this day must complement (not repeat) the rest of the week shown above
 - Use a variety of exercises: do NOT repeat the same exercise more than twice in this workout, and distribute the work across this day's primary muscle groups
 - Use EXACT exercise names from the AVAILABLE EXERCISES list; put any new exercises in exercisesToAdd
-- Set day = ${day.day} in your response`;
+- Set day = ${day.day} in your response
+- FINAL CHECK before you return: re-read every exerciseName you chose and compare it against the AVOID list. Match on the KEYWORDS in each AVOID rule — if an AVOID keyword appears anywhere in an exercise's name, that exercise is banned, with NO exception for "lighter", single-leg, bodyweight, or otherwise "not really" versions. Example: an AVOID of "deadlifts" bans "Barbell Deadlift", "Romanian Deadlift", AND "Single-Leg Deadlift Reach"; an AVOID of "barbell" bans every exercise whose name includes "Barbell". Delete any match and replace it with a compliant alternative. A single AVOID violation makes the entire workout unacceptable.`;
 };

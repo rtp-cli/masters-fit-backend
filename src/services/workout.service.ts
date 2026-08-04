@@ -38,10 +38,10 @@ import {
   getCurrentDateString,
   getCurrentDateStringInTimezone,
   getDateForWeekday,
-  getDateForWeekdayInTimezone,
   addDays,
   formatDateAsString,
 } from "@/utils/date.utils";
+import { buildPlanDaySchedule, PlanDaySlot } from "@/utils/plan-schedule";
 import { workoutLogs } from "../models/logs.schema";
 import { logger } from "@/utils/logger";
 import {
@@ -959,16 +959,36 @@ export class WorkoutService extends BaseService {
     // inside createWorkout() via a transaction to prevent race conditions.
     emitProgress(userId, 11);
 
+    // [GQ-01] Resolve the scheduling clock ONCE, up front, from the SAME
+    // precedence the persistence layer uses for startDate/endDate (explicit
+    // request timezone → profile timezone → server). This exact startDate is
+    // threaded into generation so the day-number→date labels the model sees are
+    // stamped verbatim below — a single clock for prompts and dates. (Previously
+    // generation re-derived the schedule from profile.timezone only, which
+    // diverged from the request-timezone startDate for older null-timezone
+    // profiles and cross-timezone requests — the evening-US "today" bug family.)
+    const profile = await profileService.getProfileByUserId(userId);
+    const startDate = timezone
+      ? getCurrentDateStringInTimezone(timezone)
+      : profile?.timezone
+        ? getCurrentDateStringInTimezone(profile.timezone)
+        : getCurrentDateString();
+
     // Try chunked generation first, fallback to regular generation if it fails
     const generationStartedAt = Date.now();
     let response, promptId;
+    // [GQ-01] Schedule the fan-out prompts were built against; used below to
+    // stamp the exact dates the model saw. Undefined on the serial fallback path.
+    let genSchedule: PlanDaySlot[] | undefined;
     try {
       const result = await promptsService.generateChunkedPrompt(
         userId,
-        customFeedback
+        customFeedback,
+        startDate
       );
       response = result.response;
       promptId = result.promptId;
+      genSchedule = result.schedule;
     } catch (chunkedError: any) {
       // Logged at INFO so it's never hidden by a higher log-level filter —
       // the fan-out path is the primary path (it drives the per-day progress
@@ -1019,15 +1039,8 @@ export class WorkoutService extends BaseService {
       operation: "generateWorkoutPlan",
     });
     const persistStartedAt = Date.now();
-    const profile = await profileService.getProfileByUserId(userId);
-    // [PERF-05] Reuse the profile just fetched above rather than letting
-    // resolveTodayString fetch it again — same timezone resolution, one fewer
-    // round-trip on the request path when no explicit timezone was passed.
-    const startDate = timezone
-      ? getCurrentDateStringInTimezone(timezone)
-      : profile?.timezone
-        ? getCurrentDateStringInTimezone(profile.timezone)
-        : getCurrentDateString();
+    // profile + startDate resolved up front (before generation) so the schedule
+    // the prompts used and the dates stamped here share one clock. [GQ-01]
     const endDate = addDays(startDate, 6);
 
     const workout = await this.createWorkout({
@@ -1058,42 +1071,23 @@ export class WorkoutService extends BaseService {
     // Same value as startDate above — reuse it rather than resolving twice.
     const today = startDate;
 
-    // Get today's weekday in the specified timezone
-    const todayDay = timezone
-      ? new Date()
-          .toLocaleDateString("en-US", {
-            weekday: "long",
-            timeZone: timezone,
-          })
-          .toLowerCase()
-      : new Date()
-          .toLocaleDateString("en-US", { weekday: "long" })
-          .toLowerCase();
-
-    // New logic for rotating available days
-    const daysOfWeek = [
-      "sunday",
-      "monday",
-      "tuesday",
-      "wednesday",
-      "thursday",
-      "friday",
-      "saturday",
-    ];
-    const todayIndex = daysOfWeek.indexOf(todayDay);
-    const sortedAvailable = availableDays
-      .map((day) => ({ day, index: daysOfWeek.indexOf(day) }))
-      .sort(
-        (a, b) =>
-          ((a.index - todayIndex + 7) % 7) - ((b.index - todayIndex + 7) % 7)
-      )
-      .map((obj) => obj.day);
-    const rotatedDays = sortedAvailable;
+    // [GQ-01] Stamp plan-day dates from the SAME day-number -> {weekday, date}
+    // schedule the fan-out prompts were built against, so the dates the model
+    // saw ("Day 3 — Thursday, Aug 6") are exactly the dates we save. On the
+    // serial fallback path there's no returned schedule, so recompute it with
+    // the identical pure helper — byte-identical to the old inline rotation,
+    // now a single source of truth shared with the prompt builders.
+    // The fan-out path returns a schedule already sized to its (clamped) day
+    // count; the serial fallback may return more days than there are available
+    // weekdays, so build enough UNIQUE-dated slots to cover every plan day
+    // (walking reference date — no duplicate dates from a modulo wrap).
+    const schedule =
+      genSchedule && genSchedule.length >= workoutPlan.length
+        ? genSchedule
+        : buildPlanDaySchedule(availableDays, today, workoutPlan.length);
 
     // Optimize database operations with bulk inserts and transactions
     await this.db.transaction(async (tx) => {
-      let referenceDate = today;
-
       // Prepare bulk data for plan days
       const planDaysData: InsertPlanDay[] = [];
       const workoutBlocksData: InsertWorkoutBlock[] = [];
@@ -1128,13 +1122,9 @@ export class WorkoutService extends BaseService {
 
       // Second pass: prepare all data structures
       for (let i = 0; i < workoutPlan.length; i++) {
-        const availableDay = rotatedDays[i % rotatedDays.length];
-        const scheduledDate = timezone
-          ? getDateForWeekdayInTimezone(availableDay, referenceDate, timezone)
-          : getDateForWeekday(availableDay, referenceDate);
-
-        // Move reference date to the day after the scheduledDate to prevent same day reuse
-        referenceDate = addDays(scheduledDate, 1);
+        // [GQ-01] Same schedule the prompts used; it always has >= workoutPlan
+        // rows (fan-out sizes it exactly; serial fallback is built to length).
+        const scheduledDate = schedule[i].date;
 
         planDaysData.push({
           workoutId: workout.id,

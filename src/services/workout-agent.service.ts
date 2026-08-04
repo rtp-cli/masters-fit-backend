@@ -37,7 +37,16 @@ import {
   WEEK_PLAN_SCHEMA,
   WORKOUT_DAY_SCHEMA,
   WeekPlan,
+  PromptFeedback,
 } from "@/utils/fanout-prompt-generator";
+import {
+  buildPlanDaySchedule,
+  PlanDaySlot,
+} from "@/utils/plan-schedule";
+import {
+  getCurrentDateString,
+  getCurrentDateStringInTimezone,
+} from "@/utils/date.utils";
 import { aiProviderService } from "./ai-provider.service";
 import { AIProvider } from "@/constants/ai-providers";
 import { llmGenerationLogsService } from "./llm-generation-logs.service";
@@ -94,6 +103,10 @@ export interface WorkoutGenerationResult {
     outputTokens: number;
     totalTokens: number;
   };
+  // [GQ-01] The day-number -> {weekday, date} schedule the prompts were built
+  // against. Returned so the persistence layer stamps the exact same dates the
+  // model saw (single source of truth). Present only on the fan-out path.
+  schedule?: PlanDaySlot[];
 }
 
 // Progress callbacks emitted by fan-out weekly generation
@@ -618,10 +631,37 @@ Please generate the workout now, addressing this feedback while following all sy
     options?: {
       signal?: AbortSignal;
       onProgress?: (update: WeeklyGenerationProgress) => void;
+      // [GQ-08] Recent post-workout feedback, kept SEPARATE from the live
+      // request (customFeedback) so the prompt can label them with explicit
+      // precedence instead of blending them into one opaque string.
+      recentFeedback?: string;
+      // [GQ-01] Resolved scheduling start date (YYYY-MM-DD) from the caller, so
+      // the prompt labels match the dates the caller stamps. When omitted (e.g.
+      // the eval harness), we resolve from profile.timezone.
+      scheduleStartDate?: string;
     }
   ): Promise<WorkoutGenerationResult> {
-    const { signal, onProgress } = options || {};
+    const { signal, onProgress, recentFeedback } = options || {};
     const startedAt = Date.now();
+
+    // [GQ-08] The two feedback channels, bundled for the prompt builders.
+    const promptFeedback: PromptFeedback = { customFeedback, recentFeedback };
+
+    // [GQ-01] Compute the day-number -> {weekday, date} schedule up front so the
+    // prompts can label each slot with its real weekday/date and the persistence
+    // layer can stamp the identical dates (single source of truth). Prefer the
+    // caller's already-resolved start date (which uses the request-timezone
+    // precedence that startDate/endDate are stamped with); fall back to
+    // profile.timezone for direct callers.
+    const scheduleStartDate =
+      options?.scheduleStartDate ||
+      (profile.timezone
+        ? getCurrentDateStringInTimezone(profile.timezone)
+        : getCurrentDateString());
+    const schedule = buildPlanDaySchedule(
+      profile.availableDays,
+      scheduleStartDate
+    );
 
     // Abort scope for the fan-out: forwards an external abort, and lets a
     // terminal day failure cancel sibling in-flight calls instead of letting
@@ -667,17 +707,32 @@ Please generate the workout now, addressing this feedback while following all sy
       });
     }
 
-    const planningSystemMessage = this.buildProviderAwareSystemMessage(
-      `${buildFanoutSystemPrompt(profile)}${progressionContext}`
-    );
-    const daySystemMessage = this.buildProviderAwareSystemMessage(
-      `${buildFanoutSystemPrompt(profile)}${progressionContext}
+    // [GQ-14] Keep the assembled system text in plain strings so we can both
+    // wrap them for the LLM AND snapshot exactly what was sent for forensics.
+    const planningSystemText = `${buildFanoutSystemPrompt(profile)}${progressionContext}`;
+    const daySystemText = `${buildFanoutSystemPrompt(profile)}${progressionContext}
 
 ## AVAILABLE EXERCISES FOR YOUR WORKOUTS
 
 These exercises match the user's equipment and environment constraints:
-${exerciseContext}`
-    );
+${exerciseContext}`;
+    const planningSystemMessage = this.buildProviderAwareSystemMessage(planningSystemText);
+    const daySystemMessage = this.buildProviderAwareSystemMessage(daySystemText);
+
+    // [GQ-14] Assembled-prompt snapshot accumulated as the calls are built. The
+    // day system message is shared across every day, so it's stored once; each
+    // day's volatile user message is captured as it's generated (keyed by day
+    // number so retries/second-pass don't duplicate it).
+    const promptSnapshot: {
+      planning: { system: string; user: string };
+      daySystem: string;
+      days: Array<{ day: number; user: string }>;
+    } = {
+      planning: { system: planningSystemText, user: "" },
+      daySystem: daySystemText,
+      days: [],
+    };
+    const capturedDayMessages = new Map<number, string>();
 
     const usageTotals = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
     let cacheReadTokens = 0;
@@ -724,9 +779,13 @@ ${exerciseContext}`
       recordUsage(result.raw);
       return result.parsed as WeekPlan;
     };
-    let weekPlan = await runPlanningCall(
-      buildPlanningUserMessage(profile, customFeedback)
+    const planningUserMessage = buildPlanningUserMessage(
+      profile,
+      schedule,
+      promptFeedback
     );
+    promptSnapshot.planning.user = planningUserMessage; // [GQ-14]
+    let weekPlan = await runPlanningCall(planningUserMessage);
     const expectedDayCount = profile.availableDays?.length || 7;
     logger.info("Fan-out planning call completed", {
       userId,
@@ -778,9 +837,8 @@ ${exerciseContext}`
         }
       );
       try {
-        const rebalanced = await runPlanningCall(
-          `${buildPlanningUserMessage(profile, customFeedback)}\n\n${buildMuscleRebalanceFeedback(muscleGroupOverloads)}`
-        );
+        const rebalanceUserMessage = `${buildPlanningUserMessage(profile, schedule, promptFeedback)}\n\n${buildMuscleRebalanceFeedback(muscleGroupOverloads)}`;
+        const rebalanced = await runPlanningCall(rebalanceUserMessage);
         // Only accept the re-plan if it returned a usable day count; otherwise
         // keep the original (already-validated) plan and log the residual below.
         if ((rebalanced?.days?.length || 0) >= expectedDayCount) {
@@ -792,6 +850,10 @@ ${exerciseContext}`
           };
           muscleGroupOverloads =
             checkConsecutiveMuscleGroupOverload(weekPlan.days);
+          // [GQ-14] The rebalance planning call is what actually produced the
+          // final week — snapshot THAT message, not the discarded first one, so
+          // forensics on overload-triggered generations reflect reality.
+          promptSnapshot.planning.user = rebalanceUserMessage;
         }
       } catch (error) {
         // Re-plan is a best-effort correction — never fail generation on it.
@@ -882,6 +944,19 @@ ${exerciseContext}`
       // Signal that this day's call is now in-flight.
       onProgress?.({ type: "day_started", dayNumber: day.day });
 
+      // [GQ-14] Capture this day's assembled user message once (retries and the
+      // second pass reuse the same text).
+      const dayUserMessage = buildDayUserMessage(
+        profile,
+        weekPlan,
+        day,
+        schedule,
+        promptFeedback
+      );
+      if (!capturedDayMessages.has(day.day)) {
+        capturedDayMessages.set(day.day, dayUserMessage);
+      }
+
       let lastError: unknown;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         const callStartedAt = Date.now();
@@ -892,10 +967,7 @@ ${exerciseContext}`
             runWithAbortTimeout(
               (signal) =>
                 dayLlm.invoke(
-                  [
-                    daySystemMessage,
-                    new HumanMessage(buildDayUserMessage(profile, weekPlan, day, customFeedback)),
-                  ],
+                  [daySystemMessage, new HumanMessage(dayUserMessage)],
                   { signal }
                 ),
               fanoutAbort.signal,
@@ -1073,6 +1145,11 @@ ${exerciseContext}`
       operation: "generateWeeklyWorkout",
     });
 
+    // [GQ-14] Finalize the assembled-prompt snapshot (day messages in order).
+    promptSnapshot.days = [...capturedDayMessages.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([day, user]) => ({ day, user }));
+
     // Fire-and-forget — must not block or throw on the generation hot path.
     // `model` is the user's profile selection; on Anthropic the fan-out path
     // overrides it, so planningModel/dayModel record what actually ran.
@@ -1081,6 +1158,7 @@ ${exerciseContext}`
       operation: "generateWeeklyWorkout",
       provider: this.currentProvider,
       model: this.currentModel,
+      promptSnapshot: JSON.stringify(promptSnapshot),
       planningModel:
         this.currentProvider === AIProvider.ANTHROPIC
           ? FANOUT_PLANNING_MODEL
@@ -1105,6 +1183,8 @@ ${exerciseContext}`
         exercisesToAdd,
       },
       tokenUsage: usageTotals,
+      // [GQ-01] Hand the schedule back so persistence stamps the identical dates.
+      schedule,
     };
   }
 

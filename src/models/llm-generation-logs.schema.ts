@@ -24,6 +24,13 @@ export const llmGenerationLogs = pgTable(
     totalTokens: integer("total_tokens").notNull().default(0),
     cacheReadInputTokens: integer("cache_read_input_tokens").notNull().default(0),
     cacheCreationInputTokens: integer("cache_creation_input_tokens").notNull().default(0),
+    // [GQ-14] JSON snapshot of the ACTUAL assembled prompts sent for this
+    // generation (planning system+user, shared day system, per-day user
+    // messages). The `prompts` table only stores raw feedback + final JSON, so
+    // the 8/03 override forensics had to reconstruct prompts from code. Nullable:
+    // only the fan-out path (generateWeeklyWorkout) populates it; serial regen
+    // and older rows leave it null. Written fire-and-forget off the hot path.
+    promptSnapshot: text("prompt_snapshot"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({

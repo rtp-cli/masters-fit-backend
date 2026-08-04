@@ -7,3 +7,5 @@ dist/
 *.log
 .expo/
 generated/
+# GQ-13 generation eval harness run outputs (local, machine-specific)
+eval-runs/
