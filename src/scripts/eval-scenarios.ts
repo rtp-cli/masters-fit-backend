@@ -352,5 +352,8 @@ export const SCENARIOS: EvalScenario[] = [
       }
       return checks;
     },
+    // [GQ-02 negative control] "keep Friday light" names a weekday for CONTENT,
+    // NOT a schedule change — it must NOT shrink the 5-day week to fewer days.
+    expectSchedule: { dayCount: 5 },
   },
 ];

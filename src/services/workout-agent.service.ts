@@ -44,6 +44,7 @@ import {
   buildPlanDaySchedule,
   PlanDaySlot,
   mentionsWeekday,
+  mentionsScheduleChange,
   resolveEffectiveSchedule,
 } from "@/utils/plan-schedule";
 import {
@@ -850,8 +851,15 @@ ${exerciseContext}`;
     // the stamped dates reflect the user's request; the expected day count also
     // becomes the requested count. No override -> identical to the prior code
     // (effective.dayCount === profile.availableDays.length, schedule unchanged).
+    // [GQ-02] Plausibility gate: only honor the planner's scheduling override
+    // when the LIVE request actually asked to change the schedule. Guards
+    // against a mis-extraction from calendar-content language ("keep Fridays
+    // easy") or a stale recent-feedback note silently shrinking/shifting a week.
+    const scheduleOverride = mentionsScheduleChange(customFeedback)
+      ? weekPlan.constraints?.schedule
+      : undefined;
     const effective = resolveEffectiveSchedule(
-      weekPlan.constraints?.schedule,
+      scheduleOverride,
       profile.availableDays,
       scheduleStartDate
     );
