@@ -61,10 +61,16 @@ export interface PlanDaySlot {
  * "today". When `afterDate` is supplied the underlying getDateForWeekday is
  * timezone-agnostic (pure date arithmetic), so this function is deterministic
  * and timezone-safe.
+ *
+ * `dayCount` defaults to the number of available days. Pass a larger count to
+ * schedule more plan days than there are available weekdays: the available days
+ * cycle, but a walking reference date guarantees every slot gets a UNIQUE, later
+ * calendar date (never a duplicate) — matching the old inline walking rotation.
  */
 export function buildPlanDaySchedule(
   availableDays: string[] | null | undefined,
-  startDate: string
+  startDate: string,
+  dayCount?: number
 ): PlanDaySlot[] {
   // Onboarding requires >=1 available day; default to the full week (in calendar
   // order from today) if somehow absent, so callers never divide by an empty list.
@@ -84,13 +90,14 @@ export function buildPlanDaySchedule(
     )
     .map((o) => o.day);
 
+  const count = dayCount != null && dayCount > 0 ? dayCount : rotated.length;
   const slots: PlanDaySlot[] = [];
   let referenceDate = startDate;
-  for (let i = 0; i < rotated.length; i++) {
-    const weekday = rotated[i];
+  for (let i = 0; i < count; i++) {
+    const weekday = rotated[i % rotated.length];
     const date = getDateForWeekday(weekday, referenceDate);
-    // Advance past this date so the next available day gets its following
-    // occurrence (prevents two slots landing on the same date).
+    // Advance past this date so the next slot gets its following occurrence
+    // (prevents two slots landing on the same date, even when weekdays cycle).
     referenceDate = addDays(date, 1);
     slots.push({ dayNumber: i + 1, weekday: weekday.toLowerCase(), date });
   }

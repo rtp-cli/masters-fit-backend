@@ -959,6 +959,21 @@ export class WorkoutService extends BaseService {
     // inside createWorkout() via a transaction to prevent race conditions.
     emitProgress(userId, 11);
 
+    // [GQ-01] Resolve the scheduling clock ONCE, up front, from the SAME
+    // precedence the persistence layer uses for startDate/endDate (explicit
+    // request timezone → profile timezone → server). This exact startDate is
+    // threaded into generation so the day-number→date labels the model sees are
+    // stamped verbatim below — a single clock for prompts and dates. (Previously
+    // generation re-derived the schedule from profile.timezone only, which
+    // diverged from the request-timezone startDate for older null-timezone
+    // profiles and cross-timezone requests — the evening-US "today" bug family.)
+    const profile = await profileService.getProfileByUserId(userId);
+    const startDate = timezone
+      ? getCurrentDateStringInTimezone(timezone)
+      : profile?.timezone
+        ? getCurrentDateStringInTimezone(profile.timezone)
+        : getCurrentDateString();
+
     // Try chunked generation first, fallback to regular generation if it fails
     const generationStartedAt = Date.now();
     let response, promptId;
@@ -968,7 +983,8 @@ export class WorkoutService extends BaseService {
     try {
       const result = await promptsService.generateChunkedPrompt(
         userId,
-        customFeedback
+        customFeedback,
+        startDate
       );
       response = result.response;
       promptId = result.promptId;
@@ -1023,15 +1039,8 @@ export class WorkoutService extends BaseService {
       operation: "generateWorkoutPlan",
     });
     const persistStartedAt = Date.now();
-    const profile = await profileService.getProfileByUserId(userId);
-    // [PERF-05] Reuse the profile just fetched above rather than letting
-    // resolveTodayString fetch it again — same timezone resolution, one fewer
-    // round-trip on the request path when no explicit timezone was passed.
-    const startDate = timezone
-      ? getCurrentDateStringInTimezone(timezone)
-      : profile?.timezone
-        ? getCurrentDateStringInTimezone(profile.timezone)
-        : getCurrentDateString();
+    // profile + startDate resolved up front (before generation) so the schedule
+    // the prompts used and the dates stamped here share one clock. [GQ-01]
     const endDate = addDays(startDate, 6);
 
     const workout = await this.createWorkout({
@@ -1068,10 +1077,14 @@ export class WorkoutService extends BaseService {
     // serial fallback path there's no returned schedule, so recompute it with
     // the identical pure helper — byte-identical to the old inline rotation,
     // now a single source of truth shared with the prompt builders.
+    // The fan-out path returns a schedule already sized to its (clamped) day
+    // count; the serial fallback may return more days than there are available
+    // weekdays, so build enough UNIQUE-dated slots to cover every plan day
+    // (walking reference date — no duplicate dates from a modulo wrap).
     const schedule =
-      genSchedule && genSchedule.length > 0
+      genSchedule && genSchedule.length >= workoutPlan.length
         ? genSchedule
-        : buildPlanDaySchedule(availableDays, today);
+        : buildPlanDaySchedule(availableDays, today, workoutPlan.length);
 
     // Optimize database operations with bulk inserts and transactions
     await this.db.transaction(async (tx) => {
@@ -1109,9 +1122,9 @@ export class WorkoutService extends BaseService {
 
       // Second pass: prepare all data structures
       for (let i = 0; i < workoutPlan.length; i++) {
-        // [GQ-01] Same schedule the prompts used; wrap defensively if the plan
-        // somehow has more days than available slots (matches the old modulo).
-        const scheduledDate = schedule[i % schedule.length].date;
+        // [GQ-01] Same schedule the prompts used; it always has >= workoutPlan
+        // rows (fan-out sizes it exactly; serial fallback is built to length).
+        const scheduledDate = schedule[i].date;
 
         planDaysData.push({
           workoutId: workout.id,

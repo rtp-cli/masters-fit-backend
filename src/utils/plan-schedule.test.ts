@@ -67,6 +67,24 @@ describe("buildPlanDaySchedule [GQ-01]", () => {
     expect(schedule[2].date).toBe("2026-08-10");
   });
 
+  it("cycles available days for a larger dayCount with UNIQUE, later dates (no duplicates)", () => {
+    // 2 available weekdays, 5 plan days -> weekdays cycle but dates must be unique.
+    const schedule = buildPlanDaySchedule(["monday", "thursday"], "2026-08-03", 5);
+    expect(schedule).toHaveLength(5);
+    const dates = schedule.map((s) => s.date);
+    expect(new Set(dates).size).toBe(5); // all distinct
+    expect(schedule.map((s) => s.weekday)).toEqual([
+      "monday",
+      "thursday",
+      "monday",
+      "thursday",
+      "monday",
+    ]);
+    // Cycled Monday lands the FOLLOWING week, not a repeat of the first.
+    expect(schedule[2].date).toBe("2026-08-10");
+    expect(dates).toEqual([...dates].sort()); // strictly increasing
+  });
+
   it("defaults to a full 7-day week when availableDays is empty", () => {
     const schedule = buildPlanDaySchedule([], "2026-08-03");
     expect(schedule).toHaveLength(7);

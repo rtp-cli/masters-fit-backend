@@ -635,6 +635,10 @@ Please generate the workout now, addressing this feedback while following all sy
       // request (customFeedback) so the prompt can label them with explicit
       // precedence instead of blending them into one opaque string.
       recentFeedback?: string;
+      // [GQ-01] Resolved scheduling start date (YYYY-MM-DD) from the caller, so
+      // the prompt labels match the dates the caller stamps. When omitted (e.g.
+      // the eval harness), we resolve from profile.timezone.
+      scheduleStartDate?: string;
     }
   ): Promise<WorkoutGenerationResult> {
     const { signal, onProgress, recentFeedback } = options || {};
@@ -643,15 +647,17 @@ Please generate the workout now, addressing this feedback while following all sy
     // [GQ-08] The two feedback channels, bundled for the prompt builders.
     const promptFeedback: PromptFeedback = { customFeedback, recentFeedback };
 
-    // [GQ-01] Compute the day-number -> {weekday, date} schedule up front from
-    // the user's available days and today in their timezone, so the prompts can
-    // label each slot with its real weekday/date and the persistence layer can
-    // stamp the identical dates (single source of truth). Resolved from
-    // profile.timezone — the same value the scheduler uses when no explicit
-    // request timezone is supplied.
-    const scheduleStartDate = profile.timezone
-      ? getCurrentDateStringInTimezone(profile.timezone)
-      : getCurrentDateString();
+    // [GQ-01] Compute the day-number -> {weekday, date} schedule up front so the
+    // prompts can label each slot with its real weekday/date and the persistence
+    // layer can stamp the identical dates (single source of truth). Prefer the
+    // caller's already-resolved start date (which uses the request-timezone
+    // precedence that startDate/endDate are stamped with); fall back to
+    // profile.timezone for direct callers.
+    const scheduleStartDate =
+      options?.scheduleStartDate ||
+      (profile.timezone
+        ? getCurrentDateStringInTimezone(profile.timezone)
+        : getCurrentDateString());
     const schedule = buildPlanDaySchedule(
       profile.availableDays,
       scheduleStartDate
@@ -831,9 +837,8 @@ ${exerciseContext}`;
         }
       );
       try {
-        const rebalanced = await runPlanningCall(
-          `${buildPlanningUserMessage(profile, schedule, promptFeedback)}\n\n${buildMuscleRebalanceFeedback(muscleGroupOverloads)}`
-        );
+        const rebalanceUserMessage = `${buildPlanningUserMessage(profile, schedule, promptFeedback)}\n\n${buildMuscleRebalanceFeedback(muscleGroupOverloads)}`;
+        const rebalanced = await runPlanningCall(rebalanceUserMessage);
         // Only accept the re-plan if it returned a usable day count; otherwise
         // keep the original (already-validated) plan and log the residual below.
         if ((rebalanced?.days?.length || 0) >= expectedDayCount) {
@@ -845,6 +850,10 @@ ${exerciseContext}`;
           };
           muscleGroupOverloads =
             checkConsecutiveMuscleGroupOverload(weekPlan.days);
+          // [GQ-14] The rebalance planning call is what actually produced the
+          // final week — snapshot THAT message, not the discarded first one, so
+          // forensics on overload-triggered generations reflect reality.
+          promptSnapshot.planning.user = rebalanceUserMessage;
         }
       } catch (error) {
         // Re-plan is a best-effort correction — never fail generation on it.

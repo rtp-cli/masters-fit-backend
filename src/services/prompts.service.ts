@@ -289,6 +289,11 @@ export class PromptsService extends BaseService {
   public async generateChunkedPrompt(
     userId: number,
     customFeedback?: string,
+    // [GQ-01] Resolved scheduling start date (YYYY-MM-DD in the request's
+    // timezone) from the caller, so the schedule the prompts use matches the
+    // dates the caller stamps. Falls back to profile-timezone resolution inside
+    // generateWeeklyWorkout when omitted (e.g. the eval harness calls direct).
+    scheduleStartDate?: string,
     signal?: AbortSignal
   ): Promise<PromptGenerationResult> {
     const profile = await profileService.getProfileByUserId(userId);
@@ -329,6 +334,7 @@ export class PromptsService extends BaseService {
         {
           signal,
           recentFeedback,
+          scheduleStartDate,
           onProgress: (update) => {
             if (update.type === "plan_ready") {
               // Start every day as "pending" — each transitions to "generating"
