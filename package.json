@@ -23,7 +23,8 @@
     "delete-user": "tsx src/scripts/delete-users.ts",
     "check-deletion": "tsx src/scripts/check-deletion.ts",
     "preflight-user-fk": "tsx src/scripts/preflight-user-fk.ts",
-    "test-emails": "tsx src/scripts/add-test-emails.ts"
+    "test-emails": "tsx src/scripts/add-test-emails.ts",
+    "eval-generation": "tsx src/scripts/eval-generation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",
