@@ -26,6 +26,7 @@ import {
   ExerciseMetadata,
   stratifyCatalog,
 } from "./exercise.service";
+import { exerciseExclusionService } from "./exercise-exclusion.service";
 import {
   buildClaudePrompt,
   buildClaudeDailyPrompt,
@@ -170,6 +171,57 @@ export class WorkoutAgentService {
   }
 
   private async getFilteredExercises(
+    profile: Profile
+  ): Promise<ExerciseMetadata[]> {
+    // [GQ-16] The shared catalog is cached WITHOUT a userId (the cache key is
+    // environment:equipment:limitations:styles), so per-user exercise
+    // exclusions can't live in it. Fetch the shared catalog, then post-filter
+    // this user's exclusions — preserving cache reuse across users while
+    // finally honoring exclusions in generation (they were previously applied
+    // only in the in-app search/replace path, never in weekly OR daily gen).
+    const shared = await this.getSharedGenerationCatalog(profile);
+    return this.applyUserExclusions(shared, profile);
+  }
+
+  // [GQ-16] Per-user exclusion post-filter. Matches on NAME because the cached
+  // catalog items carry name but no id. Failure-safe: never block generation.
+  private async applyUserExclusions(
+    catalog: ExerciseMetadata[],
+    profile: Profile
+  ): Promise<ExerciseMetadata[]> {
+    const userId = profile.userId;
+    if (!userId) return catalog;
+    try {
+      const exclusions = await exerciseExclusionService.listExclusions(userId);
+      if (exclusions.length === 0) return catalog;
+      const excludedNames = new Set(
+        exclusions.map((e) => e.name.trim().toLowerCase())
+      );
+      const filtered = catalog.filter(
+        (ex) => !excludedNames.has(ex.name.trim().toLowerCase())
+      );
+      if (filtered.length !== catalog.length) {
+        logger.info("Applied per-user exercise exclusions to generation catalog", {
+          userId,
+          excludedCount: catalog.length - filtered.length,
+          operation: "getFilteredExercises",
+        });
+      }
+      return filtered;
+    } catch (error) {
+      logger.warn(
+        "Failed to apply user exercise exclusions; continuing with full catalog",
+        {
+          userId,
+          error: (error as Error).message,
+          operation: "getFilteredExercises",
+        }
+      );
+      return catalog;
+    }
+  }
+
+  private async getSharedGenerationCatalog(
     profile: Profile
   ): Promise<ExerciseMetadata[]> {
     const cacheKey = this.exerciseCacheKey(profile);
