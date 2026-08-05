@@ -19,6 +19,9 @@ export interface EnforcementCatalogItem {
   /** [GQ-11] Style tag (strength/crossfit/yoga/…) — used by the muscle-load
    * repair to keep swaps within the same modality. Ignored by AVOID enforcement. */
   tag?: string;
+  /** [GQ-06] Equipment the exercise needs (empty/[“bodyweight”] = none). Used by
+   * per-day equipment enforcement to find bodyweight swaps. Ignored elsewhere. */
+  equipment?: string[];
 }
 
 export interface ConstraintViolationFinding {

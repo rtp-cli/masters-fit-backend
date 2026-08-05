@@ -71,6 +71,15 @@ export interface WeekConstraints {
     dayCount?: number;
     startWeekday?: string;
   };
+  /**
+   * [GQ-06] Weekday NAMES that must be BODYWEIGHT-ONLY — no equipment. Only
+   * present when the user explicitly asked for an equipment-free day (e.g. a
+   * travel day). The service maps each weekday to its schedule day number, so
+   * the model only has to name the weekday (which it knows from the request) and
+   * never does day-number arithmetic. Enforced deterministically: equipment-
+   * requiring exercises on those days are swapped for bodyweight ones.
+   */
+  bodyweightOnlyWeekdays?: string[];
 }
 
 /**
@@ -212,6 +221,23 @@ export const WEEK_PLAN_SCHEMA = {
                 "The weekday the user wants the plan to START on if they asked (e.g. 'start me on Monday' -> monday). Omit if not specified.",
             },
           },
+        },
+        bodyweightOnlyWeekdays: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday",
+              "saturday",
+              "sunday",
+            ],
+          },
+          description:
+            "[GQ-06] WEEKDAY NAMES that must be BODYWEIGHT-ONLY — no equipment at all. ONLY populate when the user explicitly asked for an equipment-free day, e.g. 'I travel Wednesdays, make that a bodyweight workout' -> ['wednesday']. Just name the weekday; the system maps it to the right day. Empty array otherwise — never infer.",
         },
       },
       required: ["must", "avoid", "avoidExerciseTerms"],

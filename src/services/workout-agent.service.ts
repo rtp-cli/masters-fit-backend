@@ -1283,6 +1283,7 @@ ${exerciseContext}`;
       durationFindings,
       muscleAlignmentFindings,
       muscleOverlapFindings,
+      bodyweightFindings,
     } = applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile, {
         // [GQ-07] Deterministic backstop for the user's exclusion requests: swap
         // or drop any generated exercise matching a banned term, drawing swaps
@@ -1293,7 +1294,23 @@ ${exerciseContext}`;
           name: e.name,
           muscleGroups: e.muscleGroups,
           tag: e.tag, // [GQ-11] style tag keeps focus-alignment swaps same-modality
+          equipment: e.equipment, // [GQ-06] drives bodyweight-only-day enforcement
         })),
+        // [GQ-06] Map the weekday(s) the user asked to be equipment-free to their
+        // schedule day numbers HERE (deterministic — the schedule is ours), so the
+        // model only had to name the weekday, not compute a day number.
+        bodyweightOnlyDays: (() => {
+          const wanted = new Set(
+            (weekPlan.constraints?.bodyweightOnlyWeekdays || []).map((w) =>
+              (w || "").trim().toLowerCase()
+            )
+          );
+          return wanted.size === 0
+            ? undefined
+            : schedule
+                .filter((s) => wanted.has(s.weekday))
+                .map((s) => s.dayNumber);
+        })(),
         // [GQ-11] Per-day intended focus (from the plan) + calendar-adjacent day
         // pairs (from the schedule) drive the muscle-load alignment + overlap
         // check on the ACTUAL exercises. GQ11_ALIGN_DISABLED skips the alignment
@@ -1319,6 +1336,17 @@ ${exerciseContext}`;
     // repaired — these are exactly the "feature didn't listen" moments to watch.
     for (const finding of constraintFindings) {
       logger.warn("AVOID constraint violation repaired post-generation", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+
+    // [GQ-06] Surface every equipment-requiring exercise the model put on a
+    // bodyweight-only day and how it was repaired — the deterministic backstop
+    // for equipment-free days working (or the model needing a nudge).
+    for (const finding of bodyweightFindings) {
+      logger.warn("Bodyweight-only-day violation repaired post-generation", {
         userId,
         operation: "generateWeeklyWorkout",
         ...finding,

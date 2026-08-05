@@ -11,6 +11,10 @@ import {
   ConstraintViolationFinding,
 } from "@/utils/constraint-enforcement";
 import {
+  enforceBodyweightOnlyDays,
+  BodyweightDayFinding,
+} from "@/utils/equipment-per-day-enforcement";
+import {
   padDaysToTargetDuration,
   DurationPadFinding,
 } from "@/utils/duration-enforcement";
@@ -63,6 +67,9 @@ export function applyPostGenerationValidation(
     // consecutive-day muscle overlap.
     dayFocus?: Map<number, string[]>;
     adjacentPairs?: Array<[number, number]>;
+    // [GQ-06] Day numbers that must be bodyweight-only (no equipment). Enforced
+    // deterministically after muscle alignment, before the duration pad.
+    bodyweightOnlyDays?: number[];
   }
 ): {
   exercisesToAdd: any[];
@@ -72,6 +79,7 @@ export function applyPostGenerationValidation(
   durationFindings: DurationPadFinding[];
   muscleAlignmentFindings: FocusAlignmentFinding[];
   muscleOverlapFindings: ConsecutiveOverlapFinding[];
+  bodyweightFindings: BodyweightDayFinding[];
 } {
   const equipmentFiltered = validateEquipmentAndFilter(
     rawExercisesToAdd,
@@ -122,11 +130,27 @@ export function applyPostGenerationValidation(
         )
       : { workoutPlan: cappedPlan, findings: [] as FocusAlignmentFinding[] };
 
-  // [GQ-11] Residual consecutive-day overlap (post-alignment) — surfaced for
-  // visibility, the compliance signal the original forensics found missing.
+  // [GQ-06] Per-day equipment enforcement — runs AFTER muscle alignment on
+  // purpose: alignDaysToFocus can swap in an equipment-requiring catalog exercise
+  // to fix focus, which would re-break a bodyweight-only day if we enforced
+  // earlier. Swap any equipment-requiring exercise on a flagged day for a
+  // bodyweight one (or drop). No-op without bodyweightOnlyDays. The duration pad
+  // below only adds sets/rounds to existing exercises, so it can't reintroduce
+  // equipment.
+  const bodyweightEnforced = enforceBodyweightOnlyDays(
+    aligned.workoutPlan,
+    enforced.exercisesToAdd,
+    constraintOptions?.bodyweightOnlyDays,
+    constraintOptions?.catalog || []
+  );
+
+  // [GQ-11] Residual consecutive-day overlap — computed on the final exercise set
+  // (post-alignment AND post-bodyweight-swap) so the signal reflects what ships.
   const muscleOverlapFindings = constraintOptions?.adjacentPairs?.length
     ? findConsecutiveMuscleOverlap(
-        aligned.workoutPlan.map((d) => computeDayMuscleLoad(d, muscleByExercise)),
+        bodyweightEnforced.workoutPlan.map((d) =>
+          computeDayMuscleLoad(d, muscleByExercise)
+        ),
         constraintOptions.adjacentPairs
       )
     : [];
@@ -137,8 +161,15 @@ export function applyPostGenerationValidation(
   const target = profile.workoutDuration || 0;
   const { workoutPlan: finalPlan, findings: durationFindings } =
     target > 0
-      ? padDaysToTargetDuration(aligned.workoutPlan, target, DURATION_TOLERANCE_MINUTES)
-      : { workoutPlan: aligned.workoutPlan, findings: [] as DurationPadFinding[] };
+      ? padDaysToTargetDuration(
+          bodyweightEnforced.workoutPlan,
+          target,
+          DURATION_TOLERANCE_MINUTES
+        )
+      : {
+          workoutPlan: bodyweightEnforced.workoutPlan,
+          findings: [] as DurationPadFinding[],
+        };
 
   return {
     exercisesToAdd: enforced.exercisesToAdd,
@@ -148,5 +179,6 @@ export function applyPostGenerationValidation(
     durationFindings,
     muscleAlignmentFindings: aligned.findings,
     muscleOverlapFindings,
+    bodyweightFindings: bodyweightEnforced.findings,
   };
 }
