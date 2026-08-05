@@ -60,6 +60,8 @@ type DBWorkoutResult = {
   id: number;
   name: string;
   description: string | null;
+  // [GQ-04] Persisted "couldn't apply X because Y" list (jsonb column).
+  feedbackConflicts: { request: string; reason: string }[] | null;
   userId: number;
   startDate: string;
   endDate: string;
@@ -126,6 +128,7 @@ type DBWorkoutQueryResult = {
   id: number;
   name: string;
   description: string | null;
+  feedbackConflicts: { request: string; reason: string }[] | null;
   userId: number;
   startDate: string;
   endDate: string;
@@ -223,6 +226,8 @@ export class WorkoutService extends BaseService {
       userId: workout.userId,
       name: workout.name,
       description: workout.description ?? undefined,
+      // [GQ-04] "Couldn't apply X because Y" — surfaced in the week banner.
+      feedbackConflicts: workout.feedbackConflicts ?? undefined,
       startDate: workout.startDate,
       endDate: workout.endDate,
       promptId: workout.promptId,
@@ -380,6 +385,7 @@ export class WorkoutService extends BaseService {
         id: workout.id,
         name: workout.name,
         description: workout.description,
+        feedbackConflicts: workout.feedbackConflicts,
         userId: workout.userId,
         startDate: workout.startDate || getTodayString(),
         endDate: workout.endDate || getTodayString(),
@@ -477,6 +483,7 @@ export class WorkoutService extends BaseService {
         id: workout.id,
         name: workout.name,
         description: workout.description,
+        feedbackConflicts: workout.feedbackConflicts,
         userId: workout.userId,
         startDate: workout.startDate || getTodayString(),
         endDate: workout.endDate || getTodayString(),
@@ -1060,6 +1067,8 @@ export class WorkoutService extends BaseService {
       endDate,
       name: response.name,
       description: response.description,
+      // [GQ-04] Persist the "couldn't apply X because Y" list for the in-app banner.
+      feedbackConflicts: response.feedbackConflicts,
     });
 
     if (response.exercisesToAdd) {

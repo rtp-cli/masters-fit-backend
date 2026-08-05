@@ -39,14 +39,17 @@ import {
   WORKOUT_DAY_SCHEMA,
   WeekPlan,
   PromptFeedback,
+  FeedbackConflict,
 } from "@/utils/fanout-prompt-generator";
 import {
   buildPlanDaySchedule,
   PlanDaySlot,
   mentionsWeekday,
   mentionsScheduleChange,
+  mentionsEquipmentFreeDay,
   resolveEffectiveSchedule,
   computeAdjacentDayPairs,
+  scheduleClampConflict,
 } from "@/utils/plan-schedule";
 import {
   getCurrentDateString,
@@ -940,10 +943,23 @@ ${exerciseContext}`;
         },
       });
     }
+    // [GQ-04] Assemble the "couldn't apply X because Y" list surfaced in-app:
+    // the planner's own semantic conflicts, plus a deterministic entry when the
+    // user asked for MORE workout days than their available days allow (the pure
+    // day-count case; a named-days request gets exactly what was named, so it
+    // can't clamp). This is the reliable, checkable half — the schedule math,
+    // not the model's judgment.
+    const feedbackConflicts: FeedbackConflict[] = [
+      ...(weekPlan.feedbackConflicts || []),
+    ];
+    const clampConflict = scheduleClampConflict(scheduleOverride, effective);
+    if (clampConflict) feedbackConflicts.push(clampConflict);
+
     logger.info("Fan-out planning call completed", {
       userId,
       returnedDayCount: weekPlan?.days?.length || 0,
       expectedDayCount,
+      feedbackConflictCount: feedbackConflicts.length,
       weekPlanName: weekPlan?.name,
       operation: "generateWeeklyWorkout",
     });
@@ -1255,6 +1271,38 @@ ${exerciseContext}`;
         return dayPlan;
       });
 
+    // [GQ-06] Resolve the bodyweight-only days: gate on the LIVE request actually
+    // asking for an equipment-free day, then map the planner's weekday names to
+    // schedule day numbers (deterministic — the schedule is ours). Warn when a
+    // named weekday isn't in this week's schedule (a silent no-op otherwise).
+    const bodyweightOnlyDays: number[] = [];
+    if (mentionsEquipmentFreeDay(customFeedback)) {
+      const wanted = new Set(
+        (weekPlan.constraints?.bodyweightOnlyWeekdays || []).map((w) =>
+          (w || "").trim().toLowerCase()
+        )
+      );
+      for (const weekday of wanted) {
+        const days = schedule
+          .filter((s) => s.weekday === weekday)
+          .map((s) => s.dayNumber);
+        if (days.length === 0) {
+          logger.warn(
+            "Requested bodyweight-only weekday is not in this week's schedule — no day enforced",
+            { userId, weekday, operation: "generateWeeklyWorkout" }
+          );
+        }
+        bodyweightOnlyDays.push(...days);
+      }
+    } else if (
+      (weekPlan.constraints?.bodyweightOnlyWeekdays?.length || 0) > 0
+    ) {
+      logger.info(
+        "Planner extracted bodyweightOnlyWeekdays but the live request didn't ask for an equipment-free day — ignoring (GQ-06 plausibility gate)",
+        { userId, operation: "generateWeeklyWorkout" }
+      );
+    }
+
     // [LR-012/LR-013/LR-049] Post-generation validation pipeline — equipment
     // filter, then limitation filter, then [GQ-07] AVOID enforcement, then
     // repetition check against the final filtered plan. Extracted to
@@ -1268,6 +1316,7 @@ ${exerciseContext}`;
       durationFindings,
       muscleAlignmentFindings,
       muscleOverlapFindings,
+      bodyweightFindings,
     } = applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile, {
         // [GQ-07] Deterministic backstop for the user's exclusion requests: swap
         // or drop any generated exercise matching a banned term, drawing swaps
@@ -1278,7 +1327,17 @@ ${exerciseContext}`;
           name: e.name,
           muscleGroups: e.muscleGroups,
           tag: e.tag, // [GQ-11] style tag keeps focus-alignment swaps same-modality
+          equipment: e.equipment, // [GQ-06] drives bodyweight-only-day enforcement
         })),
+        // [GQ-06] Map the weekday(s) the user asked to be equipment-free to their
+        // schedule day numbers HERE (deterministic — the schedule is ours), so the
+        // model only had to name the weekday, not compute a day number.
+        // Plausibility gate (like GQ-02): only honor the extraction when the LIVE
+        // request actually asked for a bodyweight/equipment-free day, so a stale
+        // recent-feedback travel note can't silently strip equipment every week.
+        bodyweightOnlyDays: bodyweightOnlyDays.length
+          ? bodyweightOnlyDays
+          : undefined,
         // [GQ-11] Per-day intended focus (from the plan) + calendar-adjacent day
         // pairs (from the schedule) drive the muscle-load alignment + overlap
         // check on the ACTUAL exercises. GQ11_ALIGN_DISABLED skips the alignment
@@ -1304,6 +1363,17 @@ ${exerciseContext}`;
     // repaired — these are exactly the "feature didn't listen" moments to watch.
     for (const finding of constraintFindings) {
       logger.warn("AVOID constraint violation repaired post-generation", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+
+    // [GQ-06] Surface every equipment-requiring exercise the model put on a
+    // bodyweight-only day and how it was repaired — the deterministic backstop
+    // for equipment-free days working (or the model needing a nudge).
+    for (const finding of bodyweightFindings) {
+      logger.warn("Bodyweight-only-day violation repaired post-generation", {
         userId,
         operation: "generateWeeklyWorkout",
         ...finding,
@@ -1393,6 +1463,9 @@ ${exerciseContext}`;
         description: weekPlan.description,
         workoutPlan,
         exercisesToAdd,
+        // [GQ-04] Ride along on the workout object so it's persisted and returned
+        // to the client for the "we adjusted your requests" banner.
+        feedbackConflicts,
       },
       tokenUsage: usageTotals,
       // [GQ-01] Hand the schedule back so persistence stamps the identical dates.

@@ -5,7 +5,9 @@ import {
   renderScheduleLines,
   mentionsWeekday,
   mentionsScheduleChange,
+  mentionsEquipmentFreeDay,
   resolveEffectiveSchedule,
+  scheduleClampConflict,
 } from "@/utils/plan-schedule";
 import { getDateForWeekday, addDays } from "@/utils/date.utils";
 
@@ -208,6 +210,89 @@ describe("resolveEffectiveSchedule [GQ-02]", () => {
     // buildPlanDaySchedule with these effective inputs lands on Sat/Sun.
     const sched = buildPlanDaySchedule(r.availableDays, r.startDate, r.dayCount);
     expect(sched.map((s) => s.weekday)).toEqual(["saturday", "sunday"]);
+  });
+});
+
+describe("scheduleClampConflict [GQ-04]", () => {
+  it("reports a conflict when the requested day count exceeds available days", () => {
+    const conflict = scheduleClampConflict(
+      { dayCount: 6 },
+      { availableDays: ["monday", "wednesday", "friday"], startDate: "2026-08-03", dayCount: 3, overridden: true }
+    );
+    expect(conflict).not.toBeNull();
+    expect(conflict!.request).toContain("6 workout days");
+    expect(conflict!.reason).toContain("3 training days");
+    expect(conflict!.reason).toContain("uses 3");
+  });
+
+  it("returns null when the requested count fits within available days", () => {
+    const conflict = scheduleClampConflict(
+      { dayCount: 3 },
+      { availableDays: ["monday", "wednesday", "friday"], startDate: "2026-08-03", dayCount: 3, overridden: false }
+    );
+    expect(conflict).toBeNull();
+  });
+
+  it("ignores all-invalid daysOfWeek (matches resolveEffectiveSchedule) and still reports the day-count clamp", () => {
+    const conflict = scheduleClampConflict(
+      { daysOfWeek: ["someday", "funday"], dayCount: 6 },
+      { availableDays: ["monday", "wednesday", "friday"], startDate: "2026-08-03", dayCount: 3, overridden: true }
+    );
+    expect(conflict).not.toBeNull();
+    expect(conflict!.request).toContain("6 workout days");
+  });
+
+  it("returns null for a named-days request (can't clamp — the user gets exactly what they named)", () => {
+    const conflict = scheduleClampConflict(
+      { daysOfWeek: ["saturday", "sunday"] },
+      { availableDays: ["saturday", "sunday"], startDate: "2026-08-08", dayCount: 2, overridden: true }
+    );
+    expect(conflict).toBeNull();
+  });
+
+  it("returns null when there is no override", () => {
+    expect(
+      scheduleClampConflict(undefined, {
+        availableDays: ["monday", "tuesday"],
+        startDate: "2026-08-03",
+        dayCount: 2,
+        overridden: false,
+      })
+    ).toBeNull();
+  });
+
+  it("uses the singular 'day' when exactly one day is available", () => {
+    const conflict = scheduleClampConflict(
+      { dayCount: 4 },
+      { availableDays: ["monday"], startDate: "2026-08-03", dayCount: 1, overridden: true }
+    );
+    expect(conflict!.reason).toContain("1 training day,");
+  });
+});
+
+describe("mentionsEquipmentFreeDay [GQ-06 plausibility gate]", () => {
+  it("matches explicit bodyweight / no-equipment / travel-workout requests", () => {
+    for (const t of [
+      "make Wednesday a bodyweight-only workout",
+      "I travel Wednesdays — no equipment that day",
+      "give me an equipment-free day",
+      "Thursday should be calisthenics",
+      "no gear on Friday please",
+    ]) {
+      expect(mentionsEquipmentFreeDay(t)).toBe(true);
+    }
+  });
+
+  it("does not match unrelated feedback (so a stale note can't strip equipment)", () => {
+    for (const t of [
+      "keep Fridays easy",
+      "more upper body this week",
+      "I prefer dumbbells over barbells",
+      "",
+      undefined,
+    ]) {
+      expect(mentionsEquipmentFreeDay(t)).toBe(false);
+    }
   });
 });
 

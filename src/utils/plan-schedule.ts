@@ -157,20 +157,9 @@ export function resolveEffectiveSchedule(
   profileAvailableDays: string[] | null | undefined,
   todayStartDate: string
 ): EffectiveSchedule {
-  const clean = (arr?: string[]) => [
-    // Dedupe: an LLM enum array commonly repeats a value ("saturday",
-    // "saturday", "sunday"); without dedup the day count would be inflated and
-    // then mismatch the planner's real day entries, forcing the serial fallback.
-    ...new Set(
-      (arr || [])
-        .map((d) => (d || "").trim().toLowerCase())
-        .filter((d) => DAYS_OF_WEEK.includes(d))
-    ),
-  ];
-
   const baseDays = effectiveAvailableDays(profileAvailableDays);
 
-  const overrideDays = clean(override?.daysOfWeek);
+  const overrideDays = normalizeWeekdays(override?.daysOfWeek);
   const availableDays = overrideDays.length > 0 ? overrideDays : baseDays;
 
   const startWeekday = (override?.startWeekday || "").trim().toLowerCase();
@@ -204,6 +193,61 @@ export function resolveEffectiveSchedule(
     (hasDayCount && dayCount !== baseDays.length);
 
   return { availableDays, startDate, dayCount, overridden };
+}
+
+/**
+ * Normalize an LLM-supplied weekday array: lowercase, trim, drop invalid names,
+ * dedupe. The LLM enum arrays commonly repeat a value ("saturday", "saturday",
+ * "sunday"), which would otherwise inflate a day count. Shared so every consumer
+ * (resolveEffectiveSchedule, scheduleClampConflict) treats daysOfWeek identically.
+ */
+export function normalizeWeekdays(arr?: string[]): string[] {
+  return [
+    ...new Set(
+      (arr || [])
+        .map((d) => (d || "").trim().toLowerCase())
+        .filter((d) => DAYS_OF_WEEK.includes(d))
+    ),
+  ];
+}
+
+/**
+ * [GQ-04] Deterministic "couldn't apply X because Y" for the schedule: when the
+ * user asked for a specific NUMBER of workout days that exceeds their available
+ * days, resolveEffectiveSchedule clamps it — surface that as a feedback conflict
+ * for the in-app banner. A named-days request ("just Mon/Wed") can't clamp (they
+ * get exactly what they named), so it never produces a conflict here. Returns
+ * null when nothing was clamped (the normal case). Structurally a FeedbackConflict.
+ */
+export function scheduleClampConflict(
+  override: ScheduleOverride | undefined,
+  effective: EffectiveSchedule
+): { request: string; reason: string } | null {
+  const requested = override?.dayCount;
+  // Use the SAME normalization resolveEffectiveSchedule applies — a raw
+  // daysOfWeek that's non-empty but all-invalid still resolves to a dayCount
+  // clamp, so keying off the raw array would miss that conflict.
+  const namedSpecificDays = normalizeWeekdays(override?.daysOfWeek).length > 0;
+  if (
+    !override ||
+    namedSpecificDays ||
+    typeof requested !== "number" ||
+    !Number.isFinite(requested)
+  ) {
+    return null;
+  }
+  const req = Math.round(requested);
+  if (req <= effective.dayCount) return null;
+  const available = effective.availableDays.length;
+  // "your schedule allows N" rather than "your profile has N" — honest even when
+  // availableDays came from the DEFAULT_AVAILABLE_DAYS fallback (a broken profile
+  // with no days set), where "your profile has 3 days" would be misleading.
+  return {
+    request: `${req} workout days this week`,
+    reason: `your schedule allows ${available} training ${
+      available === 1 ? "day" : "days"
+    }, so the plan uses ${effective.dayCount}`,
+  };
 }
 
 const WEEKDAY_MENTION_RE =
@@ -246,6 +290,25 @@ const SCHEDULE_CHANGE_RE = new RegExp(
  */
 export function mentionsScheduleChange(text: string | null | undefined): boolean {
   return !!text && SCHEDULE_CHANGE_RE.test(text);
+}
+
+// [GQ-06] Explicit "equipment-free / bodyweight day" signals in the LIVE request.
+const EQUIPMENT_FREE_RE =
+  /\b(body[-\s]?weight|no\s+equipment|without\s+equipment|equipment[-\s]?free|no\s+gear|no\s+weights|calisthenics?)\b/i;
+
+/**
+ * [GQ-06] True when the LIVE request explicitly asks for a bodyweight /
+ * equipment-free workout. A plausibility gate on the planner's
+ * `bodyweightOnlyWeekdays` extraction — mirrors GQ-02's mentionsScheduleChange:
+ * because the deterministic backstop GUARANTEES a flagged day is stripped of
+ * equipment, a stale "make Wednesday bodyweight, I'm traveling" note re-surfaced
+ * from recentFeedback would otherwise silently strip equipment every future
+ * Wednesday. Only honor the extraction when the current request corroborates it.
+ */
+export function mentionsEquipmentFreeDay(
+  text: string | null | undefined
+): boolean {
+  return !!text && EQUIPMENT_FREE_RE.test(text);
 }
 
 /**
