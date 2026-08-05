@@ -53,7 +53,7 @@ import {
   getCurrentDateStringInTimezone,
 } from "@/utils/date.utils";
 import { aiProviderService } from "./ai-provider.service";
-import { AIProvider } from "@/constants/ai-providers";
+import { AIProvider, getModelConfig } from "@/constants/ai-providers";
 import { llmGenerationLogsService } from "./llm-generation-logs.service";
 import { runWithAbortTimeout } from "@/utils/timeout.utils";
 import { Semaphore } from "@/utils/concurrency.utils";
@@ -78,6 +78,19 @@ const FANOUT_PLANNING_MODEL =
   process.env.FANOUT_PLANNING_MODEL || "claude-haiku-4-5-20251001";
 const FANOUT_DAY_MODEL =
   process.env.FANOUT_DAY_MODEL || "claude-haiku-4-5-20251001";
+
+// [GQ-15] Optional quality lever: use a stronger (Sonnet) model for the PLANNING
+// call ONLY on override requests (a live customFeedback is present), where the
+// week-split has to honor a specific ask and getting it right matters most. Day
+// calls stay Haiku either way, so the extra cost/latency (~+3-8s) lands only on
+// the single planning call of override generations, not the whole fan-out.
+// Flag-gated (default OFF) so GQ-13 can measure the compliance-vs-latency
+// tradeoff before it's switched on in prod; the actual model that ran is written
+// to llm_generation_logs.planning_model for before/after comparison.
+const SONNET_PLANNING_ON_OVERRIDE =
+  process.env.SONNET_PLANNING_ON_OVERRIDE === "true";
+const FANOUT_PLANNING_OVERRIDE_MODEL =
+  process.env.FANOUT_PLANNING_OVERRIDE_MODEL || "claude-sonnet-4-6";
 
 // Size of the exercise menu shown to the LLM — same count as the old
 // LIMIT 200, but now a deterministic stratified selection.
@@ -703,6 +716,37 @@ Please generate the workout now, addressing this feedback while following all sy
     // [GQ-08] The two feedback channels, bundled for the prompt builders.
     const promptFeedback: PromptFeedback = { customFeedback, recentFeedback };
 
+    // [GQ-15] Decide the planning-call model up front (used at the plan-call site
+    // AND recorded in the generation log below). Sonnet only when the flag is on,
+    // this is an override request (live customFeedback present), and we're on
+    // Anthropic; otherwise the default Haiku. Day calls are unaffected.
+    // Guard the override model: a misconfigured FANOUT_PLANNING_OVERRIDE_MODEL
+    // (an ID not registered for Anthropic) would otherwise throw synchronously
+    // inside createLLMInstance below — and only on override generations, while
+    // normal ones keep succeeding — so degrade to Haiku with a warning instead.
+    const useSonnetPlanning =
+      SONNET_PLANNING_ON_OVERRIDE &&
+      this.currentProvider === AIProvider.ANTHROPIC &&
+      !!customFeedback?.trim();
+    if (
+      useSonnetPlanning &&
+      !getModelConfig(AIProvider.ANTHROPIC, FANOUT_PLANNING_OVERRIDE_MODEL)
+    ) {
+      logger.warn(
+        "SONNET_PLANNING_ON_OVERRIDE set but FANOUT_PLANNING_OVERRIDE_MODEL is not a registered Anthropic model — falling back to Haiku planning",
+        { model: FANOUT_PLANNING_OVERRIDE_MODEL, operation: "generateWeeklyWorkout" }
+      );
+    }
+    const useValidSonnetPlanning =
+      useSonnetPlanning &&
+      !!getModelConfig(AIProvider.ANTHROPIC, FANOUT_PLANNING_OVERRIDE_MODEL);
+    const effectivePlanningModel =
+      this.currentProvider === AIProvider.ANTHROPIC
+        ? useValidSonnetPlanning
+          ? FANOUT_PLANNING_OVERRIDE_MODEL
+          : FANOUT_PLANNING_MODEL
+        : this.currentModel;
+
     // [GQ-01] Compute the day-number -> {weekday, date} schedule up front so the
     // prompts can label each slot with its real weekday/date and the persistence
     // layer can stamp the identical dates (single source of truth). Prefer the
@@ -808,8 +852,10 @@ ${exerciseContext}`;
     //    Anthropic: the week-split task (names, focus, muscle groups) is
     //    well within its capabilities and it's significantly faster than
     //    Sonnet. Fall back to the user's selected model on other providers.
+    //    [GQ-15] On override requests, `effectivePlanningModel` may be Sonnet
+    //    (flag-gated) — the one call where plan quality earns the extra latency.
     const planLlmBase = this.currentProvider === AIProvider.ANTHROPIC
-      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, FANOUT_PLANNING_MODEL)
+      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, effectivePlanningModel)
       : this.llm;
     const planLlm = planLlmBase.withStructuredOutput(WEEK_PLAN_SCHEMA as any, {
       name: "week_plan",
@@ -819,6 +865,10 @@ ${exerciseContext}`;
       userId,
       expectedDayCount: profile.availableDays?.length || 7,
       provider: this.currentProvider,
+      // [GQ-15] Surface which model the planning call actually used, so the
+      // Sonnet-on-override path is visible in logs alongside the eval metrics.
+      planningModel: effectivePlanningModel,
+      usedSonnetPlanning: useValidSonnetPlanning,
       operation: "generateWeeklyWorkout",
     });
     // Wraps the planning call's timeout/usage plumbing. (The old muscle-balance
@@ -1312,10 +1362,10 @@ ${exerciseContext}`;
       provider: this.currentProvider,
       model: this.currentModel,
       promptSnapshot: JSON.stringify(promptSnapshot),
-      planningModel:
-        this.currentProvider === AIProvider.ANTHROPIC
-          ? FANOUT_PLANNING_MODEL
-          : this.currentModel,
+      // [GQ-15] Records the model that actually ran the planning call — Sonnet
+      // on flagged override generations, Haiku otherwise — so before/after
+      // eval runs can be sliced by planning_model.
+      planningModel: effectivePlanningModel,
       dayModel:
         this.currentProvider === AIProvider.ANTHROPIC
           ? FANOUT_DAY_MODEL
