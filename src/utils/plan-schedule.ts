@@ -292,6 +292,25 @@ export function mentionsScheduleChange(text: string | null | undefined): boolean
   return !!text && SCHEDULE_CHANGE_RE.test(text);
 }
 
+// [GQ-06] Explicit "equipment-free / bodyweight day" signals in the LIVE request.
+const EQUIPMENT_FREE_RE =
+  /\b(body[-\s]?weight|no\s+equipment|without\s+equipment|equipment[-\s]?free|no\s+gear|no\s+weights|calisthenics?)\b/i;
+
+/**
+ * [GQ-06] True when the LIVE request explicitly asks for a bodyweight /
+ * equipment-free workout. A plausibility gate on the planner's
+ * `bodyweightOnlyWeekdays` extraction — mirrors GQ-02's mentionsScheduleChange:
+ * because the deterministic backstop GUARANTEES a flagged day is stripped of
+ * equipment, a stale "make Wednesday bodyweight, I'm traveling" note re-surfaced
+ * from recentFeedback would otherwise silently strip equipment every future
+ * Wednesday. Only honor the extraction when the current request corroborates it.
+ */
+export function mentionsEquipmentFreeDay(
+  text: string | null | undefined
+): boolean {
+  return !!text && EQUIPMENT_FREE_RE.test(text);
+}
+
 /**
  * [GQ-11] Pairs of day numbers whose scheduled dates are calendar-consecutive
  * (one day apart) — so muscle-overlap checks only compare days that are actually

@@ -31,8 +31,23 @@ export function isBodyweightEquipment(
 export interface BodyweightDayFinding {
   dayNumber: number;
   exerciseName: string;
-  action: "swapped" | "dropped";
+  // "unknown_kept": an exercise on a flagged day whose equipment we can't
+  // determine (off the filtered catalog) — kept as-is, logged for visibility.
+  action: "swapped" | "dropped" | "unknown_kept";
   replacement?: string;
+}
+
+/** First avoid term contained in the name (≥3-char terms only), or null. */
+function firstAvoidMatch(
+  name: string | undefined,
+  terms: string[]
+): string | null {
+  const n = norm(name);
+  if (!n) return null;
+  for (const t of terms) {
+    if (t && n.includes(t)) return t;
+  }
+  return null;
 }
 
 /**
@@ -40,15 +55,19 @@ export interface BodyweightDayFinding {
  * each exercise comes from `catalog` (the equipment/limitation-filtered list the
  * generation drew from) and inline from `exercisesToAdd`; an exercise not found
  * in either is treated as bodyweight (no equipment known → don't fabricate a
- * violation). Swap candidates are drawn only from the bodyweight subset of the
- * catalog, so a swapped-in exercise is valid for the user and known to
- * persistence. Pure and deterministic.
+ * violation), but is logged as `unknown_kept` for visibility. Swap candidates are
+ * drawn only from the bodyweight subset of the catalog that ALSO honors the
+ * user's avoid-terms — this runs after GQ-07 AVOID enforcement, so a swap must
+ * not reintroduce a banned movement. Pure and deterministic.
  */
 export function enforceBodyweightOnlyDays(
   workoutPlan: any[],
   exercisesToAdd: any[],
   bodyweightOnlyDays: number[] | undefined,
-  catalog: EnforcementCatalogItem[]
+  catalog: EnforcementCatalogItem[],
+  // [GQ-06] Same avoid-terms GQ-07 enforced — the bodyweight swap pool must be
+  // filtered by these or a swap could deterministically re-add a banned exercise.
+  avoidExerciseTerms?: string[]
 ): {
   workoutPlan: any[];
   findings: BodyweightDayFinding[];
@@ -59,6 +78,12 @@ export function enforceBodyweightOnlyDays(
   if (flagged.size === 0) {
     return { workoutPlan, findings: [] };
   }
+
+  // ≥3-char guard mirrors enforceAvoidConstraints: a 1-2 char term would
+  // mass-match unrelated names.
+  const avoidTerms = (avoidExerciseTerms || [])
+    .map((t) => norm(t))
+    .filter((t) => t.length >= 3);
 
   // Equipment + muscle lookups by exercise name (catalog first, then inline
   // invented exercises which carry their own equipment).
@@ -84,9 +109,12 @@ export function enforceBodyweightOnlyDays(
     return !isBodyweightEquipment(equipmentByName.get(key));
   };
 
-  // Bodyweight swap pool: catalog exercises that need no equipment.
-  const bodyweightPool = catalog.filter((c) =>
-    isBodyweightEquipment(c.equipment)
+  // Bodyweight swap pool: catalog exercises that need no equipment AND don't
+  // match an avoid term (so a bodyweight swap can't undo GQ-07's AVOID guarantee).
+  const bodyweightPool = catalog.filter(
+    (c) =>
+      isBodyweightEquipment(c.equipment) &&
+      firstAvoidMatch(c.name, avoidTerms) === null
   );
 
   const findings: BodyweightDayFinding[] = [];
@@ -110,6 +138,16 @@ export function enforceBodyweightOnlyDays(
         const newExercises: any[] = [];
         for (const ex of block.exercises || []) {
           if (!needsEquipment(ex.exerciseName)) {
+            // Unknown equipment (off the filtered catalog) is kept, but flagged:
+            // persistence resolves names against the FULL DB, so an off-catalog
+            // name could still be a real equipment exercise we can't see here.
+            if (!equipmentByName.has(norm(ex.exerciseName))) {
+              findings.push({
+                dayNumber: day.day,
+                exerciseName: ex.exerciseName,
+                action: "unknown_kept",
+              });
+            }
             newExercises.push(ex);
             continue;
           }

@@ -117,10 +117,39 @@ describe("enforceBodyweightOnlyDays [GQ-06]", () => {
     expect(res.findings[0].action).toBe("swapped"); // needs equipment -> swapped
   });
 
-  it("treats an unknown exercise (no equipment data) as compliant — never fabricates a swap", () => {
+  it("treats an unknown exercise (no equipment data) as compliant — never fabricates a swap or drop", () => {
     const plan = [day(1, [{ name: "Totally Unknown Move" }])];
     const res = enforceBodyweightOnlyDays(plan, [], [1], catalog);
-    expect(res.findings).toHaveLength(0);
+    // It's kept (logged as unknown_kept), never swapped or dropped.
+    expect(res.findings.every((f) => f.action === "unknown_kept")).toBe(true);
+    expect(res.workoutPlan[0].blocks[0].exercises[0].exerciseName).toBe(
+      "Totally Unknown Move"
+    );
+  });
+
+  it("never swaps in an AVOIDed exercise (avoid-terms filter the bodyweight pool)", () => {
+    // Wednesday bodyweight-only, but the user also said "no push-ups".
+    const cat: EnforcementCatalogItem[] = [
+      { name: "Barbell Bench Press", muscleGroups: ["chest"], equipment: ["barbell"] },
+      { name: "Push-up", muscleGroups: ["chest"], equipment: ["bodyweight"] },
+      { name: "Dip", muscleGroups: ["chest"], equipment: ["bodyweight"] },
+    ];
+    const plan = [day(2, [{ name: "Barbell Bench Press" }])];
+    const res = enforceBodyweightOnlyDays(plan, [], [2], cat, ["push-up"]);
+    const names = res.workoutPlan[0].blocks[0].exercises.map(
+      (e: any) => e.exerciseName
+    );
+    expect(names).not.toContain("Push-up"); // avoided — must not be swapped in
+    expect(names).toContain("Dip"); // the compliant bodyweight chest option
+  });
+
+  it("emits an unknown_kept finding for an off-catalog exercise on a flagged day", () => {
+    const plan = [day(2, [{ name: "Totally Unknown Move" }])];
+    const res = enforceBodyweightOnlyDays(plan, [], [2], catalog);
+    expect(res.findings).toHaveLength(1);
+    expect(res.findings[0].action).toBe("unknown_kept");
+    // kept, not dropped
+    expect(res.workoutPlan[0].blocks[0].exercises).toHaveLength(1);
   });
 
   it("is a no-op when no days are flagged", () => {

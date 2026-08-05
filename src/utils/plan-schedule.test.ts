@@ -5,6 +5,7 @@ import {
   renderScheduleLines,
   mentionsWeekday,
   mentionsScheduleChange,
+  mentionsEquipmentFreeDay,
   resolveEffectiveSchedule,
   scheduleClampConflict,
 } from "@/utils/plan-schedule";
@@ -266,6 +267,32 @@ describe("scheduleClampConflict [GQ-04]", () => {
       { availableDays: ["monday"], startDate: "2026-08-03", dayCount: 1, overridden: true }
     );
     expect(conflict!.reason).toContain("1 training day,");
+  });
+});
+
+describe("mentionsEquipmentFreeDay [GQ-06 plausibility gate]", () => {
+  it("matches explicit bodyweight / no-equipment / travel-workout requests", () => {
+    for (const t of [
+      "make Wednesday a bodyweight-only workout",
+      "I travel Wednesdays — no equipment that day",
+      "give me an equipment-free day",
+      "Thursday should be calisthenics",
+      "no gear on Friday please",
+    ]) {
+      expect(mentionsEquipmentFreeDay(t)).toBe(true);
+    }
+  });
+
+  it("does not match unrelated feedback (so a stale note can't strip equipment)", () => {
+    for (const t of [
+      "keep Fridays easy",
+      "more upper body this week",
+      "I prefer dumbbells over barbells",
+      "",
+      undefined,
+    ]) {
+      expect(mentionsEquipmentFreeDay(t)).toBe(false);
+    }
   });
 });
 

@@ -141,7 +141,10 @@ export function applyPostGenerationValidation(
     aligned.workoutPlan,
     enforced.exercisesToAdd,
     constraintOptions?.bodyweightOnlyDays,
-    constraintOptions?.catalog || []
+    constraintOptions?.catalog || [],
+    // Pass the avoid-terms so a bodyweight swap can't reintroduce a banned
+    // movement (this step runs after GQ-07 AVOID enforcement).
+    constraintOptions?.avoidExerciseTerms
   );
 
   // [GQ-11] Residual consecutive-day overlap — computed on the final exercise set
