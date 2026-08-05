@@ -4,6 +4,8 @@ import {
   formatSlotLabel,
   renderScheduleLines,
   mentionsWeekday,
+  mentionsScheduleChange,
+  resolveEffectiveSchedule,
 } from "@/utils/plan-schedule";
 import { getDateForWeekday, addDays } from "@/utils/date.utils";
 
@@ -107,6 +109,104 @@ describe("buildPlanDaySchedule [GQ-01]", () => {
       const mine = buildPlanDaySchedule(days, start).map((s) => s.date);
       expect(mine).toEqual(legacySchedule(days, start));
     }
+  });
+});
+
+describe("resolveEffectiveSchedule [GQ-02]", () => {
+  const profileDays = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+  const today = "2026-08-04"; // Tuesday
+
+  it("no override -> identical to profile defaults (overridden=false)", () => {
+    const r = resolveEffectiveSchedule(undefined, profileDays, today);
+    expect(r).toEqual({
+      availableDays: profileDays,
+      startDate: today,
+      dayCount: 5,
+      overridden: false,
+    });
+    expect(resolveEffectiveSchedule({}, profileDays, today).overridden).toBe(false);
+  });
+
+  it("daysOfWeek override replaces available days and sets count", () => {
+    const r = resolveEffectiveSchedule(
+      { daysOfWeek: ["monday", "wednesday", "friday"] },
+      profileDays,
+      today
+    );
+    expect(r.availableDays).toEqual(["monday", "wednesday", "friday"]);
+    expect(r.dayCount).toBe(3);
+    expect(r.overridden).toBe(true);
+  });
+
+  it("dayCount is clamped to 1..availableDays (no multi-week span)", () => {
+    expect(resolveEffectiveSchedule({ dayCount: 3 }, profileDays, today).dayCount).toBe(3);
+    expect(resolveEffectiveSchedule({ dayCount: 0 }, profileDays, today).dayCount).toBe(1);
+    // 99 requested but only 5 available weekdays -> capped at 5 (a normal week).
+    expect(resolveEffectiveSchedule({ dayCount: 99 }, profileDays, today).dayCount).toBe(5);
+    // ...and a 2-day profile can't be stretched to 5.
+    const r = resolveEffectiveSchedule({ dayCount: 5 }, ["monday", "wednesday"], today);
+    expect(r.dayCount).toBe(2);
+  });
+
+  it("dedupes daysOfWeek and derives the count from the named days", () => {
+    const r = resolveEffectiveSchedule(
+      { daysOfWeek: ["saturday", "saturday", "sunday"], dayCount: 3 },
+      profileDays,
+      today
+    );
+    expect(r.availableDays).toEqual(["saturday", "sunday"]); // deduped
+    expect(r.dayCount).toBe(2); // named-days count wins over a contradictory dayCount
+  });
+
+  it("startWeekday shifts the start date to that weekday's next occurrence", () => {
+    // From Tue 2026-08-04, next Monday is 2026-08-10.
+    const r = resolveEffectiveSchedule({ startWeekday: "monday" }, profileDays, today);
+    expect(r.startDate).toBe("2026-08-10");
+    expect(r.overridden).toBe(true);
+  });
+
+  it("ignores invalid weekday names and non-finite counts (falls back, not overridden)", () => {
+    const r = resolveEffectiveSchedule(
+      { daysOfWeek: ["funday", ""], startWeekday: "someday", dayCount: NaN },
+      profileDays,
+      today
+    );
+    expect(r.availableDays).toEqual(profileDays);
+    expect(r.startDate).toBe(today);
+    expect(r.dayCount).toBe(5);
+    expect(r.overridden).toBe(false);
+  });
+
+  it("combines daysOfWeek + startWeekday", () => {
+    const r = resolveEffectiveSchedule(
+      { daysOfWeek: ["saturday", "sunday"], startWeekday: "saturday" },
+      profileDays,
+      today
+    );
+    expect(r.availableDays).toEqual(["saturday", "sunday"]);
+    expect(r.dayCount).toBe(2);
+    expect(r.startDate).toBe("2026-08-08"); // next Saturday
+    // buildPlanDaySchedule with these effective inputs lands on Sat/Sun.
+    const sched = buildPlanDaySchedule(r.availableDays, r.startDate, r.dayCount);
+    expect(sched.map((s) => s.weekday)).toEqual(["saturday", "sunday"]);
+  });
+});
+
+describe("mentionsScheduleChange [GQ-02 plausibility gate]", () => {
+  it("accepts explicit schedule-change requests", () => {
+    expect(mentionsScheduleChange("only 3 days this week")).toBe(true);
+    expect(mentionsScheduleChange("just Mondays and Wednesdays please")).toBe(true);
+    expect(mentionsScheduleChange("weekends only")).toBe(true);
+    expect(mentionsScheduleChange("start my plan next Monday")).toBe(true);
+    expect(mentionsScheduleChange("I only have time for two workouts")).toBe(true);
+  });
+  it("rejects calendar-CONTENT language that must NOT trigger a reschedule", () => {
+    // The critical false-positive class: naming a weekday for content.
+    expect(mentionsScheduleChange("keep Fridays easy before my long run")).toBe(false);
+    expect(mentionsScheduleChange("go heavy on legs")).toBe(false);
+    expect(mentionsScheduleChange("no deadlifts")).toBe(false);
+    expect(mentionsScheduleChange("")).toBe(false);
+    expect(mentionsScheduleChange(null)).toBe(false);
   });
 });
 

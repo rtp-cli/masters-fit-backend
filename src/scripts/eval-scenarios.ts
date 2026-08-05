@@ -85,12 +85,22 @@ export interface EvalScenario {
     | "equipment"
     | "format"
     | "duration"
-    | "calendar";
+    | "calendar"
+    | "scheduling";
   description: string;
   profile: Profile;
   customFeedback?: string;
   /** Resolved with the computed schedule so day-scoped checks can find the right day. */
   buildChecks: (schedule: PlanDaySlot[], profile: Profile) => ComplianceCheck[];
+  /**
+   * [GQ-02] Expectations scored against the RETURNED generation schedule
+   * (reflects the scheduling override), checked by the harness directly.
+   */
+  expectSchedule?: {
+    dayCount?: number;
+    weekdays?: string[];
+    firstWeekday?: string;
+  };
 }
 
 /** Finds the 1-based day number a given weekday maps to for this scenario's schedule. */
@@ -266,6 +276,52 @@ export const SCENARIOS: EvalScenario[] = [
     buildChecks: (_s, p) => [duration(p.workoutDuration || 20)],
   },
 
+  // ---- Scheduling overrides (GQ-02) ----
+  {
+    id: "schedule-specific-days",
+    category: "scheduling",
+    description: "Partial week: user names specific training days (Mon/Wed/Fri)",
+    profile: baseProfile({
+      availableDays: [
+        PreferredDays.MONDAY,
+        PreferredDays.TUESDAY,
+        PreferredDays.WEDNESDAY,
+        PreferredDays.THURSDAY,
+        PreferredDays.FRIDAY,
+      ],
+    }),
+    customFeedback:
+      "I can only get to the gym on Mondays, Wednesdays, and Fridays this week — just those three days please.",
+    buildChecks: (_s, p) => [duration(p.workoutDuration || 45)],
+    expectSchedule: { dayCount: 3, weekdays: ["monday", "wednesday", "friday"] },
+  },
+  {
+    id: "schedule-fewer-days",
+    category: "scheduling",
+    description: "Partial week: user asks for a specific day COUNT (3)",
+    profile: baseProfile({}),
+    customFeedback: "I only have time for 3 workouts this week, not the usual amount.",
+    buildChecks: (_s, p) => [duration(p.workoutDuration || 45)],
+    expectSchedule: { dayCount: 3 },
+  },
+  {
+    id: "schedule-weekends-only",
+    category: "scheduling",
+    description: "Day override: weekends only (outside the profile's weekday schedule)",
+    profile: baseProfile({
+      availableDays: [
+        PreferredDays.MONDAY,
+        PreferredDays.TUESDAY,
+        PreferredDays.WEDNESDAY,
+        PreferredDays.THURSDAY,
+        PreferredDays.FRIDAY,
+      ],
+    }),
+    customFeedback: "This week I can only train on the weekend — Saturday and Sunday only.",
+    buildChecks: (_s, p) => [duration(p.workoutDuration || 45)],
+    expectSchedule: { dayCount: 2, weekdays: ["saturday", "sunday"] },
+  },
+
   // ---- Calendar fidelity (GQ-01 target) ----
   {
     id: "calendar-light-friday",
@@ -296,5 +352,8 @@ export const SCENARIOS: EvalScenario[] = [
       }
       return checks;
     },
+    // [GQ-02 negative control] "keep Friday light" names a weekday for CONTENT,
+    // NOT a schedule change — it must NOT shrink the 5-day week to fewer days.
+    expectSchedule: { dayCount: 5 },
   },
 ];

@@ -114,6 +114,53 @@ async function buildExerciseMeta(
   return meta;
 }
 
+function scoreSchedule(
+  expect: EvalScenario["expectSchedule"],
+  schedule: Array<{ dayNumber: number; weekday: string; date: string }>,
+  workout: ScoredWorkout
+): CheckResult[] {
+  if (!expect) return [];
+  const out: CheckResult[] = [];
+  const weekdays = schedule.map((s) => s.weekday);
+  if (expect.dayCount != null) {
+    const planDays = (workout.workoutPlan || []).length;
+    const passed = schedule.length === expect.dayCount && planDays === expect.dayCount;
+    out.push({
+      id: "sched-daycount",
+      label: `${expect.dayCount} workout days`,
+      type: "schedule",
+      score: passed ? 1 : 0,
+      passed,
+      detail: `schedule=${schedule.length}, plan=${planDays}, want ${expect.dayCount}`,
+    });
+  }
+  if (expect.weekdays) {
+    const want = new Set(expect.weekdays.map((w) => w.toLowerCase()));
+    const got = new Set(weekdays);
+    const passed = want.size === got.size && [...want].every((w) => got.has(w));
+    out.push({
+      id: "sched-weekdays",
+      label: `days = ${expect.weekdays.join("/")}`,
+      type: "schedule",
+      score: passed ? 1 : 0,
+      passed,
+      detail: `got ${weekdays.join("/") || "(none)"}`,
+    });
+  }
+  if (expect.firstWeekday) {
+    const passed = weekdays[0] === expect.firstWeekday.toLowerCase();
+    out.push({
+      id: "sched-first",
+      label: `starts on ${expect.firstWeekday}`,
+      type: "schedule",
+      score: passed ? 1 : 0,
+      passed,
+      detail: `first = ${weekdays[0] || "(none)"}`,
+    });
+  }
+  return out;
+}
+
 async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
   const { profile } = scenario;
   const startDate = profile.timezone
@@ -137,14 +184,25 @@ async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
       (result.workout as any).exercisesToAdd || []
     );
     const scored = scoreWorkout(workout, meta, checks);
+    // [GQ-02] Score the RETURNED schedule (reflects the scheduling override)
+    // against the scenario's expectations, as extra checks.
+    const scheduleChecks = scoreSchedule(
+      scenario.expectSchedule,
+      (result as any).schedule || [],
+      workout
+    );
+    const allChecks = [...scored.results, ...scheduleChecks];
+    const overall = allChecks.length
+      ? allChecks.reduce((s, c) => s + c.score, 0) / allChecks.length
+      : 0;
     return {
       id: scenario.id,
       category: scenario.category,
       description: scenario.description,
       ok: true,
-      overall: scored.overall,
+      overall,
       durationMs,
-      checks: scored.results,
+      checks: allChecks,
     };
   } catch (error) {
     return {

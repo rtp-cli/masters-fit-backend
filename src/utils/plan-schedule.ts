@@ -104,6 +104,87 @@ export function buildPlanDaySchedule(
   return slots;
 }
 
+export interface ScheduleOverride {
+  daysOfWeek?: string[];
+  dayCount?: number;
+  startWeekday?: string;
+}
+
+export interface EffectiveSchedule {
+  availableDays: string[];
+  startDate: string;
+  dayCount: number;
+  /** True when any override field actually changed the effective schedule. */
+  overridden: boolean;
+}
+
+/**
+ * [GQ-02] Resolves the user's explicit scheduling override (extracted by the
+ * planning call) into concrete effective schedule inputs, deterministically:
+ *   - daysOfWeek  -> replaces the profile's available days for this week
+ *   - startWeekday-> shifts the start to that weekday's next occurrence
+ *   - dayCount    -> number of workout days (clamped to 1..7)
+ * `todayStartDate` is the already-timezone-resolved YYYY-MM-DD "today". Invalid /
+ * absent fields fall back to the profile defaults, so a normal week (no override)
+ * returns exactly what the pre-GQ-02 code did (overridden=false).
+ */
+export function resolveEffectiveSchedule(
+  override: ScheduleOverride | undefined,
+  profileAvailableDays: string[] | null | undefined,
+  todayStartDate: string
+): EffectiveSchedule {
+  const clean = (arr?: string[]) => [
+    // Dedupe: an LLM enum array commonly repeats a value ("saturday",
+    // "saturday", "sunday"); without dedup the day count would be inflated and
+    // then mismatch the planner's real day entries, forcing the serial fallback.
+    ...new Set(
+      (arr || [])
+        .map((d) => (d || "").trim().toLowerCase())
+        .filter((d) => DAYS_OF_WEEK.includes(d))
+    ),
+  ];
+
+  const baseDays =
+    profileAvailableDays && profileAvailableDays.length > 0
+      ? profileAvailableDays
+      : [...DAYS_OF_WEEK];
+
+  const overrideDays = clean(override?.daysOfWeek);
+  const availableDays = overrideDays.length > 0 ? overrideDays : baseDays;
+
+  const startWeekday = (override?.startWeekday || "").trim().toLowerCase();
+  const hasStart = DAYS_OF_WEEK.includes(startWeekday);
+  const startDate = hasStart
+    ? getDateForWeekday(startWeekday, todayStartDate)
+    : todayStartDate;
+
+  // Day count. When specific days are named, the count IS the number of named
+  // days (a contradictory dayCount is ignored). Otherwise honor dayCount but
+  // never exceed the available weekdays — asking for more days than you have
+  // available would otherwise cycle a weekday across multiple weeks and turn a
+  // "week" into a multi-week span.
+  const hasDayCount =
+    override?.dayCount != null && Number.isFinite(override.dayCount);
+  let dayCount: number;
+  if (overrideDays.length > 0) {
+    dayCount = overrideDays.length;
+  } else if (hasDayCount) {
+    dayCount = Math.max(
+      1,
+      Math.min(availableDays.length, Math.round(override!.dayCount as number))
+    );
+  } else {
+    dayCount = availableDays.length;
+  }
+
+  const overridden =
+    overrideDays.length > 0 ||
+    hasStart ||
+    (hasDayCount && dayCount !== baseDays.length);
+
+  return { availableDays, startDate, dayCount, overridden };
+}
+
 const WEEKDAY_MENTION_RE =
   /\b(mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?|weekdays?)\b/i;
 
@@ -114,6 +195,36 @@ const WEEKDAY_MENTION_RE =
  */
 export function mentionsWeekday(text: string | null | undefined): boolean {
   return !!text && WEEKDAY_MENTION_RE.test(text);
+}
+
+// [GQ-02] Explicit "change my schedule" signals — distinct from merely naming a
+// weekday for CONTENT ("keep Fridays easy"). Requires a day count, a
+// restriction word next to a day, "weekends/weekdays only", or a start phrase.
+const SCHEDULE_CHANGE_RE = new RegExp(
+  [
+    // a count of days/workouts: "3 days", "only two workouts this week"
+    "\\b(\\d+|one|two|three|four|five|six|seven|couple)\\s+(days?|workouts?|sessions?|times?)\\b",
+    // "just/only Mondays", "only on Mon and Wed"
+    "\\b(just|only)\\b[^.!?]{0,30}\\b(mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?|weekdays?)\\b",
+    // "weekends only" / "weekdays only"
+    "\\b(weekends?|weekdays?)\\s+only\\b",
+    // "start/begin ... monday/next week/tomorrow"
+    "\\b(start|starting|begin|beginning)\\b[^.!?]{0,30}\\b(mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|next week|tomorrow|this week)\\b",
+  ].join("|"),
+  "i"
+);
+
+/**
+ * [GQ-02] True when the LIVE request explicitly asks to change WHEN or HOW MANY
+ * days the user trains. A code-side plausibility gate on the planner's
+ * `constraints.schedule` extraction: the override is only honored when the
+ * user's own words corroborate it, so a mis-extraction from calendar-content
+ * language ("keep Fridays easy") or a stale recent-feedback note can't silently
+ * shrink or shift a normal week. Deliberately checks the live customFeedback
+ * only — scheduling changes come from the current request, not background notes.
+ */
+export function mentionsScheduleChange(text: string | null | undefined): boolean {
+  return !!text && SCHEDULE_CHANGE_RE.test(text);
 }
 
 /**
