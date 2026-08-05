@@ -114,6 +114,12 @@ export const workoutBlocks = pgTable("workout_blocks", {
   // essential behavior must NOT depend on this being present.
   protocolConfig: jsonb("protocol_config").$type<ProtocolConfig>(),
   blockName: text("block_name"), // Name of the workout block
+  // [GQ-12] Per-block muscle focus — the muscles THIS block trains, which can
+  // differ across blocks on the same day (a strength block on chest + a
+  // full-body metcon). Nullable; empty/absent means "no per-block focus".
+  primaryMuscleGroups: text("primary_muscle_groups")
+    .array()
+    .$type<string[]>(),
   blockDurationMinutes: integer("block_duration_minutes"), // Calculated duration of the block in minutes
   timeCapMinutes: integer("time_cap_minutes"), // Time cap for AMRAP/EMOM blocks
   rounds: integer("rounds").default(1), // Number of rounds for circuits/flows
@@ -211,6 +217,8 @@ export const insertPlanDaySchema = createInsertSchema(planDays).omit({
 export const insertWorkoutBlockSchema = createInsertSchema(workoutBlocks, {
   // drizzle-zod types jsonb as a generic Json union; pin it to the real shape
   protocolConfig: protocolConfigSchema.nullable().optional(),
+  // [GQ-12] Accept string[] | null | undefined for the per-block muscle focus.
+  primaryMuscleGroups: z.array(z.string()).nullable().optional(),
 }).omit({
   id: true,
 });

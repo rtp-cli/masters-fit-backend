@@ -1,0 +1,206 @@
+import { EnforcementCatalogItem } from "./constraint-enforcement";
+
+/**
+ * [GQ-06] Deterministic post-generation enforcement of PER-DAY equipment rules —
+ * specifically "bodyweight-only" days (the travel-day case: "make Wednesday
+ * bodyweight since I'm on the road"). The whole-plan equipment filter
+ * (validateEquipmentAndFilter) only knows the user's overall equipment set; it
+ * has no notion that ONE day must be equipment-free. Before this, a bodyweight-
+ * only day was honored only if the model happened to comply. This is the backstop
+ * that makes it reliable: any exercise on a flagged day that needs equipment is
+ * swapped for a bodyweight catalog exercise (preferred, like-for-like muscle) or
+ * dropped.
+ *
+ * Runs only when there are flagged days AND a violation is present, so the common
+ * case (no equipment-free day requested) is untouched. Mirrors the drop-and-swap
+ * shape of enforceAvoidConstraints.
+ */
+
+const BODYWEIGHT_TOKENS = new Set(["bodyweight", "none", "body weight", ""]);
+
+const norm = (s: string | undefined): string => (s || "").trim().toLowerCase();
+
+/** True when an exercise needs no equipment (empty list, or all bodyweight tokens). */
+export function isBodyweightEquipment(
+  equipment: string[] | undefined | null
+): boolean {
+  if (!equipment || equipment.length === 0) return true;
+  return equipment.every((e) => BODYWEIGHT_TOKENS.has(norm(e)));
+}
+
+export interface BodyweightDayFinding {
+  dayNumber: number;
+  exerciseName: string;
+  // "unknown_kept": an exercise on a flagged day whose equipment we can't
+  // determine (off the filtered catalog) — kept as-is, logged for visibility.
+  action: "swapped" | "dropped" | "unknown_kept";
+  replacement?: string;
+}
+
+/** First avoid term contained in the name (≥3-char terms only), or null. */
+function firstAvoidMatch(
+  name: string | undefined,
+  terms: string[]
+): string | null {
+  const n = norm(name);
+  if (!n) return null;
+  for (const t of terms) {
+    if (t && n.includes(t)) return t;
+  }
+  return null;
+}
+
+/**
+ * Enforces bodyweight-only days against a generated week. Equipment metadata for
+ * each exercise comes from `catalog` (the equipment/limitation-filtered list the
+ * generation drew from) and inline from `exercisesToAdd`; an exercise not found
+ * in either is treated as bodyweight (no equipment known → don't fabricate a
+ * violation), but is logged as `unknown_kept` for visibility. Swap candidates are
+ * drawn only from the bodyweight subset of the catalog that ALSO honors the
+ * user's avoid-terms — this runs after GQ-07 AVOID enforcement, so a swap must
+ * not reintroduce a banned movement. Pure and deterministic.
+ */
+export function enforceBodyweightOnlyDays(
+  workoutPlan: any[],
+  exercisesToAdd: any[],
+  bodyweightOnlyDays: number[] | undefined,
+  catalog: EnforcementCatalogItem[],
+  // [GQ-06] Same avoid-terms GQ-07 enforced — the bodyweight swap pool must be
+  // filtered by these or a swap could deterministically re-add a banned exercise.
+  avoidExerciseTerms?: string[]
+): {
+  workoutPlan: any[];
+  findings: BodyweightDayFinding[];
+} {
+  const flagged = new Set(
+    (bodyweightOnlyDays || []).filter((d) => Number.isFinite(d))
+  );
+  if (flagged.size === 0) {
+    return { workoutPlan, findings: [] };
+  }
+
+  // ≥3-char guard mirrors enforceAvoidConstraints: a 1-2 char term would
+  // mass-match unrelated names.
+  const avoidTerms = (avoidExerciseTerms || [])
+    .map((t) => norm(t))
+    .filter((t) => t.length >= 3);
+
+  // Equipment + muscle lookups by exercise name (catalog first, then inline
+  // invented exercises which carry their own equipment).
+  const equipmentByName = new Map<string, string[] | undefined>();
+  const muscleByName = new Map<string, string[]>();
+  for (const item of catalog) {
+    equipmentByName.set(norm(item.name), item.equipment);
+    muscleByName.set(norm(item.name), item.muscleGroups || []);
+  }
+  for (const added of exercisesToAdd || []) {
+    if (added?.name) {
+      equipmentByName.set(norm(added.name), added.equipment);
+      muscleByName.set(norm(added.name), added.muscleGroups || []);
+    }
+  }
+
+  // An exercise is a violation on a bodyweight-only day when we KNOW it needs
+  // equipment. Unknown equipment (not in either map) is treated as compliant so
+  // we never swap out a legitimately-bodyweight movement we simply lack data for.
+  const needsEquipment = (name: string | undefined): boolean => {
+    const key = norm(name);
+    if (!equipmentByName.has(key)) return false;
+    return !isBodyweightEquipment(equipmentByName.get(key));
+  };
+
+  // Bodyweight swap pool: catalog exercises that need no equipment AND don't
+  // match an avoid term (so a bodyweight swap can't undo GQ-07's AVOID guarantee).
+  const bodyweightPool = catalog.filter(
+    (c) =>
+      isBodyweightEquipment(c.equipment) &&
+      firstAvoidMatch(c.name, avoidTerms) === null
+  );
+
+  const findings: BodyweightDayFinding[] = [];
+
+  const repairedPlan = workoutPlan.map((day: any) => {
+    if (!flagged.has(day.day)) return day;
+
+    // Names already on this day that are compliant (bodyweight) — so a swap
+    // doesn't duplicate.
+    const usedNames = new Set<string>();
+    for (const block of day.blocks || []) {
+      for (const ex of block.exercises || []) {
+        if (!needsEquipment(ex.exerciseName)) {
+          usedNames.add(norm(ex.exerciseName));
+        }
+      }
+    }
+
+    const newBlocks = (day.blocks || [])
+      .map((block: any) => {
+        const newExercises: any[] = [];
+        for (const ex of block.exercises || []) {
+          if (!needsEquipment(ex.exerciseName)) {
+            // Unknown equipment (off the filtered catalog) is kept, but flagged:
+            // persistence resolves names against the FULL DB, so an off-catalog
+            // name could still be a real equipment exercise we can't see here.
+            if (!equipmentByName.has(norm(ex.exerciseName))) {
+              findings.push({
+                dayNumber: day.day,
+                exerciseName: ex.exerciseName,
+                action: "unknown_kept",
+              });
+            }
+            newExercises.push(ex);
+            continue;
+          }
+          const removedMuscles = new Set(
+            (muscleByName.get(norm(ex.exerciseName)) || []).map((m) => norm(m))
+          );
+          const replacement =
+            // Prefer a bodyweight, not-yet-used exercise sharing a muscle group.
+            bodyweightPool.find(
+              (c) =>
+                !usedNames.has(norm(c.name)) &&
+                (c.muscleGroups || []).some((m) => removedMuscles.has(norm(m)))
+            ) ||
+            // Otherwise any bodyweight, not-yet-used exercise.
+            bodyweightPool.find((c) => !usedNames.has(norm(c.name)));
+
+          if (replacement) {
+            usedNames.add(norm(replacement.name));
+            findings.push({
+              dayNumber: day.day,
+              exerciseName: ex.exerciseName,
+              action: "swapped",
+              replacement: replacement.name,
+            });
+            newExercises.push({
+              ...ex,
+              exerciseName: replacement.name,
+              // Different movement — its load/format numbers don't transfer, and
+              // a bodyweight move has no external load. Keep structure; zero
+              // weight/duration/distance and ensure a sane rep target.
+              weight: 0,
+              duration: 0,
+              distanceM: 0,
+              reps: ex.reps && ex.reps > 0 ? ex.reps : 10,
+              notes:
+                "Substituted with a bodyweight movement for your equipment-free day.",
+            });
+          } else {
+            // No bodyweight candidate left — drop it (guarantees compliance).
+            findings.push({
+              dayNumber: day.day,
+              exerciseName: ex.exerciseName,
+              action: "dropped",
+            });
+          }
+        }
+        return { ...block, exercises: newExercises };
+      })
+      // Remove blocks left empty after drops.
+      .filter((block: any) => (block.exercises || []).length > 0);
+
+    return { ...day, blocks: newBlocks };
+  });
+
+  return { workoutPlan: repairedPlan, findings };
+}

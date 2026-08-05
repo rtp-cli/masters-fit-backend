@@ -72,6 +72,9 @@ const generatedBlockSchema = z
     // rendering) rather than fail the whole generation.
     blockType: healedString("traditional"),
     blockName: healedString(),
+    // [GQ-12] Per-block muscle focus. Optional/defaulted so older data and any
+    // block the model omits it on still validate; defaults to empty (no focus).
+    primaryMuscleGroups: z.array(z.string()).optional().default([]),
     blockDurationMinutes: healedNumber(0),
     timeCapMinutes: healedNumber(0),
     rounds: healedNumber(1),
