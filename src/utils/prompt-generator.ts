@@ -336,11 +336,30 @@ export const getDurationRequirements = (
   const sessionReference =
     context === "weekly" ? "Each workout session" : "This workout session";
 
+  // Concrete per-target budget so long sessions don't default to a ~4-block,
+  // ~40-min workout. ~15 min per main block; warmup/cooldown ~3 min each.
+  const warmupMin = includeWarmup ? 3 : 0;
+  const cooldownMin = includeCooldown ? 3 : 0;
+  const mainMinutes = Math.max(0, workoutDuration - warmupMin - cooldownMin);
+  const mainBlockCount = Math.max(2, Math.round(mainMinutes / 15));
+  const totalBlockCount =
+    mainBlockCount + (includeWarmup ? 1 : 0) + (includeCooldown ? 1 : 0);
+  const budgetParts = [
+    includeWarmup ? "a 3-min warmup" : null,
+    `${mainBlockCount} MAIN blocks of ~15 min each (${mainMinutes} min total)`,
+    includeCooldown ? "a 3-min cooldown" : null,
+  ]
+    .filter(Boolean)
+    .join(" + ");
+
   return `
 ## DURATION REQUIREMENTS - MANDATORY COMPLIANCE
 
 **CRITICAL DURATION REQUIREMENT - IGNORE TOKEN LIMITS**
-${sessionReference} MUST be EXACTLY ${workoutDuration} minutes (acceptable range: ${workoutDuration - 5} to ${workoutDuration + 5} minutes). 
+${sessionReference} MUST be EXACTLY ${workoutDuration} minutes (acceptable range: ${workoutDuration - 5} to ${workoutDuration + 5} minutes).
+
+**DURATION BUDGET — build to this or you WILL fall short:**
+A ${workoutDuration}-minute session = ${budgetParts} = ${workoutDuration} minutes (${totalBlockCount} blocks total). A "standard" 3-4 block workout is NOT enough for ${workoutDuration} minutes — you MUST program all ${mainBlockCount} main blocks. A main block ≈ 3-5 exercises × 3-4 sets, or a circuit of 3-5 rounds (~13-16 min). Sum blockDurationMinutes and confirm it reaches ${workoutDuration} before returning.
 
 **MANDATORY BLOCK DURATION CALCULATION:**
 For each block you create, you MUST calculate and specify the exact duration in minutes:

@@ -1200,8 +1200,13 @@ ${exerciseContext}`;
     // repetition check against the final filtered plan. Extracted to
     // post-generation-validation.ts [LR-019] so the wiring between these
     // validators is directly testable, not just each validator individually.
-    const { exercisesToAdd, workoutPlan, repetitionFindings, constraintFindings } =
-      applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile, {
+    const {
+      exercisesToAdd,
+      workoutPlan,
+      repetitionFindings,
+      constraintFindings,
+      durationFindings,
+    } = applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile, {
         // [GQ-07] Deterministic backstop for the user's exclusion requests: swap
         // or drop any generated exercise matching a banned term, drawing swaps
         // from the same catalog the generation used. Makes AVOID compliance
@@ -1225,6 +1230,16 @@ ${exerciseContext}`;
     // repaired — these are exactly the "feature didn't listen" moments to watch.
     for (const finding of constraintFindings) {
       logger.warn("AVOID constraint violation repaired post-generation", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+
+    // [Duration] Surface days that the model under-programmed and we padded to
+    // hit the user's target — a signal to watch (how often, and by how much).
+    for (const finding of durationFindings) {
+      logger.warn("Under-target day padded to meet duration target", {
         userId,
         operation: "generateWeeklyWorkout",
         ...finding,
