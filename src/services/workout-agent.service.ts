@@ -39,6 +39,7 @@ import {
   WORKOUT_DAY_SCHEMA,
   WeekPlan,
   PromptFeedback,
+  FeedbackConflict,
 } from "@/utils/fanout-prompt-generator";
 import {
   buildPlanDaySchedule,
@@ -47,6 +48,7 @@ import {
   mentionsScheduleChange,
   resolveEffectiveSchedule,
   computeAdjacentDayPairs,
+  scheduleClampConflict,
 } from "@/utils/plan-schedule";
 import {
   getCurrentDateString,
@@ -940,10 +942,23 @@ ${exerciseContext}`;
         },
       });
     }
+    // [GQ-04] Assemble the "couldn't apply X because Y" list surfaced in-app:
+    // the planner's own semantic conflicts, plus a deterministic entry when the
+    // user asked for MORE workout days than their available days allow (the pure
+    // day-count case; a named-days request gets exactly what was named, so it
+    // can't clamp). This is the reliable, checkable half — the schedule math,
+    // not the model's judgment.
+    const feedbackConflicts: FeedbackConflict[] = [
+      ...(weekPlan.feedbackConflicts || []),
+    ];
+    const clampConflict = scheduleClampConflict(scheduleOverride, effective);
+    if (clampConflict) feedbackConflicts.push(clampConflict);
+
     logger.info("Fan-out planning call completed", {
       userId,
       returnedDayCount: weekPlan?.days?.length || 0,
       expectedDayCount,
+      feedbackConflictCount: feedbackConflicts.length,
       weekPlanName: weekPlan?.name,
       operation: "generateWeeklyWorkout",
     });
@@ -1393,6 +1408,9 @@ ${exerciseContext}`;
         description: weekPlan.description,
         workoutPlan,
         exercisesToAdd,
+        // [GQ-04] Ride along on the workout object so it's persisted and returned
+        // to the client for the "we adjusted your requests" banner.
+        feedbackConflicts,
       },
       tokenUsage: usageTotals,
       // [GQ-01] Hand the schedule back so persistence stamps the identical dates.

@@ -206,6 +206,39 @@ export function resolveEffectiveSchedule(
   return { availableDays, startDate, dayCount, overridden };
 }
 
+/**
+ * [GQ-04] Deterministic "couldn't apply X because Y" for the schedule: when the
+ * user asked for a specific NUMBER of workout days that exceeds their available
+ * days, resolveEffectiveSchedule clamps it — surface that as a feedback conflict
+ * for the in-app banner. A named-days request ("just Mon/Wed") can't clamp (they
+ * get exactly what they named), so it never produces a conflict here. Returns
+ * null when nothing was clamped (the normal case). Structurally a FeedbackConflict.
+ */
+export function scheduleClampConflict(
+  override: ScheduleOverride | undefined,
+  effective: EffectiveSchedule
+): { request: string; reason: string } | null {
+  const requested = override?.dayCount;
+  const namedSpecificDays = (override?.daysOfWeek?.length || 0) > 0;
+  if (
+    !override ||
+    namedSpecificDays ||
+    typeof requested !== "number" ||
+    !Number.isFinite(requested)
+  ) {
+    return null;
+  }
+  const req = Math.round(requested);
+  if (req <= effective.dayCount) return null;
+  const available = effective.availableDays.length;
+  return {
+    request: `${req} workout days this week`,
+    reason: `your profile has ${available} available training ${
+      available === 1 ? "day" : "days"
+    }, so the plan uses ${effective.dayCount}`,
+  };
+}
+
 const WEEKDAY_MENTION_RE =
   /\b(mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?|weekdays?)\b/i;
 

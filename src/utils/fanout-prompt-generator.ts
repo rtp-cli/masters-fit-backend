@@ -73,10 +73,26 @@ export interface WeekConstraints {
   };
 }
 
+/**
+ * [GQ-04] A specific thing the user asked for that the plan could NOT honor,
+ * plus the reason — surfaced in-app ("Couldn't apply X because Y") so the user
+ * understands why the generated week differs from their request instead of
+ * assuming it was ignored. The planner emits these for semantic conflicts it
+ * detects (contradictory/infeasible/unsafe asks); the service also appends
+ * deterministic ones (e.g. a schedule that had to be clamped).
+ */
+export interface FeedbackConflict {
+  /** The user's request, restated briefly, e.g. "6 workout days this week". */
+  request: string;
+  /** Why it couldn't be honored, e.g. "your profile has 3 available days". */
+  reason: string;
+}
+
 export interface WeekPlan {
   name: string;
   description: string;
   constraints?: WeekConstraints;
+  feedbackConflicts?: FeedbackConflict[];
   days: WeekPlanDay[];
 }
 
@@ -199,6 +215,27 @@ export const WEEK_PLAN_SCHEMA = {
         },
       },
       required: ["must", "avoid", "avoidExerciseTerms"],
+    },
+    feedbackConflicts: {
+      type: "array",
+      description:
+        "[GQ-04] Parts of the user's CURRENT custom feedback you could NOT fully honor, and why — surfaced to the user in-app. ONLY include a genuine conflict: a request that is self-contradictory ('avoid all leg work but focus on squats'), infeasible given their profile/equipment, or unsafe given their limitations. Do NOT list things you DID honor, and do NOT invent conflicts — an empty array is the normal case. Phrase each for the user: `request` = what they asked (short), `reason` = why it couldn't be applied (short, plain language).",
+      items: {
+        type: "object",
+        properties: {
+          request: {
+            type: "string",
+            description:
+              "The user's request, restated briefly, e.g. 'a squat-focused leg day with no leg exercises'.",
+          },
+          reason: {
+            type: "string",
+            description:
+              "Why it couldn't be honored, plain language, e.g. 'those requests contradict each other, so the day focuses on squats and related lower-body work'.",
+          },
+        },
+        required: ["request", "reason"],
+      },
     },
     days: {
       type: "array",

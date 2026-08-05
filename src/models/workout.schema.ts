@@ -36,6 +36,12 @@ export const workouts = pgTable("workouts", {
   isActive: boolean("is_active").default(true),
   name: text("name").notNull(),
   description: text("description"),
+  // [GQ-04] "Couldn't apply X because Y" — parts of the user's request the
+  // generated plan could not honor, surfaced in-app. Nullable/empty is the
+  // normal case (a plan that honored everything).
+  feedbackConflicts: jsonb("feedback_conflicts").$type<
+    { request: string; reason: string }[]
+  >(),
   completed: boolean("completed").default(false),
   // Lineage tag (AI_INITIAL | AI_NEW_PROGRAM | AI_REGENERATION | REST_DAY |
   // REPEAT | MANUAL). Descriptive metadata for analytics/debugging/cleanup —
@@ -186,7 +192,14 @@ export const planDayExerciseRelations = relations(
 );
 
 // Schemas for insert operations
-export const insertWorkoutSchema = createInsertSchema(workouts).omit({
+export const insertWorkoutSchema = createInsertSchema(workouts, {
+  // drizzle-zod types jsonb as a generic Json union; pin it to the real shape
+  // so InsertWorkout.feedbackConflicts matches the column's $type (GQ-04).
+  feedbackConflicts: z
+    .array(z.object({ request: z.string(), reason: z.string() }))
+    .nullable()
+    .optional(),
+}).omit({
   id: true,
   createdAt: true,
 });
