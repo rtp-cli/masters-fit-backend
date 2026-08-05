@@ -251,11 +251,31 @@ export const SCENARIOS: EvalScenario[] = [
 
   // ---- Duration compliance (known failure family at the extremes) ----
   {
+    id: "duration-60",
+    category: "duration",
+    description: "60-minute target must be met",
+    profile: baseProfile({
+      workoutDuration: 60,
+      availableDays: [PreferredDays.MONDAY, PreferredDays.WEDNESDAY, PreferredDays.FRIDAY],
+    }),
+    buildChecks: (_s, p) => [duration(p.workoutDuration || 60), noRepeat],
+  },
+  {
     id: "duration-long-75",
     category: "duration",
     description: "Long session: 75-minute target must be met",
     profile: baseProfile({ workoutDuration: 75, availableDays: [PreferredDays.MONDAY, PreferredDays.WEDNESDAY, PreferredDays.FRIDAY, PreferredDays.SATURDAY] }),
     buildChecks: (_s, p) => [duration(p.workoutDuration || 75), noRepeat],
+  },
+  {
+    id: "duration-90",
+    category: "duration",
+    description: "Very long session: 90-minute target must be met",
+    profile: baseProfile({
+      workoutDuration: 90,
+      availableDays: [PreferredDays.MONDAY, PreferredDays.WEDNESDAY, PreferredDays.SATURDAY],
+    }),
+    buildChecks: (_s, p) => [duration(p.workoutDuration || 90), noRepeat],
   },
   {
     id: "duration-short-20",

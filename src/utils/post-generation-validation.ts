@@ -10,6 +10,12 @@ import {
   EnforcementCatalogItem,
   ConstraintViolationFinding,
 } from "@/utils/constraint-enforcement";
+import {
+  padDaysToTargetDuration,
+  DurationPadFinding,
+} from "@/utils/duration-enforcement";
+
+const DURATION_TOLERANCE_MINUTES = 5;
 
 /**
  * [LR-019] The post-generation validation pipeline used by
@@ -48,6 +54,7 @@ export function applyPostGenerationValidation(
   workoutPlan: any[];
   repetitionFindings: ExerciseRepetitionFinding[];
   constraintFindings: ConstraintViolationFinding[];
+  durationFindings: DurationPadFinding[];
 } {
   const equipmentFiltered = validateEquipmentAndFilter(
     rawExercisesToAdd,
@@ -73,10 +80,21 @@ export function applyPostGenerationValidation(
   const { workoutPlan: cappedPlan, findings: repetitionFindings } =
     capExerciseRepetition(enforced.workoutPlan);
 
+  // [Duration] Runs LAST — pads any day still under the target after all the
+  // filtering/capping above (dropping exercises reduces duration, so this must
+  // see the final plan). No-op when the target is unknown or all days are in
+  // range.
+  const target = profile.workoutDuration || 0;
+  const { workoutPlan: finalPlan, findings: durationFindings } =
+    target > 0
+      ? padDaysToTargetDuration(cappedPlan, target, DURATION_TOLERANCE_MINUTES)
+      : { workoutPlan: cappedPlan, findings: [] as DurationPadFinding[] };
+
   return {
     exercisesToAdd: enforced.exercisesToAdd,
-    workoutPlan: cappedPlan,
+    workoutPlan: finalPlan,
     repetitionFindings,
     constraintFindings: enforced.findings,
+    durationFindings,
   };
 }
