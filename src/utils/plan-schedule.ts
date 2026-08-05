@@ -23,6 +23,15 @@ const DAYS_OF_WEEK = [
   "saturday",
 ];
 
+// [GQ-17] Safe fallback when a profile reaches generation with no available days.
+// A correctly onboarded profile always has >=1 day (Zod enforces min(1)), but the
+// DB column is nullable and the pre-generation guard was removed (LR-053), so a
+// stale/legacy/partial profile can arrive with availableDays null or []. The old
+// fallback used all 7 weekdays, which produced a 7-consecutive-day, zero-rest
+// week (the workout-468 symptom). Default instead to a conservative full-week
+// spread with rest built in, so a broken profile never yields a daily grind.
+export const DEFAULT_AVAILABLE_DAYS = ["monday", "wednesday", "friday"];
+
 const MONTHS_SHORT = [
   "Jan",
   "Feb",
@@ -72,12 +81,13 @@ export function buildPlanDaySchedule(
   startDate: string,
   dayCount?: number
 ): PlanDaySlot[] {
-  // Onboarding requires >=1 available day; default to the full week (in calendar
-  // order from today) if somehow absent, so callers never divide by an empty list.
+  // Onboarding requires >=1 available day; if somehow absent (stale/legacy
+  // profile — see DEFAULT_AVAILABLE_DAYS) fall back to a conservative spread so
+  // callers never divide by an empty list AND never get a 7-day zero-rest week.
   const days =
     availableDays && availableDays.length > 0
       ? availableDays
-      : [...DAYS_OF_WEEK];
+      : [...DEFAULT_AVAILABLE_DAYS];
 
   const [year, month, day] = startDate.split("-").map(Number);
   const todayIndex = new Date(year, month - 1, day).getDay();
@@ -147,7 +157,7 @@ export function resolveEffectiveSchedule(
   const baseDays =
     profileAvailableDays && profileAvailableDays.length > 0
       ? profileAvailableDays
-      : [...DAYS_OF_WEEK];
+      : [...DEFAULT_AVAILABLE_DAYS];
 
   const overrideDays = clean(override?.daysOfWeek);
   const availableDays = overrideDays.length > 0 ? overrideDays : baseDays;
