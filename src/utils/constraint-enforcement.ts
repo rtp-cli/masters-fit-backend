@@ -16,6 +16,9 @@
 export interface EnforcementCatalogItem {
   name: string;
   muscleGroups?: string[];
+  /** [GQ-11] Style tag (strength/crossfit/yoga/…) — used by the muscle-load
+   * repair to keep swaps within the same modality. Ignored by AVOID enforcement. */
+  tag?: string;
 }
 
 export interface ConstraintViolationFinding {

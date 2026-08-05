@@ -14,6 +14,15 @@ import {
   padDaysToTargetDuration,
   DurationPadFinding,
 } from "@/utils/duration-enforcement";
+import {
+  buildMuscleByExercise,
+  buildTagByExercise,
+  alignDaysToFocus,
+  computeDayMuscleLoad,
+  findConsecutiveMuscleOverlap,
+  FocusAlignmentFinding,
+  ConsecutiveOverlapFinding,
+} from "@/utils/muscle-load";
 
 const DURATION_TOLERANCE_MINUTES = 5;
 
@@ -48,6 +57,12 @@ export function applyPostGenerationValidation(
   constraintOptions?: {
     avoidExerciseTerms?: string[];
     catalog?: EnforcementCatalogItem[];
+    // [GQ-11] Per-day intended focus (canonical muscle groups, from the plan)
+    // and calendar-adjacent day pairs (from the schedule). When present, the
+    // pipeline aligns each day's exercises to its focus and logs residual
+    // consecutive-day muscle overlap.
+    dayFocus?: Map<number, string[]>;
+    adjacentPairs?: Array<[number, number]>;
   }
 ): {
   exercisesToAdd: any[];
@@ -55,6 +70,8 @@ export function applyPostGenerationValidation(
   repetitionFindings: ExerciseRepetitionFinding[];
   constraintFindings: ConstraintViolationFinding[];
   durationFindings: DurationPadFinding[];
+  muscleAlignmentFindings: FocusAlignmentFinding[];
+  muscleOverlapFindings: ConsecutiveOverlapFinding[];
 } {
   const equipmentFiltered = validateEquipmentAndFilter(
     rawExercisesToAdd,
@@ -80,15 +97,48 @@ export function applyPostGenerationValidation(
   const { workoutPlan: cappedPlan, findings: repetitionFindings } =
     capExerciseRepetition(enforced.workoutPlan);
 
+  // [GQ-11] Muscle-load alignment — swap off-focus filler exercises that
+  // incidentally overload a non-focus muscle for focus-matching ones (never
+  // removes focus work). Runs before the duration pad so the pad tops up any
+  // day the swaps left short. No-op without dayFocus/catalog.
+  const muscleByExercise = buildMuscleByExercise(
+    constraintOptions?.catalog || [],
+    enforced.exercisesToAdd
+  );
+  const tagByExercise = buildTagByExercise(
+    constraintOptions?.catalog || [],
+    enforced.exercisesToAdd
+  );
+  const aligned =
+    constraintOptions?.dayFocus && (constraintOptions?.catalog?.length || 0) > 0
+      ? alignDaysToFocus(
+          cappedPlan,
+          constraintOptions.dayFocus,
+          muscleByExercise,
+          constraintOptions.catalog || [],
+          tagByExercise,
+          constraintOptions.avoidExerciseTerms,
+          constraintOptions.adjacentPairs
+        )
+      : { workoutPlan: cappedPlan, findings: [] as FocusAlignmentFinding[] };
+
+  // [GQ-11] Residual consecutive-day overlap (post-alignment) — surfaced for
+  // visibility, the compliance signal the original forensics found missing.
+  const muscleOverlapFindings = constraintOptions?.adjacentPairs?.length
+    ? findConsecutiveMuscleOverlap(
+        aligned.workoutPlan.map((d) => computeDayMuscleLoad(d, muscleByExercise)),
+        constraintOptions.adjacentPairs
+      )
+    : [];
+
   // [Duration] Runs LAST — pads any day still under the target after all the
-  // filtering/capping above (dropping exercises reduces duration, so this must
-  // see the final plan). No-op when the target is unknown or all days are in
-  // range.
+  // filtering/capping/alignment above. No-op when the target is unknown or all
+  // days are in range.
   const target = profile.workoutDuration || 0;
   const { workoutPlan: finalPlan, findings: durationFindings } =
     target > 0
-      ? padDaysToTargetDuration(cappedPlan, target, DURATION_TOLERANCE_MINUTES)
-      : { workoutPlan: cappedPlan, findings: [] as DurationPadFinding[] };
+      ? padDaysToTargetDuration(aligned.workoutPlan, target, DURATION_TOLERANCE_MINUTES)
+      : { workoutPlan: aligned.workoutPlan, findings: [] as DurationPadFinding[] };
 
   return {
     exercisesToAdd: enforced.exercisesToAdd,
@@ -96,5 +146,7 @@ export function applyPostGenerationValidation(
     repetitionFindings,
     constraintFindings: enforced.findings,
     durationFindings,
+    muscleAlignmentFindings: aligned.findings,
+    muscleOverlapFindings,
   };
 }

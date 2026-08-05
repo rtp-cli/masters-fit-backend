@@ -27,7 +27,15 @@ import {
   getCurrentDateString,
   getCurrentDateStringInTimezone,
 } from "@/utils/date.utils";
-import { buildPlanDaySchedule } from "@/utils/plan-schedule";
+import {
+  buildPlanDaySchedule,
+  computeAdjacentDayPairs,
+} from "@/utils/plan-schedule";
+import {
+  computeDayMuscleLoad,
+  findConsecutiveMuscleOverlap,
+} from "@/utils/muscle-load";
+import { normalizeMuscleGroups } from "@/constants/muscle-groups";
 import {
   scoreWorkout,
   ExerciseMeta,
@@ -161,6 +169,39 @@ function scoreSchedule(
   return out;
 }
 
+function scoreMuscleBalance(
+  workout: ScoredWorkout,
+  meta: Map<string, { equipment: string[]; muscleGroups: string[] }>,
+  schedule: Array<{ dayNumber: number; weekday: string; date: string }>
+): CheckResult[] {
+  // Canonical muscle map for the load model.
+  const muscleByExercise = new Map<string, string[]>();
+  for (const [name, m] of meta) {
+    muscleByExercise.set(name, normalizeMuscleGroups(m.muscleGroups).groups);
+  }
+  const adjacency = computeAdjacentDayPairs(schedule as any);
+  const loads = (workout.workoutPlan || []).map((d) =>
+    computeDayMuscleLoad(d, muscleByExercise)
+  );
+  const overlaps = findConsecutiveMuscleOverlap(loads, adjacency);
+  const score = Math.max(0, 1 - overlaps.length / 3);
+  return [
+    {
+      id: "muscle-overlap",
+      label: "no consecutive-day muscle overload",
+      type: "muscleBalance",
+      score,
+      passed: overlaps.length === 0,
+      detail:
+        overlaps.length === 0
+          ? "no muscle heavily loaded on back-to-back days"
+          : overlaps
+              .map((o) => `${o.muscle} d${o.firstDay}+d${o.secondDay}`)
+              .join(", "),
+    },
+  ];
+}
+
 async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
   const { profile } = scenario;
   const startDate = profile.timezone
@@ -191,7 +232,10 @@ async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
       (result as any).schedule || [],
       workout
     );
-    const allChecks = [...scored.results, ...scheduleChecks];
+    const muscleChecks = scenario.checkMuscleBalance
+      ? scoreMuscleBalance(workout, meta, schedule)
+      : [];
+    const allChecks = [...scored.results, ...scheduleChecks, ...muscleChecks];
     const overall = allChecks.length
       ? allChecks.reduce((s, c) => s + c.score, 0) / allChecks.length
       : 0;

@@ -46,6 +46,7 @@ import {
   mentionsWeekday,
   mentionsScheduleChange,
   resolveEffectiveSchedule,
+  computeAdjacentDayPairs,
 } from "@/utils/plan-schedule";
 import {
   getCurrentDateString,
@@ -1206,6 +1207,8 @@ ${exerciseContext}`;
       repetitionFindings,
       constraintFindings,
       durationFindings,
+      muscleAlignmentFindings,
+      muscleOverlapFindings,
     } = applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile, {
         // [GQ-07] Deterministic backstop for the user's exclusion requests: swap
         // or drop any generated exercise matching a banned term, drawing swaps
@@ -1215,7 +1218,19 @@ ${exerciseContext}`;
         catalog: availableExercises.map((e: any) => ({
           name: e.name,
           muscleGroups: e.muscleGroups,
+          tag: e.tag, // [GQ-11] style tag keeps focus-alignment swaps same-modality
         })),
+        // [GQ-11] Per-day intended focus (from the plan) + calendar-adjacent day
+        // pairs (from the schedule) drive the muscle-load alignment + overlap
+        // check on the ACTUAL exercises. GQ11_ALIGN_DISABLED skips the alignment
+        // repair (overlap is still detected/logged) — used only to measure the
+        // before/after in the eval harness.
+        dayFocus: process.env.GQ11_ALIGN_DISABLED
+          ? undefined
+          : new Map(
+              weekPlan.days.map((d) => [d.day, d.primaryMuscleGroups || []])
+            ),
+        adjacentPairs: computeAdjacentDayPairs(schedule),
       });
 
     for (const finding of repetitionFindings) {
@@ -1240,6 +1255,23 @@ ${exerciseContext}`;
     // hit the user's target — a signal to watch (how often, and by how much).
     for (const finding of durationFindings) {
       logger.warn("Under-target day padded to meet duration target", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+
+    // [GQ-11] What the focus-alignment swapped, and any consecutive-day muscle
+    // overlap still present — the muscle-balance compliance signal.
+    for (const finding of muscleAlignmentFindings) {
+      logger.info("Realigned off-focus exercise to reduce muscle overload", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+    for (const finding of muscleOverlapFindings) {
+      logger.warn("Consecutive days heavily load the same muscle (residual)", {
         userId,
         operation: "generateWeeklyWorkout",
         ...finding,
