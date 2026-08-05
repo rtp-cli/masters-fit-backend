@@ -74,6 +74,33 @@ describe("padDaysToTargetDuration [duration backstop]", () => {
     expect(ex.sets).toBeLessThanOrEqual(6); // capped; can't reach 90 but never runs away
   });
 
+  it("does NOT pad a time-capped block (amrap) — would be fictitious minutes", () => {
+    const amrap = { blockType: "amrap", blockDurationMinutes: 12, timeCapMinutes: 12, rounds: 5, exercises: [{ exerciseName: "a", sets: 1 }, { exerciseName: "b", sets: 1 }] };
+    const plan = [day(1, [warmup(), amrap, cooldown()])]; // 18m, target 45
+    const res = padDaysToTargetDuration(plan, 45, 5);
+    expect(total(res.workoutPlan[0])).toBe(18); // unchanged
+    expect(res.findings).toHaveLength(0);
+    expect(res.workoutPlan[0].blocks[1].rounds).toBe(5); // rounds untouched
+  });
+
+  it("does NOT pad a rep-scheme block (for_time 21-15-9)", () => {
+    const forTime = { blockType: "for_time", blockDurationMinutes: 15, rounds: 3, protocolConfig: { repScheme: [21, 15, 9] }, exercises: [{ exerciseName: "t", sets: 1 }] };
+    const plan = [day(1, [warmup(), forTime, cooldown()])]; // 21m
+    const res = padDaysToTargetDuration(plan, 60, 5);
+    expect(total(res.workoutPlan[0])).toBe(21);
+    expect(res.workoutPlan[0].blocks[1].rounds).toBe(3);
+  });
+
+  it("does NOT overshoot past target+tolerance from one big-unit bump", () => {
+    // Single circuit at rounds=1 worth 30m; one round would jump 36 -> 66 for a
+    // 45m target (ceiling 50) — must be skipped, leaving the day under, not over.
+    const bigCircuit = { blockType: "circuit", blockDurationMinutes: 30, rounds: 1, exercises: [{ exerciseName: "c", sets: 1 }, { exerciseName: "d", sets: 1 }] };
+    const plan = [day(1, [warmup(), bigCircuit, cooldown()])]; // 36m
+    const res = padDaysToTargetDuration(plan, 45, 5);
+    expect(total(res.workoutPlan[0])).toBeLessThanOrEqual(50); // never overshoots
+    expect(res.workoutPlan[0].blocks[1].rounds).toBe(1); // not bumped
+  });
+
   it("skips padding when target is unknown (0)", () => {
     const plan = [day(1, [trad(30, [{ sets: 3 }])])];
     const res = padDaysToTargetDuration(plan, 0, 5);

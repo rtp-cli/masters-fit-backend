@@ -19,15 +19,14 @@
  */
 
 const WARMUP_COOLDOWN = new Set(["warmup", "cooldown"]);
-// Blocks whose duration scales with rounds rather than sets.
-const ROUNDS_BASED = new Set([
-  "circuit",
-  "amrap",
-  "emom",
-  "for_time",
-  "tabata",
-  "flow",
-]);
+// Blocks whose real duration scales with an extra ROUND (you simply do the
+// circuit/flow one more time). Deliberately EXCLUDES amrap/emom/tabata/for_time:
+// their duration is pinned by timeCapMinutes / a rep scheme / a fixed round
+// count, so bumping `rounds` would add minutes the user never actually trains
+// (the app runs the cap/scheme regardless).
+const ROUND_PADDABLE = new Set(["circuit", "flow"]);
+// Blocks whose real duration scales with an extra SET per exercise.
+const SET_PADDABLE = new Set(["traditional", "superset"]);
 
 const MAX_SETS_PER_EXERCISE = 6;
 const MAX_ROUNDS = 8;
@@ -46,43 +45,74 @@ const blockMinutes = (block: any): number => block.blockDurationMinutes || 0;
 const dayTotal = (day: any): number =>
   (day.blocks || []).reduce((s: number, b: any) => s + blockMinutes(b), 0);
 
-const isPadable = (block: any): boolean =>
-  !WARMUP_COOLDOWN.has(norm(block.blockType)) &&
-  Array.isArray(block.exercises) &&
-  block.exercises.length > 0;
-
 /**
- * Minutes one "unit" would add to a block (a round for rounds-based blocks, a
- * set-per-exercise for others), using the block's own reported duration as the
- * per-unit basis. Returns 0 when the block is capped or has no basis to estimate.
+ * How a block can be honestly grown, or null if it can't be:
+ *   "rounds" — a plain circuit/flow, +1 round;
+ *   "sets"   — a traditional/superset block, +1 set on each exercise.
+ * Time-capped or rep-scheme blocks (amrap/emom/tabata/for_time, or anything
+ * carrying timeCapMinutes / protocolConfig.repScheme) return null — their
+ * duration is fixed by the cap/scheme and padding them would be dishonest.
+ * Returns null once the block hits its set/round cap.
  */
-function unitGain(block: any): number {
-  const minutes = blockMinutes(block);
-  if (minutes <= 0) return 0;
-  if (ROUNDS_BASED.has(norm(block.blockType))) {
+function padMode(block: any): "rounds" | "sets" | null {
+  const type = norm(block.blockType);
+  if (WARMUP_COOLDOWN.has(type)) return null;
+  if (!Array.isArray(block.exercises) || block.exercises.length === 0) return null;
+  if ((block.blockDurationMinutes || 0) <= 0) return null;
+  // Duration pinned by a time cap or a rep scheme — never pad.
+  if ((block.timeCapMinutes || 0) > 0) return null;
+  if ((block.protocolConfig?.repScheme?.length || 0) > 0) return null;
+
+  if (ROUND_PADDABLE.has(type)) {
     const rounds = block.rounds && block.rounds > 0 ? block.rounds : 1;
-    if (rounds >= MAX_ROUNDS) return 0;
-    return minutes / rounds; // one more round
+    return rounds < MAX_ROUNDS ? "rounds" : null;
   }
-  const exercises = block.exercises || [];
-  const totalSets = exercises.reduce((s: number, e: any) => s + (e.sets || 0), 0);
-  const maxSets = exercises.reduce((m: number, e: any) => Math.max(m, e.sets || 0), 0);
-  if (totalSets <= 0 || maxSets >= MAX_SETS_PER_EXERCISE) return 0;
-  const perSet = minutes / totalSets;
-  return perSet * exercises.length; // one more set on each exercise
+  if (SET_PADDABLE.has(type)) {
+    const maxSets = block.exercises.reduce(
+      (m: number, e: any) => Math.max(m, e.sets || 0),
+      0
+    );
+    const totalSets = block.exercises.reduce(
+      (s: number, e: any) => s + (e.sets || 0),
+      0
+    );
+    return totalSets > 0 && maxSets < MAX_SETS_PER_EXERCISE ? "sets" : null;
+  }
+  return null;
 }
 
-/** Applies one unit to a block, mutating it, and returns the minutes added. */
-function applyUnit(block: any): number {
+/** Minutes one "unit" would add, using the block's own reported duration as the
+ * per-unit basis. 0 when the block can't be padded. */
+function unitGain(block: any): number {
+  const minutes = blockMinutes(block);
+  const mode = padMode(block);
+  if (mode === "rounds") {
+    const rounds = block.rounds && block.rounds > 0 ? block.rounds : 1;
+    return minutes / rounds; // one more round
+  }
+  if (mode === "sets") {
+    const totalSets = (block.exercises || []).reduce(
+      (s: number, e: any) => s + (e.sets || 0),
+      0
+    );
+    if (totalSets <= 0) return 0;
+    return (minutes / totalSets) * block.exercises.length; // +1 set each
+  }
+  return 0;
+}
+
+/** Applies one unit to a block, mutating it. blockDurationMinutes stays an
+ * integer so there's no cumulative rounding drift. */
+function applyUnit(block: any): void {
+  const mode = padMode(block);
   const gain = unitGain(block);
-  if (gain <= 0) return 0;
-  if (ROUNDS_BASED.has(norm(block.blockType))) {
+  if (gain <= 0) return;
+  if (mode === "rounds") {
     block.rounds = (block.rounds && block.rounds > 0 ? block.rounds : 1) + 1;
   } else {
     for (const ex of block.exercises || []) ex.sets = (ex.sets || 0) + 1;
   }
-  block.blockDurationMinutes = blockMinutes(block) + gain;
-  return gain;
+  block.blockDurationMinutes = Math.round(blockMinutes(block) + gain);
 }
 
 /**
@@ -110,31 +140,34 @@ export function padDaysToTargetDuration(
     }));
     const newDay = { ...day, blocks };
 
-    const padable = blocks.filter(isPadable);
+    const padable = blocks.filter((b: any) => padMode(b) !== null);
     if (padable.length === 0) return day; // nothing safe to grow
 
+    const ceiling = targetMinutes + toleranceMinutes;
     let iterations = 0;
     while (dayTotal(newDay) < floor && iterations < MAX_ITERATIONS) {
       iterations++;
-      // Pick the smallest positive unit for fine-grained control (avoids large
-      // overshoot from bumping a big block by a full round).
-      let target: any = null;
-      let smallest = Infinity;
+      const current = dayTotal(newDay);
+      // Choose the unit that fills the most of the remaining gap WITHOUT
+      // exceeding target+tolerance — so one big block (e.g. a 20-min circuit at
+      // rounds=1) can't overshoot from 51 to 71 on a single bump.
+      let choice: any = null;
+      let bestResulting = -Infinity;
       for (const b of padable) {
         const gain = unitGain(b);
-        if (gain > 0 && gain < smallest) {
-          smallest = gain;
-          target = b;
+        if (gain <= 0) continue;
+        const resulting = current + gain;
+        if (resulting <= ceiling && resulting > bestResulting) {
+          bestResulting = resulting;
+          choice = b;
         }
       }
-      if (!target) break; // everything capped
-      applyUnit(target);
+      if (!choice) break; // capped, or every remaining unit would overshoot
+      applyUnit(choice);
     }
 
-    // Round each padded block's minutes back to a clean integer.
-    for (const b of blocks) {
-      b.blockDurationMinutes = Math.round(blockMinutes(b));
-    }
+    // blockDurationMinutes stayed integer throughout, and only padded blocks
+    // changed — so an untouched day compares equal and logs no finding.
     const after = dayTotal(newDay);
     if (after !== before) {
       findings.push({ dayNumber: day.day, before, after, target: targetMinutes });

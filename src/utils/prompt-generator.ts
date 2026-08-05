@@ -341,16 +341,25 @@ export const getDurationRequirements = (
   const warmupMin = includeWarmup ? 3 : 0;
   const cooldownMin = includeCooldown ? 3 : 0;
   const mainMinutes = Math.max(0, workoutDuration - warmupMin - cooldownMin);
-  const mainBlockCount = Math.max(2, Math.round(mainMinutes / 15));
+  // ~15 min per main block, but at least 1, and derive the per-block minutes
+  // from the actual budget so the arithmetic is exact for short sessions too.
+  const mainBlockCount = Math.max(1, Math.round(mainMinutes / 15));
+  const perMainBlockMin = Math.max(1, Math.round(mainMinutes / mainBlockCount));
   const totalBlockCount =
     mainBlockCount + (includeWarmup ? 1 : 0) + (includeCooldown ? 1 : 0);
   const budgetParts = [
     includeWarmup ? "a 3-min warmup" : null,
-    `${mainBlockCount} MAIN blocks of ~15 min each (${mainMinutes} min total)`,
+    `${mainBlockCount} MAIN block${mainBlockCount === 1 ? "" : "s"} of ~${perMainBlockMin} min each (${mainMinutes} min total)`,
     includeCooldown ? "a 3-min cooldown" : null,
   ]
     .filter(Boolean)
     .join(" + ");
+  // Only warn against a too-small workout when the target actually needs more
+  // than a standard ~4-block session (avoids nonsense for 20-30 min sessions).
+  const tooSmallWarning =
+    totalBlockCount > 4
+      ? ` A "standard" 3-4 block workout is NOT enough for ${workoutDuration} minutes — you MUST program all ${mainBlockCount} main blocks.`
+      : "";
 
   return `
 ## DURATION REQUIREMENTS - MANDATORY COMPLIANCE
@@ -359,7 +368,7 @@ export const getDurationRequirements = (
 ${sessionReference} MUST be EXACTLY ${workoutDuration} minutes (acceptable range: ${workoutDuration - 5} to ${workoutDuration + 5} minutes).
 
 **DURATION BUDGET — build to this or you WILL fall short:**
-A ${workoutDuration}-minute session = ${budgetParts} = ${workoutDuration} minutes (${totalBlockCount} blocks total). A "standard" 3-4 block workout is NOT enough for ${workoutDuration} minutes — you MUST program all ${mainBlockCount} main blocks. A main block ≈ 3-5 exercises × 3-4 sets, or a circuit of 3-5 rounds (~13-16 min). Sum blockDurationMinutes and confirm it reaches ${workoutDuration} before returning.
+A ${workoutDuration}-minute session = ${budgetParts} = ${workoutDuration} minutes (${totalBlockCount} blocks total).${tooSmallWarning} A main block ≈ 3-5 exercises × 3-4 sets, or a circuit of 3-5 rounds. Sum blockDurationMinutes and confirm it reaches ${workoutDuration} (±5) before returning — do not overshoot either.
 
 **MANDATORY BLOCK DURATION CALCULATION:**
 For each block you create, you MUST calculate and specify the exact duration in minutes:
