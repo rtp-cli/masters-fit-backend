@@ -8,10 +8,11 @@
  * "muscle group overload" complaint that kicked off this whole effort (user 41).
  * This module computes per-day load from the real exercises (canonical muscle
  * groups from GQ-09), flags non-focus dominance and consecutive-day overlap, and
- * repairs it by ALIGNING each day to its intended focus: it swaps out only
- * "off-focus filler" exercises (ones doing ZERO focus work) for focus-matching
- * catalog exercises, so intended training is never removed — incidental overload
- * is strictly reduced.
+ * best-effort repairs it by ALIGNING each day to its intended focus — swapping an
+ * exercise that incidentally overloads a non-focus muscle for a same-modality
+ * catalog exercise that preserves the day's focus (see alignDaysToFocus). Its
+ * durable value is the compliance detection/observability the 8/03 forensics
+ * found missing; the repair fixes what it safely can and never degrades a day.
  */
 
 import { normalizeMuscleGroups } from "@/constants/muscle-groups";
@@ -46,7 +47,10 @@ export function buildMuscleByExercise(
     map.set(norm(item.name), (item.muscleGroups || []).map(norm));
   }
   for (const added of exercisesToAdd || []) {
-    if (!added?.name) continue;
+    // Catalog precedence: a real catalog entry is canonical, so an invented
+    // exercise that collides on name must NOT overwrite it (that's a tag/muscle
+    // poisoning vector).
+    if (!added?.name || map.has(norm(added.name))) continue;
     map.set(norm(added.name), normalizeMuscleGroups(added.muscleGroups).groups);
   }
   return map;
@@ -67,7 +71,11 @@ export function buildTagByExercise(
     if (item.tag) map.set(norm(item.name), norm(item.tag));
   }
   for (const added of exercisesToAdd || []) {
-    if (added?.name && added.tag) map.set(norm(added.name), norm(added.tag));
+    // Catalog precedence (see buildMuscleByExercise) — an invented exercise must
+    // not overwrite a real catalog tag.
+    if (added?.name && added.tag && !map.has(norm(added.name))) {
+      map.set(norm(added.name), norm(added.tag));
+    }
   }
   return map;
 }
@@ -188,17 +196,21 @@ const matchedAvoidTerm = (name: string, terms: string[]): boolean =>
   terms.some((t) => t && norm(name).includes(t));
 
 /**
- * [GQ-11] Deterministically reduces incidental non-focus muscle overload by
- * swapping OFF-FOCUS filler exercises (exercises doing zero focus work) for
- * focus-matching catalog exercises. Never touches an exercise that contributes
- * to the day's focus, so intended training is preserved — this can only make a
- * day MORE aligned with its planned focus. Bounded to `maxSwapsPerDay`.
+ * [GQ-11] Deterministically reduces incidental NON-focus muscle overload (within
+ * a day, or overlapping a calendar-adjacent day). It prefers to swap pure
+ * off-focus FILLER exercises (zero focus work); when the overload comes from a
+ * focus-doing compound instead, it may swap that compound too, but only for a
+ * replacement that (same modality) still covers the victim's focus muscle(s) and
+ * doesn't reload the overloaded one — so the intended stimulus is preserved, not
+ * removed. Best-effort and conservative: when no safe replacement exists it does
+ * nothing (much consecutive overlap in dense splits is inherent to compound
+ * movements and simply isn't safely swappable). Bounded to `maxSwapsPerDay`.
  */
 export function alignDaysToFocus(
   workoutPlan: any[],
   dayFocus: Map<number, string[]>,
   muscleByExercise: MuscleByExercise,
-  catalog: Array<{ name: string; muscleGroups?: string[] }>,
+  catalog: Array<{ name: string; muscleGroups?: string[]; tag?: string }>,
   tagByExercise: Map<string, string>,
   avoidTerms: string[] = [],
   adjacentPairs: Array<[number, number]> = [],
@@ -301,28 +313,36 @@ export function alignDaysToFocus(
         continue;
       }
 
-      // Replacement: SAME modality (style tag) as the victim, must NOT reload the
-      // overloaded muscle, must preserve the victim's focus contribution (or, for
-      // pure filler, hit any focus muscle), compliant + not already used. The
-      // same-tag rule prevents a strength lift being "balanced" into a recovery /
-      // mobility item that merely matches the muscle filter.
+      // Replacement: SAME modality (compare the candidate's OWN tag, not a
+      // name-keyed lookup that an invented exercise could poison), must NOT
+      // reload the overloaded muscle, must preserve the victim's focus
+      // contribution, compliant + not already used. Prefer a candidate whose
+      // PRIMARY (first) mover is one of the victim's focus muscles, so the
+      // intended stimulus is kept — fall back to any focus overlap.
       const wantFocus = victimFocus.length > 0 ? victimFocus : [...focus];
-      const replacement = compliantPool.find((c) => {
+      const eligible = (c: { name: string; muscleGroups?: string[]; tag?: string }) => {
         const cm = (c.muscleGroups || []).map(norm);
         return (
-          tagOf(c.name) === victimTag &&
+          norm(c.tag) === victimTag &&
           !usedNames.has(norm(c.name)) &&
           !cm.includes(overloaded) &&
           cm.some((x) => wantFocus.includes(x))
         );
-      });
+      };
+      const replacement =
+        compliantPool.find(
+          (c) =>
+            eligible(c) &&
+            wantFocus.includes(norm((c.muscleGroups || [])[0]))
+        ) || compliantPool.find(eligible);
       if (!replacement) {
         attempted.add(overloaded);
         continue;
       }
 
       const removed = victimBlock.exercises[victimIdx];
-      usedNames.delete(norm(removed.exerciseName));
+      // Keep the removed name in usedNames (tombstone) so a later swap on this
+      // day can't reinsert what we just removed.
       usedNames.add(norm(replacement.name));
       victimBlock.exercises[victimIdx] = {
         ...removed,

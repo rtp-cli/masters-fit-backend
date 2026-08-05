@@ -106,9 +106,9 @@ describe("alignDaysToFocus [GQ-11 repair]", () => {
     "Row w/ Shrug"
   );
   const catalog = [
-    { name: "Lat Pulldown", muscleGroups: ["back", "biceps"] },
-    { name: "Barbell Row", muscleGroups: ["back"] },
-    { name: "Face Pull", muscleGroups: ["back", "shoulders"] },
+    { name: "Lat Pulldown", muscleGroups: ["back", "biceps"], tag: "strength" },
+    { name: "Barbell Row", muscleGroups: ["back"], tag: "strength" },
+    { name: "Face Pull", muscleGroups: ["back", "shoulders"], tag: "strength" },
   ];
 
   it("swaps an off-focus filler exercise for a focus-matching one", () => {
@@ -129,8 +129,8 @@ describe("alignDaysToFocus [GQ-11 repair]", () => {
       ["Lat Pulldown", ["back", "biceps"]],
     ]);
     const cat = [
-      { name: "Sauna Session", muscleGroups: ["back"] },
-      { name: "Lat Pulldown", muscleGroups: ["back", "biceps"] },
+      { name: "Sauna Session", muscleGroups: ["back"], tag: "rehab" },
+      { name: "Lat Pulldown", muscleGroups: ["back", "biceps"], tag: "strength" },
     ];
     const tags = new Map([
       ["lateral raise", "strength"],
@@ -148,7 +148,7 @@ describe("alignDaysToFocus [GQ-11 repair]", () => {
       ["Compound Row", ["back", "shoulders"]],
       ["Lat Pulldown", ["back", "biceps"]],
     ]);
-    const cat = [{ name: "Lat Pulldown", muscleGroups: ["back", "biceps"] }];
+    const cat = [{ name: "Lat Pulldown", muscleGroups: ["back", "biceps"], tag: "strength" }];
     const plan = [day(1, [{ name: "Compound Row", sets: 20 }])]; // back 20, shoulders 10
     const res = alignDaysToFocus(plan, new Map([[1, ["back"]]]), cm, cat, allTags);
     expect(res.findings).toHaveLength(1);
@@ -163,7 +163,7 @@ describe("alignDaysToFocus [GQ-11 repair]", () => {
       ["Row w/ Shrug", ["back", "shoulders"]],
       ["Lat Pulldown", ["back", "biceps"]],
     ]);
-    const cat = [{ name: "Lat Pulldown", muscleGroups: ["back", "biceps"] }];
+    const cat = [{ name: "Lat Pulldown", muscleGroups: ["back", "biceps"], tag: "strength" }];
     const plan = [
       day(1, [{ name: "Overhead Press", sets: 20 }]),
       day(2, [{ name: "Row w/ Shrug", sets: 20 }]),
