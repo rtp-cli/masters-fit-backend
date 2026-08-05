@@ -220,7 +220,7 @@ describe("scheduleClampConflict [GQ-04]", () => {
     );
     expect(conflict).not.toBeNull();
     expect(conflict!.request).toContain("6 workout days");
-    expect(conflict!.reason).toContain("3 available training days");
+    expect(conflict!.reason).toContain("3 training days");
     expect(conflict!.reason).toContain("uses 3");
   });
 
@@ -230,6 +230,15 @@ describe("scheduleClampConflict [GQ-04]", () => {
       { availableDays: ["monday", "wednesday", "friday"], startDate: "2026-08-03", dayCount: 3, overridden: false }
     );
     expect(conflict).toBeNull();
+  });
+
+  it("ignores all-invalid daysOfWeek (matches resolveEffectiveSchedule) and still reports the day-count clamp", () => {
+    const conflict = scheduleClampConflict(
+      { daysOfWeek: ["someday", "funday"], dayCount: 6 },
+      { availableDays: ["monday", "wednesday", "friday"], startDate: "2026-08-03", dayCount: 3, overridden: true }
+    );
+    expect(conflict).not.toBeNull();
+    expect(conflict!.request).toContain("6 workout days");
   });
 
   it("returns null for a named-days request (can't clamp — the user gets exactly what they named)", () => {
@@ -256,7 +265,7 @@ describe("scheduleClampConflict [GQ-04]", () => {
       { dayCount: 4 },
       { availableDays: ["monday"], startDate: "2026-08-03", dayCount: 1, overridden: true }
     );
-    expect(conflict!.reason).toContain("1 available training day,");
+    expect(conflict!.reason).toContain("1 training day,");
   });
 });
 

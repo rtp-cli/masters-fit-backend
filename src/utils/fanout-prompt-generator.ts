@@ -219,7 +219,7 @@ export const WEEK_PLAN_SCHEMA = {
     feedbackConflicts: {
       type: "array",
       description:
-        "[GQ-04] Parts of the user's CURRENT custom feedback you could NOT fully honor, and why — surfaced to the user in-app. ONLY include a genuine conflict: a request that is self-contradictory ('avoid all leg work but focus on squats'), infeasible given their profile/equipment, or unsafe given their limitations. Do NOT list things you DID honor, and do NOT invent conflicts — an empty array is the normal case. Phrase each for the user: `request` = what they asked (short), `reason` = why it couldn't be applied (short, plain language).",
+        "[GQ-04] Parts of the user's CURRENT custom feedback you could NOT fully honor, and why — surfaced to the user in-app. ONLY include a genuine conflict: a request that is self-contradictory ('avoid all leg work but focus on squats'), infeasible given their profile/equipment, or unsafe given their limitations. Do NOT list things you DID honor, and do NOT invent conflicts — an empty array is the normal case. Do NOT report scheduling or day-count conflicts (how many days, or which weekdays) — those are detected separately, so listing them here would duplicate. Phrase each for the user: `request` = what they asked (short), `reason` = why it couldn't be applied (short, plain language).",
       items: {
         type: "object",
         properties: {
