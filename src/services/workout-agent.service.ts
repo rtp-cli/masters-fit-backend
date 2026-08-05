@@ -758,6 +758,15 @@ Please generate the workout now, addressing this feedback while following all sy
       (profile.timezone
         ? getCurrentDateStringInTimezone(profile.timezone)
         : getCurrentDateString());
+    // [GQ-17] A correctly onboarded profile always has >=1 available day, but the
+    // guard was removed (LR-053) and the column is nullable — surface the broken
+    // case so it's traceable instead of silently yielding the fallback schedule.
+    if (!profile.availableDays || profile.availableDays.length === 0) {
+      logger.warn(
+        "Profile reached generation with no availableDays — using DEFAULT_AVAILABLE_DAYS spread",
+        { userId, operation: "generateWeeklyWorkout" }
+      );
+    }
     // `let` because a GQ-02 scheduling override (extracted by the planning call)
     // can recompute this after planning.
     let schedule = buildPlanDaySchedule(
@@ -863,7 +872,7 @@ ${exerciseContext}`;
     });
     logger.info("Starting fan-out planning call", {
       userId,
-      expectedDayCount: profile.availableDays?.length || 7,
+      expectedDayCount: schedule.length,
       provider: this.currentProvider,
       // [GQ-15] Surface which model the planning call actually used, so the
       // Sonnet-on-override path is visible in logs alongside the eval metrics.

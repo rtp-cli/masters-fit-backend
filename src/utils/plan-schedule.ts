@@ -23,6 +23,32 @@ const DAYS_OF_WEEK = [
   "saturday",
 ];
 
+// [GQ-17] Safe fallback when a profile reaches generation with no available days.
+// A correctly onboarded profile always has >=1 day (Zod enforces min(1)), but the
+// DB column is nullable and the pre-generation guard was removed (LR-053), so a
+// stale/legacy/partial profile can arrive with availableDays null or []. The old
+// fallback used all 7 weekdays, which produced a 7-consecutive-day, zero-rest
+// week (the workout-468 symptom). Default instead to a conservative full-week
+// spread with rest built in, so a broken profile never yields a daily grind.
+export const DEFAULT_AVAILABLE_DAYS = ["monday", "wednesday", "friday"];
+
+/**
+ * [GQ-17] Single source of truth for "which days does this profile train on",
+ * with the safe fallback applied. Every day-count / day-list derivation (the
+ * schedule builder, the fan-out and serial prompt day counts, the profile
+ * summary text) must go through this so they can never disagree — the original
+ * bug was several independent `availableDays?.length || 7` fallbacks drifting
+ * apart, which let a broken profile get a 3-slot schedule but a "generate 7
+ * days" prompt.
+ */
+export function effectiveAvailableDays(
+  availableDays: string[] | null | undefined
+): string[] {
+  return availableDays && availableDays.length > 0
+    ? availableDays
+    : [...DEFAULT_AVAILABLE_DAYS];
+}
+
 const MONTHS_SHORT = [
   "Jan",
   "Feb",
@@ -72,12 +98,10 @@ export function buildPlanDaySchedule(
   startDate: string,
   dayCount?: number
 ): PlanDaySlot[] {
-  // Onboarding requires >=1 available day; default to the full week (in calendar
-  // order from today) if somehow absent, so callers never divide by an empty list.
-  const days =
-    availableDays && availableDays.length > 0
-      ? availableDays
-      : [...DAYS_OF_WEEK];
+  // Onboarding requires >=1 available day; if somehow absent (stale/legacy
+  // profile) fall back to a conservative spread so callers never divide by an
+  // empty list AND never get a 7-day zero-rest week (see effectiveAvailableDays).
+  const days = effectiveAvailableDays(availableDays);
 
   const [year, month, day] = startDate.split("-").map(Number);
   const todayIndex = new Date(year, month - 1, day).getDay();
@@ -144,10 +168,7 @@ export function resolveEffectiveSchedule(
     ),
   ];
 
-  const baseDays =
-    profileAvailableDays && profileAvailableDays.length > 0
-      ? profileAvailableDays
-      : [...DAYS_OF_WEEK];
+  const baseDays = effectiveAvailableDays(profileAvailableDays);
 
   const overrideDays = clean(override?.daysOfWeek);
   const availableDays = overrideDays.length > 0 ? overrideDays : baseDays;

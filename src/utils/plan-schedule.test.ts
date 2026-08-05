@@ -88,14 +88,33 @@ describe("buildPlanDaySchedule [GQ-01]", () => {
     expect(dates).toEqual([...dates].sort()); // strictly increasing
   });
 
-  it("defaults to a full 7-day week when availableDays is empty", () => {
-    const schedule = buildPlanDaySchedule([], "2026-08-03");
-    expect(schedule).toHaveLength(7);
-    expect(schedule[0]).toEqual({
-      dayNumber: 1,
-      weekday: "monday",
-      date: "2026-08-03",
-    });
+  // [GQ-17] A missing/empty availableDays used to fall back to all 7 weekdays,
+  // producing a zero-rest daily grind (the workout-468 symptom). It now falls
+  // back to the conservative DEFAULT_AVAILABLE_DAYS spread (Mon/Wed/Fri) — rest
+  // built in, never 7 consecutive workout days.
+  it("falls back to the Mon/Wed/Fri spread (not 7 days) when availableDays is empty", () => {
+    const schedule = buildPlanDaySchedule([], "2026-08-03"); // 2026-08-03 is a Monday
+    expect(schedule).toHaveLength(3);
+    expect(schedule.map((s) => s.weekday)).toEqual([
+      "monday",
+      "wednesday",
+      "friday",
+    ]);
+    expect(schedule.map((s) => s.date)).toEqual([
+      "2026-08-03",
+      "2026-08-05",
+      "2026-08-07",
+    ]);
+  });
+
+  it("falls back to the same spread when availableDays is null", () => {
+    const schedule = buildPlanDaySchedule(null, "2026-08-03");
+    expect(schedule).toHaveLength(3);
+    expect(schedule.map((s) => s.weekday)).toEqual([
+      "monday",
+      "wednesday",
+      "friday",
+    ]);
   });
 
   it("stays byte-identical to the legacy stamping rotation across cases", () => {

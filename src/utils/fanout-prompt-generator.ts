@@ -5,6 +5,7 @@ import {
   PlanDaySlot,
   formatSlotLabel,
   renderScheduleLines,
+  effectiveAvailableDays,
 } from "./plan-schedule";
 import {
   getEquipmentDescription,
@@ -475,7 +476,7 @@ const buildProfileContext = (profile: Profile): string => {
 
 **Training Preferences:**
 - Preferred Styles: ${profile.preferredStyles?.join(", ") || "General fitness"}
-- Available Days: ${profile.availableDays?.join(", ") || "All days"}
+- Available Days: ${effectiveAvailableDays(profile.availableDays).join(", ")}
 - Workout Duration: ${profile.workoutDuration} minutes per session
 - Environment: ${profile.environment}
 - Available Equipment: ${getEquipmentDescription(
@@ -586,7 +587,10 @@ export const buildPlanningUserMessage = (
   schedule: PlanDaySlot[],
   feedback?: PromptFeedback
 ): string => {
-  const dayCount = profile.availableDays?.length || 7;
+  // [GQ-17] Use the resolved schedule length (already reflects the safe fallback
+  // and any GQ-02 override) — never an independent availableDays count, which
+  // could disagree with the dates the schedule actually renders.
+  const dayCount = schedule.length;
 
   return `${buildProfileContext(profile)}
 
