@@ -2126,6 +2126,8 @@ export class WorkoutService extends BaseService {
                 deriveScoringType(originalBlock.blockType),
               protocolConfig: originalBlock.protocolConfig,
               blockName: originalBlock.blockName,
+              // [GQ-12] Preserve per-block muscle focus when copying a block.
+              primaryMuscleGroups: originalBlock.primaryMuscleGroups,
               blockDurationMinutes: originalBlock.blockDurationMinutes,
               timeCapMinutes: originalBlock.timeCapMinutes,
               rounds: originalBlock.rounds,
@@ -2194,6 +2196,8 @@ export class WorkoutService extends BaseService {
                 deriveScoringType(originalBlock.blockType),
               protocolConfig: originalBlock.protocolConfig,
               blockName: originalBlock.blockName,
+              // [GQ-12] Preserve per-block muscle focus when copying a block.
+              primaryMuscleGroups: originalBlock.primaryMuscleGroups,
               blockDurationMinutes: originalBlock.blockDurationMinutes,
               timeCapMinutes: originalBlock.timeCapMinutes,
               rounds: originalBlock.rounds,
@@ -2512,6 +2516,8 @@ export class WorkoutService extends BaseService {
             sourceBlock.scoringType ?? deriveScoringType(sourceBlock.blockType),
           protocolConfig: sourceBlock.protocolConfig,
           blockName: sourceBlock.blockName,
+          // [GQ-12] Preserve per-block muscle focus when copying a block.
+          primaryMuscleGroups: sourceBlock.primaryMuscleGroups,
           blockDurationMinutes: sourceBlock.blockDurationMinutes,
           timeCapMinutes: sourceBlock.timeCapMinutes,
           rounds: sourceBlock.rounds,
