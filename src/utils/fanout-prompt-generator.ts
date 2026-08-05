@@ -380,6 +380,12 @@ const BLOCK_SCHEMA = {
       type: "string",
       description: "Name of this block, e.g. 'AMRAP WOD', 'Strength Circuit'",
     },
+    primaryMuscleGroups: {
+      type: "array",
+      items: { type: "string", enum: CANONICAL_MUSCLE_GROUPS },
+      description:
+        "[GQ-12] The muscle groups THIS BLOCK targets, from the canonical list — the block's own focus, which can differ from other blocks on the same day. This is what unlocks mixed days: e.g. a focused strength block on ['chest'] followed by a conditioning block on ['full_body']. For a metcon/conditioning block that hits the whole body, use ['full_body']. Choose specific groups (quads, hamstrings) over umbrellas so the day's balance can be checked per block.",
+    },
     blockDurationMinutes: {
       type: "number",
       description: "Calculated total duration of this block in minutes",
@@ -435,6 +441,7 @@ const BLOCK_SCHEMA = {
   required: [
     "blockType",
     "blockName",
+    "primaryMuscleGroups",
     "blockDurationMinutes",
     "timeCapMinutes",
     "rounds",
@@ -722,6 +729,7 @@ Requirements:
 - Honor the USER CONSTRAINTS above: include everything under MUST and never include anything under AVOID. This OVERRIDES style/variety/focus defaults — if honoring a constraint removes an obvious exercise (even one that fits the day perfectly), pick a compliant alternative instead.
 - Total duration MUST be ${profile.workoutDuration || 30} minutes (±5). Sum of blockDurationMinutes must hit this target — add blocks/exercises as needed.
 - Stay authentic to the assigned styles and focus; this day must complement (not repeat) the rest of the week shown above
+- [GQ-12] Give EACH block its own \`primaryMuscleGroups\` — the muscles that block trains. Blocks on the same day may target different muscles: this is how you build mixed days like a focused strength block (e.g. ['chest']) followed by a conditioning block (e.g. ['full_body']). Match the block's exercises to its stated focus; use ['full_body'] for whole-body metcon/conditioning blocks.
 - Use a variety of exercises: do NOT repeat the same exercise more than twice in this workout, and distribute the work across this day's primary muscle groups
 - Use EXACT exercise names from the AVAILABLE EXERCISES list; put any new exercises in exercisesToAdd
 - Set day = ${day.day} in your response

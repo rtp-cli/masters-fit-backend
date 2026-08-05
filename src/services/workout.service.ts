@@ -86,6 +86,7 @@ type DBWorkoutResult = {
       planDayId: number;
       blockType: string | null;
       blockName: string | null;
+      primaryMuscleGroups?: string[] | null;
       blockDurationMinutes: number | null;
       timeCapMinutes: number | null;
       rounds: number | null;
@@ -153,6 +154,7 @@ type DBWorkoutQueryResult = {
       planDayId: number;
       blockType: string | null;
       blockName: string | null;
+      primaryMuscleGroups?: string[] | null;
       blockDurationMinutes: number | null;
       timeCapMinutes: number | null;
       rounds: number | null;
@@ -250,6 +252,8 @@ export class WorkoutService extends BaseService {
           id: block.id,
           blockType: block.blockType ?? undefined,
           blockName: block.blockName ?? undefined,
+          // [GQ-12] Per-block muscle focus (for display / future per-block features).
+          primaryMuscleGroups: block.primaryMuscleGroups ?? undefined,
           blockDurationMinutes: block.blockDurationMinutes ?? undefined,
           timeCapMinutes: block.timeCapMinutes ?? undefined,
           rounds: block.rounds ?? undefined,
@@ -1176,6 +1180,11 @@ export class WorkoutService extends BaseService {
             scoringType: deriveScoringType(block.blockType),
             protocolConfig: normalizeProtocolConfig(block.protocolConfig),
             blockName: block.blockName,
+            // [GQ-12] Per-block muscle focus.
+            primaryMuscleGroups:
+              block.primaryMuscleGroups && block.primaryMuscleGroups.length > 0
+                ? block.primaryMuscleGroups
+                : undefined,
             blockDurationMinutes: block.blockDurationMinutes != null ? Math.floor(block.blockDurationMinutes) : undefined,
             timeCapMinutes: block.timeCapMinutes != null ? Math.floor(block.timeCapMinutes) : undefined,
             rounds: block.rounds != null ? Math.floor(block.rounds) : undefined,
@@ -1615,6 +1624,11 @@ export class WorkoutService extends BaseService {
             scoringType: deriveScoringType(block.blockType),
             protocolConfig: normalizeProtocolConfig(block.protocolConfig),
             blockName: block.blockName,
+            // [GQ-12] Per-block muscle focus.
+            primaryMuscleGroups:
+              block.primaryMuscleGroups && block.primaryMuscleGroups.length > 0
+                ? block.primaryMuscleGroups
+                : undefined,
             blockDurationMinutes: block.blockDurationMinutes != null ? Math.floor(block.blockDurationMinutes) : undefined,
             timeCapMinutes: block.timeCapMinutes != null ? Math.floor(block.timeCapMinutes) : undefined,
             rounds: block.rounds != null ? Math.floor(block.rounds) : undefined,

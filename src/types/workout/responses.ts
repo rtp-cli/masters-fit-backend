@@ -39,6 +39,8 @@ export interface WorkoutBlock {
   id: number;
   blockType?: string;
   blockName?: string;
+  // [GQ-12] Per-block muscle focus (can differ across blocks on the same day).
+  primaryMuscleGroups?: string[];
   blockDurationMinutes?: number;
   timeCapMinutes?: number;
   rounds?: number;
