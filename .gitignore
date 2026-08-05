@@ -12,3 +12,5 @@ eval-runs/
 
 # GQ-09 migration rollback snapshots (contain exercise data)
 muscle-taxonomy-rollback-*.json
+
+.DS_Store
