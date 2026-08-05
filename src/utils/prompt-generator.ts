@@ -621,6 +621,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
         {
           "blockType": "traditional" | "superset" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
           "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow')",
+          "primaryMuscleGroups": ["string[] — the muscle groups THIS block targets; blocks on one day may differ, e.g. a strength block on ['chest'] then a full-body metcon on ['full_body']"],
           "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
           "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
           "rounds": number (number of rounds for circuit/flow types, use 1 for traditional sets),
@@ -996,6 +997,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
         {
           "blockType": "traditional" | "superset" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
           "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow')",
+          "primaryMuscleGroups": ["string[] — the muscle groups THIS block targets; blocks on one day may differ, e.g. a strength block on ['chest'] then a full-body metcon on ['full_body']"],
           "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
           "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
           "rounds": number (number of rounds for circuit/flow types, use 1 for traditional sets),
@@ -1334,6 +1336,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
     {
       "blockType": "traditional" | "superset" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
       "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow')",
+      "primaryMuscleGroups": ["string[] — the muscle groups THIS block targets; blocks on one day may differ, e.g. a strength block on ['chest'] then a full-body metcon on ['full_body']"],
       "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
       "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
       "rounds": number (number of rounds for circuit/flow types, use 1 for traditional sets),

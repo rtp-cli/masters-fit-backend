@@ -187,6 +187,40 @@ describe("validateWeeklyGenerationResponse (serial path)", () => {
     expect(c.rpe).toBeUndefined(); // 0 = "not applicable" per prompt
   });
 
+  it("[GQ-12] preserves per-block primaryMuscleGroups", () => {
+    const res = validateWeeklyGenerationResponse({
+      workoutPlan: [
+        {
+          ...validDay,
+          blocks: [
+            { ...validBlock, primaryMuscleGroups: ["chest"] },
+            {
+              ...validBlock,
+              order: 2,
+              primaryMuscleGroups: ["full_body"],
+              exercises: [validExercise],
+            },
+          ],
+        },
+      ],
+    });
+    expect(res.workoutPlan[0].blocks[0].primaryMuscleGroups).toEqual(["chest"]);
+    expect(res.workoutPlan[0].blocks[1].primaryMuscleGroups).toEqual([
+      "full_body",
+    ]);
+  });
+
+  it("[GQ-12] defaults primaryMuscleGroups to [] when a block omits it", () => {
+    const { primaryMuscleGroups: _omit, ...blockNoFocus } = {
+      ...validBlock,
+      primaryMuscleGroups: undefined as unknown as string[],
+    };
+    const res = validateWeeklyGenerationResponse({
+      workoutPlan: [{ ...validDay, blocks: [blockNoFocus] }],
+    });
+    expect(res.workoutPlan[0].blocks[0].primaryMuscleGroups).toEqual([]);
+  });
+
   it("keeps off-list blockType values (frontend falls back to traditional rendering)", () => {
     const result = validateWeeklyGenerationResponse({
       workoutPlan: [
