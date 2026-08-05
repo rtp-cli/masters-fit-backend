@@ -228,6 +228,24 @@ export function mentionsScheduleChange(text: string | null | undefined): boolean
 }
 
 /**
+ * [GQ-11] Pairs of day numbers whose scheduled dates are calendar-consecutive
+ * (one day apart) — so muscle-overlap checks only compare days that are actually
+ * back-to-back, not days separated by a rest day.
+ */
+export function computeAdjacentDayPairs(
+  schedule: PlanDaySlot[]
+): Array<[number, number]> {
+  const sorted = [...schedule].sort((a, b) => a.date.localeCompare(b.date));
+  const pairs: Array<[number, number]> = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (addDays(sorted[i].date, 1) === sorted[i + 1].date) {
+      pairs.push([sorted[i].dayNumber, sorted[i + 1].dayNumber]);
+    }
+  }
+  return pairs;
+}
+
+/**
  * Human/LLM-friendly label for a slot, e.g. "Thursday, Aug 6". Pure string math
  * off the YYYY-MM-DD date — never constructs a Date in a way that could shift
  * across a timezone boundary.

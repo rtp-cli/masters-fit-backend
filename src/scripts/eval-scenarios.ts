@@ -86,7 +86,8 @@ export interface EvalScenario {
     | "format"
     | "duration"
     | "calendar"
-    | "scheduling";
+    | "scheduling"
+    | "muscle";
   description: string;
   profile: Profile;
   customFeedback?: string;
@@ -101,6 +102,8 @@ export interface EvalScenario {
     weekdays?: string[];
     firstWeekday?: string;
   };
+  /** [GQ-11] Score consecutive-day muscle overload on the generated exercises. */
+  checkMuscleBalance?: boolean;
 }
 
 /** Finds the 1-based day number a given weekday maps to for this scenario's schedule. */
@@ -294,6 +297,27 @@ export const SCENARIOS: EvalScenario[] = [
       ],
     }),
     buildChecks: (_s, p) => [duration(p.workoutDuration || 20)],
+  },
+
+  // ---- Muscle-load balance (GQ-11) ----
+  {
+    id: "muscle-balance-6day",
+    category: "muscle",
+    description: "6 consecutive training days — no muscle should be hammered back-to-back",
+    profile: baseProfile({
+      goals: [FitnessGoals.MUSCLE_GAIN, FitnessGoals.STRENGTH],
+      preferredStyles: [PreferredStyles.STRENGTH, PreferredStyles.FUNCTIONAL],
+      availableDays: [
+        PreferredDays.MONDAY,
+        PreferredDays.TUESDAY,
+        PreferredDays.WEDNESDAY,
+        PreferredDays.THURSDAY,
+        PreferredDays.FRIDAY,
+        PreferredDays.SATURDAY,
+      ],
+    }),
+    buildChecks: (_s, p) => [duration(p.workoutDuration || 45), noRepeat],
+    checkMuscleBalance: true,
   },
 
   // ---- Scheduling overrides (GQ-02) ----
