@@ -872,7 +872,7 @@ ${exerciseContext}`;
     });
     logger.info("Starting fan-out planning call", {
       userId,
-      expectedDayCount: profile.availableDays?.length || 7,
+      expectedDayCount: schedule.length,
       provider: this.currentProvider,
       // [GQ-15] Surface which model the planning call actually used, so the
       // Sonnet-on-override path is visible in logs alongside the eval metrics.

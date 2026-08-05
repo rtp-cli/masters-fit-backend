@@ -32,6 +32,23 @@ const DAYS_OF_WEEK = [
 // spread with rest built in, so a broken profile never yields a daily grind.
 export const DEFAULT_AVAILABLE_DAYS = ["monday", "wednesday", "friday"];
 
+/**
+ * [GQ-17] Single source of truth for "which days does this profile train on",
+ * with the safe fallback applied. Every day-count / day-list derivation (the
+ * schedule builder, the fan-out and serial prompt day counts, the profile
+ * summary text) must go through this so they can never disagree — the original
+ * bug was several independent `availableDays?.length || 7` fallbacks drifting
+ * apart, which let a broken profile get a 3-slot schedule but a "generate 7
+ * days" prompt.
+ */
+export function effectiveAvailableDays(
+  availableDays: string[] | null | undefined
+): string[] {
+  return availableDays && availableDays.length > 0
+    ? availableDays
+    : [...DEFAULT_AVAILABLE_DAYS];
+}
+
 const MONTHS_SHORT = [
   "Jan",
   "Feb",
@@ -82,12 +99,9 @@ export function buildPlanDaySchedule(
   dayCount?: number
 ): PlanDaySlot[] {
   // Onboarding requires >=1 available day; if somehow absent (stale/legacy
-  // profile — see DEFAULT_AVAILABLE_DAYS) fall back to a conservative spread so
-  // callers never divide by an empty list AND never get a 7-day zero-rest week.
-  const days =
-    availableDays && availableDays.length > 0
-      ? availableDays
-      : [...DEFAULT_AVAILABLE_DAYS];
+  // profile) fall back to a conservative spread so callers never divide by an
+  // empty list AND never get a 7-day zero-rest week (see effectiveAvailableDays).
+  const days = effectiveAvailableDays(availableDays);
 
   const [year, month, day] = startDate.split("-").map(Number);
   const todayIndex = new Date(year, month - 1, day).getDay();
@@ -154,10 +168,7 @@ export function resolveEffectiveSchedule(
     ),
   ];
 
-  const baseDays =
-    profileAvailableDays && profileAvailableDays.length > 0
-      ? profileAvailableDays
-      : [...DEFAULT_AVAILABLE_DAYS];
+  const baseDays = effectiveAvailableDays(profileAvailableDays);
 
   const overrideDays = clean(override?.daysOfWeek);
   const availableDays = overrideDays.length > 0 ? overrideDays : baseDays;

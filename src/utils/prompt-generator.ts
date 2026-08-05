@@ -1,5 +1,6 @@
 import { Profile } from "@/models";
 import { WorkoutEnvironments } from "@/constants/profile";
+import { effectiveAvailableDays } from "@/utils/plan-schedule";
 
 export const getEquipmentDescription = (
   environment?: string | null,
@@ -586,8 +587,8 @@ const getJsonOutputFormat = (profile: Profile): string => {
 **WEEKLY PLAN FORMAT - MANDATORY**
 - This is a WEEKLY workout plan format
 - You MUST generate multiple days
-- The workoutPlan array MUST contain exactly ${profile.availableDays?.length || 7} workout day objects
-- Each day MUST be numbered sequentially (1 to ${profile.availableDays?.length || 7})
+- The workoutPlan array MUST contain exactly ${effectiveAvailableDays(profile.availableDays).length} workout day objects
+- Each day MUST be numbered sequentially (1 to ${effectiveAvailableDays(profile.availableDays).length})
 - NEVER return just one day's workout
 - The workout plan name must be a name for the entire workout. DO NOT include things like "Days 1-2" in the plan name, it should be a holistic name. For example "Advanced Strength + HIIT" is a valid workout name, "Advanced Strength and HIIT (Days 1-2)" is an INVALID workout name.
 
@@ -737,9 +738,9 @@ export const buildClaudePrompt = (
 
 **CRITICAL WEEKLY PLAN REQUIREMENT**
 This is a WEEKLY workout plan generator. You MUST:
-1. Generate workouts for ALL ${profile.availableDays?.length || 7} days
+1. Generate workouts for ALL ${effectiveAvailableDays(profile.availableDays).length} days
 2. Return a complete weekly plan, not a single day
-3. Include exactly ${profile.availableDays?.length || 7} days in the workoutPlan array
+3. Include exactly ${effectiveAvailableDays(profile.availableDays).length} days in the workoutPlan array
 4. Number days sequentially (1, 2, 3, etc.)
 5. NEVER return just one day's workout
 
@@ -768,7 +769,7 @@ ${
 
 You are an experienced fitness trainer and certified fitness professional. Your role is to design complete, professional-quality workout programs that are authentic to the user's preferred training styles while respecting their limitations and constraints.
 
-**CRITICAL INSTRUCTION: You MUST generate a COMPLETE WEEKLY workout plan with ${profile.availableDays?.length || 7} days. Do NOT generate just one day - generate the entire week.**
+**CRITICAL INSTRUCTION: You MUST generate a COMPLETE WEEKLY workout plan with ${effectiveAvailableDays(profile.availableDays).length} days. Do NOT generate just one day - generate the entire week.**
 
 **JSON RESPONSE REQUIREMENTS:**
 - **VALID JSON ONLY**: Your entire response must be parseable JSON - no markdown, no explanations outside the JSON structure
@@ -793,7 +794,7 @@ You are an experienced fitness trainer and certified fitness professional. Your 
 
 **Training Preferences:**
 - Preferred Styles: ${profile.preferredStyles?.join(", ") || "General fitness"}
-- Available Days: ${profile.availableDays?.join(", ") || "All days"}
+- Available Days: ${effectiveAvailableDays(profile.availableDays).join(", ")}
 - Workout Duration: ${workoutDuration} minutes per session
 - Environment: ${profile.environment || "not specified"}
 - Available Equipment: ${getEquipmentDescription(
@@ -809,12 +810,12 @@ ${getConstraintIntegrationProtocol()}
 ## CORE REQUIREMENTS
 
 ### 1. SCHEDULING REQUIREMENTS
-- **Generate exactly ${profile.availableDays?.length || 7} workout days**
-- **Map each day to actual available days:** ${profile.availableDays?.join(", ") || "All days"}
+- **Generate exactly ${effectiveAvailableDays(profile.availableDays).length} workout days**
+- **Map each day to actual available days:** ${effectiveAvailableDays(profile.availableDays).join(", ")}
 - **Each day MUST have a complete workout** - no empty or incomplete days
-- **Number days sequentially from 1 to ${profile.availableDays?.length || 7}**
-- **CRITICAL: You MUST generate ALL ${profile.availableDays?.length || 7} days, not just one day**
-- **The workoutPlan array MUST contain exactly ${profile.availableDays?.length || 7} workout day objects**
+- **Number days sequentially from 1 to ${effectiveAvailableDays(profile.availableDays).length}**
+- **CRITICAL: You MUST generate ALL ${effectiveAvailableDays(profile.availableDays).length} days, not just one day**
+- **The workoutPlan array MUST contain exactly ${effectiveAvailableDays(profile.availableDays).length} workout day objects**
 
 ### 2. STYLE INTEGRATION REQUIREMENTS
 - **If multiple styles selected:** Each day must include blocks for each style OR distribute styles across the week
@@ -842,7 +843,7 @@ ${getCriticalConstraints("weekly")}
 ${getStyleMixingExamples()}
 
 **FINAL REMINDER:**
-- Generate complete weekly plan with ${profile.availableDays?.length || 7} days
+- Generate complete weekly plan with ${effectiveAvailableDays(profile.availableDays).length} days
 - Calculate and verify each session meets ${workoutDuration} minutes (±5 minutes)
 - Make adjustments as needed to meet duration requirements
 
@@ -939,7 +940,7 @@ You are an experienced fitness trainer and certified fitness professional. Your 
 
 **Training Preferences:**
 - Preferred Styles: ${profile.preferredStyles?.join(", ") || "General fitness"}
-- Available Days: ${profile.availableDays?.join(", ") || "All days"}
+- Available Days: ${effectiveAvailableDays(profile.availableDays).join(", ")}
 - Workout Duration: ${workoutDuration} minutes per session
 - Environment: ${profile.environment}
 - Available Equipment: ${getEquipmentDescription(

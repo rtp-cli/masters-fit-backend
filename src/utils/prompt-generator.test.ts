@@ -49,9 +49,13 @@ describe("buildClaudePrompt [LR-053]", () => {
     expect(prompt).not.toContain("Environment: null");
   });
 
-  it("defaults availableDays to a 7-day week when null", () => {
+  // [GQ-17] A null/empty availableDays used to default to a 7-day week (a
+  // zero-rest grind); it now falls back to the conservative 3-day
+  // DEFAULT_AVAILABLE_DAYS spread, so the prompt asks for 3 days, not 7.
+  it("defaults availableDays to the 3-day spread when null (not 7)", () => {
     const prompt = buildClaudePrompt(minimalProfile, []);
-    expect(prompt).toContain("ALL 7 days");
+    expect(prompt).toContain("ALL 3 days");
+    expect(prompt).not.toContain("ALL 7 days");
   });
 
   it("still uses the profile's real values when they ARE present (no regression)", () => {
