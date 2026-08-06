@@ -19,6 +19,8 @@ import { z } from "zod";
 import { users } from "@/models/user.schema";
 import { exercises } from "@/models/exercise.schema";
 import { prompts } from "@/models/prompts.schema";
+import { trainingLocations } from "@/models/training-location.schema";
+import type { TrainingLocationSnapshot } from "@/models/training-location.schema";
 import { relations } from "drizzle-orm";
 import type { WorkoutSourceType } from "@/constants/access-policy";
 
@@ -75,6 +77,16 @@ export const planDays = pgTable("plan_days", {
   description: text("description"), // Description of the workout day
   dayNumber: integer("day_number"), // Day number in the workout plan
   isComplete: boolean("is_complete").default(false),
+  // Provenance pointer to the training location this session was built for.
+  // Nullable (one-off / "Bodyweight only" / legacy rows). ON DELETE SET NULL so
+  // deleting a place does not block deletion or alter the frozen snapshot below.
+  locationId: integer("location_id").references(() => trainingLocations.id, {
+    onDelete: "set null",
+  }),
+  // Frozen where-you-trained snapshot (spec §2.2 / §9). Source of truth for the
+  // session's location/equipment — read this, never a live join. Nullable for
+  // legacy rows created before this feature.
+  locationSnapshot: jsonb("location_snapshot").$type<TrainingLocationSnapshot>(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -252,6 +264,8 @@ export interface PlanDay {
   name: string | null;
   description: string | null;
   dayNumber: number | null;
+  locationId: number | null;
+  locationSnapshot: TrainingLocationSnapshot | null;
   createdAt: Date;
   updatedAt: Date;
 }

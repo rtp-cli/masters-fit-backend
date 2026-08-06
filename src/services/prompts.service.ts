@@ -523,7 +523,14 @@ export class PromptsService extends BaseService {
     isRestDay: boolean = false,
     threadId?: string,
     signal?: AbortSignal,
-    durationOverride?: number
+    durationOverride?: number,
+    // Per-session equipment (training-locations §10.1): rebuilding today's
+    // workout around a DIFFERENT place than the profile's usual one. Overriding
+    // environment+equipment on the per-generation profile clone reaches both the
+    // prompt (buildFanoutSystemPrompt) and the exercise-pool filter
+    // (getFilteredExercises), exactly as durationOverride reaches the duration
+    // constraints. The stored profile is untouched — this is a one-off.
+    locationOverride?: { environment: string; equipment: string[] }
   ): Promise<PromptGenerationResult> {
     const storedProfile = await profileService.getProfileByUserId(userId);
     if (!storedProfile) {
@@ -535,10 +542,17 @@ export class PromptsService extends BaseService {
     // duration constraint in the prompt (and the post-generation budget
     // check) uses it — previously it rode along as prose in the reason while
     // the prompt kept demanding the stored profile duration.
-    const profile =
+    let profile =
       durationOverride !== undefined
         ? { ...storedProfile, workoutDuration: durationOverride }
         : storedProfile;
+    if (locationOverride) {
+      profile = {
+        ...profile,
+        environment: locationOverride.environment as any,
+        equipment: locationOverride.equipment as any,
+      };
+    }
 
     // Create user-specific workout agent
     const workoutAgent = await this.createUserWorkoutAgent(userId);

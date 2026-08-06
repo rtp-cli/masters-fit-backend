@@ -5,6 +5,7 @@ import {
   getEquipmentForEnvironment,
   WorkoutEnvironments,
 } from "@/constants/profile";
+import { trainingLocationService } from "@/services/training-location.service";
 
 export class ProfileService extends BaseService {
   async getProfileByUserId(userId: number): Promise<Profile | undefined> {
@@ -70,14 +71,39 @@ export class ProfileService extends BaseService {
         .set(updateFields)
         .where(this.eq(profiles.userId, profileData.userId))
         .returning();
-      return result[0];
+      const saved = result[0];
+      await this.syncPrimaryLocation(saved);
+      return saved;
     }
 
     const result = await this.db
       .insert(profiles)
       .values({ ...processedData, userId: profileData.userId })
       .returning();
-    return result[0];
+    const saved = result[0];
+    await this.syncPrimaryLocation(saved);
+    return saved;
+  }
+
+  /**
+   * Keep the user's PRIMARY training location in lock-step with the profile's
+   * environment+equipment. Making this the same code path as the profile write
+   * is what makes the primary row a dependent mirror rather than a second
+   * independently-writable copy (see training-location.service). Best-effort:
+   * a location-sync hiccup must not fail the profile save the user asked for.
+   */
+  private async syncPrimaryLocation(profile: Profile | undefined): Promise<void> {
+    if (!profile?.environment) return;
+    try {
+      await trainingLocationService.syncPrimaryFromProfile(
+        profile.userId,
+        profile.environment,
+        profile.equipment
+      );
+    } catch (err) {
+      // Non-fatal: the profile is saved; the mirror can be reconciled later.
+      // Logged inside the service's retry wrapper.
+    }
   }
 
   private processProfileData(profileData: any): any {

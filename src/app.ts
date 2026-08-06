@@ -18,6 +18,7 @@ import { llmMetricsRouter } from "@/routes/llm-metrics.routes";
 import { adminRouter } from "@/routes/admin.routes";
 import { feedbackRouter } from "@/routes/feedback.routes";
 import { shareRouter } from "@/routes/share.routes";
+import { trainingLocationRouter } from "@/routes/training-location.routes";
 import * as Sentry from "@sentry/node";
 import { errorHandler } from "@/middleware/error.middleware";
 import { pool } from "@/config/database.js";
@@ -138,6 +139,7 @@ app.use("/api/admin/llm-metrics", llmMetricsRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/feedback", feedbackRouter);
 app.use("/api/share", shareRouter);
+app.use("/api/training-locations", trainingLocationRouter);
 
 // Health check endpoint
 app.get("/api/health", async (req, res) => {

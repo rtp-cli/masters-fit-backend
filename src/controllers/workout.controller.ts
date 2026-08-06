@@ -428,6 +428,18 @@ export class WorkoutController extends Controller {
       limitations?: string[];
       threadId?: string;
       durationOverride?: number;
+      // Rebuild-around-a-location (training-locations §7/1d): the equipment set
+      // and frozen snapshot for the place the user is training at today.
+      locationOverride?: {
+        environment: string;
+        equipment: string[];
+        snapshot: {
+          locationId: number | null;
+          name: string;
+          environment: string;
+          equipment: string[];
+        };
+      };
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
     // Session-minutes override from the Adjust modal. Clamp to a sane range;
@@ -438,6 +450,8 @@ export class WorkoutController extends Controller {
       requestBody.durationOverride <= 180
         ? Math.floor(requestBody.durationOverride)
         : undefined;
+
+    const locationOverride = requestBody.locationOverride;
 
     logger.info("Async daily workout regeneration requested", {
       userId,
@@ -461,6 +475,7 @@ export class WorkoutController extends Controller {
           regenerationStyles: requestBody.styles,
           threadId: requestBody.threadId,
           durationOverride,
+          locationOverride,
         }
       );
 
@@ -476,6 +491,7 @@ export class WorkoutController extends Controller {
         regenerationStyles: requestBody.styles,
         threadId: requestBody.threadId,
         durationOverride,
+        locationOverride,
       };
 
       await workoutGenerationQueue.add("regenerate-daily-workout", jobData, {
