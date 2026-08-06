@@ -24,3 +24,4 @@ export * from "@/services/subscription.service";
 export * from "@/services/app-feedback.service";
 export * from "@/services/email.service";
 export * from "@/services/share.service";
+export * from "@/services/training-location.service";

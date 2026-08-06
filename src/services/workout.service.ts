@@ -1405,7 +1405,21 @@ export class WorkoutService extends BaseService {
     regenerationStyles?: string[],
     threadId?: string,
     jobId?: number,
-    durationOverride?: number
+    durationOverride?: number,
+    // Per-session location (training-locations §7/§10.1): when the user rebuilds
+    // today's workout around a different place, generation uses this equipment
+    // set and the resulting day records the location snapshot. Loose shape to
+    // match the job payload; cast to TrainingLocationSnapshot at the jsonb write.
+    locationOverride?: {
+      environment: string;
+      equipment: string[];
+      snapshot: {
+        locationId: number | null;
+        name: string;
+        environment: string;
+        equipment: string[];
+      };
+    }
   ): Promise<PlanDayWithExercises> {
     const startTime = Date.now();
 
@@ -1536,7 +1550,13 @@ export class WorkoutService extends BaseService {
         isRestDayContext,
         threadId,
         undefined, // signal
-        durationOverride
+        durationOverride,
+        locationOverride
+          ? {
+              environment: locationOverride.environment,
+              equipment: locationOverride.equipment,
+            }
+          : undefined
       );
 
       // Emit 85% — AI response received; mark the day done so the checkmark
@@ -1686,7 +1706,9 @@ export class WorkoutService extends BaseService {
       emitProgress(userId, 99);
 
       // Update the plan day with new instructions, name, and description from response
-      // Reset isComplete to false since this is a new regenerated workout
+      // Reset isComplete to false since this is a new regenerated workout.
+      // When this regeneration was a rebuild-around-a-location, freeze the
+      // session's location snapshot on the day so history stays true (§9).
       await this.db
         .update(planDays)
         .set({
@@ -1694,6 +1716,12 @@ export class WorkoutService extends BaseService {
           description: response.description || existingPlanDay.description,
           instructions: response.instructions,
           isComplete: false,
+          ...(locationOverride
+            ? {
+                locationId: locationOverride.snapshot.locationId,
+                locationSnapshot: locationOverride.snapshot as any,
+              }
+            : {}),
           updatedAt: new Date(),
         })
         .where(eq(planDays.id, planDayId));
@@ -1784,6 +1812,37 @@ export class WorkoutService extends BaseService {
       emitProgress(userId, 0, false, (error as Error).message);
       throw error;
     }
+  }
+
+  /**
+   * Record which training location a session was built for, WITHOUT regenerating
+   * (spec §9). Used by the picker when the chosen place needs no rebuild, and to
+   * stamp the location on a completed session. Writes the frozen snapshot — never
+   * a live join — so later renames/deletes of the place don't rewrite history.
+   * Verifies the plan day belongs to the user before writing.
+   */
+  async setPlanDayLocation(
+    userId: number,
+    planDayId: number,
+    snapshot: import("@/models/training-location.schema").TrainingLocationSnapshot
+  ): Promise<void> {
+    const owned = await this.db
+      .select({ id: planDays.id })
+      .from(planDays)
+      .innerJoin(workouts, eq(planDays.workoutId, workouts.id))
+      .where(and(eq(planDays.id, planDayId), eq(workouts.userId, userId)))
+      .limit(1);
+    if (owned.length === 0) {
+      throw new Error("Plan day not found");
+    }
+    await this.db
+      .update(planDays)
+      .set({
+        locationId: snapshot.locationId,
+        locationSnapshot: snapshot,
+        updatedAt: new Date(),
+      })
+      .where(eq(planDays.id, planDayId));
   }
 
   /**

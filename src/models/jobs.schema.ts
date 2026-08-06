@@ -169,6 +169,21 @@ export interface DailyRegenerationJobData {
    * constraint, which kept demanding profile.workoutDuration.
    */
   durationOverride?: number;
+  /**
+   * Rebuild-around-a-location (training-locations §7/1d). The equipment set drives
+   * this generation; the snapshot is frozen onto the plan day so history stays
+   * true. Absent for an ordinary Adjust regeneration.
+   */
+  locationOverride?: {
+    environment: string;
+    equipment: string[];
+    snapshot: {
+      locationId: number | null;
+      name: string;
+      environment: string;
+      equipment: string[];
+    };
+  };
 }
 
 export interface DailyRegenerationJobResult {

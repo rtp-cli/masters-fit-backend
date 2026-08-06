@@ -16,3 +16,4 @@ export * from "@/models/app-feedback.schema";
 export * from "@/models/exercise-exclusion.schema";
 export * from "@/models/impersonation-audit.schema";
 export * from "@/models/account-deletion-log.schema";
+export * from "@/models/training-location.schema";

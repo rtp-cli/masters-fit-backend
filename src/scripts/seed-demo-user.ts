@@ -36,6 +36,7 @@ import { aiOperations } from "@/models/ai-operations.schema";
 import { exercises } from "@/models/exercise.schema";
 import { shareLinks } from "@/models/share.schema";
 import { impersonationAudit } from "@/models/impersonation-audit.schema";
+import { trainingLocations } from "@/models/training-location.schema";
 import { SubscriptionStatus } from "@/constants";
 import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
 import {
@@ -425,6 +426,17 @@ async function deleteDemoUser(): Promise<void> {
   await db.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
   await db.delete(profiles).where(eq(profiles.userId, userId));
   await db.delete(prompts).where(eq(prompts.userId, userId));
+  // training_locations references the user (no cascade) — clear before the user.
+  // workouts.location_id is ON DELETE SET NULL, so order vs workouts doesn't matter.
+  // The table may be absent on DBs where the feature hasn't shipped yet (e.g. prod
+  // before its migration), so swallow only the "undefined table" error (42P01).
+  try {
+    await db
+      .delete(trainingLocations)
+      .where(eq(trainingLocations.userId, userId));
+  } catch (err) {
+    if ((err as { code?: string })?.code !== "42P01") throw err;
+  }
   // impersonation_audit references the user as admin or target — clear before the user.
   await db
     .delete(impersonationAudit)
