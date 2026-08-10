@@ -3542,6 +3542,127 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"TrainingLocation": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"userId": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"environment": {
+						"$ref": "#/components/schemas/WorkoutEnvironment"
+					},
+					"equipment": {
+						"items": {
+							"$ref": "#/components/schemas/AvailableEquipment"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"isPrimary": {
+						"type": "boolean"
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"name",
+					"environment",
+					"equipment",
+					"isPrimary",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateLocationBody": {
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Display name for the saved place, e.g. \"Group session\"."
+					},
+					"environment": {
+						"type": "string",
+						"description": "Enum value: home_gym | commercial_gym | bodyweight_only."
+					},
+					"equipment": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Only meaningful for home_gym; resolved server-side otherwise."
+					}
+				},
+				"required": [
+					"name",
+					"environment"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateLocationBody": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"environment": {
+						"type": "string"
+					},
+					"equipment": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetDayLocationBody": {
+				"properties": {
+					"locationId": {
+						"type": "number",
+						"format": "double",
+						"nullable": true,
+						"description": "Provenance; null for a one-off or the standing \"Bodyweight only\" pick."
+					},
+					"name": {
+						"type": "string"
+					},
+					"environment": {
+						"type": "string"
+					},
+					"equipment": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"locationId",
+					"name",
+					"environment",
+					"equipment"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"WorkoutBlockWithExercise": {
 				"properties": {
 					"id": {
@@ -3624,6 +3745,12 @@
 					},
 					"blockName": {
 						"type": "string"
+					},
+					"primaryMuscleGroups": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
 					},
 					"blockDurationMinutes": {
 						"type": "number",
@@ -3734,6 +3861,24 @@
 					},
 					"description": {
 						"type": "string"
+					},
+					"feedbackConflicts": {
+						"items": {
+							"properties": {
+								"reason": {
+									"type": "string"
+								},
+								"request": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"reason",
+								"request"
+							],
+							"type": "object"
+						},
+						"type": "array"
 					},
 					"startDate": {
 						"type": "string"
@@ -3880,6 +4025,20 @@
 					},
 					"updatedAt": {},
 					"promptId": {},
+					"feedbackConflicts": {
+						"items": {
+							"properties": {
+								"reason": {
+									"type": "string"
+								},
+								"request": {
+									"type": "string"
+								}
+							},
+							"type": "object"
+						},
+						"type": "array"
+					},
 					"completed": {},
 					"sourceType": {
 						"type": "string"
@@ -9702,6 +9861,357 @@
 				}
 			}
 		},
+		"/training-locations/{userId}": {
+			"get": {
+				"operationId": "List",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"locations": {
+											"items": {
+												"$ref": "#/components/schemas/TrainingLocation"
+											},
+											"type": "array"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"locations",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "All of a user's places, primary first (spec §5 / §8).",
+				"tags": [
+					"TrainingLocations"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "Create",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"location": {
+											"$ref": "#/components/schemas/TrainingLocation"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"location",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Save a new secondary place (spec §6 \"Save this place\").",
+				"tags": [
+					"TrainingLocations"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateLocationBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/training-locations/{userId}/{locationId}": {
+			"put": {
+				"operationId": "Update",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"location": {
+											"$ref": "#/components/schemas/TrainingLocation"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"location",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Rename / re-equip a place (spec §8 place detail).",
+				"tags": [
+					"TrainingLocations"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "path",
+						"name": "locationId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateLocationBody"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "Remove",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Remove a saved secondary and free a slot (spec §8).",
+				"tags": [
+					"TrainingLocations"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "path",
+						"name": "locationId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/training-locations/{userId}/{locationId}/make-primary": {
+			"post": {
+				"operationId": "MakePrimary",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"location": {
+											"$ref": "#/components/schemas/TrainingLocation"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"location",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Promote a secondary to primary (\"Make my usual place\", spec §8).",
+				"tags": [
+					"TrainingLocations"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "path",
+						"name": "locationId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/training-locations/{userId}/plan-day/{planDayId}": {
+			"put": {
+				"operationId": "SetDayLocation",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Record the session's location on a plan day WITHOUT regenerating (spec §9).\nThe picker uses this when the chosen place needs no rebuild — it freezes the\nsnapshot so history stays true even if the place is later renamed/deleted.",
+				"tags": [
+					"TrainingLocations"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetDayLocationBody"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/workouts/{userId}": {
 			"get": {
 				"operationId": "GetUserWorkouts",
@@ -10514,6 +11024,53 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"locationOverride": {
+										"properties": {
+											"snapshot": {
+												"properties": {
+													"equipment": {
+														"items": {
+															"type": "string"
+														},
+														"type": "array"
+													},
+													"environment": {
+														"type": "string"
+													},
+													"name": {
+														"type": "string"
+													},
+													"locationId": {
+														"type": "number",
+														"format": "double",
+														"nullable": true
+													}
+												},
+												"required": [
+													"equipment",
+													"environment",
+													"name",
+													"locationId"
+												],
+												"type": "object"
+											},
+											"equipment": {
+												"items": {
+													"type": "string"
+												},
+												"type": "array"
+											},
+											"environment": {
+												"type": "string"
+											}
+										},
+										"required": [
+											"snapshot",
+											"equipment",
+											"environment"
+										],
+										"type": "object"
+									},
 									"durationOverride": {
 										"type": "number",
 										"format": "double"
