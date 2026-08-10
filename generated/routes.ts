@@ -25,6 +25,8 @@ import { SearchController } from './../src/controllers/search.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { SubscriptionController } from './../src/controllers/subscription.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { TrainingLocationController } from './../src/controllers/training-location.controller';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { WorkoutController } from './../src/controllers/workout.controller';
 import { expressAuthentication } from './../src/middleware/auth.middleware';
 // @ts-ignore - no great way to install types from subpackage
@@ -1253,6 +1255,52 @@ const models: TsoaRoute.Models = {
         "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "TrainingLocation": {
+        "dataType": "refObject",
+        "properties": {
+            "id": {"dataType":"double","required":true},
+            "userId": {"dataType":"double","required":true},
+            "name": {"dataType":"string","required":true},
+            "environment": {"ref":"WorkoutEnvironment","required":true},
+            "equipment": {"dataType":"union","subSchemas":[{"dataType":"array","array":{"dataType":"refAlias","ref":"AvailableEquipment"}},{"dataType":"enum","enums":[null]}],"required":true},
+            "isPrimary": {"dataType":"boolean","required":true},
+            "createdAt": {"dataType":"datetime","required":true},
+            "updatedAt": {"dataType":"datetime","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "CreateLocationBody": {
+        "dataType": "refObject",
+        "properties": {
+            "name": {"dataType":"string","required":true},
+            "environment": {"dataType":"string","required":true},
+            "equipment": {"dataType":"array","array":{"dataType":"string"}},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "UpdateLocationBody": {
+        "dataType": "refObject",
+        "properties": {
+            "name": {"dataType":"string"},
+            "environment": {"dataType":"string"},
+            "equipment": {"dataType":"array","array":{"dataType":"string"}},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "SetDayLocationBody": {
+        "dataType": "refObject",
+        "properties": {
+            "locationId": {"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true},
+            "name": {"dataType":"string","required":true},
+            "environment": {"dataType":"string","required":true},
+            "equipment": {"dataType":"array","array":{"dataType":"string"},"required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "WorkoutBlockWithExercise": {
         "dataType": "refObject",
         "properties": {
@@ -1281,6 +1329,7 @@ const models: TsoaRoute.Models = {
             "instructions": {"dataType":"string"},
             "blockType": {"dataType":"string"},
             "blockName": {"dataType":"string"},
+            "primaryMuscleGroups": {"dataType":"array","array":{"dataType":"string"}},
             "blockDurationMinutes": {"dataType":"double"},
             "timeCapMinutes": {"dataType":"double"},
             "rounds": {"dataType":"double"},
@@ -1316,6 +1365,7 @@ const models: TsoaRoute.Models = {
             "userId": {"dataType":"double","required":true},
             "name": {"dataType":"string","required":true},
             "description": {"dataType":"string"},
+            "feedbackConflicts": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"reason":{"dataType":"string","required":true},"request":{"dataType":"string","required":true}}}},
             "startDate": {"dataType":"string","required":true},
             "endDate": {"dataType":"string","required":true},
             "promptId": {"dataType":"double","required":true},
@@ -1367,7 +1417,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_InsertWorkout_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"isActive":{"dataType":"any"},"startDate":{"dataType":"string"},"endDate":{"dataType":"string"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"completed":{"dataType":"any"},"sourceType":{"dataType":"string"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"isActive":{"dataType":"any"},"startDate":{"dataType":"string"},"endDate":{"dataType":"string"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"feedbackConflicts":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"reason":{"dataType":"string"},"request":{"dataType":"string"}}}},"completed":{"dataType":"any"},"sourceType":{"dataType":"string"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PlanDayResponse": {
@@ -3829,6 +3879,169 @@ export function RegisterRoutes(app: Router) {
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/training-locations/:userId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController)),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController.prototype.list)),
+
+            function TrainingLocationController_list(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new TrainingLocationController();
+
+
+              const promise = controller.list.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/training-locations/:userId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController)),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController.prototype.create)),
+
+            function TrainingLocationController_create(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    body: {"in":"body","name":"body","required":true,"ref":"CreateLocationBody"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new TrainingLocationController();
+
+
+              const promise = controller.create.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 201, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.put('/training-locations/:userId/:locationId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController)),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController.prototype.update)),
+
+            function TrainingLocationController_update(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    locationId: {"in":"path","name":"locationId","required":true,"dataType":"double"},
+                    body: {"in":"body","name":"body","required":true,"ref":"UpdateLocationBody"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new TrainingLocationController();
+
+
+              const promise = controller.update.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/training-locations/:userId/:locationId/make-primary',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController)),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController.prototype.makePrimary)),
+
+            function TrainingLocationController_makePrimary(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    locationId: {"in":"path","name":"locationId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new TrainingLocationController();
+
+
+              const promise = controller.makePrimary.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.delete('/training-locations/:userId/:locationId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController)),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController.prototype.remove)),
+
+            function TrainingLocationController_remove(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    locationId: {"in":"path","name":"locationId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new TrainingLocationController();
+
+
+              const promise = controller.remove.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.put('/training-locations/:userId/plan-day/:planDayId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController)),
+            ...(fetchMiddlewares<RequestHandler>(TrainingLocationController.prototype.setDayLocation)),
+
+            function TrainingLocationController_setDayLocation(request: any, response: any, next: any) {
+            const args = {
+                    userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
+                    planDayId: {"in":"path","name":"planDayId","required":true,"dataType":"double"},
+                    body: {"in":"body","name":"body","required":true,"ref":"SetDayLocationBody"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new TrainingLocationController();
+
+
+              const promise = controller.setDayLocation.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         app.get('/workouts/:userId',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(WorkoutController)),
@@ -4133,7 +4346,7 @@ export function RegisterRoutes(app: Router) {
             const args = {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
                     planDayId: {"in":"path","name":"planDayId","required":true,"dataType":"double"},
-                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"durationOverride":{"dataType":"double"},"threadId":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"styles":{"dataType":"array","array":{"dataType":"string"}},"reason":{"dataType":"string","required":true}}},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"locationOverride":{"dataType":"nestedObjectLiteral","nestedProperties":{"snapshot":{"dataType":"nestedObjectLiteral","nestedProperties":{"equipment":{"dataType":"array","array":{"dataType":"string"},"required":true},"environment":{"dataType":"string","required":true},"name":{"dataType":"string","required":true},"locationId":{"dataType":"union","subSchemas":[{"dataType":"double"},{"dataType":"enum","enums":[null]}],"required":true}},"required":true},"equipment":{"dataType":"array","array":{"dataType":"string"},"required":true},"environment":{"dataType":"string","required":true}}},"durationOverride":{"dataType":"double"},"threadId":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"styles":{"dataType":"array","array":{"dataType":"string"}},"reason":{"dataType":"string","required":true}}},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
