@@ -1665,6 +1665,15 @@ export class WorkoutService extends BaseService {
                 exercise.exerciseName
               );
               if (exerciseDetails) {
+                // When getExerciseByName substituted a different catalog row
+                // (fuzzy `ilike` fallback), the LLM's note describes the
+                // movement it MEANT to prescribe, not the one we resolved to —
+                // keeping it would mislabel the substituted exercise (e.g. a
+                // burpee cue on a side plank). Drop the note in that case; a
+                // missing cue beats a wrong one.
+                const nameSubstituted =
+                  exercise.exerciseName.trim().toLowerCase() !==
+                  exerciseDetails.name.trim().toLowerCase();
                 const newExercise = await this.createPlanDayExercise({
                   workoutBlockId: newBlock.id, // Use the NEW block ID!
                   exerciseId: exerciseDetails.id,
@@ -1677,7 +1686,7 @@ export class WorkoutService extends BaseService {
                   restTime: exercise.restTime,
                   distanceM: exercise.distanceM,
                   rpe: exercise.rpe,
-                  notes: exercise.notes,
+                  notes: nameSubstituted ? null : exercise.notes,
                   order: exercise.order,
                 });
                 newExercises.push(newExercise);

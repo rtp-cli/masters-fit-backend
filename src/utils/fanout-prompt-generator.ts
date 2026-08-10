@@ -353,7 +353,8 @@ const EXERCISE_SCHEMA = {
     },
     notes: {
       type: "string",
-      description: "One concise coaching cue, max ~12 words",
+      description:
+        "One concise coaching cue (max ~12 words) for THIS exercise specifically — how to execute THIS movement (tempo, form, effort). Never describe, name, or cue a different exercise.",
     },
     order: {
       type: "number",
@@ -430,7 +431,7 @@ const BLOCK_SCHEMA = {
     instructions: {
       type: "string",
       description:
-        "Block coaching instructions: format, pacing, execution. Max 3 sentences.",
+        "Block coaching instructions: format, pacing, execution. Max 3 sentences. Describe the block generically — do NOT name specific exercises or restate rep/weight numbers (they're listed per exercise and may be adjusted downstream, which would leave this text stale).",
     },
     order: {
       type: "number",
@@ -492,12 +493,13 @@ export const WORKOUT_DAY_SCHEMA = {
     name: { type: "string", description: "Name of this workout day" },
     description: {
       type: "string",
-      description: "Brief description of this day's focus",
+      description:
+        "Brief description of this day's training intent (e.g. 'Lower-body strength with a short conditioning finisher'). Do NOT enumerate specific exercises, weights, or reps.",
     },
     instructions: {
       type: "string",
       description:
-        "Day-level coaching: overall flow, pacing, intensity, safety. Max 4 sentences.",
+        "Day-level coaching: block order, pacing, intensity, safety. Max 4 sentences. Describe STRATEGY, not a rundown — do NOT list specific exercise names, weights, or rep counts (those appear per exercise below and may be adjusted downstream, which leaves any restatement here stale). Refer to blocks by role, e.g. 'the strength block', 'the conditioning finisher'.",
     },
     blocks: { type: "array", items: BLOCK_SCHEMA },
     exercisesToAdd: {

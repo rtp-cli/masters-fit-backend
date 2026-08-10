@@ -558,13 +558,14 @@ Prioritize coaching quality over token efficiency:
   * **MINDSET COACHING**: Add motivational elements and mental approach guidance
   * **SAFETY NOTES**: Include any precautions or modifications for the workout style
   * **BREATHING PATTERNS**: When relevant, mention breathing cues for the training style
+  * **NO EXERCISE RUNDOWN**: Describe STRATEGY and refer to blocks by role (e.g. "the strength block", "the conditioning finisher"). Do NOT list specific exercise names, weights, or rep counts — those appear per exercise and may be adjusted downstream, which would leave any restatement here stale and contradicting the plan.
   Examples of comprehensive instructions:
   * HIIT: Include circuit structure, work/rest ratios, intensity targets, transition guidance, and encouragement
   * Strength: Cover rest periods, progression cues, form emphasis, and safety considerations
   * Yoga: Mention breath coordination, flow transitions, holding guidance, and mindfulness cues
 - **EXERCISE-LEVEL NOTES**: Include specific coaching cues in individual exercise notes field:
   * Movement quality cues, intensity guidance, form reminders, breathing patterns, or motivational elements
-  * Make notes specific to the exercise and training style context
+  * Make each note specific to THIS exercise — describe how to execute THIS movement. Never describe, name, or cue a different exercise.
   * **WEIGHT TARGETING:** Assign specific weights when exercises require resistance equipment:
     - **Strength Training:** Specify weights for all resistance exercises (barbells, dumbbells, kettlebells, machines)
     - **HIIT/CrossFit:** Include weights for weighted movements (thrusters, swings, loaded carries)  
