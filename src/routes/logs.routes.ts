@@ -90,6 +90,58 @@ router.get(
   }
 );
 
+// Delete an exercise's logs — one round (edit-log demotion, SPEC §9). Declared
+// before the all-rounds route so the more specific path wins.
+router.delete(
+  "/exercise/:planDayExerciseId/:round",
+  requireAuth,
+  requireOwnership("planDayExercise", "planDayExerciseId"),
+  async (req, res) => {
+    try {
+      const result = await logsService.deleteExerciseLog(
+        Number(req.params.planDayExerciseId),
+        Number(req.params.round)
+      );
+      res.json(result);
+    } catch (error) {
+      handleError(error, res);
+    }
+  }
+);
+
+// Delete an exercise's logs — all rounds (edit-log demotion, SPEC §9)
+router.delete(
+  "/exercise/:planDayExerciseId",
+  requireAuth,
+  requireOwnership("planDayExercise", "planDayExerciseId"),
+  async (req, res) => {
+    try {
+      const result = await logsService.deleteExerciseLog(
+        Number(req.params.planDayExerciseId)
+      );
+      res.json(result);
+    } catch (error) {
+      handleError(error, res);
+    }
+  }
+);
+
+// Recompute a completed day's rollups from actual plan_day_exercises state,
+// so an edit-log status change can't leave the day's counts drifting (SPEC §9).
+router.post(
+  "/plan-day/:planDayId/recompute",
+  requireAuth,
+  requireOwnership("planDay", "planDayId"),
+  async (req, res) => {
+    try {
+      await logsService.recomputePlanDayRollups(Number(req.params.planDayId));
+      res.json({ success: true });
+    } catch (error) {
+      handleError(error, res);
+    }
+  }
+);
+
 // Create workout log
 router.post(
   "/workout",

@@ -84,7 +84,10 @@ export class LogsService extends BaseService {
         .returning(),
       this.db
         .update(planDayExercises)
-        .set({ completed: true })
+        // Clear isSkipped too: logging an exercise you'd skipped promotes it to
+        // completed, and a completed exercise must not also read as skipped
+        // (keeps the derived status + the rollup recompute unambiguous).
+        .set({ completed: true, isSkipped: false })
         .where(eq(planDayExercises.id, data.planDayExerciseId)),
     ]);
 
@@ -118,6 +121,146 @@ export class LogsService extends BaseService {
       ...createdExerciseLog,
       sets: setsWithNumbers,
     };
+  }
+
+  /**
+   * Delete a completed exercise's logs — the demotion half of the edit-log
+   * feature (SPEC §9). Deletes every round (or one round), and if no logs
+   * remain, demotes the plan-day-exercise to "didn't do" (not completed, not
+   * skipped). Then keeps the day + workout rollups honest.
+   */
+  async deleteExerciseLog(planDayExerciseId: number, roundNumber?: number) {
+    // Cascade delete on exercise_set_logs handles the set rows.
+    if (roundNumber !== undefined) {
+      await this.db
+        .delete(exerciseLogs)
+        .where(
+          and(
+            eq(exerciseLogs.planDayExerciseId, planDayExerciseId),
+            eq(exerciseLogs.roundNumber, roundNumber)
+          )
+        );
+    } else {
+      await this.db
+        .delete(exerciseLogs)
+        .where(eq(exerciseLogs.planDayExerciseId, planDayExerciseId));
+    }
+
+    // Only demote when nothing is left — deleting one round of a multi-round
+    // (circuit) exercise leaves it completed.
+    const remaining = await this.db
+      .select({ id: exerciseLogs.id })
+      .from(exerciseLogs)
+      .where(eq(exerciseLogs.planDayExerciseId, planDayExerciseId))
+      .limit(1);
+
+    if (remaining.length === 0) {
+      await this.db
+        .update(planDayExercises)
+        .set({ completed: false, isSkipped: false, updatedAt: new Date() })
+        .where(eq(planDayExercises.id, planDayExerciseId));
+    }
+
+    const planDayId = await this.getPlanDayIdForExercise(planDayExerciseId);
+    if (planDayId) await this.recomputePlanDayRollups(planDayId);
+
+    return { success: true };
+  }
+
+  /** planDayExerciseId → its owning planDayId (via its block). */
+  private async getPlanDayIdForExercise(
+    planDayExerciseId: number
+  ): Promise<number | null> {
+    const rows = await this.db
+      .select({ planDayId: workoutBlocks.planDayId })
+      .from(planDayExercises)
+      .innerJoin(
+        workoutBlocks,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .where(eq(planDayExercises.id, planDayExerciseId))
+      .limit(1);
+    return rows[0]?.planDayId ?? null;
+  }
+
+  /**
+   * Recompute a completed day's rollups from the ACTUAL plan_day_exercises
+   * state, rather than trusting caller-supplied counts (SPEC §9). Run after any
+   * edit-log status change so `plan_day_logs.exercisesCompleted` can't drift
+   * from what the summary shows, and the `workout_logs` arrays move an id
+   * OUT of completed on a demotion (the completion path only ever merges IN).
+   */
+  async recomputePlanDayRollups(planDayId: number) {
+    const planDay = await this.db
+      .select()
+      .from(planDays)
+      .where(eq(planDays.id, planDayId))
+      .limit(1);
+    if (planDay.length === 0) return;
+    const workoutId = planDay[0].workoutId;
+
+    const planDayBlocks = await this.db.query.workoutBlocks.findMany({
+      where: eq(workoutBlocks.planDayId, planDayId),
+      with: { exercises: true },
+    });
+    const allExercises = planDayBlocks.flatMap((b) => b.exercises);
+    const completedIds = allExercises
+      .filter((e) => e.completed && !e.isSkipped)
+      .map((e) => e.id);
+    const skippedIds = allExercises
+      .filter((e) => e.isSkipped)
+      .map((e) => e.id);
+    const planExerciseIds = allExercises.map((e) => e.id);
+    const planBlockIds = planDayBlocks.map((b) => b.id);
+
+    // Honest plan_day_logs counts. blocksCompleted mirrors the session, which
+    // reports the day's total block count; exercisesCompleted is the count of
+    // exercises actually logged (completed and not skipped).
+    const existingLog = await this.db
+      .select()
+      .from(planDayLogs)
+      .where(eq(planDayLogs.planDayId, planDayId))
+      .limit(1);
+    if (existingLog.length > 0) {
+      await this.db
+        .update(planDayLogs)
+        .set({
+          exercisesCompleted: completedIds.length,
+          blocksCompleted: planBlockIds.length,
+          updatedAt: new Date(),
+        })
+        .where(eq(planDayLogs.id, existingLog[0].id));
+    }
+
+    // Re-sync the workout-scoped arrays with REPLACE semantics for this plan
+    // day's ids (drop all of them, then add back the current truth).
+    const workoutLog = await this.getOrCreateWorkoutLog(workoutId);
+    const without = (arr: number[] | null, ids: number[]) =>
+      (arr || []).filter((id) => !ids.includes(id));
+    const mergedCompleted = [
+      ...new Set([
+        ...without(workoutLog.completedExercises, planExerciseIds),
+        ...completedIds,
+      ]),
+    ];
+    const mergedSkipped = [
+      ...new Set([
+        ...without(workoutLog.skippedExercises, planExerciseIds),
+        ...skippedIds,
+      ]),
+    ];
+    const mergedBlocks = [
+      ...new Set([
+        ...without(workoutLog.completedBlocks, planBlockIds),
+        ...planBlockIds,
+      ]),
+    ];
+
+    await this.updateWorkoutLog(workoutId, {
+      completedExercises: mergedCompleted,
+      skippedExercises: mergedSkipped,
+      completedBlocks: mergedBlocks,
+    });
   }
 
   async createExerciseLogsBatch(
