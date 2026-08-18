@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizeProtocolConfig } from "@/utils/protocol-config";
+import { sanitizeGeneratedContent } from "@/utils/plan-safety-language";
 
 /**
  * Validation for the SERIAL generation path (weekly fallback, weekly/daily
@@ -147,7 +148,8 @@ export function validateWeeklyGenerationResponse(raw: unknown) {
       `LLM weekly workout response failed validation: ${summarizeIssues(result.error)}`
     );
   }
-  return result.data;
+  // [safety-language] Strip medical/absolute-safety wording from user-visible text.
+  return sanitizeGeneratedContent(result.data).value;
 }
 
 export function validateDailyGenerationResponse(raw: unknown) {
@@ -157,5 +159,6 @@ export function validateDailyGenerationResponse(raw: unknown) {
       `LLM daily workout response failed validation: ${summarizeIssues(result.error)}`
     );
   }
-  return result.data;
+  // [safety-language] Strip medical/absolute-safety wording from user-visible text.
+  return sanitizeGeneratedContent(result.data).value;
 }

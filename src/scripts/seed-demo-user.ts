@@ -37,6 +37,7 @@ import { exercises } from "@/models/exercise.schema";
 import { shareLinks } from "@/models/share.schema";
 import { impersonationAudit } from "@/models/impersonation-audit.schema";
 import { trainingLocations } from "@/models/training-location.schema";
+import { planDayFeedback } from "@/models/plan-day-feedback.schema";
 import { SubscriptionStatus } from "@/constants";
 import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
 import {
@@ -231,7 +232,8 @@ function dayTemplate(dayKind: "mon" | "wed" | "fri"): {
   if (dayKind === "mon") {
     return {
       name: "Upper Body Strength",
-      description: "Shoulder-safe pressing and rows with a short finisher.",
+      description:
+        "Pressing and rows with a short finisher, adapted around your reported shoulder history.",
       blocks: [
         warmup,
         {
@@ -412,6 +414,11 @@ async function deleteDemoUser(): Promise<void> {
       await db
         .delete(workoutBlocks)
         .where(inArray(workoutBlocks.planDayId, dayIds));
+    // plan_day_feedback references plan_days (and the user), no cascade — clear
+    // before plan_days. Keyed by userId, so one delete covers the whole demo user.
+    await db
+      .delete(planDayFeedback)
+      .where(eq(planDayFeedback.userId, userId));
     // share_links reference plan_days (and the user) — clear before plan_days.
     await db.delete(shareLinks).where(eq(shareLinks.userId, userId));
     await db.delete(planDays).where(inArray(planDays.workoutId, workoutIds));
@@ -549,7 +556,7 @@ async function seed(): Promise<void> {
       ? "Advanced Full-Body Strength"
       : `Full-Body Strength — Week of ${weekStart}`;
     const tmplDesc =
-      "3-day split balancing strength, conditioning, and mobility — shoulder-safe programming built for training after 40.";
+      "3-day split balancing strength, conditioning, and mobility — adapted around your reported shoulder history.";
 
     const [workout] = await db
       .insert(workouts)

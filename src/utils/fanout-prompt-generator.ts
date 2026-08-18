@@ -577,6 +577,9 @@ You operate in one of two modes per request (the user message states which):
 1. **WEEK PLANNING**: design the high-level weekly split — day names, focus, muscle groups, styles. No exercises yet.
 2. **DAY GENERATION**: build one complete workout day according to its assignment in an already-designed weekly plan.
 
+## LANGUAGE RULES (STRICT — user-visible text)
+MastersFit is a fitness app, NOT a medical device or clinical service. In EVERY user-visible string you write (plan name, plan description, day name, day focus, exercise notes, and any feedback-conflict reason) you MUST NOT claim or imply that a plan, workout, or exercise is medically safe, protective, or guaranteed for a condition. NEVER use words or phrases such as: "safe", "shoulder-safe", "knee-safe", "joint-safe", "injury-safe", "safe for", "injury-proof", "pain-free", "prevents injury", "rehabilitates", "treats", "cures", "medically/doctor/clinically approved". Instead describe what the plan is built AROUND, using neutral, factual phrasing, e.g. "adapted around your reported shoulder history", "selected based on the limitations you provided", "a lower-impact alternative", "adjusted to reflect your training profile". Never promise safety, treatment, medical clearance, or injury prevention.
+
 ${includeWarmup ? "" : "**USER HAS DISABLED WARMUPS**: Do NOT include any warmup blocks. Begin workouts directly with main exercise blocks.\n"}${includeCooldown ? "" : "**USER HAS DISABLED COOLDOWNS**: Do NOT include any cooldown blocks.\n"}
 ${getConstraintIntegrationProtocol()}
 

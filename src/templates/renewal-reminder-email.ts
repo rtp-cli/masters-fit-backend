@@ -5,7 +5,7 @@ interface RenewalReminderTemplateProps {
   name: string;
   /** "annual" | "monthly" — how the plan renews, for the copy. */
   planLabel: string;
-  /** Formatted price, e.g. "$49.99". Null when the plan couldn't be resolved. */
+  /** Formatted price, e.g. "$89.99". Null when the plan couldn't be resolved. */
   price: string | null;
   /** Formatted renewal date, e.g. "August 12, 2026". */
   renewalDate: string;

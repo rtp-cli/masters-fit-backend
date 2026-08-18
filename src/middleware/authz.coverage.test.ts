@@ -32,6 +32,11 @@ const PUBLIC_ALLOWLIST: Record<string, Array<{ method: string; route: string }>>
       { method: "get", route: "/plans" },
       { method: "post", route: "/webhooks/revenuecat" },
     ],
+    // Public share-link read: opening a shared workout without an account is the
+    // whole point of the feature. Intentionally not JWT-guarded — protected by a
+    // per-IP fixed-window limiter (publicReadRateLimit) and unguessable random
+    // Crockford base32 codes (non-walkable). See share.routes.ts GET /:code.
+    "share.routes.ts": [{ method: "get", route: "/:code" }],
   };
 
 const ROUTE_RE =

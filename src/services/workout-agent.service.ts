@@ -18,6 +18,7 @@ import {
   reorderToMinimizeConsecutiveOverload,
 } from "@/utils/workout-balance-validation";
 import { applyPostGenerationValidation } from "@/utils/post-generation-validation";
+import { sanitizeGeneratedContent } from "@/utils/plan-safety-language";
 import { buildProgressionContext } from "@/utils/progression-context";
 import { workoutService } from "./workout.service";
 import { logger } from "@/utils/logger";
@@ -907,6 +908,20 @@ ${exerciseContext}`;
     );
     promptSnapshot.planning.user = planningUserMessage; // [GQ-14]
     let weekPlan = await runPlanningCall(planningUserMessage);
+
+    // [safety-language] Strip any medical / absolute-safety / guaranteed-outcome
+    // wording from the user-visible outline (plan name + description, day
+    // name/focus, feedback-conflict messages) the moment the planner returns.
+    // Deterministic — the prompt discourages this language but must not be the
+    // only guard. Per-day content is cleaned later in applyPostGenerationValidation.
+    const planSafety = sanitizeGeneratedContent(weekPlan);
+    if (planSafety.findings.length) {
+      logger.warn("Stripped safety/medical claims from generated plan outline", {
+        userId: profile.userId,
+        fields: planSafety.findings.map((f) => f.path),
+        claims: [...new Set(planSafety.findings.flatMap((f) => f.claims))],
+      });
+    }
 
     // [GQ-02] Resolve any explicit scheduling override the planner extracted
     // (specific weekdays, day count, or start weekday) into effective schedule

@@ -18,7 +18,7 @@ interface RenewalReminderEmailParams {
   name: string;
   /** "annual" | "monthly" */
   planLabel: string;
-  /** Formatted price, e.g. "$49.99", or null when the plan is unknown. */
+  /** Formatted price, e.g. "$89.99", or null when the plan is unknown. */
   price: string | null;
   /** Formatted renewal date, e.g. "August 12, 2026". */
   renewalDate: string;

@@ -10,6 +10,9 @@ if (SENTRY_DSN) {
     dsn: SENTRY_DSN,
     environment: process.env.NODE_ENV || "development",
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.2 : 1.0,
+    // Do NOT attach request IP/headers/cookies by default — keeps PII out of
+    // crash reports (simplifies the App Privacy / Data Safety posture).
+    sendDefaultPii: false,
     // Capture 100% of errors, sample traces
     // Automatically instruments: Express, pg, Redis, Bull
   });

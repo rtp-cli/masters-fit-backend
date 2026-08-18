@@ -27,6 +27,7 @@ import {
   FocusAlignmentFinding,
   ConsecutiveOverlapFinding,
 } from "@/utils/muscle-load";
+import { sanitizeGeneratedContent } from "@/utils/plan-safety-language";
 
 const DURATION_TOLERANCE_MINUTES = 5;
 
@@ -173,6 +174,13 @@ export function applyPostGenerationValidation(
           workoutPlan: bodyweightEnforced.workoutPlan,
           findings: [] as DurationPadFinding[],
         };
+
+  // [safety-language] Strip any medical / absolute-safety / guaranteed-outcome
+  // wording the model emitted in user-visible text (day names/focus, block
+  // descriptions, exercise notes). Deterministic heal — runs last so it also
+  // cleans text on exercises swapped in by the steps above. Mutates in place.
+  sanitizeGeneratedContent(finalPlan);
+  sanitizeGeneratedContent(enforced.exercisesToAdd);
 
   return {
     exercisesToAdd: enforced.exercisesToAdd,
