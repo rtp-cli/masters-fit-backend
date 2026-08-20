@@ -37,6 +37,7 @@ import {
   hasAcceptedCurrentWaiver,
   isWaiverUpdate,
 } from "@/constants/waiver";
+import { isAdminUserId } from "@/middleware/authz.middleware";
 
 // Simulating sessions for passwordless auth (in production, use a proper session store)
 // const authCodes = new Map<string, { email: string; expires: number }>();
@@ -89,6 +90,7 @@ export class AuthController extends Controller {
         waiverVersion: user.waiverVersion,
         themeMode: user.themeMode ?? "auto",
         colorTheme: user.colorTheme ?? "original",
+        isAdmin: isAdminUserId(user.id),
       },
       needsOnboarding: user.needsOnboarding ?? false,
       needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
@@ -235,6 +237,7 @@ export class AuthController extends Controller {
           waiverVersion: user.waiverVersion,
           themeMode: user.themeMode ?? "auto",
           colorTheme: user.colorTheme ?? "original",
+          isAdmin: isAdminUserId(user.id),
         },
         needsOnboarding: user.needsOnboarding ?? true,
         needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
@@ -309,6 +312,7 @@ export class AuthController extends Controller {
         waiverVersion: user.waiverVersion,
         themeMode: user.themeMode ?? "auto",
         colorTheme: user.colorTheme ?? "original",
+        isAdmin: isAdminUserId(user.id),
       },
       needsOnboarding: user?.needsOnboarding ?? true,
     };
@@ -629,6 +633,7 @@ export class AuthController extends Controller {
         waiverVersion: user.waiverVersion,
         themeMode: user.themeMode ?? "auto",
         colorTheme: user.colorTheme ?? "original",
+        isAdmin: isAdminUserId(user.id),
       },
       needsOnboarding: user.needsOnboarding ?? false,
       needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
