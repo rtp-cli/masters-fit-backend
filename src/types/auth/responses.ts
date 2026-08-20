@@ -10,6 +10,9 @@ export interface AuthUserResponse {
   waiverVersion: string | null;
   themeMode: string | null;
   colorTheme: string | null;
+  // Whether this user is in the ADMIN_USER_IDS allowlist. Drives admin-only
+  // client UI (e.g. the Developer Tools / Impersonate reveal in Settings).
+  isAdmin: boolean;
 }
 
 /**
