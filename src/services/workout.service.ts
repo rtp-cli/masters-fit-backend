@@ -22,7 +22,7 @@ import type {
   WorkoutBlockWithExercise,
   PlanDayWithExercise,
 } from "@/types/workout/responses";
-import { BaseService } from "@/services/base.service";
+import { BaseService, DbOrTx } from "@/services/base.service";
 import { promptsService } from "./prompts.service";
 import { exerciseService } from "./exercise.service";
 import { AvailableEquipment, IntensityLevel } from "@/types/profile/types";
@@ -303,21 +303,35 @@ export class WorkoutService extends BaseService {
     return transformedWorkout;
   }
 
-  async createWorkout(data: InsertWorkout): Promise<Workout> {
+  async createWorkout(
+    data: InsertWorkout,
+    options: { activate?: boolean } = {}
+  ): Promise<Workout> {
     const now = new Date();
+    // Default: become the active plan immediately (deactivating any prior active
+    // one). Generation passes activate:false so the new plan stays inactive
+    // while its plan days are written, then flips active as the final step in
+    // the same populate transaction (see generateWorkoutPlan). That keeps a
+    // concurrent active-workout read from ever seeing this plan as an empty
+    // shell mid-generation — it sees the fully-populated old plan until the
+    // flip commits, then the fully-populated new one.
+    const activate = options.activate ?? true;
 
     // Atomically deactivate existing active workouts and create the new one
     // This prevents race conditions where two concurrent requests both create active workouts
     const [workout] = await this.db.transaction(async (tx) => {
-      await tx
-        .update(workouts)
-        .set({ isActive: false, updatedAt: now })
-        .where(and(eq(workouts.userId, data.userId), eq(workouts.isActive, true)));
+      if (activate) {
+        await tx
+          .update(workouts)
+          .set({ isActive: false, updatedAt: now })
+          .where(and(eq(workouts.userId, data.userId), eq(workouts.isActive, true)));
+      }
 
       return tx
         .insert(workouts)
         .values({
           ...data,
+          isActive: activate,
           startDate: sql`${data.startDate}::date`,
           endDate: sql`${data.endDate}::date`,
           sourceType: data.sourceType as WorkoutSourceType | null | undefined,
@@ -621,8 +635,11 @@ export class WorkoutService extends BaseService {
     };
   }
 
-  async createWorkoutBlock(data: InsertWorkoutBlock): Promise<WorkoutBlock> {
-    const [workoutBlock] = await this.db
+  async createWorkoutBlock(
+    data: InsertWorkoutBlock,
+    executor: DbOrTx = this.db
+  ): Promise<WorkoutBlock> {
+    const [workoutBlock] = await executor
       .insert(workoutBlocks)
       .values(data)
       .returning();
@@ -630,14 +647,15 @@ export class WorkoutService extends BaseService {
   }
 
   async createPlanDayExercise(
-    data: InsertPlanDayExercise
+    data: InsertPlanDayExercise,
+    executor: DbOrTx = this.db
   ): Promise<WorkoutBlockWithExercise> {
-    const [planDayExercise] = await this.db
+    const [planDayExercise] = await executor
       .insert(planDayExercises)
       .values(data)
       .returning();
 
-    const exercise = await this.db.query.exercises.findFirst({
+    const exercise = await executor.query.exercises.findFirst({
       where: eq(exercises.id, planDayExercise.exerciseId),
     });
 
@@ -1064,16 +1082,22 @@ export class WorkoutService extends BaseService {
         : weekEnd;
     const endDate = lastScheduledDate > weekEnd ? lastScheduledDate : weekEnd;
 
-    const workout = await this.createWorkout({
-      userId,
-      promptId,
-      startDate,
-      endDate,
-      name: response.name,
-      description: response.description,
-      // [GQ-04] Persist the "couldn't apply X because Y" list for the in-app banner.
-      feedbackConflicts: response.feedbackConflicts,
-    });
+    // Insert INACTIVE. The prior plan stays active (and fully readable) until we
+    // flip the pointer as the last step of the populate transaction below, so a
+    // concurrent active-workout read never lands on this plan while it's empty.
+    const workout = await this.createWorkout(
+      {
+        userId,
+        promptId,
+        startDate,
+        endDate,
+        name: response.name,
+        description: response.description,
+        // [GQ-04] Persist the "couldn't apply X because Y" list for the in-app banner.
+        feedbackConflicts: response.feedbackConflicts,
+      },
+      { activate: false }
+    );
 
     if (response.exercisesToAdd) {
       for (const exercise of response.exercisesToAdd) {
@@ -1246,6 +1270,22 @@ export class WorkoutService extends BaseService {
           .values(planDayExercisesData)
           .returning();
       }
+
+      // Activate LAST. Every plan day/block/exercise is now written, so move the
+      // active pointer off the (still fully-populated) old plan onto this one in
+      // the same transaction. Deactivate-then-activate keeps the partial unique
+      // index (one active row per user) satisfied at every step, and makes the
+      // switch atomic: a concurrent active-workout read sees the complete old
+      // plan until this commits and the complete new plan after — never the
+      // empty shell an up-front activation would expose during generation.
+      await tx
+        .update(workouts)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(and(eq(workouts.userId, userId), eq(workouts.isActive, true)));
+      await tx
+        .update(workouts)
+        .set({ isActive: true, updatedAt: new Date() })
+        .where(eq(workouts.id, workout.id));
     });
 
     // Option 1: fetch full workout with planDays and exercises, then transform and return
@@ -1605,12 +1645,18 @@ export class WorkoutService extends BaseService {
         }
       }
 
+      // Wrap the destructive day rewrite in ONE transaction so a concurrent
+      // active-workout read never sees a half-cleared / half-rebuilt plan day.
+      // Previously each delete and re-insert auto-committed on its own, leaving
+      // a window where the active day had no blocks or exercises. (Body kept at
+      // its original indentation to keep the diff to the real changes.)
+      await this.db.transaction(async (tx) => {
       // First, delete all exercise logs that reference these plan day exercises
       const planDayExerciseIds = (allExistingExercises || []).map(
         (ex) => ex.id
       );
       if (planDayExerciseIds.length > 0) {
-        await this.db
+        await tx
           .delete(exerciseLogs)
           .where(
             sql`plan_day_exercise_id IN (${sql.join(
@@ -1623,13 +1669,13 @@ export class WorkoutService extends BaseService {
       // First delete all exercises for all blocks of this plan day to respect foreign key constraints
       const blockIds = existingPlanDay.blocks?.map((b) => b.id) || [];
       if (blockIds.length > 0) {
-        await this.db
+        await tx
           .delete(planDayExercises)
           .where(sql`workout_block_id IN (${sql.join(blockIds, sql`, `)})`);
       }
 
       // Now delete all blocks for this plan day (no foreign key violations since exercises are gone)
-      await this.db
+      await tx
         .delete(workoutBlocks)
         .where(eq(workoutBlocks.planDayId, planDayId));
 
@@ -1656,7 +1702,7 @@ export class WorkoutService extends BaseService {
             order: blockIndex + 1,
             createdAt: new Date(),
             updatedAt: new Date(),
-          });
+          }, tx);
 
           // Add exercises to this specific block
           if (block.exercises) {
@@ -1688,7 +1734,7 @@ export class WorkoutService extends BaseService {
                   rpe: exercise.rpe,
                   notes: nameSubstituted ? null : exercise.notes,
                   order: exercise.order,
-                });
+                }, tx);
                 newExercises.push(newExercise);
               } else {
                 // No catalog row even via fuzzy fallback. The exercise
@@ -1711,14 +1757,11 @@ export class WorkoutService extends BaseService {
         }
       }
 
-      // Emit 99% - Saving to database
-      emitProgress(userId, 99);
-
       // Update the plan day with new instructions, name, and description from response
       // Reset isComplete to false since this is a new regenerated workout.
       // When this regeneration was a rebuild-around-a-location, freeze the
       // session's location snapshot on the day so history stays true (§9).
-      await this.db
+      await tx
         .update(planDays)
         .set({
           name: response.name || existingPlanDay.name,
@@ -1734,6 +1777,10 @@ export class WorkoutService extends BaseService {
           updatedAt: new Date(),
         })
         .where(eq(planDays.id, planDayId));
+      });
+
+      // Emit 99% - Saving to database (after the rewrite has committed)
+      emitProgress(userId, 99);
 
       // Mark the day done so the checkmark stamps in before the modal closes.
       emitGenerationStatus(userId, {

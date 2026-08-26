@@ -3,6 +3,13 @@ import { eq } from 'drizzle-orm';
 import { retryWithBackoff, DEFAULT_API_RETRY_OPTIONS, RetryOptions } from '@/utils/retry.utils.js';
 import { logger } from '@/utils/logger.js';
 
+// A drizzle executor: either the pooled `db` or a transaction handle. Lets a
+// helper run its writes on a caller-supplied transaction so a multi-step
+// rewrite commits atomically, while still defaulting to the pool when called
+// standalone.
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type DbOrTx = typeof db | Tx;
+
 // Database-specific retry options - more aggressive for connection issues
 const DATABASE_RETRY_OPTIONS: RetryOptions = {
   maxAttempts: 3,
