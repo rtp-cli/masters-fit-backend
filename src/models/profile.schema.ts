@@ -101,7 +101,7 @@ export type InsertProfile = z.infer<typeof insertProfileSchema>;
 export const onboardingSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1, "Name is required"),
-  age: z.number().min(16).max(100),
+  age: z.number().min(18).max(100),
   height: z.number().min(120).max(220),
   weight: z.number().min(40).max(200),
   gender: z.enum(["male", "female", "other"]),
