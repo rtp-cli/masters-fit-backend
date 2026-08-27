@@ -7,6 +7,7 @@ import {
   exerciseSetLogs, planDayLogs, workoutLogs, blockLogs, shareLinks, aiOperations,
   backgroundJobs, trialUsage, userSubscriptions, profiles, prompts,
   impersonationAudit, appFeedback, planDayFeedback, accountDeletionLog,
+  trainingLocations,
 } from "@/models";
 import type { UpdateUser, User } from "@/models";
 import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
@@ -88,6 +89,7 @@ export async function purgeUserData(tx: any, userId: number, meta: PurgeMeta): P
   await tx.delete(appFeedback).where(eq(appFeedback.userId, userId));
   await tx.delete(trialUsage).where(eq(trialUsage.userId, userId));
   await tx.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
+  await tx.delete(trainingLocations).where(eq(trainingLocations.userId, userId));
   await tx.delete(profiles).where(eq(profiles.userId, userId));
   await tx.delete(prompts).where(eq(prompts.userId, userId));
   await tx.delete(impersonationAudit).where(or(eq(impersonationAudit.targetUserId, userId), eq(impersonationAudit.adminUserId, userId)));
