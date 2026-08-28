@@ -83,6 +83,13 @@ export async function purgeUserData(tx: any, userId: number, meta: PurgeMeta): P
     if (blockIds.length) await tx.delete(blockLogs).where(inArray(blockLogs.workoutBlockId, blockIds));
     if (dayIds.length) await tx.delete(workoutBlocks).where(inArray(workoutBlocks.planDayId, dayIds));
     await tx.delete(planDays).where(inArray(planDays.workoutId, workoutIds));
+    // NO-ACTION FKs to workouts can be held by rows owned by ANOTHER (kept) user
+    // — e.g. a background_job or ai_operation created during impersonation/regen
+    // that points at this user's workout. The deleting user's own such rows are
+    // already gone (deleted by user_id above), but a kept user's dangling pointer
+    // would trip the FK on the workout delete below. Null them (both cols nullable).
+    await tx.update(backgroundJobs).set({ workoutId: null }).where(inArray(backgroundJobs.workoutId, workoutIds));
+    await tx.update(aiOperations).set({ resultWorkoutId: null }).where(inArray(aiOperations.resultWorkoutId, workoutIds));
     await tx.delete(workouts).where(eq(workouts.userId, userId));
   }
 
