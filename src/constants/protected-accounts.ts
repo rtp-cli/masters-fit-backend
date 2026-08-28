@@ -14,7 +14,8 @@ export const PROTECTED_EMAILS: ReadonlySet<string> = new Set(
   [
     "rtp@mastersfit.ai", // OWNER / prod admin + main account
     "rtp+demo@mastersfit.ai", // marketing/demo user (Dave)
-    "rtp+applereview@mastersfit.ai", // Apple reviewer login
+    "rtp+applereview@mastersfit.ai", // Apple reviewer login (legacy name)
+    "rtp+review@mastersfit.ai", // Apple/Play reviewer login (current, prod id 107)
     "rtp+qa@mastersfit.ai", // QA/test account
     // NOTE: rtp+<numbers>@mastersfit.ai are disposable test accounts — NOT protected.
     // Emails are stable across local & prod, so listing them here is what
