@@ -2,6 +2,7 @@ import { Router } from "express";
 import { AuthController } from "@/controllers/auth.controller";
 import { ZodError } from "zod";
 import { expressAuthentication } from "@/middleware/auth.middleware";
+import { otpSendRateLimit } from "@/middleware/rate-limit.middleware";
 import { userService } from "@/services";
 
 const router = Router();
@@ -24,7 +25,7 @@ router.post("/check-email", async (req, res) => {
 });
 
 // Login endpoint
-router.post("/login", async (req, res) => {
+router.post("/login", otpSendRateLimit, async (req, res) => {
   try {
     const response = await controller.login(req.body);
     res.json(response);
@@ -40,7 +41,7 @@ router.post("/login", async (req, res) => {
 });
 
 // Signup endpoint
-router.post("/signup", async (req, res) => {
+router.post("/signup", otpSendRateLimit, async (req, res) => {
   try {
     const response = await controller.signup(req, req.body);
     res.json(response);
@@ -56,7 +57,7 @@ router.post("/signup", async (req, res) => {
 });
 
 // Generate auth code endpoint
-router.post("/generate-auth-code", async (req, res) => {
+router.post("/generate-auth-code", otpSendRateLimit, async (req, res) => {
   try {
     const response = await controller.generateAuthCode(req.body);
     res.json(response);

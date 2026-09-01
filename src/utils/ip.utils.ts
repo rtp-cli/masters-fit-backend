@@ -1,3 +1,4 @@
+import { Request } from "express";
 import { logger } from "./logger";
 
 // Cache for external IP to avoid repeated API calls
@@ -149,4 +150,39 @@ export async function getBestIP(originalIP?: string): Promise<string | undefined
 export function clearIPCache(): void {
   cachedExternalIP = null;
   lastFetchTime = 0;
+}
+
+/**
+ * Extract client IP address from request headers
+ * Handles various proxy and load balancer scenarios
+ */
+export function getClientIP(req: Request): string | undefined {
+  try {
+    // Check for forwarded IP from proxies/load balancers
+    const forwarded = req.headers["x-forwarded-for"];
+    if (forwarded) {
+      // x-forwarded-for can be a comma-separated list, take the first one
+      const ips = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+      const ip = ips.split(",")[0].trim();
+      if (ip) return ip;
+    }
+
+    // Check for real IP header
+    const realIP = req.headers["x-real-ip"];
+    if (realIP && typeof realIP === "string") {
+      return realIP;
+    }
+
+    // Fall back to connection remote address
+    return (
+      req.ip ||
+      req.connection?.remoteAddress ||
+      req.socket?.remoteAddress ||
+      undefined
+    );
+  } catch (error) {
+    // If IP extraction fails, return undefined rather than throwing
+    console.warn("Failed to extract client IP:", error);
+    return undefined;
+  }
 }
