@@ -111,6 +111,24 @@ export class AuthController extends Controller {
     const { email } = validatedData;
     const user = await userService.getUserByEmail(email);
 
+    // No account for this address → don't mail anything. The success response
+    // below is byte-identical either way, so this leaks nothing that
+    // /auth/check-email doesn't already disclose, and it stops /login from being
+    // usable as a mailer aimed at arbitrary inboxes. Legitimate new users never
+    // reach here: the client routes unknown emails to /signup, which creates the
+    // user first. A code minted for a non-existent account was a dead end anyway
+    // — issueSessionForEmail only ever returns an onboarding token for it.
+    if (!user) {
+      logger.warn("Login requested for unknown email; no code sent", {
+        operation: "login",
+        metadata: { email },
+      });
+      return {
+        success: true,
+        message: "Authorization code generated successfully",
+      };
+    }
+
     const isTestAccount = this.isTestAccountEmail(email);
 
     let authCode: string;
@@ -131,11 +149,7 @@ export class AuthController extends Controller {
     // otherwise sits waiting for a code that will never arrive (frame 1h).
     if (!isTestAccount) {
       try {
-        await emailService.sendOtpEmail(
-          email,
-          authCode,
-          user?.name ?? email.split("@")[0]
-        );
+        await emailService.sendOtpEmail(email, authCode, user.name);
       } catch (error) {
         logger.error("Failed to send OTP email during login", error as Error, {
           operation: "login",

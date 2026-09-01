@@ -6,7 +6,7 @@ import {
 } from "@/utils/waiver.utils";
 import { userService } from "@/services/user.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
-import { getBestIP } from "@/utils/ip.utils";
+import { getBestIP, getClientIP } from "@/utils/ip.utils";
 
 // Extend Request interface to include clientIP and user UUID
 interface AuthenticatedRequest extends Request {
@@ -18,41 +18,6 @@ interface AuthenticatedRequest extends Request {
   // user id + the audit session id from the `imp` JWT claim.
   impersonatedBy?: number;
   impersonationSessionId?: string;
-}
-
-/**
- * Extract client IP address from request headers
- * Handles various proxy and load balancer scenarios
- */
-function getClientIP(req: Request): string | undefined {
-  try {
-    // Check for forwarded IP from proxies/load balancers
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) {
-      // x-forwarded-for can be a comma-separated list, take the first one
-      const ips = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-      const ip = ips.split(",")[0].trim();
-      if (ip) return ip;
-    }
-
-    // Check for real IP header
-    const realIP = req.headers["x-real-ip"];
-    if (realIP && typeof realIP === "string") {
-      return realIP;
-    }
-
-    // Fall back to connection remote address
-    return (
-      req.ip ||
-      req.connection?.remoteAddress ||
-      req.socket?.remoteAddress ||
-      undefined
-    );
-  } catch (error) {
-    // If IP extraction fails, return undefined rather than throwing
-    console.warn("Failed to extract client IP:", error);
-    return undefined;
-  }
 }
 
 export async function expressAuthentication(
