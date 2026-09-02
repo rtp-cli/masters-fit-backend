@@ -12,6 +12,10 @@ module.exports = {
   testEnvironment: "node",
   roots: ["<rootDir>/src"],
   testMatch: ["**/*.test.ts"],
+  // Runs before each test file's imports, so modules that read process.env at
+  // load time (@/config/database, JWT signing) get inert defaults. Keeps the
+  // suites hermetic instead of depending on a developer's .env — see the file.
+  setupFiles: ["<rootDir>/src/test/jest-env-defaults.ts"],
   setupFilesAfterEnv: ["<rootDir>/src/test/jest-setup-after-env.ts"],
   moduleNameMapper: {
     // Some source files use ESM-style .js-suffixed imports pointing at real

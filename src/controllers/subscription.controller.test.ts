@@ -34,6 +34,21 @@ jest.mock("@/services/notification.service", () => ({
   },
 }));
 
+// getSubscriptionStatus calls aiOperationService.getFreeAllowanceStatus for a
+// FREE-tier user, which counts rows in ai_operations. Left unmocked, that one
+// test was the only thing in this suite reaching a real database — it passed
+// locally off dev data and failed anywhere without Postgres, which kept the
+// whole suite out of CI. The counts aren't what these tests assert on.
+jest.mock("@/services/ai-operation.service", () => ({
+  aiOperationService: {
+    getFreeAllowanceStatus: jest.fn(async () => ({
+      initialPlan: { limit: 1, used: 0, remaining: 1 },
+      weekAdjustment: { limit: 3, used: 0, remaining: 3 },
+      dayAdjustment: { limit: 3, used: 0, remaining: 3 },
+    })),
+  },
+}));
+
 const mockedSubscriptionService = jest.mocked(subscriptionService);
 const mockedUserService = jest.mocked(userService);
 const mockedNotificationService = jest.mocked(notificationService);

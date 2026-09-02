@@ -35,8 +35,21 @@ jobs:
 
       # ts-jest typechecks each suite as it loads, so a suite that cannot
       # compile fails here rather than quietly contributing zero tests.
+      #
+      # No env block on purpose: the inert DATABASE_URL / JWT_SECRET defaults
+      # the suites need live in src/test/jest-env-defaults.ts, so a clean
+      # checkout behaves exactly like CI and a new env dependency is fixed in
+      # one place instead of by patching this workflow.
+      #
+      # search.service.test.ts is excluded: it is an intentional integration
+      # test that queries the real `exercises` table and asserts a non-trivial
+      # row count, and there is no seed script for that catalog. Running it in
+      # CI needs a Postgres service plus fixtures it can seed itself — worth
+      # doing, tracked separately. Everything else runs.
       - name: Run jest
-        run: npx jest --ci --runInBand
+        run: >-
+          npx jest --ci --runInBand
+          --testPathIgnorePatterns "src/services/search.service.test.ts"
 
   typecheck:
     name: Typecheck (ratchet)
