@@ -111,24 +111,21 @@ export class AuthController extends Controller {
     const { email } = validatedData;
     const user = await userService.getUserByEmail(email);
 
-    // No account for this address → don't mail anything. The success response
-    // below is byte-identical either way, so this leaks nothing that
-    // /auth/check-email doesn't already disclose, and it stops /login from being
-    // usable as a mailer aimed at arbitrary inboxes. Legitimate new users never
-    // reach here: the client routes unknown emails to /signup, which creates the
-    // user first. A code minted for a non-existent account was a dead end anyway
-    // — issueSessionForEmail only ever returns an onboarding token for it.
-    if (!user) {
-      logger.warn("Login requested for unknown email; no code sent", {
-        operation: "login",
-        metadata: { email },
-      });
-      return {
-        success: true,
-        message: "Authorization code generated successfully",
-      };
-    }
-
+    // An unknown email MUST still get a code. /login is the shipped client's
+    // single entry point for both new and returning users — login-screen.tsx
+    // deliberately stopped calling /check-email and stopped branching on
+    // new-vs-returning, so /signup is unreachable until *after* a successful
+    // /verify (the name screen exchanges the onboarding token for the account).
+    // Short-circuiting the send here therefore locked every new signup out of
+    // the app: the client showed "we sent a code", no mail arrived, and verify's
+    // email-bound lookup found no row and answered "That code didn't match".
+    //
+    // The onboarding token minted for an address with no account is not a dead
+    // end — it is exactly how signup is authorised (§4.8 → §5).
+    //
+    // The mail-bomb hole this branch was added to close is closed by
+    // otpSendRateLimit on the route instead (3/15min per email, 15/15min per
+    // IP): the cap is what limits abuse, not refusing unknown addresses.
     const isTestAccount = this.isTestAccountEmail(email);
 
     let authCode: string;
@@ -149,7 +146,12 @@ export class AuthController extends Controller {
     // otherwise sits waiting for a code that will never arrive (frame 1h).
     if (!isTestAccount) {
       try {
-        await emailService.sendOtpEmail(email, authCode, user.name);
+        // `user` is null for a first-time address — greet them by the local part.
+        await emailService.sendOtpEmail(
+          email,
+          authCode,
+          user?.name ?? email.split("@")[0]
+        );
       } catch (error) {
         logger.error("Failed to send OTP email during login", error as Error, {
           operation: "login",
