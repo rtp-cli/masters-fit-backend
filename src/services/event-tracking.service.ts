@@ -218,9 +218,9 @@ export class EventTrackingService {
       uuid: string;
       email: string;
       name: string;
-      createdAt: Date;
-      needsOnboarding?: boolean;
-      waiverAcceptedAt?: Date;
+      createdAt: Date | null;
+      needsOnboarding?: boolean | null;
+      waiverAcceptedAt?: Date | null;
     },
     ip?: string
   ): Promise<void> {
