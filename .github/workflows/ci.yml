@@ -36,12 +36,10 @@ jobs:
       # ts-jest typechecks each suite as it loads, so a suite that cannot
       # compile fails here rather than quietly contributing zero tests.
       #
-      # DATABASE_URL is a dummy that never accepts a connection. It is required
-      # only because src/test/jest-setup-after-env.ts imports @/config/database
-      # (to close the pool after each file), and that module throws at load time
-      # if the var is unset. pg.Pool connects lazily, so a URL pointing nowhere
-      # is fine for every hermetic suite — and any test that quietly reaches a
-      # real database fails loudly here instead of passing off dev data.
+      # No env block on purpose: the inert DATABASE_URL / JWT_SECRET defaults
+      # the suites need live in src/test/jest-env-defaults.ts, so a clean
+      # checkout behaves exactly like CI and a new env dependency is fixed in
+      # one place instead of by patching this workflow.
       #
       # search.service.test.ts is excluded: it is an intentional integration
       # test that queries the real `exercises` table and asserts a non-trivial
@@ -49,8 +47,6 @@ jobs:
       # CI needs a Postgres service plus fixtures it can seed itself — worth
       # doing, tracked separately. Everything else runs.
       - name: Run jest
-        env:
-          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5433/unused_in_ci
         run: >-
           npx jest --ci --runInBand
           --testPathIgnorePatterns "src/services/search.service.test.ts"
