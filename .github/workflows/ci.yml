@@ -1,0 +1,70 @@
+name: CI
+
+# Runs the test suite and a typecheck ratchet on every PR and every push to
+# main.
+#
+# Why this exists: until 2026-09-02 the only workflow in this repo was
+# deploy.yml — "push to main, ship to production." Nothing ran the tests, and
+# `main` is not branch-protected, so PR #43 merged straight to prod with a
+# regression that locked every new user out of signup for ~24h. Worse, the
+# auth controller suite had silently failed to COMPILE since PR #40 (2026-08-20),
+# so its 16 tests reported as "passing" by not running at all.
+#
+# Two jobs, deliberately separate so a red test is never confused with a
+# pre-existing type error.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      # ts-jest typechecks each suite as it loads, so a suite that cannot
+      # compile fails here rather than quietly contributing zero tests.
+      - name: Run jest
+        run: npx jest --ci --runInBand
+
+  typecheck:
+    name: Typecheck (ratchet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      # `tsc --noEmit` is not clean yet, so a plain gate would be red forever
+      # and get ignored. Instead we ratchet: the error count may go DOWN freely,
+      # but never up. Lower the baseline in tsconfig-error-baseline.txt whenever
+      # you fix errors — CI tells you the new number.
+      - name: Compare tsc error count to baseline
+        run: |
+          baseline=$(tr -dc '0-9' < tsconfig-error-baseline.txt)
+          actual=$(npx tsc --noEmit 2>&1 | grep -cE "error TS" || true)
+          echo "baseline=$baseline actual=$actual"
+          if [ "$actual" -gt "$baseline" ]; then
+            echo "::error::tsc errors rose from $baseline to $actual. Fix the new errors."
+            npx tsc --noEmit 2>&1 | grep -E "error TS" || true
+            exit 1
+          fi
+          if [ "$actual" -lt "$baseline" ]; then
+            echo "::notice::tsc errors fell from $baseline to $actual — lower the baseline in tsconfig-error-baseline.txt."
+          fi
