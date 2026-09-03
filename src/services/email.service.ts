@@ -1,6 +1,15 @@
 import { Resend } from "resend";
 import { otpEmailTemplate } from "@/templates/otp-email";
 import { renewalReminderTemplate } from "@/templates/renewal-reminder-email";
+import {
+  newUserNotificationTemplate,
+  type NewUserNotificationTemplateProps,
+} from "@/templates/new-user-notification-email";
+import {
+  stalledSignupDigestTemplate,
+  type StalledSignupDigestTemplateProps,
+} from "@/templates/stalled-signup-digest-email";
+import { signupNotifyRecipients } from "@/constants/signup-notifications";
 import { logger } from "@/utils/logger";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -171,6 +180,95 @@ export class EmailService {
       metadata: {
         feedbackId,
         category,
+        recipients: to,
+        messageId: response.data?.id,
+      },
+    });
+  }
+
+  /**
+   * Internal alert: someone finished onboarding. Goes to the owner, never to
+   * the user. Reply-To is the new member's address so a welcome note is one tap.
+   *
+   * Throws on send failure so the caller can release its claim and let the ops
+   * sweep retry — a silently dropped alert looks exactly like nobody signing up.
+   */
+  async sendNewUserNotificationEmail(
+    params: NewUserNotificationTemplateProps
+  ): Promise<void> {
+    const to = signupNotifyRecipients();
+    if (to.length === 0) {
+      throw new Error("No signup notification recipients configured");
+    }
+
+    const { html, text } = newUserNotificationTemplate(params);
+
+    const response = await resend.emails.send({
+      from: `MastersFit Signups <${FROM_EMAIL}>`,
+      to,
+      // The new member's own address — replying writes straight to them.
+      replyTo: params.email || REPLY_TO_EMAIL,
+      subject: `[MastersFit] New user — ${params.name}`,
+      html,
+      text,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("New user notification email sent", {
+      operation: "sendNewUserNotificationEmail",
+      metadata: {
+        userId: params.userId,
+        recipients: to,
+        messageId: response.data?.id,
+      },
+    });
+  }
+
+  /**
+   * Internal digest: people who signed up and never finished onboarding. The
+   * job only calls this when at least one name is new to the list, so there is
+   * no empty-state variant to render.
+   *
+   * Throws on send failure so the caller leaves everyone unmarked and the next
+   * run treats them as new again.
+   */
+  async sendStalledSignupDigestEmail(
+    params: StalledSignupDigestTemplateProps
+  ): Promise<void> {
+    const to = signupNotifyRecipients();
+    if (to.length === 0) {
+      throw new Error("No signup notification recipients configured");
+    }
+
+    const { html, text } = stalledSignupDigestTemplate(params);
+
+    const suffix =
+      params.newCount === params.totalCount ? "" : ` (${params.totalCount} open)`;
+    const subject = `[MastersFit] ${params.newCount} new stalled signup${
+      params.newCount === 1 ? "" : "s"
+    }${suffix}`;
+
+    const response = await resend.emails.send({
+      from: `MastersFit Signups <${FROM_EMAIL}>`,
+      to,
+      replyTo: REPLY_TO_EMAIL,
+      subject,
+      html,
+      text,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Stalled signup digest email sent", {
+      operation: "sendStalledSignupDigestEmail",
+      metadata: {
+        newCount: params.newCount,
+        totalCount: params.totalCount,
         recipients: to,
         messageId: response.data?.id,
       },

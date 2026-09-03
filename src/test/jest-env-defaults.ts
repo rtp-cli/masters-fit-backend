@@ -38,6 +38,12 @@ const defaults: Record<string, string> = {
   DATABASE_URL: "postgresql://ci:ci@127.0.0.1:5433/unused_in_tests",
   JWT_SECRET: "test-only-jwt-secret-not-a-real-credential",
   NODE_ENV: "test",
+  // email.service constructs `new Resend(key)` at module LOAD, and Resend's
+  // constructor throws on a missing key — so any suite that (transitively)
+  // imports the real email.service dies in CI without this. The value is an
+  // inert placeholder: no test sends mail (suites that exercise sending mock
+  // emailService), it only has to exist.
+  RESEND_API_KEY: "re_test_only_not_a_real_key",
 };
 
 for (const [key, value] of Object.entries(defaults)) {

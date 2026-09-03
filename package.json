@@ -19,6 +19,7 @@
     "reset-user-trial": "tsx src/scripts/reset-user-trial.ts",
     "reset-workout-day": "tsx src/scripts/reset-workout-day.ts",
     "send-renewal-reminder": "tsx src/scripts/send-renewal-reminder.ts",
+    "send-signup-notification": "tsx src/scripts/send-signup-notification.ts",
     "comp-user": "tsx src/scripts/grant-comp-single.ts",
     "delete-user": "tsx src/scripts/delete-users.ts",
     "check-deletion": "tsx src/scripts/check-deletion.ts",

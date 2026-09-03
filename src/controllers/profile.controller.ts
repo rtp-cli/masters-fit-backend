@@ -1,5 +1,7 @@
 import { profileService, userService } from "@/services";
 import { eventTrackingService } from "@/services/event-tracking.service";
+import { signupNotificationService } from "@/services/signup-notification.service";
+import { logger } from "@/utils/logger";
 import { Profile, ProfileResponse } from "@/types/profile/types";
 import { ApiResponse } from "@/types/common/responses";
 import {
@@ -28,6 +30,28 @@ function getClientIP(req: any): string | undefined {
 @Tags("Profile")
 @Security("bearerAuth")
 export class ProfileController extends Controller {
+  /**
+   * Fire the internal "new user finished onboarding" alert.
+   *
+   * Deliberately NOT awaited and deliberately returns void: onboarding
+   * completion is a person waiting on a screen, and no part of an ops email —
+   * not a database read, not a Resend round-trip, not an outage — may add
+   * latency to that response or fail it.
+   *
+   * `dispatchNewUserAlert` is written to never reject; the `.catch` here is a
+   * second belt against an unhandled rejection ever reaching the process if
+   * that contract is later broken. The dispatcher itself no-ops unless
+   * SIGNUP_NOTIFY_ENABLED is set, so this line is inert by default.
+   */
+  private notifyOwnerOfNewUser(userId: number): void {
+    void signupNotificationService.dispatchNewUserAlert(userId).catch((error) => {
+      logger.error("New-user alert dispatch rejected unexpectedly", error as Error, {
+        operation: "notifyOwnerOfNewUser",
+        userId,
+      });
+    });
+  }
+
   /**
    * Get the user's profile
    */
@@ -147,6 +171,7 @@ export class ProfileController extends Controller {
       await eventTrackingService.updateUserProfile(currentUser.uuid, {
         onboarding_complete: true,
       }, clientIP);
+      this.notifyOwnerOfNewUser(currentUser.id);
     }
 
     // Get the updated user with needsOnboarding: false
@@ -200,11 +225,16 @@ export class ProfileController extends Controller {
 
     const dbProfile = await profileService.createOrUpdateProfile(updateData);
 
-    // Get current user to check if onboarding is being completed
-    const currentUser = await userService.getUser(requestBody.userId || id);
+    // The completion side-effects key off the PROFILE ROW's owner, never the
+    // `requestBody.userId || id` fallback: `id` here is the profile row id, and
+    // when the body omits userId the two drift apart — flipping the flag and
+    // firing the once-ever new-user alert for whoever happens to hold that USER
+    // id. dbProfile.userId is authoritative (and ownership-checked upstream).
+    const targetUserId = dbProfile.userId;
+    const currentUser = await userService.getUser(targetUserId);
 
     // Update user to set needsOnboarding = false after profile creation/update
-    await userService.updateUser(requestBody.userId || id, {
+    await userService.updateUser(targetUserId, {
       needsOnboarding: false,
     });
 
@@ -220,10 +250,11 @@ export class ProfileController extends Controller {
       await eventTrackingService.updateUserProfile(currentUser.uuid, {
         onboarding_complete: true,
       }, clientIP);
+      this.notifyOwnerOfNewUser(currentUser.id);
     }
 
     // Get the updated user with needsOnboarding: false
-    const updatedUser = await userService.getUser(requestBody.userId || id);
+    const updatedUser = await userService.getUser(targetUserId);
 
     const profile: Profile = {
       id: dbProfile.id,
@@ -313,6 +344,7 @@ export class ProfileController extends Controller {
       await eventTrackingService.updateUserProfile(currentUser.uuid, {
         onboarding_complete: true,
       }, clientIP);
+      this.notifyOwnerOfNewUser(currentUser.id);
     }
 
     // Get the updated user with needsOnboarding: false
