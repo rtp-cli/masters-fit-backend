@@ -8,8 +8,11 @@
  * migrating them is safe but deliberately out of scope here.
  */
 
+// The FINAL URL, deliberately: the bare domain 308-redirects to www., and
+// some mail clients' image proxies (Apple Mail MPP among them) refuse to
+// follow it — the logo silently vanished from every email in those clients.
 export const LOGO_URL =
-  process.env.LOGO_URL || "https://mastersfit.ai/email/logo-dark.png";
+  process.env.LOGO_URL || "https://www.mastersfit.ai/email/logo-dark.png";
 
 export const FONT =
   "'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
