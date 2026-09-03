@@ -1,4 +1,4 @@
-const LOGO_URL = process.env.LOGO_URL || "https://mastersfit.ai/email/logo-dark.png";
+import { LOGO_URL } from "@/templates/email-shared";
 
 interface OtpEmailTemplateProps {
   otp: string;
