@@ -19,6 +19,12 @@ import { processWorkoutGenerationJob } from "./jobs/workout-generation.job";
 import { processWorkoutRegenerationJob } from "./jobs/workout-regeneration.job";
 import { processDailyRegenerationJob } from "./jobs/daily-regeneration.job";
 import { processRenewalReminderJob } from "./jobs/renewal-reminder.job";
+import {
+  stalledSignupDigestQueue,
+  scheduleStalledSignupDigestJob,
+  closeStalledSignupDigestQueue,
+} from "./queues/stalled-signup-digest.queue";
+import { processStalledSignupDigestJob } from "./jobs/stalled-signup-digest.job";
 
 const port = parseInt(process.env.PORT || "5000", 10);
 
@@ -98,6 +104,16 @@ async function initializeServices() {
     renewalReminderQueue.process('renewal-reminder', 1, processRenewalReminderJob);
     await scheduleRenewalReminderJob();
 
+    // Stalled-signup digest: same shape as the renewal scan. The job itself is
+    // a no-op unless SIGNUP_NOTIFY_ENABLED is set, so registering it here costs
+    // nothing until the feature is switched on.
+    stalledSignupDigestQueue.process(
+      'stalled-signup-digest',
+      1,
+      processStalledSignupDigestJob
+    );
+    await scheduleStalledSignupDigestJob();
+
   } catch (error) {
     logger.error('Failed to initialize services', error as Error);
     process.exit(1);
@@ -112,6 +128,7 @@ async function gracefulShutdown() {
     // Close queues
     await closeWorkoutGenerationQueue();
     await closeRenewalReminderQueue();
+    await closeStalledSignupDigestQueue();
 
     // Close Redis
     await closeRedis();

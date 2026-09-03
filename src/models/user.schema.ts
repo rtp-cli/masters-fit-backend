@@ -28,6 +28,15 @@ export const users = pgTable(
     isActive: boolean("is_active").default(true),
     themeMode: text("theme_mode").default("auto"),
     colorTheme: text("color_theme").default("original"),
+    // Internal ops notifications (never surfaced to the user). Both are
+    // write-once claim markers: an atomic conditional UPDATE sets them, so N
+    // Render instances racing the same user still produce exactly one email.
+    // signupNotifiedAt — the "new user finished onboarding" alert was sent.
+    signupNotifiedAt: timestamp("signup_notified_at"),
+    // stalledDigestNotifiedAt — this user has appeared in a stalled-signup
+    // digest at least once. Null means they are NEW to the list, which is what
+    // gates whether today's digest sends at all.
+    stalledDigestNotifiedAt: timestamp("stalled_digest_notified_at"),
   },
   (table) => ({
     emailIdx: index("idx_users_email").on(table.email),
@@ -88,6 +97,8 @@ export interface User {
   isActive: boolean | null;
   themeMode: string | null;
   colorTheme: string | null;
+  signupNotifiedAt: Date | null;
+  stalledDigestNotifiedAt: Date | null;
 }
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
