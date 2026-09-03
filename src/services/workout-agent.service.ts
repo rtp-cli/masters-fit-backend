@@ -884,13 +884,17 @@ ${exerciseContext}`;
       usedSonnetPlanning: useValidSonnetPlanning,
       operation: "generateWeeklyWorkout",
     });
-    // Wraps the planning call's timeout/usage plumbing. (The old muscle-balance
-    // corrective SECOND planning call was replaced by a deterministic reorder in
-    // GQ-10, so this now runs exactly once.)
-    const runPlanningCall = async (userMessage: string): Promise<WeekPlan> => {
+    // Wraps the planning call's timeout/usage plumbing. Takes the LLM as a
+    // parameter because the empty-week retry below may escalate to a stronger
+    // model on the final attempt. (The old muscle-balance corrective SECOND
+    // planning call was replaced by a deterministic reorder in GQ-10.)
+    const runPlanningCall = async (
+      userMessage: string,
+      llm: typeof planLlm
+    ): Promise<WeekPlan> => {
       const result: any = await runWithAbortTimeout(
         (signal) =>
-          planLlm.invoke(
+          llm.invoke(
             [planningSystemMessage, new HumanMessage(userMessage)],
             { signal }
           ),
@@ -907,81 +911,140 @@ ${exerciseContext}`;
       promptFeedback
     );
     promptSnapshot.planning.user = planningUserMessage; // [GQ-14]
-    let weekPlan = await runPlanningCall(planningUserMessage);
 
-    // [safety-language] Strip any medical / absolute-safety / guaranteed-outcome
-    // wording from the user-visible outline (plan name + description, day
-    // name/focus, feedback-conflict messages) the moment the planner returns.
-    // Deterministic — the prompt discourages this language but must not be the
-    // only guard. Per-day content is cleaned later in applyPostGenerationValidation.
-    const planSafety = sanitizeGeneratedContent(weekPlan);
-    if (planSafety.findings.length) {
-      logger.warn("Stripped safety/medical claims from generated plan outline", {
-        userId: profile.userId,
-        fields: planSafety.findings.map((f) => f.path),
-        claims: [...new Set(planSafety.findings.flatMap((f) => f.claims))],
+    // [EW-1] The planning call intermittently returns an EMPTY or short week —
+    // the 2026-08-12 eval measured ~40-50% on specific-weekday schedules, which
+    // is exactly the shape a new user's onboarding day-picks produce. A short
+    // result used to throw straight to the Bull layer, which re-runs the ENTIRE
+    // fan-out (minutes of latency, full LLM cost, ~6-12% compound hard failure).
+    // Retry just this one small call instead: once more on the same model, then
+    // once on the stronger override-planning model, before giving up to the
+    // job-level retry. Escalation only exists on the Anthropic fan-out path and
+    // only when the override model is actually registered.
+    const planningEscalationModel =
+      this.currentProvider === AIProvider.ANTHROPIC &&
+      getModelConfig(AIProvider.ANTHROPIC, FANOUT_PLANNING_OVERRIDE_MODEL)
+        ? FANOUT_PLANNING_OVERRIDE_MODEL
+        : null;
+    const planningAttempts: Array<{ model: string; llm: typeof planLlm }> = [
+      { model: effectivePlanningModel, llm: planLlm },
+      { model: effectivePlanningModel, llm: planLlm },
+    ];
+    if (planningEscalationModel && planningEscalationModel !== effectivePlanningModel) {
+      planningAttempts.push({
+        model: planningEscalationModel,
+        llm: aiProviderService
+          .createLLMInstance(AIProvider.ANTHROPIC, planningEscalationModel)
+          .withStructuredOutput(WEEK_PLAN_SCHEMA as any, {
+            name: "week_plan",
+            includeRaw: true,
+          }) as typeof planLlm,
       });
     }
 
-    // [GQ-02] Resolve any explicit scheduling override the planner extracted
-    // (specific weekdays, day count, or start weekday) into effective schedule
-    // inputs. When present, RECOMPUTE the schedule so the day-call labels and
-    // the stamped dates reflect the user's request; the expected day count also
-    // becomes the requested count. No override -> identical to the prior code
-    // (effective.dayCount === profile.availableDays.length, schedule unchanged).
-    // [GQ-02] Plausibility gate: only honor the planner's scheduling override
-    // when the LIVE request actually asked to change the schedule. Guards
-    // against a mis-extraction from calendar-content language ("keep Fridays
-    // easy") or a stale recent-feedback note silently shrinking/shifting a week.
-    const scheduleOverride = mentionsScheduleChange(customFeedback)
-      ? weekPlan.constraints?.schedule
-      : undefined;
-    const effective = resolveEffectiveSchedule(
-      scheduleOverride,
-      profile.availableDays,
-      scheduleStartDate
-    );
-    const expectedDayCount = effective.dayCount;
-    if (effective.overridden) {
-      schedule = buildPlanDaySchedule(
-        effective.availableDays,
-        effective.startDate,
-        effective.dayCount
+    // A failed attempt may already have applied a GQ-02 schedule override, so
+    // every attempt starts from the pristine schedule.
+    const baseSchedule = schedule;
+
+    let weekPlan!: WeekPlan;
+    let expectedDayCount!: number;
+    let feedbackConflicts!: FeedbackConflict[];
+
+    for (let attempt = 0; attempt < planningAttempts.length; attempt++) {
+      const { model: attemptModel, llm: attemptLlm } = planningAttempts[attempt];
+      schedule = baseSchedule;
+      weekPlan = await runPlanningCall(planningUserMessage, attemptLlm);
+
+      // [safety-language] Strip any medical / absolute-safety / guaranteed-outcome
+      // wording from the user-visible outline (plan name + description, day
+      // name/focus, feedback-conflict messages) the moment the planner returns.
+      // Deterministic — the prompt discourages this language but must not be the
+      // only guard. Per-day content is cleaned later in applyPostGenerationValidation.
+      const planSafety = sanitizeGeneratedContent(weekPlan);
+      if (planSafety.findings.length) {
+        logger.warn("Stripped safety/medical claims from generated plan outline", {
+          userId: profile.userId,
+          fields: planSafety.findings.map((f) => f.path),
+          claims: [...new Set(planSafety.findings.flatMap((f) => f.claims))],
+        });
+      }
+
+      // [GQ-02] Resolve any explicit scheduling override the planner extracted
+      // (specific weekdays, day count, or start weekday) into effective schedule
+      // inputs. When present, RECOMPUTE the schedule so the day-call labels and
+      // the stamped dates reflect the user's request; the expected day count also
+      // becomes the requested count. No override -> identical to the prior code
+      // (effective.dayCount === profile.availableDays.length, schedule unchanged).
+      // [GQ-02] Plausibility gate: only honor the planner's scheduling override
+      // when the LIVE request actually asked to change the schedule. Guards
+      // against a mis-extraction from calendar-content language ("keep Fridays
+      // easy") or a stale recent-feedback note silently shrinking/shifting a week.
+      const scheduleOverride = mentionsScheduleChange(customFeedback)
+        ? weekPlan.constraints?.schedule
+        : undefined;
+      const effective = resolveEffectiveSchedule(
+        scheduleOverride,
+        profile.availableDays,
+        scheduleStartDate
       );
-      logger.info("Applied GQ-02 scheduling override", {
+      expectedDayCount = effective.dayCount;
+      if (effective.overridden) {
+        schedule = buildPlanDaySchedule(
+          effective.availableDays,
+          effective.startDate,
+          effective.dayCount
+        );
+        logger.info("Applied GQ-02 scheduling override", {
+          userId,
+          operation: "generateWeeklyWorkout",
+          metadata: {
+            availableDays: effective.availableDays,
+            dayCount: effective.dayCount,
+            startDate: effective.startDate,
+          },
+        });
+      }
+      // [GQ-04] Assemble the "couldn't apply X because Y" list surfaced in-app:
+      // the planner's own semantic conflicts, plus a deterministic entry when the
+      // user asked for MORE workout days than their available days allow (the pure
+      // day-count case; a named-days request gets exactly what was named, so it
+      // can't clamp). This is the reliable, checkable half — the schedule math,
+      // not the model's judgment.
+      feedbackConflicts = [...(weekPlan.feedbackConflicts || [])];
+      const clampConflict = scheduleClampConflict(scheduleOverride, effective);
+      if (clampConflict) feedbackConflicts.push(clampConflict);
+
+      logger.info("Fan-out planning call completed", {
+        userId,
+        returnedDayCount: weekPlan?.days?.length || 0,
+        expectedDayCount,
+        feedbackConflictCount: feedbackConflicts.length,
+        weekPlanName: weekPlan?.name,
+        operation: "generateWeeklyWorkout",
+      });
+
+      if (weekPlan?.days?.length && weekPlan.days.length >= expectedDayCount) {
+        break; // Planning succeeded.
+      }
+
+      const isLastAttempt = attempt === planningAttempts.length - 1;
+      if (isLastAttempt) {
+        throw new Error(
+          `Week planning returned ${weekPlan?.days?.length || 0} days, expected ${expectedDayCount}`
+        );
+      }
+      logger.warn("Planning returned a short/empty week — retrying planning call", {
         userId,
         operation: "generateWeeklyWorkout",
         metadata: {
-          availableDays: effective.availableDays,
-          dayCount: effective.dayCount,
-          startDate: effective.startDate,
+          attempt: attempt + 1,
+          maxAttempts: planningAttempts.length,
+          returnedDayCount: weekPlan?.days?.length || 0,
+          expectedDayCount,
+          model: attemptModel,
+          nextModel: planningAttempts[attempt + 1].model,
         },
       });
-    }
-    // [GQ-04] Assemble the "couldn't apply X because Y" list surfaced in-app:
-    // the planner's own semantic conflicts, plus a deterministic entry when the
-    // user asked for MORE workout days than their available days allow (the pure
-    // day-count case; a named-days request gets exactly what was named, so it
-    // can't clamp). This is the reliable, checkable half — the schedule math,
-    // not the model's judgment.
-    const feedbackConflicts: FeedbackConflict[] = [
-      ...(weekPlan.feedbackConflicts || []),
-    ];
-    const clampConflict = scheduleClampConflict(scheduleOverride, effective);
-    if (clampConflict) feedbackConflicts.push(clampConflict);
-
-    logger.info("Fan-out planning call completed", {
-      userId,
-      returnedDayCount: weekPlan?.days?.length || 0,
-      expectedDayCount,
-      feedbackConflictCount: feedbackConflicts.length,
-      weekPlanName: weekPlan?.name,
-      operation: "generateWeeklyWorkout",
-    });
-    if (!weekPlan?.days?.length || weekPlan.days.length < expectedDayCount) {
-      throw new Error(
-        `Week planning returned ${weekPlan?.days?.length || 0} days, expected ${expectedDayCount}`
-      );
     }
     // The model controls the day fields — renumber sequentially and clamp to the
     // expected count so numbering always matches the (possibly overridden)
