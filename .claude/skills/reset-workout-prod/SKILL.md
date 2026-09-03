@@ -1,6 +1,6 @@
 ---
 name: reset-workout-prod
-description: Use to replay/test workout logging on PRODUCTION (Neon) by rewinding ONE plan day back to not-started — deletes that day's logs and un-completes it so you can log it again on the live database. Triggers "/reset-workout-prod", "reset today's workout on prod", "reset the prod QA workout", "reset production workout so I can test logging". Writes to the LIVE db — confirm the account + date first. Defaults to the QA account rtp+qa@mastersfit.ai and today in the account's profile timezone. For local use reset-workout-local; for a full account rebuild use reseed-dave-prod.
+description: Use to replay/test workout logging on PRODUCTION (Neon) by rewinding ONE plan day back to not-started — deletes that day's logs and un-completes it so you can log it again on the live database. Triggers "/reset-workout-prod", "reset today's workout on prod", "reset the prod QA workout", "reset production workout so I can test logging". Writes to the LIVE db — confirm the account + date first. Defaults to the QA account rtp+qa@mastersfit.ai and today in the account's profile timezone, but --email resets any account - use rtp+demo@mastersfit.ai for the demo user Dave Walker, whose prod plan is usually the live one (the prod QA plan is stale). For local use reset-workout-local; for a full account rebuild use reseed-dave-prod.
 ---
 
 # Reset Workout Day — PRODUCTION (Neon)
@@ -19,11 +19,16 @@ Backed by `src/scripts/reset-workout-day.ts`, run with `--remote` against the pr
 
 ## Which account + day
 
-- **Account:** `rtp+qa@mastersfit.ai` (the dedicated QA/test account; prod id 103). Never reset a
-  real customer's workout on prod unless they've explicitly asked you to.
+- **Account:** `rtp+qa@mastersfit.ai` (the dedicated QA/test account; prod id 103) is the default,
+  but `--email` works for **any** account. Never reset a real customer's workout on prod unless
+  they've explicitly asked you to.
 - **Day:** defaults to **today in the account's profile timezone**. Pass `--date YYYY-MM-DD` for a
   specific day. It resolves the plan day whose `date` equals that date in the account's **active**
   workout.
+
+> ⚠️ **Don't assume the default account is the right target.** As of 2026-09-01 the prod QA
+> account has no plan day past **2026-08-17**, so a default run does nothing. See
+> *Pick the right account* below before you reset.
 
 All commands run from the backend repo:
 
@@ -54,6 +59,46 @@ DATABASE_URL="$PROD_URL" npm run reset-workout-day -- \
 Expect a `local=false` line + a `⚠️ --remote` warning naming the Neon host, the resolved target
 day, `✓` lines, and `daysCompleted -> N`. If it prints **"No plan day found … on <date>"**, the
 active plan doesn't cover that date — generate a workout for that day first, then reset.
+
+### Pick the right account
+
+⚠️ **The prod QA account's plan is stale.** As of 2026-09-01, `rtp+qa@mastersfit.ai` (id 103)
+has no plan day past **2026-08-17**, so a default prod run just prints
+`No plan day found … on <today>` and does nothing. **Check which account actually has a
+completed day today before running** — don't assume the default is the right target:
+
+```bash
+psql "$PROD_URL" -c "
+  select u.id, u.email, pd.date, pd.is_complete
+  from users u
+  join workouts w on w.user_id = u.id
+  join plan_days pd on pd.workout_id = w.id
+  join profiles p on p.user_id = u.id
+  where u.email in ('rtp+qa@mastersfit.ai','rtp+demo@mastersfit.ai')
+    and pd.date = to_char(now() at time zone coalesce(p.timezone,'UTC'), 'YYYY-MM-DD');"
+```
+
+(`plan_days.date` is a **text** column, hence `to_char` rather than a `::date` cast. Using the
+profile timezone — not `current_date`, which is UTC on Neon and drifts from the script's notion
+of "today" after ~7pm Central.)
+
+### Resetting Dave (the demo user) instead
+
+The marketing demo user `rtp+demo@mastersfit.ai` ("Dave Walker") is usually the account with a
+live plan on prod, and is a common reset target after a demo or a screenshot run — just swap the
+email:
+
+```bash
+DATABASE_URL="$PROD_URL" npm run reset-workout-day -- \
+  --email rtp+demo@mastersfit.ai --remote --dry-run
+```
+
+Use this rather than **reseed-dave-prod** when you only need to replay one day: the reset keeps
+Dave's user id and all his history, whereas a reseed deletes and recreates him with a **new id**
+(forcing every logged-in device to re-authenticate).
+
+**If the reset keeps getting undone**, something is re-logging the session between runs — a stale
+simulator session replaying, or a live demo device. Track that down before resetting again.
 
 ## Verify
 
