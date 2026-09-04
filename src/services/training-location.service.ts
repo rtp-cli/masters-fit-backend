@@ -175,39 +175,63 @@ export class TrainingLocationService extends BaseService {
   ): Promise<TrainingLocation | undefined> {
     if (!environment) return undefined; // nothing to anchor a location on yet
     const resolved = this.resolveEquipment(environment, equipment);
-    const existing = await this.getPrimary(userId);
 
-    if (existing) {
-      const rows = await this.updateWithRetry(
+    if (!(await this.getPrimary(userId))) {
+      // Idempotent insert. "No primary exists" was read in a separate
+      // statement, so a concurrent caller can create one before we get here --
+      // getUserLocations' self-heal races itself whenever two requests land
+      // together on a user with no primary. Retrying a plain insert could never
+      // succeed (the conflicting row is still there), which is why this is a
+      // conflict clause and not more retries.
+      //
+      // Bare onConflictDoNothing() with NO target, as in exercise.service's
+      // createExerciseInsertIgnoringConflict: the index to dodge is
+      // uq_training_locations_one_primary, a PARTIAL unique index, and
+      // Drizzle's typed { target } cannot express its `WHERE is_primary = true`
+      // predicate -- it emits `ON CONFLICT ("user_id")`, which Postgres will
+      // NOT match to a partial index. Bare ON CONFLICT DO NOTHING covers any
+      // unique constraint on the table, and that partial index is the only one
+      // an insert here can hit.
+      const inserted = await this.insertWithRetry(
         () =>
           this.db
-            .update(trainingLocations)
-            .set({
+            .insert(trainingLocations)
+            .values({
+              userId,
+              name: DEFAULT_PRIMARY_NAME,
               environment: environment as any,
               equipment: resolved as any,
-              updatedAt: createTimestamp(),
+              isPrimary: true,
             })
-            .where(eq(trainingLocations.id, existing.id))
+            .onConflictDoNothing()
             .returning(),
-        "syncPrimaryFromProfile:update",
+        "syncPrimaryFromProfile:insert",
         userId
       );
-      return (rows as TrainingLocation[])[0];
+      const row = (inserted as TrainingLocation[])[0];
+      if (row) return row;
+      // Lost the race: someone else inserted the primary. Fall through and
+      // update their row instead of erroring, so a profile edit that raced a
+      // self-heal still lands its environment/equipment.
     }
 
-    const rows = await this.insertWithRetry(
+    // Re-read rather than reusing the pre-insert value: on the raced path the
+    // row we must update is the winner's, which we have never seen.
+    const target = await this.getPrimary(userId);
+    if (!target) return undefined;
+
+    const rows = await this.updateWithRetry(
       () =>
         this.db
-          .insert(trainingLocations)
-          .values({
-            userId,
-            name: DEFAULT_PRIMARY_NAME,
+          .update(trainingLocations)
+          .set({
             environment: environment as any,
             equipment: resolved as any,
-            isPrimary: true,
+            updatedAt: createTimestamp(),
           })
+          .where(eq(trainingLocations.id, target.id))
           .returning(),
-      "syncPrimaryFromProfile:insert",
+      "syncPrimaryFromProfile:update",
       userId
     );
     return (rows as TrainingLocation[])[0];
