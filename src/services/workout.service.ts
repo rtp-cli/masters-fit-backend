@@ -2338,10 +2338,24 @@ export class WorkoutService extends BaseService {
   }
 
   /**
-   * Get past completed days for a user (up to 30 most recent)
+   * Get DISTINCT past completed workouts for a user, newest instance first.
+   *
+   * This used to take the 30 most recent completed days verbatim, which fell
+   * apart for anyone repeating a workout: a daily challenge streak filled all
+   * 30 slots with copies of one workout and hid every other workout the user
+   * had ever done. Now it scans a much wider window, collapses repeats, and
+   * returns one card per distinct workout carrying how many times it was done.
    */
   async getPastCompletedDays(userId: number): Promise<any[]> {
-    const completedDays = await this.db.query.planDays.findMany({
+    // How many completed days to consider before collapsing. Generous enough
+    // that a year of daily repeats still leaves room for the rest of history.
+    const SCAN_LIMIT = 400;
+    // How many DISTINCT workouts to hand back.
+    const DISTINCT_LIMIT = 30;
+
+    // 1. Candidate days, newest first. Ids and names only — pulling full
+    //    blocks for 400 days just to discard most of them would be wasteful.
+    const candidates = await this.db.query.planDays.findMany({
       where: and(
         eq(planDays.isComplete, true),
         inArray(
@@ -2353,7 +2367,78 @@ export class WorkoutService extends BaseService {
         )
       ),
       orderBy: [desc(planDays.date)],
-      limit: 30,
+      limit: SCAN_LIMIT,
+      columns: { id: true, name: true, date: true },
+    });
+
+    if (candidates.length === 0) {
+      return [];
+    }
+
+    const candidateIds = candidates.map((day) => day.id);
+
+    // 2. Exercise ids for every candidate day, in one query.
+    const exerciseRows = await this.db
+      .select({
+        planDayId: workoutBlocks.planDayId,
+        exerciseId: planDayExercises.exerciseId,
+      })
+      .from(workoutBlocks)
+      .innerJoin(
+        planDayExercises,
+        eq(planDayExercises.workoutBlockId, workoutBlocks.id)
+      )
+      .where(inArray(workoutBlocks.planDayId, candidateIds));
+
+    const exerciseIdsByDay = new Map<number, number[]>();
+    for (const row of exerciseRows) {
+      const existing = exerciseIdsByDay.get(row.planDayId);
+      if (existing) {
+        existing.push(row.exerciseId);
+      } else {
+        exerciseIdsByDay.set(row.planDayId, [row.exerciseId]);
+      }
+    }
+
+    // 3. Same name + same set of exercises = the same workout, as far as the
+    //    user can tell. Deliberately NOT keyed on sets/reps/weight: those
+    //    drift between runs of a repeated workout, and keying on them would
+    //    collapse nothing. Two same-named days with different exercises stay
+    //    separate, because those really are different sessions.
+    const signatureOf = (day: { id: number; name: string | null }) => {
+      const ids = [...(exerciseIdsByDay.get(day.id) ?? [])].sort(
+        (a, b) => a - b
+      );
+      return `${(day.name ?? "").trim().toLowerCase()}::${ids.join(",")}`;
+    };
+
+    // Candidates are newest-first and Map keeps insertion order, so the first
+    // day recorded for a signature is the most recent one.
+    const bySignature = new Map<
+      string,
+      { dayId: number; timesCompleted: number }
+    >();
+    for (const day of candidates) {
+      const signature = signatureOf(day);
+      const seen = bySignature.get(signature);
+      if (seen) {
+        seen.timesCompleted += 1;
+      } else {
+        bySignature.set(signature, { dayId: day.id, timesCompleted: 1 });
+      }
+    }
+
+    const distinct = [...bySignature.values()].slice(0, DISTINCT_LIMIT);
+    const timesCompletedById = new Map(
+      distinct.map((entry) => [entry.dayId, entry.timesCompleted])
+    );
+
+    // 4. Full blocks, but only for the days that survived the collapse.
+    const completedDays = await this.db.query.planDays.findMany({
+      where: inArray(
+        planDays.id,
+        distinct.map((entry) => entry.dayId)
+      ),
       with: {
         blocks: {
           orderBy: [asc(workoutBlocks.order)],
@@ -2369,12 +2454,18 @@ export class WorkoutService extends BaseService {
       },
     });
 
+    // An IN query gives no ordering guarantee, so restore newest-first.
+    completedDays.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
     return completedDays.map((day) => ({
       id: day.id,
       date: formatDateAsString(day.date),
       name: day.name,
       description: day.description,
       isComplete: day.isComplete,
+      // How many times this same workout has been completed, this instance
+      // included. 1 means it was a one-off.
+      timesCompleted: timesCompletedById.get(day.id) ?? 1,
       blocks: day.blocks?.map((block) => ({
         id: block.id,
         blockType: block.blockType,
