@@ -11,6 +11,7 @@ import {
   describeCautions,
   describeContraindications,
   filterExercisesByLimitations,
+  validateLimitationsAndFilter,
 } from "@/utils/limitation-validation";
 import type { PhysicalLimitation } from "@/types";
 import {
@@ -686,6 +687,35 @@ Please generate the workout now, addressing this feedback while following all sy
             });
           }
         }
+      }
+
+      // [P1-b 2026-09-06] Limitation enforcement for the daily/serial path.
+      // Unlike the fan-out (applyPostGenerationValidation), this path returned
+      // the model's output with no contraindication check at all — a daily
+      // regen prescribed Box Jump to a knee-replacement user. Same drop
+      // semantics as the weekly path; validateLimitationsAndFilter no-ops for
+      // profiles without limitations.
+      if (dayNumber) {
+        const screened = validateLimitationsAndFilter(
+          (workout as any).exercisesToAdd || [],
+          [workout],
+          profile
+        );
+        workout = {
+          ...screened.workoutPlan[0],
+          exercisesToAdd: screened.exercisesToAdd,
+        };
+      } else if ((workout as any).workoutPlan) {
+        const screened = validateLimitationsAndFilter(
+          (workout as any).exercisesToAdd || [],
+          (workout as any).workoutPlan,
+          profile
+        );
+        workout = {
+          ...workout,
+          workoutPlan: screened.workoutPlan,
+          exercisesToAdd: screened.exercisesToAdd,
+        };
       }
 
       return {
