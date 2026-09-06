@@ -17,6 +17,7 @@ import {
   getModelConfig,
 } from "@/constants/ai-providers";
 import { PlanDaySlot } from "@/utils/plan-schedule";
+import { timePhase } from "@/utils/phase-timing";
 // Result type that includes token usage
 export interface PromptGenerationResult {
   response: any;
@@ -296,7 +297,9 @@ export class PromptsService extends BaseService {
     scheduleStartDate?: string,
     signal?: AbortSignal
   ): Promise<PromptGenerationResult> {
-    const profile = await profileService.getProfileByUserId(userId);
+    const profile = await timePhase(userId, "profileFetchMs", () =>
+      profileService.getProfileByUserId(userId)
+    );
     if (!profile) {
       throw new Error("Profile not found");
     }
@@ -308,7 +311,9 @@ export class PromptsService extends BaseService {
     // forcing every request onto the slower serial path (generatePrompt
     // below) which emits no per-day progress — that's the "stuck on
     // spinner" bug this removal fixed. Do not re-add it.
-    const workoutAgent = await this.createUserWorkoutAgent(userId, profile);
+    const workoutAgent = await timePhase(userId, "agentSetupMs", () =>
+      this.createUserWorkoutAgent(userId, profile)
+    );
 
     emitGenerationStatus(userId, { progress: 15, phase: "planning" });
 
@@ -324,7 +329,9 @@ export class PromptsService extends BaseService {
     // the fan-out prompt presents them as distinct, precedence-labeled sections
     // (current request wins) instead of blending them into one string where a
     // stale note carried the same weight as an explicit ask.
-    const recentFeedback = await this.buildRecentFeedbackDigest(userId);
+    const recentFeedback = await timePhase(userId, "feedbackDigestMs", () =>
+      this.buildRecentFeedbackDigest(userId)
+    );
 
     try {
       const result = await workoutAgent.generateWeeklyWorkout(
@@ -532,7 +539,9 @@ export class PromptsService extends BaseService {
     // constraints. The stored profile is untouched — this is a one-off.
     locationOverride?: { environment: string; equipment: string[] }
   ): Promise<PromptGenerationResult> {
-    const storedProfile = await profileService.getProfileByUserId(userId);
+    const storedProfile = await timePhase(userId, "profileFetchMs", () =>
+      profileService.getProfileByUserId(userId)
+    );
     if (!storedProfile) {
       throw new Error("Profile not found");
     }
@@ -555,15 +564,16 @@ export class PromptsService extends BaseService {
     }
 
     // Create user-specific workout agent
-    const workoutAgent = await this.createUserWorkoutAgent(userId);
+    const workoutAgent = await timePhase(userId, "agentSetupMs", () =>
+      this.createUserWorkoutAgent(userId)
+    );
 
     // Generate a thread ID if not provided to enable conversation memory for all users
     const workoutThreadId = threadId || `workout_daily_${userId}_${Date.now()}`;
 
     // Recent post-workout feedback rides along as generation input
-    const enrichedReason = await this.withRecentFeedback(
-      userId,
-      regenerationReason
+    const enrichedReason = await timePhase(userId, "feedbackDigestMs", () =>
+      this.withRecentFeedback(userId, regenerationReason)
     );
 
     try {

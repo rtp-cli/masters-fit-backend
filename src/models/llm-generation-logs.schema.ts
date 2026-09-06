@@ -1,4 +1,4 @@
-import { integer, pgTable, serial, text, timestamp, index } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, serial, text, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { users } from "./user.schema";
 
@@ -31,6 +31,13 @@ export const llmGenerationLogs = pgTable(
     // only the fan-out path (generateWeeklyWorkout) populates it; serial regen
     // and older rows leave it null. Written fire-and-forget off the hot path.
     promptSnapshot: text("prompt_snapshot"),
+    // Per-phase wall-clock breakdown (ms) of the generation, so slow runs can
+    // be attributed from SQL instead of Render log archaeology. Motivated by
+    // the 2026-09-06 forensics: jobs showed a 40-140s gap between pickup and
+    // the first LLM call that llmDurationMs alone can't explain. Keys vary by
+    // path (fan-out vs regen); nullable — older rows and paths that don't
+    // measure leave it null. Written with the row, no extra query.
+    phaseTimings: jsonb("phase_timings"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({

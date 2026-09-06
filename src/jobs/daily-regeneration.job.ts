@@ -17,6 +17,11 @@ import {
   JobStatus,
 } from "@/models/jobs.schema";
 import { emitProgress, clearPersistedGenerationStatus } from "@/utils/websocket-progress.utils";
+import {
+  startPhaseRun,
+  recordPhase,
+  markPhaseElapsed,
+} from "@/utils/phase-timing";
 
 // Check if error is a rate limit error (429) that shouldn't be retried
 function isRateLimitError(error: Error): boolean {
@@ -83,6 +88,13 @@ export async function processDailyRegenerationJob(
     durationOverride,
     locationOverride,
   } = job.data;
+
+  // Phase-timing run: attributed pre-LLM/pipeline breakdown, persisted on the
+  // llm_generation_logs row this generation writes (phase_timings).
+  startPhaseRun(userId);
+  if (typeof job.timestamp === "number") {
+    recordPhase(userId, "queueWaitMs", startTime - job.timestamp);
+  }
 
   logger.info("Starting daily workout regeneration job processing", {
     operation: "dailyRegenerationJob",
@@ -151,6 +163,10 @@ export async function processDailyRegenerationJob(
 
     // Clear any previous token usage before regeneration
     clearLastTokenUsage(userId);
+
+    // Everything between pickup and here: claim, Redis status clear, DB
+    // progress writes. A waterfall mark, not a duration.
+    markPhaseElapsed(userId, "atServiceCallMs");
 
     // Regenerate daily workout using existing service
     // The service already handles progress updates via emitProgress
