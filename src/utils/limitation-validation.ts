@@ -37,6 +37,12 @@ import type { ExerciseMetadata } from "@/services/exercise.service";
  * actively uses — making reasonable user requests silently unsatisfiable.
  */
 const CONTRAINDICATION_RULES: Partial<Record<PhysicalLimitation, RegExp>> = {
+  // Arthritis is joint disease (most commonly knee/hip in this user base):
+  // ban the highest-impact patterns, mirroring the KNEE_PAIN precedent. Added
+  // 2026-09-06 after prod prescribed Box Jumps to a double-knee-replacement
+  // user whose only structured limitation was "arthritis" — this table had no
+  // arthritis entry at all, so nothing was filtered.
+  [PhysicalLimitations.ARTHRITIS]: /\b(pistol squat|box jump|depth jump|plyo)\b/i,
   [PhysicalLimitations.KNEE_PAIN]: /\b(pistol squat|box jump|plyo)\b/i,
   [PhysicalLimitations.SHOULDER_PAIN]:
     /\b(behind[- ]the[- ]neck|kipping|snatch)\b/i,
@@ -66,6 +72,8 @@ const CONTRAINDICATION_RULES: Partial<Record<PhysicalLimitation, RegExp>> = {
  * e.g. a stiff-leg deadlift never reaches the lower-back caution check.
  */
 const CAUTION_RULES: Partial<Record<PhysicalLimitation, RegExp>> = {
+  [PhysicalLimitations.ARTHRITIS]:
+    /\b(jump|jumping jack|burpee|deep squat|sprint)\b/i,
   [PhysicalLimitations.KNEE_PAIN]:
     /\b(jump|jumping jack|burpee|deep squat|sprint)\b/i,
   [PhysicalLimitations.SHOULDER_PAIN]:
@@ -89,6 +97,8 @@ const CAUTION_RULES: Partial<Record<PhysicalLimitation, RegExp>> = {
  * contain, with no way to understand why.
  */
 const CONTRAINDICATED_MOVEMENTS: Partial<Record<PhysicalLimitation, string>> = {
+  [PhysicalLimitations.ARTHRITIS]:
+    "pistol squats, box jumps, depth jumps, plyometrics",
   [PhysicalLimitations.KNEE_PAIN]: "pistol squats, box jumps, plyometrics",
   [PhysicalLimitations.SHOULDER_PAIN]:
     "behind-the-neck movements, kipping movements, snatches",
@@ -112,6 +122,8 @@ const CONTRAINDICATED_MOVEMENTS: Partial<Record<PhysicalLimitation, string>> = {
  * CONTRAINDICATED_MOVEMENTS mirrors the hard bans.
  */
 const CAUTION_MOVEMENTS: Partial<Record<PhysicalLimitation, string>> = {
+  [PhysicalLimitations.ARTHRITIS]:
+    "jumps, jumping jacks, burpees, deep squats, sprints",
   [PhysicalLimitations.KNEE_PAIN]:
     "jumps, jumping jacks, burpees, deep squats, sprints",
   [PhysicalLimitations.SHOULDER_PAIN]:
@@ -231,17 +243,32 @@ export function validateLimitationsAndFilter(
     return false;
   });
 
-  if (invalidNames.size === 0) {
-    return { exercisesToAdd: filteredExercisesToAdd, workoutPlan };
-  }
-
+  // Screen the PLAN BODY too, not just exercisesToAdd. The old
+  // exercisesToAdd-only check assumed every plan exercise came from the
+  // pre-filtered catalog — but the model can name any exercise it likes
+  // (including one that exists in the full DB catalog and links up at
+  // persistence), and the daily/serial path never sends its output through
+  // this function's callers' catalog at all. 2026-09-04 prod: a daily regen
+  // prescribed Box Jump to a knee-replacement user this way.
   const filteredWorkoutPlan = workoutPlan.map((day) => ({
     ...day,
     blocks: (day.blocks || []).map((block: any) => ({
       ...block,
-      exercises: (block.exercises || []).filter(
-        (ex: any) => !invalidNames.has(ex.exerciseName?.toLowerCase())
-      ),
+      exercises: (block.exercises || []).filter((ex: any) => {
+        if (invalidNames.has(ex.exerciseName?.toLowerCase())) return false;
+        const hit = matchedLimitation(ex.exerciseName ?? "", limitations);
+        if (!hit) return true;
+        logger.warn(
+          "Dropping plan exercise — limitation contraindication",
+          {
+            operation: "validateLimitationsAndFilter",
+            exerciseName: ex.exerciseName,
+            limitation: hit,
+            day: day.day,
+          }
+        );
+        return false;
+      }),
     })),
   }));
 

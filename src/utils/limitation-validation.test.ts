@@ -157,6 +157,82 @@ describe("validateLimitationsAndFilter [LR-013]", () => {
     expect(names).not.toContain("Box Jump");
     expect(names).toContain("Push-Up");
   });
+
+  // [P1-b 2026-09-06] The plan body is screened too — a contraindicated
+  // exercise the model named WITHOUT listing it in exercisesToAdd (it already
+  // exists in the full DB catalog, so persistence would link it) must still be
+  // dropped. This is exactly how prod prescribed Box Jump to a
+  // knee-replacement user on a daily regen.
+  it("drops a contraindicated PLAN exercise even when it's not in exercisesToAdd", () => {
+    const workoutPlan = [
+      {
+        day: 1,
+        blocks: [
+          {
+            exercises: [
+              { exerciseName: "Box Jump" },
+              { exerciseName: "Wall Sit" },
+            ],
+          },
+        ],
+      },
+    ];
+
+    const result = validateLimitationsAndFilter([], workoutPlan, kneeProfile);
+
+    expect(result.workoutPlan[0].blocks[0].exercises).toHaveLength(1);
+    expect(result.workoutPlan[0].blocks[0].exercises[0].exerciseName).toBe(
+      "Wall Sit"
+    );
+  });
+});
+
+describe("arthritis limitation (added 2026-09-06)", () => {
+  const arthritisProfile = { limitations: ["arthritis"] } as any;
+
+  it("excludes high-impact plyometrics from the catalog for arthritis", () => {
+    const exercises = [
+      { name: "Box Jump" },
+      { name: "Depth Jump" },
+      { name: "Pistol Squat" },
+      { name: "Goblet Squat" },
+      { name: "Rowing Machine Row" },
+    ] as any;
+    const result = filterExercisesByLimitations(exercises, arthritisProfile);
+    const names = result.map((e: any) => e.name);
+    expect(names).not.toContain("Box Jump");
+    expect(names).not.toContain("Depth Jump");
+    expect(names).not.toContain("Pistol Squat");
+    expect(names).toContain("Goblet Squat");
+    expect(names).toContain("Rowing Machine Row");
+  });
+
+  it("keeps caution-tier movements (burpees, sprints) available for arthritis", () => {
+    const exercises = [{ name: "Burpee" }, { name: "Sprint Interval" }] as any;
+    const result = filterExercisesByLimitations(exercises, arthritisProfile);
+    expect(result).toHaveLength(2);
+  });
+
+  it("describeCautions includes the arthritis caution line", () => {
+    const lines = describeCautions(["arthritis"] as any);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^Arthritis: /);
+  });
+
+  it("drops a plan-body Box Jump for an arthritis profile", () => {
+    const workoutPlan = [
+      {
+        day: 1,
+        blocks: [{ exercises: [{ exerciseName: "Box Jump" }] }],
+      },
+    ];
+    const result = validateLimitationsAndFilter(
+      [],
+      workoutPlan,
+      arthritisProfile
+    );
+    expect(result.workoutPlan[0].blocks[0].exercises).toHaveLength(0);
+  });
 });
 
 describe("describeCautions (tiered policy 2026-07-30)", () => {
