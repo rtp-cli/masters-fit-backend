@@ -23,6 +23,16 @@ export class JobSupersededError extends Error {
   }
 }
 
+/**
+ * How long a PROCESSING claim can sit without a status update before another
+ * run may take the job over. Must comfortably exceed the longest legitimate
+ * quiet stretch of a run (the 8-minute generation watchdog bounds every run,
+ * and progress writes are sparse in between), or a healthy slow run would be
+ * double-executed — the exact bug the claim exists to prevent. Kept above the
+ * watchdog so takeover only ever happens after the original run is dead.
+ */
+export const JOB_CLAIM_STALE_MS = 10 * 60_000;
+
 export class JobsService extends BaseService {
   async createJob(
     userId: number,
@@ -52,7 +62,7 @@ export class JobsService extends BaseService {
       jobType,
     });
 
-    return job;
+    return job as BackgroundJob;
   }
 
   async getJob(jobId: number): Promise<BackgroundJob | null> {
@@ -81,7 +91,72 @@ export class JobsService extends BaseService {
       .orderBy(desc(backgroundJobs.createdAt))
       .limit(limit);
 
-    return jobs;
+    return jobs as BackgroundJob[];
+  }
+
+  /**
+   * Atomically claim a background job for execution. Bull can hand the same
+   * job to two runs at once (delayed-promotion races, stalled-lock reclaims,
+   * multi-instance overlap) — prod forensics 2026-09-06 measured ~60% of
+   * generations double-executing, each run persisting its own workout with the
+   * last finisher winning `is_active`. The after-the-fact "already terminal"
+   * check can't stop CONCURRENT runs, so the claim is a single atomic UPDATE
+   * on the shared Postgres row: exactly one concurrent caller flips
+   * PENDING→PROCESSING and gets the row back; everyone else gets null and must
+   * skip without side effects.
+   *
+   * A PROCESSING job whose updatedAt is older than `staleMs` may be taken
+   * over — that's the crash-recovery path (worker died mid-run without
+   * reaching a terminal status). Terminal jobs are never claimable.
+   */
+  async claimJob(
+    jobId: number,
+    staleMs: number = JOB_CLAIM_STALE_MS
+  ): Promise<BackgroundJob | null> {
+    const staleBefore = new Date(Date.now() - staleMs);
+    const [claimed] = await this.db
+      .update(backgroundJobs)
+      .set({ status: JobStatus.PROCESSING, updatedAt: new Date() })
+      .where(
+        and(
+          eq(backgroundJobs.id, jobId),
+          or(
+            eq(backgroundJobs.status, JobStatus.PENDING),
+            and(
+              eq(backgroundJobs.status, JobStatus.PROCESSING),
+              lt(backgroundJobs.updatedAt, staleBefore)
+            )
+          )
+        )
+      )
+      .returning();
+
+    if (claimed) {
+      logger.info("Background job claimed", {
+        operation: "claimJob",
+        jobId,
+        metadata: { processId: process.pid },
+      });
+    }
+
+    return (claimed as BackgroundJob) ?? null;
+  }
+
+  /**
+   * Release a claim so a Bull retry can re-acquire it. Only flips
+   * PROCESSING back to PENDING — never touches a terminal status, so a
+   * completed/failed job can't be reopened by a late release.
+   */
+  async releaseJobClaim(jobId: number): Promise<void> {
+    await this.db
+      .update(backgroundJobs)
+      .set({ status: JobStatus.PENDING, updatedAt: new Date() })
+      .where(
+        and(
+          eq(backgroundJobs.id, jobId),
+          eq(backgroundJobs.status, JobStatus.PROCESSING)
+        )
+      );
   }
 
   async updateJobStatus(
@@ -129,7 +204,7 @@ export class JobsService extends BaseService {
       hasError: error !== undefined,
     });
 
-    return updatedJob;
+    return updatedJob as BackgroundJob;
   }
 
   async deleteJob(jobId: number): Promise<boolean> {

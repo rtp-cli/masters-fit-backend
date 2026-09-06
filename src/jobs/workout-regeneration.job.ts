@@ -90,24 +90,27 @@ export async function processWorkoutRegenerationJob(
   });
 
   try {
-    // Duplicate-run guard: Bull can hand the same job to a second worker
-    // (stalled-lock reclaim, multi-instance race). If another run already
-    // finished this job, skip — a second run would create a duplicate workout.
-    const existingJob = await jobsService.getJob(jobId);
-    if (
-      existingJob &&
-      (existingJob.status === JobStatus.COMPLETED ||
-        existingJob.status === JobStatus.FAILED)
-    ) {
-      logger.warn("Skipping duplicate workout regeneration run — job already terminal", {
+    // Duplicate-run guard: Bull can hand the same job to two runs AT ONCE
+    // (delayed-promotion race, stalled-lock reclaim, multi-instance overlap).
+    // The claim is an atomic PENDING→PROCESSING flip on the shared DB row:
+    // exactly one concurrent run wins it; every other run must return here
+    // WITHOUT side effects — a second run would create a duplicate workout.
+    const claimed = await jobsService.claimJob(jobId);
+    if (!claimed) {
+      const existingJob = await jobsService.getJob(jobId);
+      logger.warn("Skipping duplicate workout regeneration run — job claimed by another run", {
         operation: "workoutRegenerationJob",
         jobId,
         userId,
-        metadata: { status: existingJob.status, attemptsMade: job.attemptsMade },
+        metadata: {
+          status: existingJob?.status,
+          attemptsMade: job.attemptsMade,
+          processId: process.pid,
+        },
       });
       return (
-        (existingJob.result as WorkoutRegenerationJobResult) ?? {
-          workoutId: existingJob.workoutId ?? 0,
+        (existingJob?.result as WorkoutRegenerationJobResult) ?? {
+          workoutId: existingJob?.workoutId ?? 0,
           workoutName: "Duplicate run skipped",
           planDaysCount: 0,
           totalExercises: 0,
@@ -120,7 +123,7 @@ export async function processWorkoutRegenerationJob(
     // any stale persisted status before emitting this job's own progress.
     await clearPersistedGenerationStatus(userId);
 
-    // Update job status to processing
+    // Claiming set PROCESSING; this write only advances the progress figure.
     await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 5);
 
     // Emit initial progress
@@ -354,6 +357,11 @@ export async function processWorkoutRegenerationJob(
           userId,
         }
       );
+
+      // Release the claim (PROCESSING→PENDING) so the Bull retry can
+      // re-acquire it — a retry that can't claim would skip itself and strand
+      // the job.
+      await jobsService.releaseJobClaim(jobId);
 
       // Only throw error for retry attempts
       throw error;

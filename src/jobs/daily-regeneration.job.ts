@@ -97,25 +97,28 @@ export async function processDailyRegenerationJob(
   });
 
   try {
-    // Duplicate-run guard: Bull can hand the same job to a second worker
-    // (stalled-lock reclaim, multi-instance race). If another run already
-    // finished this job, do nothing — rewriting the plan day now would
-    // silently replace a workout the user may already be looking at.
-    const existingJob = await jobsService.getJob(jobId);
-    if (
-      existingJob &&
-      (existingJob.status === JobStatus.COMPLETED ||
-        existingJob.status === JobStatus.FAILED)
-    ) {
-      logger.warn("Skipping duplicate daily regeneration run — job already terminal", {
+    // Duplicate-run guard: Bull can hand the same job to two runs AT ONCE
+    // (delayed-promotion race, stalled-lock reclaim, multi-instance overlap).
+    // The claim is an atomic PENDING→PROCESSING flip on the shared DB row:
+    // exactly one concurrent run wins it; every other run must return here
+    // WITHOUT side effects — rewriting the plan day again would silently
+    // replace a workout the user may already be looking at.
+    const claimed = await jobsService.claimJob(jobId);
+    if (!claimed) {
+      const existingJob = await jobsService.getJob(jobId);
+      logger.warn("Skipping duplicate daily regeneration run — job claimed by another run", {
         operation: "processDailyRegenerationJob",
         jobId,
         userId,
         planDayId,
-        metadata: { status: existingJob.status, attemptsMade: job.attemptsMade },
+        metadata: {
+          status: existingJob?.status,
+          attemptsMade: job.attemptsMade,
+          processId: process.pid,
+        },
       });
       return (
-        (existingJob.result as DailyRegenerationJobResult) ?? {
+        (existingJob?.result as DailyRegenerationJobResult) ?? {
           planDayId,
           planDayName: "Duplicate run skipped",
           totalExercises: 0,
@@ -129,7 +132,7 @@ export async function processDailyRegenerationJob(
     // weekly run's completed days.
     await clearPersistedGenerationStatus(userId);
 
-    // Update job status to processing
+    // Claiming set PROCESSING; this write only advances the progress figure.
     try {
       await jobsService.updateJobStatus(jobId, JobStatus.PROCESSING, 10);
     } catch (dbError) {
@@ -444,6 +447,11 @@ export async function processDailyRegenerationJob(
           planDayId,
         }
       );
+
+      // Release the claim (PROCESSING→PENDING) so the Bull retry can
+      // re-acquire it — a retry that can't claim would skip itself and strand
+      // the job.
+      await jobsService.releaseJobClaim(jobId);
 
       // Only throw error for retry attempts
       throw error;

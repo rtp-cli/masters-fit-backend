@@ -358,9 +358,11 @@ export class WorkoutController extends Controller {
         profileData: requestBody?.profileData,
       };
 
+      // No delay: createJob is awaited (committed) before this, and delayed
+      // jobs go through Bull's delayed-promotion path — a known surface for
+      // double-pickup races that double-executed generations in prod.
       await workoutGenerationQueue.add("regenerate-workout", jobData, {
         jobId: job.id.toString(),
-        delay: 1000, // Small delay to ensure database transaction is committed
       });
 
       logger.info("Workout regeneration job queued successfully", {
@@ -494,9 +496,11 @@ export class WorkoutController extends Controller {
         locationOverride,
       };
 
+      // No delay: createJob is awaited (committed) before this, and delayed
+      // jobs go through Bull's delayed-promotion path — a known surface for
+      // double-pickup races that double-executed generations in prod.
       await workoutGenerationQueue.add("regenerate-daily-workout", jobData, {
         jobId: job.id.toString(),
-        delay: 500, // Smaller delay for daily regeneration (faster operation)
       });
 
       logger.info("Daily workout regeneration job queued successfully", {
@@ -719,9 +723,11 @@ export class WorkoutController extends Controller {
         profileData: requestBody?.profileData,
       };
 
+      // No delay: createJob is awaited (committed) before this, and delayed
+      // jobs go through Bull's delayed-promotion path — a known surface for
+      // double-pickup races that double-executed generations in prod.
       await workoutGenerationQueue.add("generate-workout", jobData, {
         jobId: job.id.toString(),
-        delay: 1000, // Small delay to ensure database transaction is committed
       });
 
       logger.info("Workout generation job queued successfully", {
@@ -941,9 +947,9 @@ export class WorkoutController extends Controller {
         durationOverride,
       };
 
+      // No delay — see the note on the other enqueue sites.
       await workoutGenerationQueue.add("regenerate-daily-workout", jobData, {
         jobId: job.id.toString(),
-        delay: 500,
       });
 
       logger.info("Rest day workout generation job queued successfully", {
