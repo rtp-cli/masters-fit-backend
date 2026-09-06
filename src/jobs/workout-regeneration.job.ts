@@ -18,6 +18,11 @@ import {
 } from "@/models/jobs.schema";
 import { emitProgress, clearPersistedGenerationStatus } from "@/utils/websocket-progress.utils";
 import { withTimeout } from "@/utils/timeout.utils";
+import {
+  startPhaseRun,
+  recordPhase,
+  markPhaseElapsed,
+} from "@/utils/phase-timing";
 
 // Server-side watchdog: bound the whole regeneration so a hang anywhere
 // (including the non-abortable serial fallback path) always fails the job
@@ -73,6 +78,13 @@ export async function processWorkoutRegenerationJob(
 ): Promise<WorkoutRegenerationJobResult> {
   const startTime = Date.now();
   const { userId, jobId, customFeedback, profileData, timezone } = job.data;
+
+  // Phase-timing run: attributed pre-LLM/pipeline breakdown, persisted on the
+  // llm_generation_logs row this generation writes (phase_timings).
+  startPhaseRun(userId);
+  if (typeof job.timestamp === "number") {
+    recordPhase(userId, "queueWaitMs", startTime - job.timestamp);
+  }
 
   logger.info("Starting workout regeneration job processing", {
     operation: "workoutRegenerationJob",
@@ -147,6 +159,10 @@ export async function processWorkoutRegenerationJob(
 
     // Clear any previous token usage before regeneration
     clearLastTokenUsage(userId);
+
+    // Everything between pickup and here: claim, Redis status clear, DB
+    // progress writes, active-workout fetch. A waterfall mark, not a duration.
+    markPhaseElapsed(userId, "atServiceCallMs");
 
     // Regenerate workout using existing service
     // The service internally calls generateWorkoutPlan which handles progress updates

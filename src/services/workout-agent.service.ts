@@ -20,6 +20,12 @@ import {
 import { applyPostGenerationValidation } from "@/utils/post-generation-validation";
 import { sanitizeGeneratedContent } from "@/utils/plan-safety-language";
 import { buildProgressionContext } from "@/utils/progression-context";
+import {
+  timePhase,
+  recordPhase,
+  markPhaseElapsed,
+  snapshotPhases,
+} from "@/utils/phase-timing";
 import { workoutService } from "./workout.service";
 import { logger } from "@/utils/logger";
 import {
@@ -510,13 +516,16 @@ Please generate the workout now, addressing this feedback while following all sy
 
       const messageHistory = this.messageHistories.get(threadId)!;
 
-      // Build messages (no longer need exerciseNames)
-      const systemMessage = await this.buildSystemMessage(
-        profile,
-        dayNumber ? "daily" : "weekly",
-        regenerationReason,
-        dayNumber,
-        isRestDay
+      // Build messages (no longer need exerciseNames). buildSystemMessage
+      // includes the exercise-catalog fetch+format for this path.
+      const systemMessage = await timePhase(userId, "systemPromptBuildMs", () =>
+        this.buildSystemMessage(
+          profile,
+          dayNumber ? "daily" : "weekly",
+          regenerationReason,
+          dayNumber,
+          isRestDay
+        )
       );
       const userMessage = this.buildUserMessage(
         profile,
@@ -532,6 +541,9 @@ Please generate the workout now, addressing this feedback while following all sy
       const messages = [systemMessage, ...existingMessages, userMessage];
 
       // Single LLM call with comprehensive context and abort signal
+      // First LLM call of the run — everything before this mark is pre-LLM
+      // pipeline (the 40-140s prod gap under investigation).
+      markPhaseElapsed(userId, "atLlmStartMs");
       const llmStartedAt = Date.now();
       const response = await this.llm.invoke(messages, {
         signal: abortController.signal,
@@ -573,6 +585,9 @@ Please generate the workout now, addressing this feedback while following all sy
         totalTokens: tokenUsage.totalTokens,
         cacheReadInputTokens: usageMetadata?.input_token_details?.cache_read ?? 0,
         cacheCreationInputTokens: usageMetadata?.input_token_details?.cache_creation ?? 0,
+        // Attributed waterfall of the whole run (job pickup → here) — see
+        // phase-timing.ts. Undefined for direct callers (eval harness).
+        phaseTimings: snapshotPhases(userId),
       });
 
       // Add the exchange to history
@@ -633,6 +648,10 @@ Please generate the workout now, addressing this feedback while following all sy
               totalTokens: retryUsage?.total_tokens || 0,
               cacheReadInputTokens: retryUsage?.input_token_details?.cache_read ?? 0,
               cacheCreationInputTokens: retryUsage?.input_token_details?.cache_creation ?? 0,
+              // Marks this row as the duration-corrective FOLLOW-UP call of the
+              // run above it — so twin-row queries can tell a legit serial
+              // retry apart from a duplicated run.
+              phaseTimings: { correctiveRetryMs: retryDurationMs },
             });
 
             const retryWorkout = validateDailyGenerationResponse(
@@ -798,13 +817,22 @@ Please generate the workout now, addressing this feedback while following all sy
     //     the planning cache does NOT warm the day cache — day calls warm
     //     each other, which pays off on retries and repeat generations within
     //     the 5-min cache TTL.
-    const availableExercises = await this.getFilteredExercises(profile);
+    const availableExercises = await timePhase(userId, "exerciseFetchMs", () =>
+      this.getFilteredExercises(profile)
+    );
+    const exerciseFormatStartedAt = Date.now();
     const exerciseContext = this.formatExerciseContext(availableExercises);
+    recordPhase(
+      userId,
+      "exerciseFormatMs",
+      Date.now() - exerciseFormatStartedAt
+    );
 
     // [LR-014] Week-over-week progression: nudge intensity based on how much
     // of last week the user actually completed. First pass — completion-rate
     // based, not per-exercise weight/rep tracking (see progression-context.ts).
     let progressionContext = "";
+    const progressionStartedAt = Date.now();
     try {
       const previousWeeks = await workoutService.getPreviousWorkouts(
         userId,
@@ -821,6 +849,7 @@ Please generate the workout now, addressing this feedback while following all sy
         error: (error as Error).message,
       });
     }
+    recordPhase(userId, "progressionMs", Date.now() - progressionStartedAt);
 
     // [GQ-14] Keep the assembled system text in plain strings so we can both
     // wrap them for the LLM AND snapshot exactly what was sent for forensics.
@@ -950,6 +979,10 @@ ${exerciseContext}`;
     let expectedDayCount!: number;
     let feedbackConflicts!: FeedbackConflict[];
 
+    // First LLM call of the run starts here — everything before this mark is
+    // pre-LLM pipeline (the 40-140s prod gap under investigation).
+    markPhaseElapsed(userId, "atLlmStartMs");
+    const planningStartedAt = Date.now();
     for (let attempt = 0; attempt < planningAttempts.length; attempt++) {
       const { model: attemptModel, llm: attemptLlm } = planningAttempts[attempt];
       schedule = baseSchedule;
@@ -1053,6 +1086,10 @@ ${exerciseContext}`;
       .slice(0, expectedDayCount)
       .map((day, index) => ({ ...day, day: index + 1 }));
 
+    // planningMs = the planning call(s) alone (including EW-1 retries);
+    // planningDurationMs below keeps its historical meaning (entry→plan-ready,
+    // pre-work included) for log continuity.
+    recordPhase(userId, "planningMs", Date.now() - planningStartedAt);
     const planningDurationMs = Date.now() - startedAt;
     logger.info("Week plan ready", {
       userId,
@@ -1311,6 +1348,7 @@ ${exerciseContext}`;
     }
 
     const daysPhaseDurationMs = Date.now() - daysPhaseStartedAt;
+    recordPhase(userId, "daysPhaseMs", daysPhaseDurationMs);
     const slowestDayMs = dayTimings.reduce((m, d) => Math.max(m, d.durationMs), 0);
     const retriedDays = dayTimings.filter((d) => d.attempts > 1).length;
 
@@ -1533,6 +1571,9 @@ ${exerciseContext}`;
       totalTokens: usageTotals.totalTokens,
       cacheReadInputTokens: cacheReadTokens,
       cacheCreationInputTokens: cacheCreationTokens,
+      // Attributed waterfall of the whole run (job pickup → here) — see
+      // phase-timing.ts. Undefined for direct callers (eval harness).
+      phaseTimings: snapshotPhases(userId),
     });
 
     return {

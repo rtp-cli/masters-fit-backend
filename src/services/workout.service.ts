@@ -42,6 +42,7 @@ import {
   formatDateAsString,
 } from "@/utils/date.utils";
 import { buildPlanDaySchedule, PlanDaySlot } from "@/utils/plan-schedule";
+import { markPhaseElapsed } from "@/utils/phase-timing";
 import { workoutLogs } from "../models/logs.schema";
 import { logger } from "@/utils/logger";
 import {
@@ -1541,6 +1542,10 @@ export class WorkoutService extends BaseService {
       const isRestDayContext =
         (existingPlanDay.name || "").toLowerCase().includes("rest day") ||
         (allExistingExercises || []).length === 0;
+
+      // Everything between the job's atServiceCallMs mark and here: plan-day
+      // and existing-exercise fetches. A waterfall mark, not a duration.
+      markPhaseElapsed(userId, "atGenerationCallMs");
 
       const result = await promptsService.generateDailyRegenerationPrompt(
         userId,
