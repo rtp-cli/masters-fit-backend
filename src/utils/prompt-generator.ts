@@ -1154,6 +1154,7 @@ Parse the user's feedback to understand the scope and intent:
    - General requests (e.g., "make it harder") → Apply broadly across entire new workout
 5. **PROFILE AS FOUNDATION**: Use user's profile as the base, apply regeneration reason as modifications
 6. **SAFETY BOUNDARY**: Only ignore requests that could cause injury given user's limitations
+7. **NAMED PROGRAMS USE THEIR CANONICAL IMPLEMENT**: when the request names a specific program or protocol, its main lifts use the implement that program is defined with, as long as the user's equipment includes it. Wendler 5/3/1 (also written "531") means BARBELL bench press, back squat, deadlift, and overhead press — never dumbbell substitutes when barbells are available. The same applies to any named program (Starting Strength, StrongLifts = barbell lifts; a named hero WOD keeps its prescribed movements). Substitute the implement ONLY when the required equipment is genuinely missing, and then say so in the workout description.
 
 ## USER CONTEXT
 **Demographics:** ${profile.age}yo ${profile.gender}, ${profile.height}cm, ${profile.weight}lbs
