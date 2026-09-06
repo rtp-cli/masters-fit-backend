@@ -27,6 +27,10 @@ import {
   markPhaseElapsed,
   snapshotPhases,
 } from "@/utils/phase-timing";
+import {
+  checkWeekdayConstraintCompliance,
+  WeekdayComplianceViolation,
+} from "@/utils/weekday-constraint-compliance";
 import { workoutService } from "./workout.service";
 import { logger } from "@/utils/logger";
 import {
@@ -1009,6 +1013,11 @@ ${exerciseContext}`;
     let expectedDayCount!: number;
     let feedbackConflicts!: FeedbackConflict[];
 
+    // The user's request references a specific weekday — its content is
+    // date-locked. Drives the weekday-compliance retry inside the loop AND the
+    // muscle-balance reorder skip after it (GQ-10/GQ-01).
+    const calendarSensitive = mentionsWeekday(customFeedback);
+
     // First LLM call of the run starts here — everything before this mark is
     // pre-LLM pipeline (the 40-140s prod gap under investigation).
     markPhaseElapsed(userId, "atLlmStartMs");
@@ -1086,28 +1095,71 @@ ${exerciseContext}`;
         operation: "generateWeeklyWorkout",
       });
 
-      if (weekPlan?.days?.length && weekPlan.days.length >= expectedDayCount) {
+      const dayCountOk = !!(
+        weekPlan?.days?.length && weekPlan.days.length >= expectedDayCount
+      );
+
+      // [P1-a 2026-09-06] Weekday compliance: the planner sometimes emits a
+      // plan that contradicts its OWN extracted constraints (prod 9/3: the
+      // constraints said "squat Saturday, deadlift Monday" and the plan put
+      // them on Friday/Tuesday — the per-day calls then faithfully built the
+      // wrong week). Cross-check plan-vs-constraints and retry through the
+      // same EW-1 ladder (Haiku again, then Sonnet). Only for
+      // calendar-sensitive requests, matching the reorder guard below.
+      let weekdayViolations: WeekdayComplianceViolation[] = [];
+      if (dayCountOk && calendarSensitive) {
+        weekdayViolations = checkWeekdayConstraintCompliance(weekPlan, schedule);
+      }
+
+      if (dayCountOk && weekdayViolations.length === 0) {
         break; // Planning succeeded.
       }
 
       const isLastAttempt = attempt === planningAttempts.length - 1;
       if (isLastAttempt) {
-        throw new Error(
-          `Week planning returned ${weekPlan?.days?.length || 0} days, expected ${expectedDayCount}`
-        );
+        if (!dayCountOk) {
+          throw new Error(
+            `Week planning returned ${weekPlan?.days?.length || 0} days, expected ${expectedDayCount}`
+          );
+        }
+        // The compliance check is a heuristic — never fail the job over it on
+        // the final attempt. Keep the plan, but surface each unmet rule in the
+        // user-facing conflicts banner (GQ-04) instead of shipping the
+        // mismatch silently.
+        for (const violation of weekdayViolations) {
+          logger.warn(
+            "Planner violated a weekday constraint on the final attempt — surfacing to user",
+            {
+              userId,
+              operation: "generateWeeklyWorkout",
+              metadata: violation,
+            }
+          );
+          feedbackConflicts.push({
+            request: violation.rule,
+            reason: `the generated week scheduled "${violation.dayName}" on ${violation.weekday} — review that day or regenerate`,
+          });
+        }
+        break;
       }
-      logger.warn("Planning returned a short/empty week — retrying planning call", {
-        userId,
-        operation: "generateWeeklyWorkout",
-        metadata: {
-          attempt: attempt + 1,
-          maxAttempts: planningAttempts.length,
-          returnedDayCount: weekPlan?.days?.length || 0,
-          expectedDayCount,
-          model: attemptModel,
-          nextModel: planningAttempts[attempt + 1].model,
-        },
-      });
+      logger.warn(
+        dayCountOk
+          ? "Planning violated its extracted weekday constraints — retrying planning call"
+          : "Planning returned a short/empty week — retrying planning call",
+        {
+          userId,
+          operation: "generateWeeklyWorkout",
+          metadata: {
+            attempt: attempt + 1,
+            maxAttempts: planningAttempts.length,
+            returnedDayCount: weekPlan?.days?.length || 0,
+            expectedDayCount,
+            weekdayViolations,
+            model: attemptModel,
+            nextModel: planningAttempts[attempt + 1].model,
+          },
+        }
+      );
     }
     // The model controls the day fields — renumber sequentially and clamp to the
     // expected count so numbering always matches the (possibly overridden)
@@ -1148,8 +1200,8 @@ ${exerciseContext}`;
     // that content is date-locked — reordering would silently break exactly the
     // calendar request we just enabled. So skip the reorder when the request is
     // calendar-sensitive; muscle balance yields to the explicit user ask (the
-    // residual overload is still logged below).
-    const calendarSensitive = mentionsWeekday(customFeedback);
+    // residual overload is still logged below). `calendarSensitive` is
+    // declared above the planning loop, which shares it.
     if (muscleGroupOverloads.length > 0 && !calendarSensitive) {
       const reordered = reorderToMinimizeConsecutiveOverload(weekPlan.days);
       const reorderedOverloads = checkConsecutiveMuscleGroupOverload(reordered);
