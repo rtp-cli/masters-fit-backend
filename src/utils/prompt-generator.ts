@@ -257,7 +257,7 @@ When selecting block types, always consider their duration implications. A 40-mi
 - Warm-up (2 min) + 3 Traditional blocks (12 min each) + Cool-down (2 min) = 40 minutes
 
 **CRITICAL STYLE-TO-BLOCK MAPPING:**
-- CrossFit → Use "amrap", "emom", or "for_time" blocks. Never use "traditional" for CrossFit. Include weights for weighted movements.
+- CrossFit → Conditioning is "amrap", "emom", or "for_time"; include weights for weighted movements. Use "traditional" for the strength/skill portion — CrossFit programming is a strength piece followed by a metcon, so a dedicated strength block belongs in a "traditional" block, NOT dissolved into the metcon. Heavy low-rep lifts (barbell press/squat/deadlift/bench at working loads) go in the traditional block; the metcon gets fast, repeatable movements.
 - HIIT → Use "circuit" or "tabata" blocks with high-intensity exercises. Include weights for weighted exercises.
 - Strength → Use "traditional" blocks with proper sets/reps/rest. Specify weights for resistance exercises.
 - Yoga/Pilates → Use "flow" blocks with pose sequences and hold durations. Weight is 0 for yoga, may be light weights for pilates.

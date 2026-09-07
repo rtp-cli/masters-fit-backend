@@ -25,6 +25,7 @@ import {
   reorderToMinimizeConsecutiveOverload,
 } from "@/utils/workout-balance-validation";
 import { applyPostGenerationValidation } from "@/utils/post-generation-validation";
+import { reconcileDeclaredDurations } from "@/utils/duration-enforcement";
 import { sanitizeGeneratedContent } from "@/utils/plan-safety-language";
 import { buildProgressionContext } from "@/utils/progression-context";
 import {
@@ -136,8 +137,16 @@ const DURATION_TOLERANCE_MINUTES = 5;
 // Total scheduled minutes of a generated day: the sum of its blocks'
 // blockDurationMinutes (the same definition the prompt instructs the model
 // to use for the session total).
+//
+// [Duration honesty] Reconciles first, so a block that declared 15 minutes
+// while prescribing 21 minutes of sets and rest is counted at 21. Without this
+// the daily path measured the budget against a number the model invented, and
+// a session that overran by a third looked perfectly in range. Mutates the
+// blocks it corrects — intentional: the corrected minutes are what persists.
 function sumBlockMinutes(workout: any): number {
   const blocks = Array.isArray(workout?.blocks) ? workout.blocks : [];
+  if (blocks.length === 0) return 0;
+  reconcileDeclaredDurations(workout);
   return blocks.reduce(
     (total: number, block: any) =>
       total + (Number(block?.blockDurationMinutes) || 0),
@@ -1556,6 +1565,8 @@ ${exerciseContext}`;
       repetitionFindings,
       constraintFindings,
       durationFindings,
+      durationReconcileFindings,
+      durationTrimFindings,
       muscleAlignmentFindings,
       muscleOverlapFindings,
       bodyweightFindings,
@@ -1650,6 +1661,27 @@ ${exerciseContext}`;
     // hit the user's target — a signal to watch (how often, and by how much).
     for (const finding of durationFindings) {
       logger.warn("Under-target day padded to meet duration target", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+
+    // [Duration honesty] Blocks whose declared minutes understated the work they
+    // actually prescribe. This was invisible before — the plan looked in-budget
+    // while the session ran long — so watch the rate here.
+    for (const finding of durationReconcileFindings) {
+      logger.warn("Block duration understated its prescribed work — corrected", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+
+    // [Duration honesty] Days trimmed back to the user's budget. Previously
+    // overshoots were left alone entirely.
+    for (const finding of durationTrimFindings) {
+      logger.warn("Over-target day trimmed to meet duration target", {
         userId,
         operation: "generateWeeklyWorkout",
         ...finding,
