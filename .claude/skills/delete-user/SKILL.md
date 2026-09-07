@@ -40,14 +40,11 @@ All commands run from the backend repo:
 cd /Users/richpusateri/Projects/MastersFit/backend
 ```
 
-Local is the default. The active `DATABASE_URL` in `backend/.env` is **local**; the prod Neon
-URL is the **commented** line. Extract it inline for prod. **Note:** macOS/BSD `sed` does not
-support `\s` — use `[[:space:]]`, or the `# DATABASE_URL=` prefix silently stays on the value.
+Local is the default. For prod, **never handle the connection string yourself** — no
+`grep`ing it out of `.env`, no pasting it into a command. Prefix the command with
+`scripts/with-prod-url.sh`, which injects `DATABASE_URL` from the macOS Keychain into the
+child process only. It prints the target host, never the credential.
 
-```bash
-PROD_URL=$(grep -E '^[[:space:]]*#[[:space:]]*DATABASE_URL=' .env | head -1 \
-  | sed -E 's/^[[:space:]]*#[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')
-```
 
 ## The safe workflow (do all four, in order)
 
@@ -61,7 +58,7 @@ proceed.
 # local
 npm run preflight-user-fk -- test-a@example.com test-b@example.com
 # prod
-DATABASE_URL="$PROD_URL" npm run preflight-user-fk -- test-a@example.com
+scripts/with-prod-url.sh npm run preflight-user-fk -- test-a@example.com
 ```
 
 ### 2. Dry-run — confirm exactly who/what would go
@@ -72,7 +69,7 @@ found. **No writes.** Show this output to the user and get explicit sign-off.
 # local
 npm run delete-user -- test-a@example.com --dry-run
 # prod
-DATABASE_URL="$PROD_URL" npm run delete-user -- test-a@example.com --dry-run
+scripts/with-prod-url.sh npm run delete-user -- test-a@example.com --dry-run
 ```
 
 ### 3. Apply — the real, transactional delete
@@ -80,7 +77,7 @@ DATABASE_URL="$PROD_URL" npm run delete-user -- test-a@example.com --dry-run
 # local
 npm run delete-user -- test-a@example.com
 # prod  (irreversible — you have the user's explicit go and named the Neon host)
-DATABASE_URL="$PROD_URL" npm run delete-user -- test-a@example.com
+scripts/with-prod-url.sh npm run delete-user -- test-a@example.com
 ```
 Expect `APPLYING`, the Neon host, and a `✓ deleted id=<n> and all associated data` per account.
 
@@ -88,7 +85,7 @@ Expect `APPLYING`, the Neon host, and a `✓ deleted id=<n> and all associated d
 Re-run the preflight; a deleted account reports `target users (0/1)` + `NOT FOUND`.
 
 ```bash
-DATABASE_URL="$PROD_URL" npm run preflight-user-fk -- test-a@example.com
+scripts/with-prod-url.sh npm run preflight-user-fk -- test-a@example.com
 ```
 
 ## What gets deleted

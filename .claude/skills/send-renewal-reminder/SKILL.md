@@ -51,21 +51,16 @@ npm run send-renewal-reminder -- --run
 ```
 
 Against **production**, this emails REAL customers. The script refuses a non-local `DATABASE_URL`
-unless you also pass `--remote`. The active `DATABASE_URL` in `.env` is local; the prod Neon URL is
-the **commented** line — extract it inline (see [[reference_prod_db_access]]).
+unless you also pass `--remote`. Prefix the command with `scripts/with-prod-url.sh`, which injects
+the prod `DATABASE_URL` from the macOS Keychain into the child process only — never grep the URL
+out of `.env` (see [[reference_prod_db_access]]).
 
 > ⚠️ **`--run --remote` emails real subscribers.** Only run it when the user explicitly asks to
 > trigger the real send on prod. Confirm intent first. It's idempotent — a second run skips anyone
 > already reminded for this period — but the emails have gone out.
 
-**Note:** macOS/BSD `sed` does NOT support `\s` — use `[[:space:]]`, or the `# DATABASE_URL=`
-prefix silently stays on the value and `new URL()` throws "Invalid URL".
-
 ```bash
-PROD_URL=$(grep -E '^[[:space:]]*#[[:space:]]*DATABASE_URL=' .env | head -1 \
-  | sed -E 's/^[[:space:]]*#[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')
-
-DATABASE_URL="$PROD_URL" npm run send-renewal-reminder -- --run --remote
+scripts/with-prod-url.sh npm run send-renewal-reminder -- --run --remote
 ```
 
 Expect a `Running the real renewal-reminder scan now against LOCAL|REMOTE db…` line and

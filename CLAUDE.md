@@ -101,6 +101,39 @@ to the matching route file. The `add-api-endpoint` skill walks through both halv
    Report the actual output. If something fails, it is not done.
 5. **Database changes are not automatic.** Editing a schema file does nothing until you push
    it — see the `change-db-schema` skill. Be careful: `db:push` alters the real database.
+6. **For production DB reads, use `scripts/db-prod-read.sh` — never bare `psql`.**
+   Ad-hoc prod queries used to mean hand-extracting the commented `DATABASE_URL` out of
+   `.env` and pointing `psql` at it. Use the wrapper instead:
+   ```bash
+   scripts/db-prod-read.sh -c 'select count(*) from users;'
+   ```
+   It pins `default_transaction_read_only=true` on the connection, so **Postgres itself**
+   refuses `INSERT`/`UPDATE`/`DELETE`/DDL, and it never echoes the connection string into
+   your scrollback. It forces Neon's **unpooled** host on purpose — the pooler rejects that
+   startup parameter, and because an unsupported parameter fails the connection outright,
+   the script can never silently connect without the read-only pin.
+
+   Writing to prod is a separate, deliberate act: use the purpose-built scripts
+   (`comp-user`, `reset-workout-prod`, `delete-user`, …) or their skills, which confirm
+   first. Bare `psql` against prod still requires explicit human approval — keep it that way.
+   Those scripts need a live `DATABASE_URL`, so prefix them with `scripts/with-prod-url.sh`,
+   which injects it into the child process only:
+   ```bash
+   scripts/with-prod-url.sh npm run comp-user -- someone@example.com --dry-run
+   ```
+
+7. **NEVER print the prod connection string — not even to inspect it.**
+   The prod URL lives in the **macOS Keychain** (`mastersfit-prod-database-url`), not in
+   `.env`; set or rotate it with `scripts/db-prod-set-url.sh`, which reads it from your
+   clipboard so it never reaches a command line. Both wrappers above read it from the
+   Keychain and print only the target host.
+
+   This rule exists because a single `grep DATABASE_URL .env` in Aug 2026 printed the live
+   password into a transcript, and it was then reused inline in ~10 later commands in that
+   same session — one echo poisons everything downstream. It ended up in 6 transcripts and
+   15 `~/.zsh_history` lines, forcing a credential rotation. Do not `cat`, `grep`, or `echo`
+   anything that resolves to a credential; if you need to confirm which database you're
+   pointed at, print the **host** only.
 
 ---
 
