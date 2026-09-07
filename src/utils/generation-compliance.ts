@@ -64,7 +64,34 @@ export type ComplianceCheck =
       toleranceMinutes: number;
     }
   /** No exercise appears more than twice within a single day. */
-  | { id: string; label: string; type: "noRepeatOverTwice" };
+  | { id: string; label: string; type: "noRepeatOverTwice" }
+  /**
+   * At least one exercise anywhere matches one of `names` — "include X" asks.
+   * `exact` compares the whole normalized name (so "push-up" does not accept
+   * "Decline Push-Up"); otherwise substring.
+   */
+  | { id: string; label: string; type: "includes"; names: string[]; exact?: boolean }
+  /** Same as `includes`, scoped to day `dayNumber` — calendar-scoped "Monday is bench day" asks. */
+  | {
+      id: string;
+      label: string;
+      type: "includesOnDay";
+      dayNumber: number;
+      names: string[];
+      exact?: boolean;
+    }
+  /**
+   * At least `min` exercise entries on day `dayNumber` contain `needle` — set-scheme
+   * completeness (a Wendler main lift is 3 warm-up + 3 working entries, not 2).
+   */
+  | {
+      id: string;
+      label: string;
+      type: "minOccurrencesOnDay";
+      dayNumber: number;
+      needle: string;
+      min: number;
+    };
 
 export interface CheckResult {
   id: string;
@@ -268,6 +295,45 @@ function runCheck(
         score: offenders.length === 0 ? 1 : 0,
         passed: offenders.length === 0,
         detail: offenders.length === 0 ? "no exercise repeated >2× in a day" : offenders.join(", "),
+      };
+    }
+
+    case "includes":
+    case "includesOnDay": {
+      const wanted = check.names.map((n) => norm(n));
+      const scope =
+        check.type === "includesOnDay"
+          ? allExercises(workout).filter((e) => e.dayNumber === check.dayNumber)
+          : allExercises(workout);
+      const matches = (name: string | undefined) => {
+        const n = norm(name);
+        return check.exact ? wanted.includes(n) : wanted.some((w) => n.includes(w));
+      };
+      const hits = scope.filter((e) => matches(e.name));
+      const passed = hits.length > 0;
+      const where = check.type === "includesOnDay" ? ` on day ${check.dayNumber}` : "";
+      return {
+        ...base,
+        score: passed ? 1 : 0,
+        passed,
+        detail: passed
+          ? `found ${[...new Set(hits.map((h) => h.name))].join(", ")}${where}`
+          : `none of [${check.names.join(" | ")}] present${where}`,
+      };
+    }
+
+    case "minOccurrencesOnDay": {
+      const needle = check.needle.toLowerCase();
+      const count = allExercises(workout).filter(
+        (e) => e.dayNumber === check.dayNumber && norm(e.name).includes(needle)
+      ).length;
+      const passed = count >= check.min;
+      return {
+        ...base,
+        // Partial credit: 2 of 6 Wendler entries is better than 0, worse than 6.
+        score: passed ? 1 : Math.min(1, count / check.min),
+        passed,
+        detail: `${count} "${check.needle}" entries on day ${check.dayNumber} (want ≥${check.min})`,
       };
     }
 

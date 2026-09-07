@@ -87,7 +87,8 @@ export interface EvalScenario {
     | "duration"
     | "calendar"
     | "scheduling"
-    | "muscle";
+    | "muscle"
+    | "program";
   description: string;
   profile: Profile;
   customFeedback?: string;
@@ -446,5 +447,105 @@ export const SCENARIOS: EvalScenario[] = [
     buildChecks: (_schedule, p) => [duration(p.workoutDuration || 45)],
     expectSchedule: { dayCount: 5, firstWeekday: "wednesday" },
     checkMuscleBalance: true,
+  },
+
+  // ---- Named programs / prescribed movements (user-3 + user-41 pattern) ----
+  // A request that names specific lifts or a canonical bodyweight circuit must
+  // come back with THOSE movements (not menu-nearest variants) and, for a
+  // percentage scheme, with the whole set ladder rather than two entries.
+  {
+    id: "program-wendler-week",
+    category: "program",
+    description:
+      "Named program: Wendler 5/3/1 bench/squat/deadlift days (home gym with barbells) — canonical barbell lifts with a full set ladder",
+    profile: baseProfile({
+      age: 55,
+      environment: WorkoutEnvironments.HOME_GYM,
+      equipment: [
+        AvailableEquipment.BARBELLS,
+        AvailableEquipment.SQUAT_RACK,
+        AvailableEquipment.BENCH,
+        AvailableEquipment.DUMBBELLS,
+        AvailableEquipment.KETTLEBELLS,
+        AvailableEquipment.PULL_UP_BAR,
+        AvailableEquipment.ROWING_MACHINE,
+      ],
+      preferredStyles: [PreferredStyles.STRENGTH, PreferredStyles.CROSSFIT],
+      availableDays: [
+        PreferredDays.MONDAY,
+        PreferredDays.WEDNESDAY,
+        PreferredDays.FRIDAY,
+      ],
+      workoutDuration: 40,
+      fitnessLevel: FitnessLevels.ADVANCED,
+    }),
+    customFeedback:
+      "This week: Monday: Wendler 531 Week 1 bench press, including warm-up sets based on 1RM of 235# + short CrossFit-style METCON. Wednesday: Wendler 531 Week 1 squat, including warm-up sets based on 1RM of 285# + METCON. Friday: Wendler 531 Week 1 deadlift, including warm-up sets based on 1RM of 375# + METCON.",
+    buildChecks: (schedule, p) => {
+      const mon = dayNumberFor(schedule, "monday");
+      const wed = dayNumberFor(schedule, "wednesday");
+      const fri = dayNumberFor(schedule, "friday");
+      const checks: ComplianceCheck[] = [duration(p.workoutDuration || 40)];
+      if (mon) {
+        checks.push(
+          { id: "mon-barbell-bench", label: "Mon has Barbell Bench Press", type: "includesOnDay", dayNumber: mon, names: ["barbell bench press"] },
+          { id: "mon-bench-ladder", label: "Mon bench ≥5 set entries", type: "minOccurrencesOnDay", dayNumber: mon, needle: "bench press", min: 5 }
+        );
+      }
+      if (wed) {
+        checks.push(
+          { id: "wed-barbell-squat", label: "Wed has Barbell Back Squat", type: "includesOnDay", dayNumber: wed, names: ["barbell back squat"] },
+          { id: "wed-squat-ladder", label: "Wed squat ≥5 set entries", type: "minOccurrencesOnDay", dayNumber: wed, needle: "back squat", min: 5 }
+        );
+      }
+      if (fri) {
+        checks.push(
+          { id: "fri-barbell-deadlift", label: "Fri has a barbell deadlift", type: "includesOnDay", dayNumber: fri, names: ["barbell conventional deadlift", "barbell deadlift"] },
+          { id: "fri-deadlift-ladder", label: "Fri deadlift ≥5 set entries", type: "minOccurrencesOnDay", dayNumber: fri, needle: "deadlift", min: 5 }
+        );
+      }
+      return checks;
+    },
+  },
+  {
+    id: "program-calisthenics-rft",
+    category: "program",
+    description:
+      "Prescribed circuit: 10 RFT of strict pull-ups / push-ups / air squats / sit-ups on Tue+Thu — the named movements, not band/decline/knee-tuck variants",
+    profile: baseProfile({
+      environment: WorkoutEnvironments.HOME_GYM,
+      equipment: [
+        AvailableEquipment.PULL_UP_BAR,
+        AvailableEquipment.RESISTANCE_BANDS,
+        AvailableEquipment.BENCH,
+        AvailableEquipment.INCLINE_DECLINE_BENCH,
+        AvailableEquipment.DUMBBELLS,
+        AvailableEquipment.KETTLEBELLS,
+      ],
+      preferredStyles: [PreferredStyles.CROSSFIT, PreferredStyles.FUNCTIONAL],
+      availableDays: [
+        PreferredDays.TUESDAY,
+        PreferredDays.THURSDAY,
+        PreferredDays.SATURDAY,
+      ],
+      workoutDuration: 35,
+    }),
+    customFeedback:
+      "Tuesday and Thursday: Calisthenics Challenge workout — 10 rounds for time: 6x strict pull-ups, 15x push-ups, 20x air squats, 20x sit-ups. Saturday: your choice.",
+    buildChecks: (schedule, p) => {
+      const checks: ComplianceCheck[] = [duration(p.workoutDuration || 35)];
+      for (const wd of ["tuesday", "thursday"]) {
+        const d = dayNumberFor(schedule, wd);
+        if (!d) continue;
+        const tag = wd.slice(0, 3);
+        checks.push(
+          { id: `${tag}-strict-pullup`, label: `${tag} has strict pull-up`, type: "includesOnDay", dayNumber: d, names: ["strict pull-up", "strict pull-ups"], exact: true },
+          { id: `${tag}-pushup`, label: `${tag} has push-up`, type: "includesOnDay", dayNumber: d, names: ["push-up", "push-ups", "push-ups (standard)"], exact: true },
+          { id: `${tag}-air-squat`, label: `${tag} has air squat`, type: "includesOnDay", dayNumber: d, names: ["air squat", "air squats"], exact: true },
+          { id: `${tag}-situp`, label: `${tag} has sit-up`, type: "includesOnDay", dayNumber: d, names: ["sit-up", "sit-ups", "abmat sit-ups"], exact: true }
+        );
+      }
+      return checks;
+    },
   },
 ];

@@ -1132,16 +1132,31 @@ export class WorkoutService extends BaseService {
       // of a per-name ILIKE fan-out (~30-45 sequential-scan queries per plan). Match
       // case-insensitively and re-key the result by the exact plan name so downstream
       // `exerciseDetailsMap.get(exercise.exerciseName)` lookups behave as before.
+      // Exact match first, then alias / punctuation / plural passes — an
+      // exercise the model named but the catalog spells differently used to be
+      // dropped here with no trace (3.6% of all generated exercises; a whole
+      // Wendler deadlift block once persisted empty). Anything still unresolved
+      // is logged loudly below — it is the only signal that a plan lost work.
       const requestedNames = Array.from(allExerciseNames);
-      const foundExercises = await exerciseService.getExercisesByNames(requestedNames);
-      const exercisesByLowerName = new Map(
-        foundExercises.map((e) => [e.name.trim().toLowerCase(), e])
-      );
-      for (const name of requestedNames) {
-        const match = exercisesByLowerName.get(name.trim().toLowerCase());
-        if (match) {
-          exerciseDetailsMap.set(name, match);
-        }
+      const resolution = await exerciseService.resolveExercisesByNames(requestedNames);
+      for (const [name, match] of resolution.byRequestedName) {
+        exerciseDetailsMap.set(name, match);
+      }
+      if (resolution.substitutions.length > 0) {
+        logger.info("Exercise names resolved by alias/normalized match", {
+          userId,
+          workoutId: workout.id,
+          operation: "generateWorkoutPlan",
+          metadata: { substitutions: resolution.substitutions },
+        });
+      }
+      if (resolution.unresolved.length > 0) {
+        logger.warn("Generated exercises not in catalog — dropped from persisted plan", {
+          userId,
+          workoutId: workout.id,
+          operation: "generateWorkoutPlan",
+          metadata: { unresolved: resolution.unresolved },
+        });
       }
 
       // Second pass: prepare all data structures
