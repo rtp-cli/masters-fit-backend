@@ -15,7 +15,7 @@ name: Generation eval
 # both are present):
 #   ANTHROPIC_API_KEY   — the eval makes real LLM calls.
 #   EVAL_DATABASE_URL   — a database with the exercise catalog and a users row
-#                         for EVAL_USER_ID (default 1).
+#                         matching the EVAL_USER_ID set below.
 #
 # IMPORTANT: do NOT point EVAL_DATABASE_URL at production. The eval persists no
 # workouts, but generation telemetry (llm_generation_logs) IS written for the
@@ -63,6 +63,13 @@ jobs:
       # Prod parity: the planning call escalates to Sonnet for override
       # requests in production, and the reference was captured that way.
       SONNET_PLANNING_ON_OVERRIDE: "true"
+      # The eval attributes its generations to this users row: the harness
+      # passes it to generateWeeklyWorkout, and llm_generation_logs.user_id has
+      # a foreign key to users. It must EXIST in whatever database
+      # EVAL_DATABASE_URL points at, or every telemetry insert fails. The
+      # harness defaults to 1, which exists in a local dev DB but NOT in prod
+      # (lowest prod id is 3) — so a Neon branch off prod needs this set.
+      EVAL_USER_ID: "3"
       # Inert but required by modules that read them at load time.
       JWT_SECRET: eval-only-not-a-real-credential
       RESEND_API_KEY: re_eval_only_not_a_real_key
