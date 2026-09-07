@@ -603,7 +603,7 @@ ${getStyleMixingExamples()}
 ## EXERCISE SELECTION PROCESS (DAY GENERATION)
 
 1. **Design first**: build the best workout for the day's assignment based on the user's profile, goals, limitations, and equipment — do not browse the exercise list first.
-2. **Check the database**: the AVAILABLE EXERCISES list below is your reference database. For each exercise you designed, use the EXACT database name if it exists there.
+2. **Check the database**: the AVAILABLE EXERCISES list below is your reference database. For each exercise you designed, use the EXACT database name if it exists there. Movements the user named in their request are listed FIRST under "NAMED IN THE USER'S REQUEST" — when the request or the day's plan calls for one of them, use that exact entry, not a nearby variant (no band-assisted, decline, incline or knee-tuck substitute for a movement the user spelled out) unless a listed limitation forbids it.
 3. **New exercises**: any exercise not in the database MUST be added to 'exercisesToAdd' with complete details (equipment restricted to the user's environment; link must be a YouTube demo, or a public image for form-free activities like walking).
 4. **Validity**: every exercise must be a real, performable movement ("Pushups" is valid; "Warmup" or "Stretching" is not).
 5. **Variety & intra-session balance**: do NOT use the same exercise more than twice in a single day. Spread the work across the day's assigned primary muscle groups rather than hammering one — no single muscle group should dominate the session unless the day's focus is explicitly that one area. Prefer distinct movements over padding the workout with repeats of the same exercise.
@@ -748,7 +748,7 @@ Requirements:
 - Stay authentic to the assigned styles and focus; this day must complement (not repeat) the rest of the week shown above
 - [GQ-12] Give EACH block its own \`primaryMuscleGroups\` — the muscles that block trains. Blocks on the same day may target different muscles: this is how you build mixed days like a focused strength block (e.g. ['chest']) followed by a conditioning block (e.g. ['full_body']). Match the block's exercises to its stated focus; use ['full_body'] for whole-body metcon/conditioning blocks.
 - Use a variety of exercises: do NOT repeat the same exercise more than twice in this workout, and distribute the work across this day's primary muscle groups
-- Use EXACT exercise names from the AVAILABLE EXERCISES list; put any new exercises in exercisesToAdd
+- Use EXACT exercise names from the AVAILABLE EXERCISES list; put any new exercises in exercisesToAdd. Movements the user asked for by name are listed first in that list — use them verbatim
 - Set day = ${day.day} in your response
 - FINAL CHECK before you return: re-read every exerciseName you chose and compare it against the AVOID list. Match on the KEYWORDS in each AVOID rule — if an AVOID keyword appears anywhere in an exercise's name, that exercise is banned, with NO exception for "lighter", single-leg, bodyweight, or otherwise "not really" versions. Example: an AVOID of "deadlifts" bans "Barbell Deadlift", "Romanian Deadlift", AND "Single-Leg Deadlift Reach"; an AVOID of "barbell" bans every exercise whose name includes "Barbell". Delete any match and replace it with a compliant alternative. A single AVOID violation makes the entire workout unacceptable.`;
 };

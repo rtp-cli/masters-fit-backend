@@ -8,6 +8,12 @@ import {
 } from "@langchain/core/messages";
 import { Profile } from "@/models";
 import {
+  findRequestedExercises,
+  selectCanonicalBasics,
+  pinExercises,
+  formatGenerationMenu,
+} from "@/utils/requested-exercises";
+import {
   describeCautions,
   describeContraindications,
   filterExercisesByLimitations,
@@ -161,7 +167,13 @@ export type WeeklyGenerationProgress =
   | { type: "day_failed"; dayNumber: number };
 
 const EXERCISE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const exerciseCache = new Map<string, { exercises: ExerciseMetadata[]; expiresAt: number }>();
+// Caches BOTH the stratified 200-row menu and the full allowed pool it was cut
+// from: request-named / canonical pins are drawn from the pool per generation
+// (they depend on the request text, which is not part of the cache key).
+const exerciseCache = new Map<
+  string,
+  { menu: ExerciseMetadata[]; pool: ExerciseMetadata[]; expiresAt: number }
+>();
 
 export class WorkoutAgentService {
   private llm: BaseChatModel;
@@ -214,7 +226,8 @@ export class WorkoutAgentService {
   }
 
   private async getFilteredExercises(
-    profile: Profile
+    profile: Profile,
+    requestText?: string | null
   ): Promise<ExerciseMetadata[]> {
     // [GQ-16] The shared catalog is cached WITHOUT a userId (the cache key is
     // environment:equipment:limitations:styles), so per-user exercise
@@ -222,8 +235,28 @@ export class WorkoutAgentService {
     // this user's exclusions — preserving cache reuse across users while
     // finally honoring exclusions in generation (they were previously applied
     // only in the in-app search/replace path, never in weekly OR daily gen).
-    const shared = await this.getSharedGenerationCatalog(profile);
-    return this.applyUserExclusions(shared, profile);
+    const { menu, pool } = await this.getSharedGenerationCatalog(profile);
+
+    // Request-aware menu: movements the request names by name, plus canonical
+    // staples for lifting/conditioning users, are reserved at the front of the
+    // menu. Both draw ONLY from `pool` — already equipment- and
+    // limitation-filtered — so a pin can never reintroduce a banned movement.
+    // Exclusions run last so a user-excluded exercise is never pinned either.
+    const requested = findRequestedExercises(requestText, pool);
+    const canonical = selectCanonicalBasics(pool, profile.preferredStyles as string[] | null);
+    const pinnedMenu = pinExercises(menu, { requested, canonical }, GENERATION_CATALOG_SIZE);
+    if (requested.length > 0 || canonical.length > 0) {
+      logger.info("Pinned request-named / canonical exercises into generation menu", {
+        userId: profile.userId,
+        operation: "getFilteredExercises",
+        metadata: {
+          requested: requested.map((e) => e.name),
+          canonicalCount: canonical.length,
+          menuSize: pinnedMenu.length,
+        },
+      });
+    }
+    return this.applyUserExclusions(pinnedMenu, profile);
   }
 
   // [GQ-16] Per-user exclusion post-filter. Matches on NAME because the cached
@@ -266,11 +299,11 @@ export class WorkoutAgentService {
 
   private async getSharedGenerationCatalog(
     profile: Profile
-  ): Promise<ExerciseMetadata[]> {
+  ): Promise<{ menu: ExerciseMetadata[]; pool: ExerciseMetadata[] }> {
     const cacheKey = this.exerciseCacheKey(profile);
     const cached = exerciseCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
-      return cached.exercises;
+      return { menu: cached.menu, pool: cached.pool };
     }
 
     try {
@@ -298,7 +331,11 @@ export class WorkoutAgentService {
         preferredStyles: profile.preferredStyles as string[] | null,
         limit: GENERATION_CATALOG_SIZE,
       });
-      exerciseCache.set(cacheKey, { exercises, expiresAt: Date.now() + EXERCISE_CACHE_TTL_MS });
+      exerciseCache.set(cacheKey, {
+        menu: exercises,
+        pool: allowed,
+        expiresAt: Date.now() + EXERCISE_CACHE_TTL_MS,
+      });
 
       logger.info("Generation catalog selected", {
         cacheKey,
@@ -307,7 +344,7 @@ export class WorkoutAgentService {
         excludedByLimitations: pool.length - allowed.length,
       });
 
-      return exercises;
+      return { menu: exercises, pool: allowed };
     } catch (error) {
       logger.error("Failed to get filtered exercises", error as Error, {
         operation: "getFilteredExercises",
@@ -318,32 +355,9 @@ export class WorkoutAgentService {
   }
 
   private formatExerciseContext(exercises: ExerciseMetadata[]): string {
-    if (exercises.length === 0) {
-      return "No exercises available for the specified constraints.";
-    }
-
-    // [PERF-06] Render each exercise ONCE with its muscle groups as a field,
-    // rather than repeating the full entry under every muscle-group heading it
-    // belongs to. The old grouped format duplicated each exercise ~2x (once per
-    // muscle group), roughly doubling the ~22KB catalog block that rides on every
-    // day-call prompt. This flat list carries the same information (name, muscle
-    // groups, equipment, difficulty) at ~half the tokens.
-    let context = "";
-    exercises.forEach((exercise) => {
-      const muscleGroups =
-        exercise.muscleGroups && exercise.muscleGroups.length > 0
-          ? exercise.muscleGroups.join(", ")
-          : "general";
-      const equipmentList =
-        exercise.equipment && exercise.equipment.length > 0
-          ? exercise.equipment.join(", ")
-          : "bodyweight";
-      const difficulty = exercise.difficulty || "moderate";
-
-      context += `- **${exercise.name}** (muscle groups: ${muscleGroups}; equipment: ${equipmentList}; difficulty: ${difficulty})\n`;
-    });
-
-    return context;
+    // [PERF-06] flat one-line-per-exercise list; pinned rows lead under their
+    // own headings. Pure renderer lives in utils/requested-exercises.ts.
+    return formatGenerationMenu(exercises);
   }
 
   private async buildSystemMessage(
@@ -375,8 +389,9 @@ export class WorkoutAgentService {
       );
     }
 
-    // Pre-load filtered exercises based on user constraints
-    const availableExercises = await this.getFilteredExercises(profile);
+    // Pre-load filtered exercises based on user constraints. The regeneration
+    // reason IS the user's request on this path — movements it names get pinned.
+    const availableExercises = await this.getFilteredExercises(profile, regenerationReason);
     const exerciseContext = this.formatExerciseContext(availableExercises);
 
     // [LR-013 transparency] When the limitation filter has removed movement
@@ -864,7 +879,7 @@ Please generate the workout now, addressing this feedback while following all sy
     //     each other, which pays off on retries and repeat generations within
     //     the 5-min cache TTL.
     const availableExercises = await timePhase(userId, "exerciseFetchMs", () =>
-      this.getFilteredExercises(profile)
+      this.getFilteredExercises(profile, customFeedback)
     );
     const exerciseFormatStartedAt = Date.now();
     const exerciseContext = this.formatExerciseContext(availableExercises);
