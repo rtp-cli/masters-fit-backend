@@ -349,3 +349,152 @@ describe("renderScheduleLines [GQ-01]", () => {
     );
   });
 });
+
+// ─── Calendar-aligned series (docs/CALENDAR_ALIGNED_SERIES.md) ───────────────
+// 2026-09-07 is a Monday; the whole table below is anchored to that week.
+import {
+  calendarAlignedEndDate,
+  buildCalendarAlignedSchedule,
+  spansMultipleCalendarWeeks,
+} from "@/utils/plan-schedule";
+
+describe("calendarAlignedEndDate", () => {
+  // Series must span >= 7 days inclusive and end on a Sunday: a Monday start
+  // ends the SAME week's Sunday (7 days); every other weekday ends the
+  // FOLLOWING week's Sunday (8-13 days).
+  const cases: Array<[string, string, string, number]> = [
+    ["monday", "2026-09-07", "2026-09-13", 7],
+    ["tuesday", "2026-09-08", "2026-09-20", 13],
+    ["wednesday", "2026-09-09", "2026-09-20", 12],
+    ["thursday", "2026-09-10", "2026-09-20", 11],
+    ["friday", "2026-09-11", "2026-09-20", 10],
+    ["saturday", "2026-09-12", "2026-09-20", 9],
+    ["sunday", "2026-09-13", "2026-09-20", 8],
+  ];
+  it.each(cases)(
+    "%s start -> ends %s (%s days inclusive)",
+    (_weekday, start, expectedEnd, expectedSpan) => {
+      const end = calendarAlignedEndDate(start);
+      expect(end).toBe(expectedEnd);
+      // Inclusive span check via date walking.
+      let span = 1;
+      for (let d = start; d < end; d = addDays(d, 1)) span++;
+      expect(span).toBe(expectedSpan);
+    }
+  );
+
+  it("always lands on a Sunday", () => {
+    for (const [, start] of cases) {
+      const end = calendarAlignedEndDate(start);
+      const [y, m, d] = end.split("-").map(Number);
+      expect(new Date(y, m - 1, d).getDay()).toBe(0);
+    }
+  });
+});
+
+describe("buildCalendarAlignedSchedule", () => {
+  const SIX_DAYS = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+  ];
+
+  it("Monday start with 6 available days = one clean Mon-Sat week", () => {
+    const slots = buildCalendarAlignedSchedule(SIX_DAYS, "2026-09-07");
+    expect(slots).toHaveLength(6);
+    expect(slots[0]).toEqual({
+      dayNumber: 1,
+      weekday: "monday",
+      date: "2026-09-07",
+    });
+    expect(slots[5].date).toBe("2026-09-12");
+  });
+
+  it("Thursday start visits each available weekday of BOTH weeks (11-day window)", () => {
+    const slots = buildCalendarAlignedSchedule(SIX_DAYS, "2026-09-10");
+    // Thu/Fri/Sat of week 1 + Mon-Sat of week 2 = 9 slots, dates strictly ascending.
+    expect(slots).toHaveLength(9);
+    expect(slots[0].date).toBe("2026-09-10");
+    expect(slots[slots.length - 1].date).toBe("2026-09-19");
+    for (let i = 1; i < slots.length; i++) {
+      expect(slots[i].date > slots[i - 1].date).toBe(true);
+      expect(slots[i].dayNumber).toBe(i + 1);
+    }
+  });
+
+  it("only places slots on available weekdays", () => {
+    const slots = buildCalendarAlignedSchedule(
+      ["monday", "wednesday", "friday"],
+      "2026-09-10" // Thursday
+    );
+    // Week 1 remainder: Fri. Week 2: Mon/Wed/Fri.
+    expect(slots.map((s) => s.date)).toEqual([
+      "2026-09-11",
+      "2026-09-14",
+      "2026-09-16",
+      "2026-09-18",
+    ]);
+  });
+
+  it("maxDaysPerWeek caps each calendar week, earliest days first (GQ-02 dayCount)", () => {
+    const slots = buildCalendarAlignedSchedule(SIX_DAYS, "2026-09-10", 3);
+    // Week 1 (Thu-Sun): Thu, Fri, Sat = 3. Week 2: Mon, Tue, Wed = 3.
+    expect(slots.map((s) => s.weekday)).toEqual([
+      "thursday",
+      "friday",
+      "saturday",
+      "monday",
+      "tuesday",
+      "wednesday",
+    ]);
+  });
+
+  it("cap equal to available-day count is a no-op (the no-override case)", () => {
+    const capped = buildCalendarAlignedSchedule(SIX_DAYS, "2026-09-10", 6);
+    const uncapped = buildCalendarAlignedSchedule(SIX_DAYS, "2026-09-10");
+    expect(capped).toEqual(uncapped);
+  });
+
+  it("Sunday start: the start day itself counts toward its own (ending) week", () => {
+    const slots = buildCalendarAlignedSchedule(
+      ["sunday", "monday"],
+      "2026-09-13", // Sunday
+      1
+    );
+    // Sun 9/13 is week 1's only day (cap 1); week 2 gets Mon 9/14; ends 9/20 (Sunday, capped out by Monday).
+    expect(slots.map((s) => s.date)).toEqual(["2026-09-13", "2026-09-14"]);
+  });
+
+  it("falls back to the safe default spread for empty availableDays", () => {
+    const slots = buildCalendarAlignedSchedule([], "2026-09-07");
+    expect(slots.map((s) => s.weekday)).toEqual([
+      "monday",
+      "wednesday",
+      "friday",
+    ]);
+  });
+});
+
+describe("spansMultipleCalendarWeeks", () => {
+  it("false for a single Mon-Sun week", () => {
+    const slots = buildCalendarAlignedSchedule(["monday", "friday"], "2026-09-07");
+    expect(spansMultipleCalendarWeeks(slots)).toBe(false);
+  });
+
+  it("true when the window crosses into the next week", () => {
+    const slots = buildCalendarAlignedSchedule(["monday", "friday"], "2026-09-10");
+    expect(spansMultipleCalendarWeeks(slots)).toBe(true);
+  });
+
+  it("false for empty/single-slot schedules", () => {
+    expect(spansMultipleCalendarWeeks([])).toBe(false);
+    expect(
+      spansMultipleCalendarWeeks([
+        { dayNumber: 1, weekday: "monday", date: "2026-09-07" },
+      ])
+    ).toBe(false);
+  });
+});

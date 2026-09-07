@@ -29,6 +29,7 @@ import {
 } from "@/utils/date.utils";
 import {
   buildPlanDaySchedule,
+  buildCalendarAlignedSchedule,
   computeAdjacentDayPairs,
 } from "@/utils/plan-schedule";
 import {
@@ -204,10 +205,18 @@ function scoreMuscleBalance(
 
 async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
   const { profile } = scenario;
-  const startDate = profile.timezone
-    ? getCurrentDateStringInTimezone(profile.timezone)
-    : getCurrentDateString();
-  const schedule = buildPlanDaySchedule(profile.availableDays, startDate);
+  // [Calendar-aligned series] A scenario may pin its start date so the window
+  // shape doesn't depend on the run day; the check schedule mirrors the same
+  // builder the agent will use under the flag.
+  const startDate =
+    scenario.startDate ??
+    (profile.timezone
+      ? getCurrentDateStringInTimezone(profile.timezone)
+      : getCurrentDateString());
+  const schedule =
+    process.env.CALENDAR_ALIGNED_SERIES === "true"
+      ? buildCalendarAlignedSchedule(profile.availableDays, startDate)
+      : buildPlanDaySchedule(profile.availableDays, startDate);
   const checks = scenario.buildChecks(schedule, profile);
 
   const startedAt = Date.now();
@@ -216,7 +225,8 @@ async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
     const result = await agent.generateWeeklyWorkout(
       EVAL_USER_ID,
       profile,
-      scenario.customFeedback
+      scenario.customFeedback,
+      { scheduleStartDate: startDate }
     );
     const durationMs = Date.now() - startedAt;
     const workout = result.workout as unknown as ScoredWorkout;
@@ -332,7 +342,14 @@ async function run() {
   const concurrency = Number(args.concurrency || 3);
   const only = args.only ? new Set(args.only.split(",")) : null;
 
-  const scenarios = only ? SCENARIOS.filter((s) => only.has(s.id)) : SCENARIOS;
+  // [Calendar-aligned series] Alignment scenarios are only meaningful with the
+  // flag on — their expected day counts assume the calendar window.
+  const eligible = SCENARIOS.filter(
+    (s) =>
+      !s.requiresCalendarAlignment ||
+      process.env.CALENDAR_ALIGNED_SERIES === "true"
+  );
+  const scenarios = only ? eligible.filter((s) => only.has(s.id)) : eligible;
   if (scenarios.length === 0) {
     console.error("No scenarios matched --only filter.");
     process.exit(1);
