@@ -6,6 +6,7 @@ import {
   liftForExerciseName,
   applyPercentSchemeLoads,
   roundBarbellLoads,
+  stripNumericSentences,
 } from "./percent-scheme-loads";
 
 const RICH_REQUEST = `This week:
@@ -149,12 +150,35 @@ describe("applyPercentSchemeLoads", () => {
     const reps = workoutPlan[2].blocks[0].exercises.map((e: any) => e.reps);
     expect(reps).toEqual([5, 5, 3, 5, 5, 5]);
   });
-  it("scrubs the model's wrong numbers from block instructions and states the real loads", () => {
+  it("drops the model's numeric sentences from block instructions and states the whole ladder once", () => {
     const instr: string = workoutPlan[2].blocks[0].instructions;
     expect(instr).not.toContain("211");
     expect(instr).not.toContain("358");
-    expect(instr).toContain("TM 337.5 lb = 90% of 375");
-    expect(instr).toContain("working 220/255/290 lb");
+    expect(instr).toContain("TM 337.5 lb = 90% of 375 1RM");
+    expect(instr).toContain("warm-up 135×5, 170×5, 205×3; working 220×5, 255×5, 290×5+");
+  });
+
+  it("leaves no dangling fragments when a sentence mixed prose with numbers (workout 847 Monday)", () => {
+    const monday = [
+      {
+        day: 1,
+        blocks: [
+          {
+            blockType: "traditional",
+            instructions:
+              "Complete all warm-up and working sets in prescribed order. Training max = 90% of 1RM = 211.5 lb, round to 5 lb. Week 1 percentages: 65%, 75%, 85% of training max for 5, 3, 1+ reps respectively. Rest 2-3 minutes between working sets.",
+            exercises: [entry("Barbell Bench Press", 85), entry("Barbell Bench Press", 106)],
+          },
+        ],
+      },
+    ];
+    const instr: string = applyPercentSchemeLoads(monday, RICH_REQUEST, CATALOG).workoutPlan[0].blocks[0].instructions;
+    expect(instr).not.toContain("=,");
+    expect(instr).not.toContain("round to");
+    expect(instr).not.toContain("5, 3, 1+"); // the model's wrong (Week 3) rep scheme is gone
+    expect(instr).toContain("Complete all warm-up and working sets in prescribed order.");
+    expect(instr).toContain("Rest 2-3 minutes between working sets.");
+    expect(instr).toContain("working 140×5, 160×5, 180×5+");
   });
   it("leaves non-ladder blocks and non-barbell implements alone", () => {
     expect(loads(1, 1)).toEqual([50, 53]);
@@ -194,5 +218,17 @@ describe("roundBarbellLoads", () => {
   it("returns the same reference when nothing needs rounding", () => {
     const plan = [{ day: 1, blocks: [{ exercises: [entry("Barbell Back Squat", 135)] }] }];
     expect(roundBarbellLoads(plan, CATALOG).workoutPlan).toBe(plan);
+  });
+});
+
+describe("stripNumericSentences", () => {
+  it("keeps cue sentences and removes load / percent / rep-scheme sentences", () => {
+    const out = stripNumericSentences(
+      "Brace hard. Warm-ups at 40%, 50%, 60%. Use 135 lbs then 185 lbs. Do 5, 3, 1+ reps. Neutral spine throughout."
+    );
+    expect(out).toBe("Brace hard. Neutral spine throughout.");
+  });
+  it("handles empty input", () => {
+    expect(stripNumericSentences("")).toBe("");
   });
 });

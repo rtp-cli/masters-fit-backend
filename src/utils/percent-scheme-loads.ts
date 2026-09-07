@@ -137,6 +137,22 @@ const isBarbell = (name: string, equipmentByName: Map<string, string[]>): boolea
 const buildEquipmentIndex = (catalog: EnforcementCatalogItem[]): Map<string, string[]> =>
   new Map(catalog.map((c) => [c.name.trim().toLowerCase(), c.equipment ?? []]));
 
+/**
+ * Drop sentences that carry numeric programming (loads, percentages, rep
+ * schemes) from a block's instructions, keeping form/rest/pacing cues. Used so
+ * the canonical ladder sentence is the ONLY place numbers appear.
+ */
+export function stripNumericSentences(text: string): string {
+  if (!text) return "";
+  const numeric = /\d{2,3}(?:\.\d)?\s*(?:lbs?\b|#)|\d{1,3}\s*%|\btraining max\s*=|\b\d\s*(?:,\s*\d+\s*)*\+?\s*reps?\b/i;
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  return sentences
+    .filter((sentence) => !numeric.test(sentence))
+    .join(" ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 export interface PercentSchemeFinding {
   dayNumber: number;
   exerciseName: string;
@@ -200,16 +216,19 @@ export function applyPercentSchemeLoads(
         next = [...next.slice(0, insertAt).filter((ex) => !mine(ex)), ...ladder, ...next.slice(insertAt).filter((ex) => !mine(ex))];
         const after = ladder.map((ex) => ex.weight);
         findings.push({ dayNumber: day.day, exerciseName: name, lift, oneRepMax, trainingMax, before, after });
-        // The model's prose often carries its own (wrong) numbers — strip them
-        // and state the real loads once.
-        instructions = instructions
-          .replace(/\(?\b\d{2,3}(?:\.\d)?(?:\s*,\s*\d{2,3}(?:\.\d)?)*\s*(?:lbs?|#)\b\)?/gi, "")
-          .replace(/\s{2,}/g, " ")
-          .replace(/\s+([,.;])/g, "$1")
-          .trim();
-        const warm = ladder.filter((_, i) => scheme.steps[i].warmup).map((ex) => ex.weight);
-        const work = ladder.filter((_, i) => !scheme.steps[i].warmup).map((ex) => ex.weight);
-        instructions += `${instructions && !/[.!?]$/.test(instructions) ? "." : ""} ${name} loads (TM ${trainingMax} lb = 90% of ${oneRepMax}): ${warm.length ? `warm-up ${warm.join("/")} lb, ` : ""}working ${work.join("/")} lb.`;
+        // The model's prose often carries its own (wrong) numbers — loads,
+        // percentages, rep schemes ("211, 211, 211 lbs", "for 5, 3, 1+ reps").
+        // Deleting just the numbers left fragments ("Training max = 90% of 1RM
+        // =, round to."), so drop every SENTENCE that talks numbers and keep
+        // only the form/rest/pacing cues, then state the whole ladder once.
+        instructions = stripNumericSentences(instructions);
+        const describe = (i: number) => {
+          const step = scheme.steps[i];
+          return `${ladder[i].weight}×${step.reps}${step.amrap ? "+" : ""}`;
+        };
+        const warm = scheme.steps.map((_, i) => i).filter((i) => scheme.steps[i].warmup).map(describe);
+        const work = scheme.steps.map((_, i) => i).filter((i) => !scheme.steps[i].warmup).map(describe);
+        instructions += `${instructions ? " " : ""}${name} ladder (TM ${trainingMax} lb = 90% of ${oneRepMax} 1RM): ${warm.length ? `warm-up ${warm.join(", ")}; ` : ""}working ${work.join(", ")} (lb × reps).`;
       }
       // Re-sequence so the ladder order is stable for the UI.
       next = next.map((ex, i) => ({ ...ex, order: i + 1 }));
