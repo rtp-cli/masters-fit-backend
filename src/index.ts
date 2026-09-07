@@ -11,6 +11,10 @@ import { setSocketIOInstance } from "./utils/websocket-progress.utils";
 import { initializeRedis, closeRedis } from "./utils/redis";
 import { workoutGenerationQueue, closeWorkoutGenerationQueue } from "./queues/workout-generation.queue";
 import {
+  startOrphanedJobSweeper,
+  stopOrphanedJobSweeper,
+} from "./services/job-reconciler.service";
+import {
   renewalReminderQueue,
   scheduleRenewalReminderJob,
   closeRenewalReminderQueue,
@@ -90,6 +94,14 @@ async function initializeServices() {
     // Ensure queue is running
     await workoutGenerationQueue.resume();
 
+    // [#66] Reconcile jobs whose worker died without reaching a terminal
+    // status — the deploy-swap case, where Bull has nothing queued or running
+    // for a row still marked `processing` and the user's ai_operations
+    // reservation blocks their retry with a 409. Runs now and every 5 min.
+    // Reads Bull rather than assuming: a job running on another instance
+    // reports `active` and is left strictly alone.
+    startOrphanedJobSweeper();
+
     logger.info('Workout generation queue processors started', {
       operation: 'initializeServices',
       metadata: {
@@ -125,6 +137,8 @@ async function gracefulShutdown() {
   logger.info('Graceful shutdown initiated');
   
   try {
+    stopOrphanedJobSweeper();
+
     // Close queues
     await closeWorkoutGenerationQueue();
     await closeRenewalReminderQueue();

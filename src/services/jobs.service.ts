@@ -1,4 +1,4 @@
-import { eq, and, desc, lt, or } from "drizzle-orm";
+import { eq, and, desc, inArray, lt, or } from "drizzle-orm";
 import {
   backgroundJobs,
   BackgroundJob,
@@ -205,6 +205,56 @@ export class JobsService extends BaseService {
     });
 
     return updatedJob as BackgroundJob;
+  }
+
+  /**
+   * Non-terminal jobs last touched before `cutoff` — the candidate set for the
+   * orphan reconciler (see job-reconciler.service.ts). Ordered oldest-first so
+   * a large backlog is drained in a predictable order.
+   */
+  async listUnfinishedJobsOlderThan(cutoff: Date): Promise<BackgroundJob[]> {
+    const rows = await this.db
+      .select()
+      .from(backgroundJobs)
+      .where(
+        and(
+          inArray(backgroundJobs.status, [JobStatus.PENDING, JobStatus.PROCESSING]),
+          lt(backgroundJobs.updatedAt, cutoff)
+        )
+      )
+      .orderBy(backgroundJobs.updatedAt);
+
+    return rows as BackgroundJob[];
+  }
+
+  /**
+   * Fail a job only if it is still non-terminal. Conditional on purpose: the
+   * reconciler can run on several instances at once, and a job may finish
+   * legitimately between the candidate query and this write — the WHERE clause
+   * makes the sweep idempotent and tells the caller whether IT was the one that
+   * flipped the row (null = someone else got there first).
+   */
+  async failJobIfUnfinished(
+    jobId: number,
+    error: string
+  ): Promise<BackgroundJob | null> {
+    const [updated] = await this.db
+      .update(backgroundJobs)
+      .set({
+        status: JobStatus.FAILED,
+        error,
+        updatedAt: new Date(),
+        completedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(backgroundJobs.id, jobId),
+          inArray(backgroundJobs.status, [JobStatus.PENDING, JobStatus.PROCESSING])
+        )
+      )
+      .returning();
+
+    return (updated as BackgroundJob) ?? null;
   }
 
   async deleteJob(jobId: number): Promise<boolean> {
