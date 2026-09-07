@@ -128,6 +128,88 @@ export function buildPlanDaySchedule(
   return slots;
 }
 
+/** 0=Sunday..6=Saturday for a YYYY-MM-DD string (parts-based, tz-safe). */
+function weekdayIndexOf(date: string): number {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, month - 1, day).getDay();
+}
+
+/**
+ * [Calendar-aligned series — docs/CALENDAR_ALIGNED_SERIES.md] The last date of
+ * a series starting on `startDate`: the next Sunday such that the series spans
+ * at least 7 days inclusive. Monday start -> that week's Sunday (7 days);
+ * any other start -> the FOLLOWING week's Sunday (8-13 days). Guarantees every
+ * series is Sunday-terminated (so all subsequent series are Mon-Sun aligned)
+ * and that a first series is never shorter than a full week — the free tier's
+ * single lifetime INITIAL_PLAN must not shrink with the signup weekday.
+ * Pure YYYY-MM-DD date arithmetic — no epoch math, no DST hazard.
+ */
+export function calendarAlignedEndDate(startDate: string): string {
+  const untilSunday = (7 - weekdayIndexOf(startDate)) % 7;
+  // Inclusive span must be >= 7 -> the Sunday must be >= 6 days out.
+  const diff = untilSunday >= 6 ? untilSunday : untilSunday + 7;
+  return addDays(startDate, diff);
+}
+
+/**
+ * [Calendar-aligned series] Day-number -> {weekday, date} schedule bounded by
+ * the calendar window instead of a fixed day count: every date from
+ * `startDate` through calendarAlignedEndDate(startDate) whose weekday is one
+ * of the user's available days becomes a slot. The window always spans >= 7
+ * days, so every available weekday appears at least once (slots >= available
+ * day count; up to ~12 for a 6-day profile over a 13-day window).
+ *
+ * `maxDaysPerWeek` caps slots per Mon-Sun calendar week — this is how a GQ-02
+ * "only 3 days" override composes with alignment ("3 days" means 3 per week,
+ * not 3 total over a 13-day window). Callers pass the resolved effective
+ * dayCount; when it equals the available-day count (the no-override case) the
+ * cap is a no-op, since a calendar week can't contain an available weekday
+ * twice. Earliest days in each week win the cap, mirroring how the rotating
+ * builder fills a count.
+ *
+ * Same contract as buildPlanDaySchedule otherwise: `startDate` is the
+ * already-timezone-resolved YYYY-MM-DD "today" (or a GQ-02-shifted start), and
+ * prompts + persistence must consume the identical schedule (GQ-01).
+ */
+export function buildCalendarAlignedSchedule(
+  availableDays: string[] | null | undefined,
+  startDate: string,
+  maxDaysPerWeek?: number
+): PlanDaySlot[] {
+  const days = new Set(
+    effectiveAvailableDays(availableDays).map((d) => d.toLowerCase())
+  );
+  const endDate = calendarAlignedEndDate(startDate);
+  const cap =
+    maxDaysPerWeek != null && maxDaysPerWeek > 0 ? maxDaysPerWeek : Infinity;
+
+  const slots: PlanDaySlot[] = [];
+  let usedThisWeek = 0;
+  for (let date = startDate; date <= endDate; date = addDays(date, 1)) {
+    const index = weekdayIndexOf(date);
+    if (index === 1) usedThisWeek = 0; // Monday starts a new calendar week
+    const weekday = DAYS_OF_WEEK[index];
+    if (!days.has(weekday) || usedThisWeek >= cap) continue;
+    usedThisWeek++;
+    slots.push({ dayNumber: slots.length + 1, weekday, date });
+  }
+  return slots;
+}
+
+/**
+ * True when a schedule crosses a Mon-Sun calendar-week boundary — used to
+ * frame the planning prompt as "rest of this week + next week" instead of
+ * "this week".
+ */
+export function spansMultipleCalendarWeeks(schedule: PlanDaySlot[]): boolean {
+  if (schedule.length < 2) return false;
+  const first = schedule[0].date;
+  const last = schedule[schedule.length - 1].date;
+  // The Sunday closing `first`'s calendar week; anything later is week 2+.
+  const firstWeekSunday = addDays(first, (7 - weekdayIndexOf(first)) % 7);
+  return last > firstWeekSunday;
+}
+
 export interface ScheduleOverride {
   daysOfWeek?: string[];
   dayCount?: number;

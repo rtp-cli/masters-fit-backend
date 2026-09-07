@@ -55,6 +55,7 @@ import {
 } from "@/utils/fanout-prompt-generator";
 import {
   buildPlanDaySchedule,
+  buildCalendarAlignedSchedule,
   PlanDaySlot,
   mentionsWeekday,
   mentionsScheduleChange,
@@ -104,6 +105,16 @@ const FANOUT_DAY_MODEL =
 // to llm_generation_logs.planning_model for before/after comparison.
 const SONNET_PLANNING_ON_OVERRIDE =
   process.env.SONNET_PLANNING_ON_OVERRIDE === "true";
+
+// [Calendar-aligned series — docs/CALENDAR_ALIGNED_SERIES.md] When ON, every
+// new series spans from its start date through the next Sunday >= 7 days out
+// (7-13 days, always Sunday-terminated) instead of a rolling fixed-count week.
+// Default OFF: flip in Render after the eval scenarios pass. The serial
+// fallback path (generatePrompt) is NOT flag-aware and keeps the rolling week
+// — acceptable for a rare fallback; its dates come from the same persistence
+// clock either way.
+const CALENDAR_ALIGNED_SERIES =
+  process.env.CALENDAR_ALIGNED_SERIES === "true";
 const FANOUT_PLANNING_OVERRIDE_MODEL =
   process.env.FANOUT_PLANNING_OVERRIDE_MODEL || "claude-sonnet-4-6";
 
@@ -825,11 +836,12 @@ Please generate the workout now, addressing this feedback while following all sy
       );
     }
     // `let` because a GQ-02 scheduling override (extracted by the planning call)
-    // can recompute this after planning.
-    let schedule = buildPlanDaySchedule(
-      profile.availableDays,
-      scheduleStartDate
-    );
+    // can recompute this after planning. Calendar-aligned mode bounds the
+    // series by the calendar window (through the next Sunday >= 7 days out)
+    // instead of one slot per available day.
+    let schedule = CALENDAR_ALIGNED_SERIES
+      ? buildCalendarAlignedSchedule(profile.availableDays, scheduleStartDate)
+      : buildPlanDaySchedule(profile.availableDays, scheduleStartDate);
 
     // Abort scope for the fan-out: forwards an external abort, and lets a
     // terminal day failure cancel sibling in-flight calls instead of letting
@@ -1059,13 +1071,22 @@ ${exerciseContext}`;
         profile.availableDays,
         scheduleStartDate
       );
-      expectedDayCount = effective.dayCount;
       if (effective.overridden) {
-        schedule = buildPlanDaySchedule(
-          effective.availableDays,
-          effective.startDate,
-          effective.dayCount
-        );
+        // Calendar-aligned mode: the boundary applies from the (possibly
+        // shifted) start, and an explicit dayCount means days PER CALENDAR
+        // WEEK within the window — "only 3 days" over a 13-day series is 3
+        // per week, not 3 total.
+        schedule = CALENDAR_ALIGNED_SERIES
+          ? buildCalendarAlignedSchedule(
+              effective.availableDays,
+              effective.startDate,
+              effective.dayCount
+            )
+          : buildPlanDaySchedule(
+              effective.availableDays,
+              effective.startDate,
+              effective.dayCount
+            );
         logger.info("Applied GQ-02 scheduling override", {
           userId,
           operation: "generateWeeklyWorkout",
@@ -1076,6 +1097,14 @@ ${exerciseContext}`;
           },
         });
       }
+      // Aligned windows can hold more slots than there are available weekdays
+      // (a 13-day window visits each weekday twice), so the expected count is
+      // the SCHEDULE length — which the prompts were built from — never a raw
+      // day count. Rolling mode: schedule.length === effective.dayCount, so
+      // this is behavior-identical with the flag off.
+      expectedDayCount = CALENDAR_ALIGNED_SERIES
+        ? schedule.length
+        : effective.dayCount;
       // [GQ-04] Assemble the "couldn't apply X because Y" list surfaced in-app:
       // the planner's own semantic conflicts, plus a deterministic entry when the
       // user asked for MORE workout days than their available days allow (the pure

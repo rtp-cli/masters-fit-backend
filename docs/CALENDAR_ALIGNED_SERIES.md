@@ -1,7 +1,9 @@
 # Calendar-Aligned Workout Series
 
-**Status:** Spec — ready to build. Written 2026-09-06, on hold until the fresh Wendler
-generation (2026-09-07) is evaluated.
+**Status:** Built 2026-09-07 behind `CALENDAR_ALIGNED_SERIES` (env flag, default OFF) —
+flip in Render after the eval scenarios pass (`CALENDAR_ALIGNED_SERIES=true npm run
+eval-generation --only aligned-thursday-start,aligned-tuesday-mwf`). Spec written
+2026-09-06.
 **Origin:** the 2026-09-06 generation-forensics thread (PRs #53–#57). A Thursday-started
 series spilled into the following week and had to be manually cleaned up; the follow-up
 question was how a series created mid-week should relate to calendar weeks at all.
@@ -14,11 +16,12 @@ question was how a series created mid-week should relate to calendar weeks at al
 One rule, no tier branches, no special cases. Weeks are **Monday–Sunday** in the
 **user's profile timezone**.
 
-| Signup / new-program day | Series span | Length |
+| Signup / new-program day | Series span | Length (inclusive) |
 |---|---|---|
 | Monday | Mon → Sun | 7 days |
-| Thursday | Thu → *next* Sun | 10 days |
-| Saturday | Sat → *next* Sun | 8 days |
+| Tuesday | Tue → *next* Sun | 13 days |
+| Thursday | Thu → *next* Sun | 11 days |
+| Saturday | Sat → *next* Sun | 9 days |
 | Sunday | Sun → *next* Sun | 8 days |
 
 Every series ends on a Sunday, so **from the second series onward everything is

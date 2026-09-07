@@ -6,6 +6,7 @@ import {
   formatSlotLabel,
   renderScheduleLines,
   effectiveAvailableDays,
+  spansMultipleCalendarWeeks,
 } from "./plan-schedule";
 import {
   getEquipmentDescription,
@@ -667,19 +668,29 @@ export const buildPlanningUserMessage = (
   // and any GQ-02 override) — never an independent availableDays count, which
   // could disagree with the dates the schedule actually renders.
   const dayCount = schedule.length;
+  // [Calendar-aligned series] A first/mid-week series can span the rest of the
+  // current week PLUS the next full week — frame it honestly so the planner
+  // balances across the whole span instead of treating 10+ days as one "week".
+  const multiWeek = spansMultipleCalendarWeeks(schedule);
+  const datesHeading = multiWeek
+    ? "## TRAINING DATES FOR THIS SERIES (rest of this week + next week)"
+    : "## THIS WEEK'S TRAINING DATES";
+  const multiWeekNote = multiWeek
+    ? `\nThis series spans more than one calendar week (weeks run Monday-Sunday). Treat each calendar week as its own training week: weekly patterns (e.g. one heavy lower-body day, a long-cardio day) should appear in EACH week, and week-level balance rules apply within each week as well as across the boundary.\n`
+    : "";
 
   return `${buildProfileContext(profile)}
 
 ${renderFeedbackSections(feedback)}
 
-## THIS WEEK'S TRAINING DATES
+${datesHeading}
 
 Each numbered day lands on a specific real weekday/date — design the split with those in mind (e.g. keep the day before a stated event lighter, honor "make Fridays easy"):
 ${renderScheduleLines(schedule)}
-
+${multiWeekNote}
 ## TASK: WEEK PLANNING
 
-Design the weekly split for this user. By default, return exactly ${dayCount} days, numbered sequentially 1 to ${dayCount}, matching the dates listed above. **Exception:** if the user's current request specifies a different number of workout days or particular training days (e.g. "only 3 days this week", "just Mondays and Wednesdays", "weekends only"), return THAT many day entries instead and record it under \`constraints.schedule\` — the real dates are re-derived from your schedule fields, so just return the right COUNT of days.
+Design the ${multiWeek ? "series" : "weekly"} split for this user. By default, return exactly ${dayCount} days, numbered sequentially 1 to ${dayCount}, matching the dates listed above. **Exception:** if the user's current request specifies a different number of workout days or particular training days (e.g. "only 3 days this week", "just Mondays and Wednesdays", "weekends only"), return THAT many day entries instead and record it under \`constraints.schedule\` — the real dates are re-derived from your schedule fields, so just return the right COUNT of days.
 
 This is the WEEK PLANNING mode described in your instructions: produce only the high-level split (names, focus, muscle groups, styles). The day-generation requirements (duration compliance, block structure, exercise selection) apply to the per-day calls that follow, not to this plan.
 

@@ -91,6 +91,17 @@ export interface EvalScenario {
   description: string;
   profile: Profile;
   customFeedback?: string;
+  /**
+   * [Calendar-aligned series] Pin the generation start date (YYYY-MM-DD) so a
+   * scenario's window shape doesn't depend on the day the eval runs. Passed to
+   * the agent as scheduleStartDate and used for the local check schedule.
+   */
+  startDate?: string;
+  /**
+   * [Calendar-aligned series] Scenario is only meaningful with
+   * CALENDAR_ALIGNED_SERIES=true — the harness skips it otherwise.
+   */
+  requiresCalendarAlignment?: boolean;
   /** Resolved with the computed schedule so day-scoped checks can find the right day. */
   buildChecks: (schedule: PlanDaySlot[], profile: Profile) => ComplianceCheck[];
   /**
@@ -399,5 +410,41 @@ export const SCENARIOS: EvalScenario[] = [
     // [GQ-02 negative control] "keep Friday light" names a weekday for CONTENT,
     // NOT a schedule change — it must NOT shrink the 5-day week to fewer days.
     expectSchedule: { dayCount: 5 },
+  },
+  // ── [Calendar-aligned series — docs/CALENDAR_ALIGNED_SERIES.md] Long-window
+  // shapes (8-13 days) are new planner territory, exactly as short weeks were
+  // before EW-1. Both scenarios pin startDate so the window shape is stable
+  // regardless of the day the eval runs; both are skipped unless
+  // CALENDAR_ALIGNED_SERIES=true.
+  {
+    id: "aligned-thursday-start",
+    category: "scheduling",
+    description:
+      "Calendar-aligned Thursday start: 5-day profile over an 11-day window (Thu-Sun + full Mon-Sun) = 8 days, no request",
+    profile: baseProfile({}),
+    startDate: "2026-09-10", // Thursday
+    requiresCalendarAlignment: true,
+    buildChecks: (_schedule, p) => [duration(p.workoutDuration || 45)],
+    // mon/tue/thu/fri/sat: week-1 remainder Thu+Fri+Sat, week 2 all five.
+    expectSchedule: { dayCount: 8, firstWeekday: "thursday" },
+    checkMuscleBalance: true,
+  },
+  {
+    id: "aligned-tuesday-mwf",
+    category: "scheduling",
+    description:
+      "Calendar-aligned Tuesday start on a Mon/Wed/Fri profile: 13-day window = 5 days (Wed+Fri, then Mon/Wed/Fri)",
+    profile: baseProfile({
+      availableDays: [
+        PreferredDays.MONDAY,
+        PreferredDays.WEDNESDAY,
+        PreferredDays.FRIDAY,
+      ],
+    }),
+    startDate: "2026-09-08", // Tuesday
+    requiresCalendarAlignment: true,
+    buildChecks: (_schedule, p) => [duration(p.workoutDuration || 45)],
+    expectSchedule: { dayCount: 5, firstWeekday: "wednesday" },
+    checkMuscleBalance: true,
   },
 ];
