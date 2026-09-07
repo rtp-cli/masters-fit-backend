@@ -116,6 +116,24 @@ to the matching route file. The `add-api-endpoint` skill walks through both halv
    Writing to prod is a separate, deliberate act: use the purpose-built scripts
    (`comp-user`, `reset-workout-prod`, `delete-user`, …) or their skills, which confirm
    first. Bare `psql` against prod still requires explicit human approval — keep it that way.
+   Those scripts need a live `DATABASE_URL`, so prefix them with `scripts/with-prod-url.sh`,
+   which injects it into the child process only:
+   ```bash
+   scripts/with-prod-url.sh npm run comp-user -- someone@example.com --dry-run
+   ```
+
+7. **NEVER print the prod connection string — not even to inspect it.**
+   The prod URL lives in the **macOS Keychain** (`mastersfit-prod-database-url`), not in
+   `.env`; set or rotate it with `scripts/db-prod-set-url.sh`, which reads it from your
+   clipboard so it never reaches a command line. Both wrappers above read it from the
+   Keychain and print only the target host.
+
+   This rule exists because a single `grep DATABASE_URL .env` in Aug 2026 printed the live
+   password into a transcript, and it was then reused inline in ~10 later commands in that
+   same session — one echo poisons everything downstream. It ended up in 6 transcripts and
+   15 `~/.zsh_history` lines, forcing a credential rotation. Do not `cat`, `grep`, or `echo`
+   anything that resolves to a credential; if you need to confirm which database you're
+   pointed at, print the **host** only.
 
 ---
 

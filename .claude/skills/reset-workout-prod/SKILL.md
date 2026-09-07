@@ -38,21 +38,17 @@ cd /Users/richpusateri/Projects/MastersFit/backend
 
 ## Reset (prod)
 
-The active `DATABASE_URL` in `backend/.env` is **local**; the prod Neon URL is the **commented**
-line in that file. Extract it inline and add `--remote`. **Note:** macOS/BSD `sed` does NOT
-support `\s` — use `[[:space:]]`, or the `# DATABASE_URL=` prefix silently stays on the value and
-`new URL()` throws "Invalid URL".
+For prod, prefix the command with `scripts/with-prod-url.sh` — it injects `DATABASE_URL`
+from the macOS Keychain into the child process only, and never prints the credential.
+Do **not** grep the URL out of `.env`; printing it once leaks it into the transcript.
 
 ```bash
-PROD_URL=$(grep -E '^[[:space:]]*#[[:space:]]*DATABASE_URL=' .env | head -1 \
-  | sed -E 's/^[[:space:]]*#[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')
-
 # 1. ALWAYS preview against prod first:
-DATABASE_URL="$PROD_URL" npm run reset-workout-day -- \
+scripts/with-prod-url.sh npm run reset-workout-day -- \
   --email rtp+qa@mastersfit.ai --remote --dry-run
 
 # 2. Then the real reset:
-DATABASE_URL="$PROD_URL" npm run reset-workout-day -- \
+scripts/with-prod-url.sh npm run reset-workout-day -- \
   --email rtp+qa@mastersfit.ai --remote
 ```
 
@@ -68,7 +64,7 @@ has no plan day past **2026-08-17**, so a default prod run just prints
 completed day today before running** — don't assume the default is the right target:
 
 ```bash
-psql "$PROD_URL" -c "
+scripts/db-prod-read.sh -c "
   select u.id, u.email, pd.date, pd.is_complete
   from users u
   join workouts w on w.user_id = u.id
@@ -89,7 +85,7 @@ live plan on prod, and is a common reset target after a demo or a screenshot run
 email:
 
 ```bash
-DATABASE_URL="$PROD_URL" npm run reset-workout-day -- \
+scripts/with-prod-url.sh npm run reset-workout-day -- \
   --email rtp+demo@mastersfit.ai --remote --dry-run
 ```
 
@@ -115,9 +111,11 @@ simulator session replaying, or a live demo device. Track that down before reset
 The production app points at prod, so pre-insert a login code in the **prod** DB:
 
 ```bash
-psql "$PROD_URL" -c "DELETE FROM auth_codes WHERE code='2468' OR email='rtp+qa@mastersfit.ai';" \
-  -c "INSERT INTO auth_codes (email, code, expires_at, used)
-      VALUES ('rtp+qa@mastersfit.ai','2468', now() + interval '120 minutes', false);"
+scripts/with-prod-url.sh sh -c 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f -' <<'SQL'
+DELETE FROM auth_codes WHERE code='2468' OR email='rtp+qa@mastersfit.ai';
+INSERT INTO auth_codes (email, code, expires_at, used)
+VALUES ('rtp+qa@mastersfit.ai','2468', now() + interval '120 minutes', false);
+SQL
 ```
 
 Then in the app: enter `rtp+qa@mastersfit.ai`, request a code, and type `2468`. The code expires

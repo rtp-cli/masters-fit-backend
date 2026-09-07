@@ -39,14 +39,11 @@ guests — anyone who should use the real app for free without a store purchase.
 cd /Users/richpusateri/Projects/MastersFit/backend
 ```
 
-Local is the default — the active `DATABASE_URL` in `backend/.env` is **local**; the prod Neon URL
-is the **commented** line. Extract it inline for prod. **Note:** macOS/BSD `sed` has no `\s` — use
-`[[:space:]]`, or the `# DATABASE_URL=` prefix silently stays on the value.
+Local is the default. For prod, **never handle the connection string yourself** — no `grep`ing it
+out of `.env`, no pasting it into a command. Prefix the command with `scripts/with-prod-url.sh`,
+which injects `DATABASE_URL` from the macOS Keychain into the child process only. It prints the
+target host, never the credential.
 
-```bash
-PROD_URL=$(grep -E '^[[:space:]]*#[[:space:]]*DATABASE_URL=' .env | head -1 \
-  | sed -E 's/^[[:space:]]*#[[:space:]]*DATABASE_URL=//; s/^"//; s/"$//')
-```
 
 ## The workflow (all three, in order)
 
@@ -57,7 +54,7 @@ Takes any number of emails in one invocation. No writes.
 # local
 npm run comp-user -- a@example.com b@example.com --dry-run
 # prod
-DATABASE_URL="$PROD_URL" npm run comp-user -- a@example.com b@example.com --dry-run
+scripts/with-prod-url.sh npm run comp-user -- a@example.com b@example.com --dry-run
 ```
 
 Show the output to the user: one `user <id> (<email>)` + `current subscription row` per address,
@@ -65,14 +62,14 @@ then `would set access_override = COMPLIMENTARY`. Get sign-off.
 
 ### 2. Apply
 ```bash
-DATABASE_URL="$PROD_URL" npm run comp-user -- a@example.com b@example.com
+scripts/with-prod-url.sh npm run comp-user -- a@example.com b@example.com
 ```
 Expect `APPLYING`, the Neon host, and per user
 `✅ applied: [ { userId: <n>, accessOverride: 'COMPLIMENTARY' } ]`.
 
 ### 3. Verify — read the rows back
 ```bash
-DATABASE_URL="$PROD_URL" npx tsx src/scripts/diag-user-access.ts a@example.com b@example.com
+scripts/with-prod-url.sh npx tsx src/scripts/diag-user-access.ts a@example.com b@example.com
 ```
 Read-only. Confirm `"access_override":"COMPLIMENTARY"` and
 `"access_override_expires_at":null` on each subscription row, and report that back — don't call it
@@ -82,8 +79,8 @@ done off the apply output alone.
 
 ```bash
 # preview, then apply
-DATABASE_URL="$PROD_URL" npm run comp-user -- a@example.com --revoke --dry-run
-DATABASE_URL="$PROD_URL" npm run comp-user -- a@example.com --revoke
+scripts/with-prod-url.sh npm run comp-user -- a@example.com --revoke --dry-run
+scripts/with-prod-url.sh npm run comp-user -- a@example.com --revoke
 ```
 Sets `access_override` back to `NULL`. The account reverts to its real trial/paid state — it does
 **not** delete anything they created while comped.

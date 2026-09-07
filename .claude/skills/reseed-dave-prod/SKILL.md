@@ -15,8 +15,9 @@ and **do it deliberately**. For local, use **reseed-dave-local**.
 
 ## Guardrails (do not skip)
 
-- **Get the Neon `DATABASE_URL`** from the Render dashboard → backend service → Environment tab,
-  or the commented line in `backend/.env`. Do **not** echo or store it beyond the command below.
+- **Never handle the connection string.** Prefix the command with `scripts/with-prod-url.sh`,
+  which injects `DATABASE_URL` from the macOS Keychain into the child process only. Do not fetch
+  it from the Render dashboard or `.env`, and never let it reach a command line or the screen.
 - **Confirm you're hitting Neon, not local.** The script prints `local=false` and a
   `⚠️ --remote: seeding NON-LOCAL database "<host>"` warning, and the host must look like
   `*.neon.tech`. **If you don't see that warning, stop** — you may be about to wipe the wrong DB.
@@ -30,7 +31,7 @@ and **do it deliberately**. For local, use **reseed-dave-local**.
 
 ```bash
 cd /Users/richpusateri/Projects/MastersFit/backend
-DATABASE_URL="<neon-url>" npx tsx src/scripts/seed-demo-user.ts --remote
+scripts/with-prod-url.sh npx tsx src/scripts/seed-demo-user.ts --remote
 ```
 
 Watch for `local=false` + the non-local warning, then the per-week seed log and the final
@@ -39,7 +40,7 @@ Watch for `local=false` + the non-local warning, then the per-week seed log and 
 To **delete** the prod demo user only (no reseed):
 
 ```bash
-DATABASE_URL="<neon-url>" npx tsx src/scripts/seed-demo-user.ts --remote --delete
+scripts/with-prod-url.sh npx tsx src/scripts/seed-demo-user.ts --remote --delete
 ```
 
 ## Timing note
@@ -52,7 +53,7 @@ a demo/review.
 ## Verify
 
 ```bash
-psql "<neon-url>" -c "select u.id, u.email, count(pd.id) as plan_days
+scripts/db-prod-read.sh -c "select u.id, u.email, count(pd.id) as plan_days
   from users u
   left join workouts w on w.user_id = u.id
   left join plan_days pd on pd.workout_id = w.id

@@ -5,11 +5,16 @@
 # Usage:  db-prod-read.sh -tAc 'select id, email from users limit 5;'
 set -euo pipefail
 
-ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env"
-[[ -f "$ENV_FILE" ]] || { echo "no .env at $ENV_FILE" >&2; exit 1; }
+# Source of truth is the macOS Keychain, NOT a file: nothing on disk holds the
+# prod password, so `cat .env` can never leak it into a terminal or a Claude Code
+# transcript again. Set/rotate it with scripts/db-prod-set-url.sh.
+SERVICE="mastersfit-prod-database-url"
+RAW="$(security find-generic-password -a "$USER" -s "$SERVICE" -w 2>/dev/null || true)"
 
-RAW="$(grep -E '^# *DATABASE_URL=' "$ENV_FILE" | head -1 | sed -E 's/^# *DATABASE_URL=//; s/^"//; s/"$//')"
-[[ -n "$RAW" ]] || { echo "no commented prod DATABASE_URL found in .env" >&2; exit 1; }
+[[ -n "$RAW" ]] || {
+  echo "no prod URL in the Keychain (service=$SERVICE)." >&2
+  echo "Copy the Neon connection string, then run: scripts/db-prod-set-url.sh" >&2
+  exit 1; }
 
 # Neon's connection POOLER rejects the `options` startup parameter outright
 # ("unsupported startup parameter in options"), so force the UNPOOLED host by
