@@ -44,6 +44,12 @@ export interface ExerciseMetadata {
   tag?: string | null;
   /** Whether a demo video is attached — present on the generation-catalog path. */
   hasDemo?: boolean | null;
+  /**
+   * Set on the generation menu only: this row was reserved because the user's
+   * request named it ("requested") or it is a canonical staple ("canonical").
+   * Drives the menu's section headings — see utils/requested-exercises.ts.
+   */
+  pinned?: "requested" | "canonical";
 }
 
 /**
