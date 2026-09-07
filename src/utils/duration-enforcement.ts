@@ -31,6 +31,12 @@ const SET_PADDABLE = new Set(["traditional", "superset"]);
 const MAX_SETS_PER_EXERCISE = 6;
 const MAX_ROUNDS = 8;
 const MAX_ITERATIONS = 40;
+// Never trim a working block below this many sets per exercise, or below one
+// exercise — past that it stops being the workout the plan described.
+const MIN_SETS_PER_EXERCISE = 2;
+// Only rewrite a declared duration when the prescribed work exceeds it by more
+// than this. Keeps rounding and honest estimation noise from churning the plan.
+const RECONCILE_MARGIN_MINUTES = 3;
 
 const norm = (s: string | undefined): string => (s || "").trim().toLowerCase();
 
@@ -41,9 +47,112 @@ export interface DurationPadFinding {
   target: number;
 }
 
+/** One block whose declared duration understated its own prescribed work. */
+export interface DurationReconcileFinding {
+  dayNumber: number;
+  blockName: string;
+  declared: number;
+  estimated: number;
+}
+
+/** One day trimmed back to the user's time budget. */
+export interface DurationTrimFinding {
+  dayNumber: number;
+  before: number;
+  after: number;
+  target: number;
+  setsRemoved: number;
+  exercisesRemoved: string[];
+}
+
 const blockMinutes = (block: any): number => block.blockDurationMinutes || 0;
 const dayTotal = (day: any): number =>
   (day.blocks || []).reduce((s: number, b: any) => s + blockMinutes(b), 0);
+
+/**
+ * [Duration honesty] Seconds one working rep takes, by rep count.
+ *
+ * Rest dominates a strength block's clock — in the prod sample behind this it
+ * was 85-95% of the total — so this only has to be roughly right. Higher-rep
+ * sets are lighter and move faster, hence the taper.
+ */
+function secondsPerRep(reps: number): number {
+  if (reps <= 12) return 3.5;
+  if (reps <= 20) return 2.5;
+  return 2;
+}
+
+/**
+ * [Duration honesty] What a block's PRESCRIBED WORK actually takes, in minutes,
+ * derived from sets/reps/rest rather than the model's self-report.
+ *
+ * Returns null for any block whose duration is not a function of its sets; the
+ * caller then keeps the declared value:
+ *   - amrap/emom/tabata/for_time — the time cap or rep scheme IS the duration;
+ *   - circuit/flow — rounds x work, which the prod sample did not show broken;
+ *   - warmup/cooldown — fixed short blocks.
+ * Scoping to traditional/superset matches exactly where the breakage was
+ * measured, so the estimate never second-guesses a block it cannot model well
+ * (50 jump-rope singles is nothing like 50 strength reps).
+ *
+ * Rest counts once per set, the final set included: that trailing rest is the
+ * transition into the next exercise or block, so it is real time the session
+ * spends.
+ */
+export function estimateBlockMinutes(block: any): number | null {
+  const type = norm(block?.blockType);
+  if (!SET_PADDABLE.has(type)) return null;
+  const exercises = Array.isArray(block?.exercises) ? block.exercises : [];
+  if (exercises.length === 0) return null;
+
+  let seconds = 0;
+  for (const ex of exercises) {
+    const sets = Math.max(Number(ex?.sets) || 0, 0);
+    if (sets === 0) continue;
+    const reps = Math.max(Number(ex?.reps) || 0, 0);
+    const held = Math.max(Number(ex?.duration) || 0, 0);
+    const rest = Math.max(Number(ex?.restTime) || 0, 0);
+    // A time-based entry states its own per-set seconds; a rep-based one is
+    // reps x tempo.
+    const workPerSet = held > 0 ? held : reps * secondsPerRep(reps);
+    seconds += sets * (workPerSet + rest);
+  }
+  if (seconds <= 0) return null;
+  return seconds / 60;
+}
+
+/**
+ * [Duration honesty] Replaces a block's declared blockDurationMinutes with the
+ * estimate when the declaration UNDERSTATES the prescribed work by more than
+ * RECONCILE_MARGIN_MINUTES. Mutates the blocks it corrects.
+ *
+ * Deliberately one-directional. Understatement is the failure that was measured
+ * — 49 of 177 prod strength blocks over 30 days declared a duration their own
+ * prescribed rest already consumed, before a single rep — and it is the one
+ * that hurts the user: the session silently runs long against her time budget.
+ * Correcting OVERstatement downward would feed the padder and add volume nobody
+ * has validated, so it is left alone.
+ */
+export function reconcileDeclaredDurations(
+  day: any
+): DurationReconcileFinding[] {
+  const findings: DurationReconcileFinding[] = [];
+  for (const block of day.blocks || []) {
+    const estimated = estimateBlockMinutes(block);
+    if (estimated === null) continue;
+    const declared = blockMinutes(block);
+    if (estimated - declared <= RECONCILE_MARGIN_MINUTES) continue;
+    const corrected = Math.round(estimated);
+    findings.push({
+      dayNumber: day.day,
+      blockName: block.blockName || "(unnamed block)",
+      declared,
+      estimated: corrected,
+    });
+    block.blockDurationMinutes = corrected;
+  }
+  return findings;
+}
 
 /**
  * How a block can be honestly grown, or null if it can't be:
@@ -81,22 +190,28 @@ function padMode(block: any): "rounds" | "sets" | null {
   return null;
 }
 
-/** Minutes one "unit" would add, using the block's own reported duration as the
- * per-unit basis. 0 when the block can't be padded. */
+/** Minutes one "unit" would add. 0 when the block can't be padded.
+ *
+ * For set-based blocks the basis is the ESTIMATE (sets/reps/rest), not the
+ * block's own reported duration: deriving per-set time from a number the model
+ * invented was circular, so a block that understated itself also understated
+ * every set added to it. Rounds-based circuits/flows can't be estimated, so
+ * they still divide their declared duration by their round count. */
 function unitGain(block: any): number {
-  const minutes = blockMinutes(block);
   const mode = padMode(block);
   if (mode === "rounds") {
     const rounds = block.rounds && block.rounds > 0 ? block.rounds : 1;
-    return minutes / rounds; // one more round
+    return blockMinutes(block) / rounds; // one more round
   }
   if (mode === "sets") {
-    const totalSets = (block.exercises || []).reduce(
+    const exercises = block.exercises || [];
+    const totalSets = exercises.reduce(
       (s: number, e: any) => s + (e.sets || 0),
       0
     );
     if (totalSets <= 0) return 0;
-    return (minutes / totalSets) * block.exercises.length; // +1 set each
+    const basis = estimateBlockMinutes(block) ?? blockMinutes(block);
+    return (basis / totalSets) * exercises.length; // +1 set each
   }
   return 0;
 }
@@ -112,27 +227,108 @@ function applyUnit(block: any): void {
   } else {
     for (const ex of block.exercises || []) ex.sets = (ex.sets || 0) + 1;
   }
-  block.blockDurationMinutes = Math.round(blockMinutes(block) + gain);
+  block.blockDurationMinutes = restateBlockMinutes(block, gain);
 }
 
 /**
- * Pads under-target days to within tolerance of `targetMinutes`. Pure: returns a
- * new plan (blocks/exercises are copied before mutation) plus findings for
- * logging. Days already within tolerance (or with no padable block) are returned
- * unchanged.
+ * The block's stated duration after a change of `delta` minutes.
+ *
+ * The estimate is used ONLY as a floor — the stated number may never drop below
+ * the work the block actually prescribes. It deliberately does NOT replace an
+ * OVERSTATED declaration with the (smaller) estimate: that would be the
+ * downward correction reconcileDeclaredDurations refuses to make, arriving
+ * through the back door. Both padding and trimming therefore move the number by
+ * one honest unit at a time.
  */
-export function padDaysToTargetDuration(
+function restateBlockMinutes(block: any, delta: number): number {
+  const estimated = estimateBlockMinutes(block);
+  const shifted = blockMinutes(block) + delta;
+  return Math.round(
+    estimated === null ? shifted : Math.max(shifted, estimated)
+  );
+}
+
+/** Minutes the block's estimate loses across `mutate` — the exact honest cost
+ * of whatever was just removed. 0 when the block can't be estimated. */
+function applyShrink(block: any, mutate: () => void): void {
+  const before = estimateBlockMinutes(block);
+  mutate();
+  const after = estimateBlockMinutes(block);
+  const delta = before !== null && after !== null ? after - before : 0;
+  block.blockDurationMinutes = restateBlockMinutes(block, delta);
+}
+
+/** Removes one set from the exercise carrying the most, or returns false when
+ * nothing in the block can shed a set without going below the floor. */
+function removeOneSet(block: any): boolean {
+  if (!SET_PADDABLE.has(norm(block.blockType))) return false;
+  const exercises = block.exercises || [];
+  let target: any = null;
+  for (const ex of exercises) {
+    const sets = Number(ex?.sets) || 0;
+    if (sets <= MIN_SETS_PER_EXERCISE) continue;
+    if (!target || sets > (Number(target.sets) || 0)) target = ex;
+  }
+  if (!target) return false;
+  applyShrink(block, () => {
+    target.sets = (Number(target.sets) || 0) - 1;
+  });
+  return true;
+}
+
+/** Drops the block's LAST exercise — the accessory position — or returns null
+ * when the block is down to its final movement. */
+function removeLastExercise(block: any): string | null {
+  if (!SET_PADDABLE.has(norm(block.blockType))) return null;
+  const exercises = block.exercises || [];
+  if (exercises.length <= 1) return null;
+  let dropped: any = null;
+  applyShrink(block, () => {
+    [dropped] = exercises.splice(exercises.length - 1, 1);
+  });
+  return dropped?.exerciseName || "(unnamed exercise)";
+}
+
+/**
+ * Fits every day to `targetMinutes` +/- tolerance. Pure: returns a new plan
+ * (blocks/exercises are copied before mutation) plus findings for logging.
+ *
+ * Three steps per day, in order:
+ *   1. RECONCILE — rewrite any declared block duration that understates its own
+ *      prescribed work, so steps 2/3 act on real minutes rather than the
+ *      model's self-report;
+ *   2. PAD — grow an under-target day (the original backstop);
+ *   3. TRIM — shrink an over-target day by removing sets, then accessory
+ *      exercises. New: overshoots used to be left alone, which is how a 30-min
+ *      request shipped ~40 minutes of work.
+ *
+ * A day needs at most one of pad/trim, since reconcile only ever moves a day
+ * upward.
+ */
+export function fitDaysToTargetDuration(
   workoutPlan: any[],
   targetMinutes: number,
   toleranceMinutes: number
-): { workoutPlan: any[]; findings: DurationPadFinding[] } {
+): {
+  workoutPlan: any[];
+  findings: DurationPadFinding[];
+  reconcileFindings: DurationReconcileFinding[];
+  trimFindings: DurationTrimFinding[];
+} {
   const findings: DurationPadFinding[] = [];
+  const reconcileFindings: DurationReconcileFinding[] = [];
+  const trimFindings: DurationTrimFinding[] = [];
+
+  // No budget, nothing to fit against — including no trimming, which would
+  // otherwise read a target of 0 as "cut everything".
+  if (!(targetMinutes > 0)) {
+    return { workoutPlan, findings, reconcileFindings, trimFindings };
+  }
+
   const floor = targetMinutes - toleranceMinutes;
+  const ceiling = targetMinutes + toleranceMinutes;
 
-  const padded = workoutPlan.map((day) => {
-    const before = dayTotal(day);
-    if (before >= floor) return day;
-
+  const fitted = workoutPlan.map((day) => {
     // Copy the day's blocks/exercises so we never mutate the input.
     const blocks = (day.blocks || []).map((b: any) => ({
       ...b,
@@ -140,40 +336,101 @@ export function padDaysToTargetDuration(
     }));
     const newDay = { ...day, blocks };
 
-    const padable = blocks.filter((b: any) => padMode(b) !== null);
-    if (padable.length === 0) return day; // nothing safe to grow
+    // 1. Make the numbers honest before deciding whether the day fits.
+    const reconciled = reconcileDeclaredDurations(newDay);
+    reconcileFindings.push(...reconciled);
+    const before = dayTotal(newDay);
 
-    const ceiling = targetMinutes + toleranceMinutes;
-    let iterations = 0;
-    while (dayTotal(newDay) < floor && iterations < MAX_ITERATIONS) {
-      iterations++;
-      const current = dayTotal(newDay);
-      // Choose the unit that fills the most of the remaining gap WITHOUT
-      // exceeding target+tolerance — so one big block (e.g. a 20-min circuit at
-      // rounds=1) can't overshoot from 51 to 71 on a single bump.
-      let choice: any = null;
-      let bestResulting = -Infinity;
-      for (const b of padable) {
-        const gain = unitGain(b);
-        if (gain <= 0) continue;
-        const resulting = current + gain;
-        if (resulting <= ceiling && resulting > bestResulting) {
-          bestResulting = resulting;
-          choice = b;
+    if (before < floor) {
+      const padable = blocks.filter((b: any) => padMode(b) !== null);
+      let iterations = 0;
+      while (
+        padable.length > 0 &&
+        dayTotal(newDay) < floor &&
+        iterations < MAX_ITERATIONS
+      ) {
+        iterations++;
+        const current = dayTotal(newDay);
+        // Choose the unit that fills the most of the remaining gap WITHOUT
+        // exceeding target+tolerance — so one big block (e.g. a 20-min circuit
+        // at rounds=1) can't overshoot from 51 to 71 on a single bump.
+        let choice: any = null;
+        let bestResulting = -Infinity;
+        for (const b of padable) {
+          const gain = unitGain(b);
+          if (gain <= 0) continue;
+          const resulting = current + gain;
+          if (resulting <= ceiling && resulting > bestResulting) {
+            bestResulting = resulting;
+            choice = b;
+          }
         }
+        if (!choice) break; // capped, or every remaining unit would overshoot
+        applyUnit(choice);
       }
-      if (!choice) break; // capped, or every remaining unit would overshoot
-      applyUnit(choice);
+    } else if (before > ceiling) {
+      // Shed sets from the biggest offender first, then accessory exercises —
+      // the same order the corrective-retry prompt asks the model for, done
+      // deterministically instead. Time-capped and circuit blocks are never
+      // touched: their duration is the cap, not the set count.
+      const trimmable = blocks.filter((b: any) =>
+        SET_PADDABLE.has(norm(b.blockType))
+      );
+      let setsRemoved = 0;
+      const exercisesRemoved: string[] = [];
+      let iterations = 0;
+      while (
+        trimmable.length > 0 &&
+        dayTotal(newDay) > ceiling &&
+        iterations < MAX_ITERATIONS
+      ) {
+        iterations++;
+        const biggest = trimmable.reduce((a: any, b: any) =>
+          blockMinutes(b) > blockMinutes(a) ? b : a
+        );
+        if (removeOneSet(biggest)) {
+          setsRemoved++;
+          continue;
+        }
+        const dropped = removeLastExercise(biggest);
+        if (dropped) {
+          exercisesRemoved.push(dropped);
+          continue;
+        }
+        // This block is at its floor; stop considering it.
+        trimmable.splice(trimmable.indexOf(biggest), 1);
+      }
+      if (setsRemoved > 0 || exercisesRemoved.length > 0) {
+        trimFindings.push({
+          dayNumber: day.day,
+          before,
+          after: dayTotal(newDay),
+          target: targetMinutes,
+          setsRemoved,
+          exercisesRemoved,
+        });
+        return newDay;
+      }
     }
 
-    // blockDurationMinutes stayed integer throughout, and only padded blocks
-    // changed — so an untouched day compares equal and logs no finding.
+    // Padding is the only path that still reports a DurationPadFinding; trims
+    // report their own shape above. Compare against the post-reconcile total so
+    // a reconcile-only day isn't miscounted as padded.
     const after = dayTotal(newDay);
     if (after !== before) {
-      findings.push({ dayNumber: day.day, before, after, target: targetMinutes });
+      findings.push({
+        dayNumber: day.day,
+        before,
+        after,
+        target: targetMinutes,
+      });
+      return newDay;
     }
-    return newDay;
+    // Nothing grew or shrank: keep the reconciled copy only if reconcile
+    // actually rewrote a block, otherwise hand back the untouched input so
+    // callers and tests see referential equality.
+    return reconciled.length > 0 ? newDay : day;
   });
 
-  return { workoutPlan: padded, findings };
+  return { workoutPlan: fitted, findings, reconcileFindings, trimFindings };
 }

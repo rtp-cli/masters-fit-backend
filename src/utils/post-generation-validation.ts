@@ -21,8 +21,10 @@ import {
   BodyweightDayFinding,
 } from "@/utils/equipment-per-day-enforcement";
 import {
-  padDaysToTargetDuration,
+  fitDaysToTargetDuration,
   DurationPadFinding,
+  DurationReconcileFinding,
+  DurationTrimFinding,
 } from "@/utils/duration-enforcement";
 import {
   buildMuscleByExercise,
@@ -88,6 +90,8 @@ export function applyPostGenerationValidation(
   repetitionFindings: ExerciseRepetitionFinding[];
   constraintFindings: ConstraintViolationFinding[];
   durationFindings: DurationPadFinding[];
+  durationReconcileFindings: DurationReconcileFinding[];
+  durationTrimFindings: DurationTrimFinding[];
   muscleAlignmentFindings: FocusAlignmentFinding[];
   muscleOverlapFindings: ConsecutiveOverlapFinding[];
   bodyweightFindings: BodyweightDayFinding[];
@@ -184,13 +188,18 @@ export function applyPostGenerationValidation(
       )
     : [];
 
-  // [Duration] Runs LAST — pads any day still under the target after all the
-  // filtering/capping/alignment above. No-op when the target is unknown or all
-  // days are in range.
+  // [Duration] Runs LAST — reconciles any block whose declared minutes
+  // understate its own prescribed work, then pads a short day or trims a long
+  // one. No-op when the target is unknown or all days are in range.
   const target = profile.workoutDuration || 0;
-  const { workoutPlan: finalPlan, findings: durationFindings } =
+  const {
+    workoutPlan: finalPlan,
+    findings: durationFindings,
+    reconcileFindings: durationReconcileFindings,
+    trimFindings: durationTrimFindings,
+  } =
     target > 0
-      ? padDaysToTargetDuration(
+      ? fitDaysToTargetDuration(
           bodyweightEnforced.workoutPlan,
           target,
           DURATION_TOLERANCE_MINUTES
@@ -198,6 +207,8 @@ export function applyPostGenerationValidation(
       : {
           workoutPlan: bodyweightEnforced.workoutPlan,
           findings: [] as DurationPadFinding[],
+          reconcileFindings: [] as DurationReconcileFinding[],
+          trimFindings: [] as DurationTrimFinding[],
         };
 
   // [safety-language] Strip any medical / absolute-safety / guaranteed-outcome
@@ -213,6 +224,8 @@ export function applyPostGenerationValidation(
     repetitionFindings,
     constraintFindings: enforced.findings,
     durationFindings,
+    durationReconcileFindings,
+    durationTrimFindings,
     muscleAlignmentFindings: aligned.findings,
     muscleOverlapFindings,
     bodyweightFindings: bodyweightEnforced.findings,
