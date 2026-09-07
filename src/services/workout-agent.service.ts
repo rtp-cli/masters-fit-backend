@@ -1559,7 +1559,12 @@ ${exerciseContext}`;
       muscleAlignmentFindings,
       muscleOverlapFindings,
       bodyweightFindings,
+      percentSchemeFindings,
+      barbellRoundingFindings,
     } = applyPostGenerationValidation(rawExercisesToAdd, rawWorkoutPlan, profile, {
+        // [Loads] Lets percentage-program ladders be recomputed from the 1RMs
+        // the user stated, instead of trusting the day model's arithmetic.
+        requestText: customFeedback,
         // [GQ-07] Deterministic backstop for the user's exclusion requests: swap
         // or drop any generated exercise matching a banned term, drawing swaps
         // from the same catalog the generation used. Makes AVOID compliance
@@ -1592,6 +1597,25 @@ ${exerciseContext}`;
             ),
         adjacentPairs: computeAdjacentDayPairs(schedule),
       });
+
+    // [Loads] Every ladder we recomputed from a stated 1RM (before → after), and
+    // every barbell load rounded to plate math — the model's arithmetic quality
+    // signal, and the audit trail for "why does my plan say 220 not 218".
+    for (const finding of percentSchemeFindings) {
+      logger.info("Recomputed percentage-scheme ladder from stated 1RM", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        ...finding,
+      });
+    }
+    if (barbellRoundingFindings.length > 0) {
+      logger.info("Rounded barbell loads to 5 lb plate math", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        count: barbellRoundingFindings.length,
+        examples: barbellRoundingFindings.slice(0, 6),
+      });
+    }
 
     for (const finding of repetitionFindings) {
       logger.warn("Exercise repeated more than expected within one day", {

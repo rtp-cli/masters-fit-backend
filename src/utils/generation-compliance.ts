@@ -95,6 +95,16 @@ export type ComplianceCheck =
       dayNumber: number;
       needle: string;
       min: number;
+    }
+  /** Every load of exercises matching `needle` on `dayNumber` is ≤ `max` (a stated 1RM) and a multiple of `step` (plate math). */
+  | {
+      id: string;
+      label: string;
+      type: "loadsOnDay";
+      dayNumber: number;
+      needle: string;
+      max?: number;
+      step?: number;
     };
 
 export interface CheckResult {
@@ -353,6 +363,36 @@ function runCheck(
         score: passed ? 1 : Math.min(1, count / check.min),
         passed,
         detail: `${count} "${check.needle}" entries on day ${check.dayNumber} (want ≥${check.min})`,
+      };
+    }
+
+    case "loadsOnDay": {
+      const needle = check.needle.toLowerCase();
+      const loads: number[] = [];
+      for (const day of workout.workoutPlan || []) {
+        if (day.day !== check.dayNumber) continue;
+        for (const block of day.blocks || []) {
+          for (const ex of block.exercises || []) {
+            if (norm(ex.exerciseName).includes(needle) && typeof ex.weight === "number" && ex.weight > 0) {
+              loads.push(ex.weight);
+            }
+          }
+        }
+      }
+      const overMax = check.max != null ? loads.filter((w) => w > check.max!) : [];
+      const offStep = check.step ? loads.filter((w) => Math.abs(w / check.step! - Math.round(w / check.step!)) > 1e-9) : [];
+      const bad = new Set([...overMax, ...offStep]);
+      const passed = loads.length > 0 && bad.size === 0;
+      return {
+        ...base,
+        score: loads.length === 0 ? 0 : 1 - bad.size / loads.length,
+        passed,
+        detail:
+          loads.length === 0
+            ? `no loaded "${check.needle}" entries on day ${check.dayNumber}`
+            : passed
+              ? `${loads.length} loads ok: ${loads.join("/")}`
+              : `${overMax.length ? `over ${check.max} 1RM: ${overMax.join("/")}; ` : ""}${offStep.length ? `not ×${check.step}: ${offStep.join("/")}` : ""}`,
       };
     }
 
