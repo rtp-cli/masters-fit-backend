@@ -1,0 +1,620 @@
+{
+  "label": "reference",
+  "ranAt": "2026-09-07T17:48:15.573Z",
+  "results": [
+    {
+      "id": "control-strength-gym",
+      "category": "control",
+      "description": "Baseline: 5-day commercial-gym strength+HIIT, no custom request",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "no-repeat",
+          "label": "no exercise >2\u00d7 per day",
+          "type": "noRepeatOverTwice",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "control-yoga-mobility",
+      "category": "control",
+      "description": "Baseline: older user, yoga+mobility at home, arthritis, no request",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 30m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "no-repeat",
+          "label": "no exercise >2\u00d7 per day",
+          "type": "noRepeatOverTwice",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "exclude-burpees",
+      "category": "exclusion",
+      "description": "Explicit exclusion: no burpees",
+      "ok": true,
+      "overall": 0.9,
+      "checks": [
+        {
+          "id": "no-burpee",
+          "label": "excludes \"burpee\"",
+          "type": "excludes",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 0.8,
+          "passed": false
+        }
+      ]
+    },
+    {
+      "id": "exclude-deadlift",
+      "category": "exclusion",
+      "description": "Explicit exclusion: no deadlifts (mirrors the user-41 deadlift incident)",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "no-deadlift",
+          "label": "excludes \"deadlift\"",
+          "type": "excludes",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "exclude-two-movements",
+      "category": "exclusion",
+      "description": "Multiple exclusions: no burpees and no box jumps",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "no-burpee",
+          "label": "excludes \"burpee\"",
+          "type": "excludes",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "no-box-jump",
+          "label": "excludes \"box jump\"",
+          "type": "excludes",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "equipment-no-barbell",
+      "category": "equipment",
+      "description": "Equipment rule: full gym available, but user wants no barbell work",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "no-barbell",
+          "label": "excludes \"barbell\"",
+          "type": "excludes",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "equipment-bodyweight-travel-day",
+      "category": "equipment",
+      "description": "Day-scoped equipment rule: make the travel day bodyweight-only",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "bodyweight-wed",
+          "label": "day 2 (Wed) bodyweight-only",
+          "type": "equipmentFreeDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "format-amrap-each-day",
+      "category": "format",
+      "description": "Format ask: include an AMRAP finisher every day",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "amrap-each-day",
+          "label": "AMRAP block each day",
+          "type": "blockTypeEachDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "format-strength-only-no-conditioning",
+      "category": "format",
+      "description": "Format ask: pure strength, no AMRAP/circuit conditioning",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "no-amrap",
+          "label": "no AMRAP blocks",
+          "type": "blockTypeAbsent",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "no-circuit",
+          "label": "no circuit blocks",
+          "type": "blockTypeAbsent",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "duration-60",
+      "category": "duration",
+      "description": "60-minute target must be met",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 60m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "no-repeat",
+          "label": "no exercise >2\u00d7 per day",
+          "type": "noRepeatOverTwice",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "duration-long-75",
+      "category": "duration",
+      "description": "Long session: 75-minute target must be met",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 75m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "no-repeat",
+          "label": "no exercise >2\u00d7 per day",
+          "type": "noRepeatOverTwice",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "duration-90",
+      "category": "duration",
+      "description": "Very long session: 90-minute target must be met",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 90m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "no-repeat",
+          "label": "no exercise >2\u00d7 per day",
+          "type": "noRepeatOverTwice",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "duration-short-20",
+      "category": "duration",
+      "description": "Short session: 20-minute bodyweight target must be met",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 20m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "muscle-balance-6day",
+      "category": "muscle",
+      "description": "6 consecutive training days \u2014 no muscle should be hammered back-to-back",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "no-repeat",
+          "label": "no exercise >2\u00d7 per day",
+          "type": "noRepeatOverTwice",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "muscle-overlap",
+          "label": "no consecutive-day muscle overload",
+          "type": "muscleBalance",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "schedule-specific-days",
+      "category": "scheduling",
+      "description": "Partial week: user names specific training days (Mon/Wed/Fri)",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "sched-daycount",
+          "label": "3 workout days",
+          "type": "schedule",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "sched-weekdays",
+          "label": "days = monday/wednesday/friday",
+          "type": "schedule",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "schedule-fewer-days",
+      "category": "scheduling",
+      "description": "Partial week: user asks for a specific day COUNT (3)",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "sched-daycount",
+          "label": "3 workout days",
+          "type": "schedule",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "schedule-weekends-only",
+      "category": "scheduling",
+      "description": "Day override: weekends only (outside the profile's weekday schedule)",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "sched-daycount",
+          "label": "2 workout days",
+          "type": "schedule",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "sched-weekdays",
+          "label": "days = saturday/sunday",
+          "type": "schedule",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "calendar-light-friday",
+      "category": "calendar",
+      "description": "Calendar ask: keep Friday legs-light because of a Saturday long run",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "fri-no-squat",
+          "label": "no \"squat\" on Fri (day 4)",
+          "type": "excludesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "fri-no-deadlift",
+          "label": "no \"deadlift\" on Fri (day 4)",
+          "type": "excludesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "fri-no-lunge",
+          "label": "no \"lunge\" on Fri (day 4)",
+          "type": "excludesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 45m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "sched-daycount",
+          "label": "5 workout days",
+          "type": "schedule",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "program-wendler-week",
+      "category": "program",
+      "description": "Named program: Wendler 5/3/1 bench/squat/deadlift days (home gym with barbells) \u2014 canonical barbell lifts with a full set ladder",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 40m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "mon-barbell-bench",
+          "label": "Mon has Barbell Bench Press",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "mon-loads",
+          "label": "mon loads \u2264 235 1RM and \u00d75 lb",
+          "type": "loadsOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "mon-bench-ladder",
+          "label": "Mon barbell bench \u22655 set entries",
+          "type": "minOccurrencesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "wed-barbell-squat",
+          "label": "Wed has Barbell Back Squat",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "wed-loads",
+          "label": "wed loads \u2264 285 1RM and \u00d75 lb",
+          "type": "loadsOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "wed-squat-ladder",
+          "label": "Wed squat \u22655 set entries",
+          "type": "minOccurrencesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "fri-barbell-deadlift",
+          "label": "Fri has a barbell deadlift",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "fri-loads",
+          "label": "fri loads \u2264 375 1RM and \u00d75 lb",
+          "type": "loadsOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "fri-deadlift-ladder",
+          "label": "Fri deadlift \u22655 set entries",
+          "type": "minOccurrencesOnDay",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "id": "program-calisthenics-rft",
+      "category": "program",
+      "description": "Prescribed circuit: 10 RFT of strict pull-ups / push-ups / air squats / sit-ups on Tue+Thu \u2014 the named movements, not band/decline/knee-tuck variants",
+      "ok": true,
+      "overall": 1,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 35m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "tue-strict-pullup",
+          "label": "tue has strict pull-up",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "tue-pushup",
+          "label": "tue has push-up",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "tue-air-squat",
+          "label": "tue has air squat",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "tue-situp",
+          "label": "tue has sit-up",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "thu-strict-pullup",
+          "label": "thu has strict pull-up",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "thu-pushup",
+          "label": "thu has push-up",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "thu-air-squat",
+          "label": "thu has air squat",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        },
+        {
+          "id": "thu-situp",
+          "label": "thu has sit-up",
+          "type": "includesOnDay",
+          "score": 1,
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

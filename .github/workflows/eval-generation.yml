@@ -1,0 +1,125 @@
+name: Generation eval
+
+# Scores 20 representative generation scenarios through the REAL fan-out path
+# and fails if generation quality regressed against eval-baseline/reference.json.
+#
+# Why this exists: [GQ-13] built the harness, but nothing ran it on a schedule —
+# it only ever ran when someone suspected a problem, and it always exits 0. So
+# the 2026-09-07 failures (named movements silently substituted, Wendler set
+# ladders truncated to two sets, loads computed off the wrong training max)
+# reached production and were caught by the owner eyeballing his own week.
+# Every one of them scores 0-40% on scenarios that now exist. This turns
+# "Rich notices a bad week" into a red run.
+#
+# Setup required before it can do anything (the job no-ops with a notice until
+# both are present):
+#   ANTHROPIC_API_KEY   — the eval makes real LLM calls.
+#   EVAL_DATABASE_URL   — a database with the exercise catalog and a users row
+#                         for EVAL_USER_ID (default 1).
+#
+# IMPORTANT: do NOT point EVAL_DATABASE_URL at production. The eval persists no
+# workouts, but generation telemetry (llm_generation_logs) IS written for the
+# eval user, so a prod URL would pollute prod's LLM metrics with 20 synthetic
+# generations a week. A Neon branch off prod is the right target: same catalog,
+# isolated writes, thrown away whenever you like.
+#
+# Cost: one run is ~20 full weekly generations (Haiku day calls, Sonnet
+# planning on the override scenarios). Use the `only` input for a cheap probe.
+
+on:
+  schedule:
+    # Mondays 12:00 UTC (07:00 Central) — a fresh number at the start of the
+    # week, before the owner regenerates his own plan.
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Comma-separated scenario ids (blank = all)"
+        required: false
+        default: ""
+      concurrency:
+        description: "Scenarios in flight at once"
+        required: false
+        default: "3"
+      label:
+        description: "Run label (names the artifact)"
+        required: false
+        default: ""
+
+# One eval at a time: concurrent runs would race on the same LLM rate limits
+# and produce noisy scores.
+concurrency:
+  group: generation-eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    name: Score generation quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      DATABASE_URL: ${{ secrets.EVAL_DATABASE_URL }}
+      # Prod parity: the planning call escalates to Sonnet for override
+      # requests in production, and the reference was captured that way.
+      SONNET_PLANNING_ON_OVERRIDE: "true"
+      # Inert but required by modules that read them at load time.
+      JWT_SECRET: eval-only-not-a-real-credential
+      RESEND_API_KEY: re_eval_only_not_a_real_key
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check required secrets
+        id: cfg
+        run: |
+          missing=""
+          [ -z "$ANTHROPIC_API_KEY" ] && missing="$missing ANTHROPIC_API_KEY"
+          [ -z "$DATABASE_URL" ] && missing="$missing EVAL_DATABASE_URL"
+          if [ -n "$missing" ]; then
+            echo "::notice::Generation eval skipped — missing secret(s):$missing. See the comments in .github/workflows/eval-generation.yml."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve run label
+        if: steps.cfg.outputs.ready == 'true'
+        id: label
+        run: |
+          label="${{ github.event.inputs.label }}"
+          [ -z "$label" ] && label="eval-$(date -u +%Y-%m-%d)"
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+
+      # Writes eval-runs/<label>.json. Always exits 0 — the gate below is what
+      # decides pass/fail, so the report is captured even on a regression.
+      - name: Run eval scenarios
+        if: steps.cfg.outputs.ready == 'true'
+        run: >-
+          npm run eval-generation --
+          --label "${{ steps.label.outputs.label }}"
+          --concurrency "${{ github.event.inputs.concurrency || '3' }}"
+          ${{ github.event.inputs.only && format('--only {0}', github.event.inputs.only) || '' }}
+
+      - name: Gate against the committed reference
+        if: steps.cfg.outputs.ready == 'true'
+        run: >-
+          npm run eval-gate --
+          --current "eval-runs/${{ steps.label.outputs.label }}.json"
+
+      # Uploaded even when the gate fails — the per-check detail is how you see
+      # WHICH check moved, which the summary table doesn't show.
+      - name: Upload run summary
+        if: always() && steps.cfg.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ steps.label.outputs.label }}
+          path: eval-runs/*.json
+          if-no-files-found: warn
+          retention-days: 90
