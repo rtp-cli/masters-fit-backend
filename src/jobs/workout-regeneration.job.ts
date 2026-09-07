@@ -27,9 +27,12 @@ import {
 // Server-side watchdog: bound the whole regeneration so a hang anywhere
 // (including the non-abortable serial fallback path) always fails the job
 // rather than leaving it `active` forever. Must stay well under the client's
-// 5-minute regeneration timeout so the user gets a real, retryable error
-// instead of the generic "Generation Timed Out".
-const REGENERATION_WATCHDOG_MS = 240_000; // 4 minutes
+// regeneration timeout so the user gets a real, retryable error instead of
+// the generic "Generation Timed Out". Raised 4->8 min alongside
+// CALENDAR_ALIGNED_SERIES (a full-series regen can now fan out ~12 staggered
+// day calls) and the client's regeneration timeout moving 5->10 min — the
+// same ceiling the generation job uses.
+const REGENERATION_WATCHDOG_MS = 480_000; // 8 minutes
 
 // Check if error is a rate limit error (429) that shouldn't be retried
 function isRateLimitError(error: Error): boolean {
