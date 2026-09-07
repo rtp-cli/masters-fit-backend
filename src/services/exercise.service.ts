@@ -14,6 +14,25 @@ import { logger } from "@/utils/logger";
 import { checkDemoLink } from "@/utils/video-validation";
 import { AvailableEquipment, IntensityLevels } from "@/constants";
 import { normalizeMuscleGroups } from "@/constants/muscle-groups";
+import {
+  canonicalNameForAlias,
+  normalizeExerciseName,
+  singularizeNormalizedName,
+} from "@/utils/exercise-name-resolution";
+
+/** Result of resolveExercisesByNames — see that method for the pass order. */
+export interface ExerciseNameResolution {
+  /** Keyed by the exact requested string, so callers keep their `map.get(exercise.exerciseName)` shape. */
+  byRequestedName: Map<string, Exercise>;
+  /** Requested names that matched only via alias/normalized/singular passes — worth logging. */
+  substitutions: Array<{
+    requested: string;
+    resolved: string;
+    via: "alias" | "normalized" | "singular";
+  }>;
+  /** Requested names that matched nothing; the caller decides how loudly to complain. */
+  unresolved: string[];
+}
 
 // Interface for exercise metadata (minimal data for LLM)
 export interface ExerciseMetadata {
@@ -386,6 +405,99 @@ export class ExerciseService extends BaseService {
     return result as Exercise[];
   }
 
+  /**
+   * Batch-resolve LLM-emitted exercise names to catalog rows, tolerating the
+   * near-misses that used to drop exercises silently at persist time:
+   *   1. exact `lower(name)` match (the common case; indexed),
+   *   2. fully-qualified alias → exact match ("Barbell Deadlift" → Barbell Conventional Deadlift),
+   *   3. punctuation/case-insensitive match ("Farmer's Carry" → "Farmer’s Carry"),
+   *   4. plural-insensitive match ("Kettlebell Swings" → "Kettlebell Swing").
+   * Ties inside a pass (e.g. "Childs Pose" and "Child’s Pose" both exist) go to
+   * the row with a demo video, then the lowest id — deterministic, same movement.
+   * Never invents rows: names that survive all four passes come back in
+   * `unresolved` for the caller to log. Two extra queries at most, only when
+   * pass 1 left misses.
+   */
+  async resolveExercisesByNames(names: string[]): Promise<ExerciseNameResolution> {
+    const requested = Array.from(new Set(names.map((n) => n.trim()).filter((n) => n.length > 0)));
+    const byRequestedName = new Map<string, Exercise>();
+    const substitutions: ExerciseNameResolution["substitutions"] = [];
+    if (requested.length === 0) return { byRequestedName, substitutions, unresolved: [] };
+
+    const exact = await this.getExercisesByNames(requested);
+    const exactByLower = new Map(exact.map((e) => [e.name.trim().toLowerCase(), e]));
+    let misses: string[] = [];
+    for (const name of requested) {
+      const hit = exactByLower.get(name.toLowerCase());
+      if (hit) byRequestedName.set(name, hit);
+      else misses.push(name);
+    }
+    if (misses.length === 0) return { byRequestedName, substitutions, unresolved: [] };
+
+    // Pass 2 — aliases resolve through the same exact lookup, so a stale alias
+    // target simply stays unresolved instead of matching something else.
+    const aliasTargets = new Map<string, string>();
+    for (const name of misses) {
+      const canonical = canonicalNameForAlias(name);
+      if (canonical) aliasTargets.set(name, canonical);
+    }
+    if (aliasTargets.size > 0) {
+      const rows = await this.getExercisesByNames([...aliasTargets.values()]);
+      const rowsByLower = new Map(rows.map((e) => [e.name.trim().toLowerCase(), e]));
+      for (const [name, canonical] of aliasTargets) {
+        const hit = rowsByLower.get(canonical.toLowerCase());
+        if (hit) {
+          byRequestedName.set(name, hit);
+          substitutions.push({ requested: name, resolved: hit.name, via: "alias" });
+        }
+      }
+      misses = misses.filter((n) => !byRequestedName.has(n));
+    }
+    if (misses.length === 0) return { byRequestedName, substitutions, unresolved: [] };
+
+    // Pass 3 + 4 — one query over the normalized form, matching either the
+    // full normalized name or its singular; classify which pass hit per name.
+    const normalizedKey = sql`regexp_replace(lower(${exercises.name}), '[^a-z0-9]', '', 'g')`;
+    const wantedNormalized = misses.map((n) => normalizeExerciseName(n));
+    const wantedSingular = wantedNormalized.map((n) => singularizeNormalizedName(n));
+    const candidates = (await this.db
+      .select()
+      .from(exercises)
+      .where(
+        or(
+          inArray(normalizedKey, wantedNormalized),
+          inArray(sql`regexp_replace(${normalizedKey}, 's$', '')`, wantedSingular)
+        )
+      )
+      .orderBy(sql`${exercises.hasDemo} desc nulls last`, exercises.id)) as Exercise[];
+    const firstByNormalized = new Map<string, Exercise>();
+    const firstBySingular = new Map<string, Exercise>();
+    for (const row of candidates) {
+      const norm = normalizeExerciseName(row.name);
+      if (!firstByNormalized.has(norm)) firstByNormalized.set(norm, row);
+      const sing = singularizeNormalizedName(norm);
+      if (!firstBySingular.has(sing)) firstBySingular.set(sing, row);
+    }
+    const unresolved: string[] = [];
+    for (const name of misses) {
+      const norm = normalizeExerciseName(name);
+      const hit = firstByNormalized.get(norm);
+      if (hit) {
+        byRequestedName.set(name, hit);
+        substitutions.push({ requested: name, resolved: hit.name, via: "normalized" });
+        continue;
+      }
+      const singularHit = firstBySingular.get(singularizeNormalizedName(norm));
+      if (singularHit) {
+        byRequestedName.set(name, singularHit);
+        substitutions.push({ requested: name, resolved: singularHit.name, via: "singular" });
+        continue;
+      }
+      unresolved.push(name);
+    }
+    return { byRequestedName, substitutions, unresolved };
+  }
+
   async updateExerciseLink(id: number, link: string | null) {
     const result = await this.db
       .update(exercises)
@@ -486,8 +598,14 @@ export class ExerciseService extends BaseService {
         arrayOverlaps(exercises.equipment, ["bodyweight"])
       );
     }
+    // Bodyweight rows ride along for every specific-equipment request: the
+    // comment above always promised this, but the branch only ever matched the
+    // profile's equipment list, so home_gym users (10 of 18 profiles on
+    // 2026-09-07) got a generation menu with ZERO bodyweight exercises — no
+    // Push-Up, Air Squat or Sit-Up was even possible for them.
     return or(
       arrayOverlaps(exercises.equipment, equipment as any),
+      arrayOverlaps(exercises.equipment, ["bodyweight"]),
       isNull(exercises.equipment),
       eq(exercises.equipment, [])
     );
