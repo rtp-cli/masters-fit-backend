@@ -135,3 +135,36 @@ describe("scoreWorkout [GQ-13]", () => {
     expect(scoreWorkout(w, new Map(), checks).overall).toBeCloseTo(0.5);
   });
 });
+
+describe("noRepeatOverTwice is ramp-aware", () => {
+  const check = { id: "nr", label: "no repeat", type: "noRepeatOverTwice" as const };
+  const day = (blockType: string, weights: number[]) => ({
+    workoutPlan: [
+      {
+        day: 1,
+        blocks: [
+          {
+            blockType,
+            exercises: weights.map((weight) => ({ exerciseName: "Barbell Back Squat", weight })),
+          },
+        ],
+      },
+    ],
+  });
+
+  it("passes a six-entry Wendler ladder in a traditional block", () => {
+    const { results } = scoreWorkout(day("traditional", [103, 128, 154, 166, 192, 218]), new Map(), [check]);
+    expect(results[0].passed).toBe(true);
+  });
+
+  it("still fails six identical-load repeats", () => {
+    const { results } = scoreWorkout(day("traditional", [185, 185, 185, 185, 185, 185]), new Map(), [check]);
+    expect(results[0].passed).toBe(false);
+    expect(results[0].detail).toContain("×6");
+  });
+
+  it("still fails distinct loads inside a circuit (not a strength ladder)", () => {
+    const { results } = scoreWorkout(day("circuit", [95, 105, 115]), new Map(), [check]);
+    expect(results[0].passed).toBe(false);
+  });
+});

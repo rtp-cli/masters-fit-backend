@@ -16,8 +16,12 @@
 /** Equipment tokens that mean "needs no equipment". */
 const BODYWEIGHT_TOKENS = new Set(["bodyweight", "none", "body weight", ""]);
 
+import { isRampingLadder, MAX_RAMP_ENTRIES_PER_BLOCK } from "./workout-balance-validation";
+
 export interface ScoredExercise {
   exerciseName?: string;
+  /** Load in lbs; lets the no-repeat check recognise a ramping set ladder. */
+  weight?: number | null;
 }
 
 export interface ScoredBlock {
@@ -276,14 +280,29 @@ function runCheck(
     }
 
     case "noRepeatOverTwice": {
+      // Mirrors capExerciseRepetition: a ramping ladder (one lift, one
+      // traditional block, distinct positive loads, ≤ MAX_RAMP_ENTRIES_PER_BLOCK)
+      // is legitimate structure, not a repeat violation.
       const offenders: string[] = [];
       for (const day of workout.workoutPlan || []) {
         const counts = new Map<string, number>();
         for (const block of day.blocks || []) {
+          const byName = new Map<string, ScoredExercise[]>();
           for (const ex of block.exercises || []) {
             const n = norm(ex.exerciseName);
             if (!n) continue;
-            counts.set(n, (counts.get(n) || 0) + 1);
+            const list = byName.get(n);
+            if (list) list.push(ex);
+            else byName.set(n, [ex]);
+          }
+          for (const [n, entries] of byName) {
+            if (isRampingLadder(entries, block.blockType)) {
+              if (entries.length > MAX_RAMP_ENTRIES_PER_BLOCK) {
+                offenders.push(`d${day.day}:${n} ladder×${entries.length}`);
+              }
+              continue;
+            }
+            counts.set(n, (counts.get(n) || 0) + entries.length);
           }
         }
         for (const [n, c] of counts) {
