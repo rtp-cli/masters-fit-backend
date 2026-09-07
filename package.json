@@ -26,6 +26,7 @@
     "preflight-user-fk": "tsx src/scripts/preflight-user-fk.ts",
     "test-emails": "tsx src/scripts/add-test-emails.ts",
     "eval-generation": "tsx src/scripts/eval-generation.ts",
+    "eval-gate": "tsx src/scripts/eval-gate.ts",
     "migrate-muscle-taxonomy": "tsx src/scripts/migrate-muscle-taxonomy.ts"
   },
   "dependencies": {
