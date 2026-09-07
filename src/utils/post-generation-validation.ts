@@ -1,4 +1,10 @@
 import { Profile } from "@/models";
+import {
+  applyPercentSchemeLoads,
+  roundBarbellLoads,
+  PercentSchemeFinding,
+  BarbellRoundingFinding,
+} from "./percent-scheme-loads";
 import { validateEquipmentAndFilter } from "@/utils/equipment-validation";
 import { validateLimitationsAndFilter } from "@/utils/limitation-validation";
 import {
@@ -71,6 +77,10 @@ export function applyPostGenerationValidation(
     // [GQ-06] Day numbers that must be bodyweight-only (no equipment). Enforced
     // deterministically after muscle alignment, before the duration pad.
     bodyweightOnlyDays?: number[];
+    // The user's live request text. When it names a percentage program and a
+    // 1RM per lift, the ladders are recomputed server-side (see
+    // percent-scheme-loads.ts) instead of trusting the model's arithmetic.
+    requestText?: string | null;
   }
 ): {
   exercisesToAdd: any[];
@@ -81,6 +91,8 @@ export function applyPostGenerationValidation(
   muscleAlignmentFindings: FocusAlignmentFinding[];
   muscleOverlapFindings: ConsecutiveOverlapFinding[];
   bodyweightFindings: BodyweightDayFinding[];
+  percentSchemeFindings: PercentSchemeFinding[];
+  barbellRoundingFindings: BarbellRoundingFinding[];
 } {
   const equipmentFiltered = validateEquipmentAndFilter(
     rawExercisesToAdd,
@@ -103,8 +115,21 @@ export function applyPostGenerationValidation(
     constraintOptions?.catalog || []
   );
 
-  const { workoutPlan: cappedPlan, findings: repetitionFindings } =
+  const { workoutPlan: repeatCapped, findings: repetitionFindings } =
     capExerciseRepetition(enforced.workoutPlan);
+
+  // [Loads] Percentage-program ladders come from the stated 1RM, not the model's
+  // arithmetic (a stub of 2 entries becomes the full ladder here, which is why
+  // this runs right after the repeat cap and before duration/alignment). Then
+  // every barbell load anywhere becomes 5-lb plate math.
+  const { workoutPlan: schemeApplied, findings: percentSchemeFindings } =
+    applyPercentSchemeLoads(
+      repeatCapped,
+      constraintOptions?.requestText,
+      constraintOptions?.catalog || []
+    );
+  const { workoutPlan: cappedPlan, findings: barbellRoundingFindings } =
+    roundBarbellLoads(schemeApplied, constraintOptions?.catalog || []);
 
   // [GQ-11] Muscle-load alignment — swap off-focus filler exercises that
   // incidentally overload a non-focus muscle for focus-matching ones (never
@@ -191,5 +216,7 @@ export function applyPostGenerationValidation(
     muscleAlignmentFindings: aligned.findings,
     muscleOverlapFindings,
     bodyweightFindings: bodyweightEnforced.findings,
+    percentSchemeFindings,
+    barbellRoundingFindings,
   };
 }

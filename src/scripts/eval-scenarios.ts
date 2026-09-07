@@ -489,18 +489,21 @@ export const SCENARIOS: EvalScenario[] = [
       if (mon) {
         checks.push(
           { id: "mon-barbell-bench", label: "Mon has Barbell Bench Press", type: "includesOnDay", dayNumber: mon, names: ["barbell bench press"] },
+          { id: "mon-loads", label: "mon loads ≤ 235 1RM and ×5 lb", type: "loadsOnDay", dayNumber: mon, needle: "bench press", max: 235, step: 5 },
           { id: "mon-bench-ladder", label: "Mon bench ≥5 set entries", type: "minOccurrencesOnDay", dayNumber: mon, needle: "bench press", min: 5 }
         );
       }
       if (wed) {
         checks.push(
           { id: "wed-barbell-squat", label: "Wed has Barbell Back Squat", type: "includesOnDay", dayNumber: wed, names: ["barbell back squat"] },
+          { id: "wed-loads", label: "wed loads ≤ 285 1RM and ×5 lb", type: "loadsOnDay", dayNumber: wed, needle: "back squat", max: 285, step: 5 },
           { id: "wed-squat-ladder", label: "Wed squat ≥5 set entries", type: "minOccurrencesOnDay", dayNumber: wed, needle: "back squat", min: 5 }
         );
       }
       if (fri) {
         checks.push(
           { id: "fri-barbell-deadlift", label: "Fri has a barbell deadlift", type: "includesOnDay", dayNumber: fri, names: ["barbell conventional deadlift", "barbell deadlift"] },
+          { id: "fri-loads", label: "fri loads ≤ 375 1RM and ×5 lb", type: "loadsOnDay", dayNumber: fri, needle: "deadlift", max: 375, step: 5 },
           { id: "fri-deadlift-ladder", label: "Fri deadlift ≥5 set entries", type: "minOccurrencesOnDay", dayNumber: fri, needle: "deadlift", min: 5 }
         );
       }
