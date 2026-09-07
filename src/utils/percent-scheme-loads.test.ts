@@ -71,6 +71,13 @@ describe("parseOneRepMaxes", () => {
     expect(parseOneRepMaxes("Squat day. 315 lb 1RM.").get("squat")).toBe(315);
     expect(parseOneRepMaxes("bench press, one-rep max of 200 pounds").get("bench")).toBe(200);
   });
+  it("splits a single-line, sentence-separated request even after ALL-CAPS words", () => {
+    const oneLine =
+      "This week: Monday: Wendler 531 Week 1 bench press, including warm-up sets based on 1RM of 235# + short CrossFit-style METCON. Wednesday: Wendler 531 Week 1 squat, including warm-up sets based on 1RM of 285# + METCON. Friday: Wendler 531 Week 1 deadlift, including warm-up sets based on 1RM of 375# + METCON.";
+    const m = parseOneRepMaxes(oneLine);
+    expect([...m]).toEqual([["bench", 235], ["squat", 285], ["deadlift", 375]]);
+  });
+
   it("refuses to guess when a segment names two lifts", () => {
     expect(parseOneRepMaxes("bench and squat, 1RM of 235").size).toBe(0);
   });

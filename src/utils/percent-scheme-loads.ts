@@ -102,7 +102,9 @@ const ONE_RM_BEFORE = /(\d{2,3}(?:\.\d)?)\s*(?:#|lbs?\b|pounds?\b)?\s*(?:\b1\s*-
 export function parseOneRepMaxes(text: string | null | undefined): Map<MainLift, number> {
   const out = new Map<MainLift, number>();
   if (!text) return out;
-  const segments = text.split(/\r?\n|;|(?<=[a-z#\d])\.\s+(?=[A-Z])/);
+  // Lines, semicolons, or a sentence end followed by a capital ("… METCON. Wednesday: …").
+  // Decimals ("337.5 lb") survive because the dot must be followed by whitespace.
+  const segments = text.split(/\r?\n|;|\.\s+(?=[A-Z])/);
   for (const segment of segments) {
     const m = ONE_RM_AFTER.exec(segment) ?? ONE_RM_BEFORE.exec(segment);
     if (!m) continue;
