@@ -321,6 +321,9 @@
 					"colorTheme": {
 						"type": "string",
 						"nullable": true
+					},
+					"isAdmin": {
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -331,7 +334,8 @@
 					"waiverAcceptedAt",
 					"waiverVersion",
 					"themeMode",
-					"colorTheme"
+					"colorTheme",
+					"isAdmin"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -1131,6 +1135,11 @@
 					"name": {
 						"type": "string"
 					},
+					"description": {
+						"type": "string",
+						"nullable": true,
+						"description": "Catalog description, so a ranked list can render the same row as search."
+					},
 					"muscleGroups": {
 						"items": {
 							"type": "string"
@@ -1161,6 +1170,7 @@
 				"required": [
 					"id",
 					"name",
+					"description",
 					"muscleGroups",
 					"equipment",
 					"difficulty",
@@ -2465,6 +2475,16 @@
 					"colorTheme": {
 						"type": "string",
 						"nullable": true
+					},
+					"signupNotifiedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"stalledDigestNotifiedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
 					}
 				},
 				"required": [
@@ -2480,7 +2500,9 @@
 					"waiverVersion",
 					"isActive",
 					"themeMode",
-					"colorTheme"
+					"colorTheme",
+					"signupNotifiedAt",
+					"stalledDigestNotifiedAt"
 				],
 				"type": "object",
 				"additionalProperties": false

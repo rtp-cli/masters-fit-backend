@@ -19,6 +19,8 @@ import { resolveTodayString } from "@/utils/date.utils";
 export interface ReplacementCandidate {
   id: number;
   name: string;
+  /** Catalog description, so a ranked list can render the same row as search. */
+  description: string | null;
   muscleGroups: string[];
   equipment: string[] | null;
   difficulty: string | null;
@@ -202,6 +204,7 @@ export class ExerciseExclusionService extends BaseService {
     return ranked.slice(0, limit).map((r) => ({
       id: r.candidate.id,
       name: r.candidate.name,
+      description: r.candidate.description ?? null,
       muscleGroups: r.candidate.muscleGroups ?? [],
       equipment: r.candidate.equipment ?? null,
       difficulty: r.candidate.difficulty ?? null,
