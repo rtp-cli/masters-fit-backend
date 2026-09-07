@@ -20,6 +20,84 @@
 
 const MAX_EXERCISE_REPEATS_PER_DAY = 2;
 
+/**
+ * Ramping / percentage set schemes need one entry per set: Wendler 5/3/1 is
+ * three warm-up + three working entries of ONE lift at six different loads,
+ * a 5x5 work-up or "work up to a heavy single" looks the same. The daily cap
+ * used to clip these to two entries (2026-09-07: every Wendler main lift came
+ * back as two warm-up sets and nothing else) — so a block whose repeats form a
+ * *ladder* is exempt from the cap, up to this many entries of that lift.
+ */
+export const MAX_RAMP_ENTRIES_PER_BLOCK = 8;
+
+interface RepeatEntry {
+  exerciseName?: string;
+  weight?: number | null;
+}
+interface RepeatBlock {
+  blockType?: string;
+  exercises?: RepeatEntry[];
+}
+
+/**
+ * True when `entries` (all occurrences of ONE exercise inside ONE block) form a
+ * ramping ladder: a `traditional` strength block (or one with no type), at
+ * least three entries, every load a positive number, and no two loads equal.
+ * Identical-load repeats are NOT a ladder — those belong in one entry with
+ * sets > 1, which is exactly the padding the cap exists to remove. Pure.
+ */
+export function isRampingLadder(entries: RepeatEntry[], blockType?: string): boolean {
+  if (entries.length < 3) return false;
+  if (blockType && blockType !== "traditional") return false;
+  const loads = new Set<number>();
+  for (const entry of entries) {
+    const w = entry.weight;
+    if (typeof w !== "number" || !Number.isFinite(w) || w <= 0) return false;
+    if (loads.has(w)) return false;
+    loads.add(w);
+  }
+  return true;
+}
+
+/**
+ * Per day, which entries survive the repeat rule. Ladder blocks keep up to
+ * MAX_RAMP_ENTRIES_PER_BLOCK entries of the lift and do not count toward the
+ * daily cap (a bench ladder plus bench in a later METCON is still fine — the
+ * METCON bench is occurrence 1 of 2). Everything else gets the classic
+ * "first two per day" treatment. Returns one boolean per entry per block.
+ */
+function planRepeatSurvivors(day: { blocks?: RepeatBlock[] }): boolean[][] {
+  const seenOutsideLadders = new Map<string, number>();
+  return (day.blocks || []).map((block) => {
+    const exercises = block.exercises || [];
+    // Group this block's entries by exercise so ladders can be recognised.
+    const byName = new Map<string, number[]>();
+    exercises.forEach((ex, idx) => {
+      if (!ex.exerciseName) return;
+      const list = byName.get(ex.exerciseName);
+      if (list) list.push(idx);
+      else byName.set(ex.exerciseName, [idx]);
+    });
+    const ladderKeep = new Set<number>();
+    const ladderMember = new Set<number>();
+    for (const [, idxs] of byName) {
+      if (isRampingLadder(idxs.map((i) => exercises[i]), block.blockType)) {
+        idxs.forEach((i, rank) => {
+          ladderMember.add(i);
+          if (rank < MAX_RAMP_ENTRIES_PER_BLOCK) ladderKeep.add(i);
+        });
+      }
+    }
+    return exercises.map((ex, idx) => {
+      if (!ex.exerciseName) return true; // never drop an unnamed row on this basis
+      if (ladderMember.has(idx)) return ladderKeep.has(idx);
+      const next = (seenOutsideLadders.get(ex.exerciseName) || 0) + 1;
+      seenOutsideLadders.set(ex.exerciseName, next);
+      return next <= MAX_EXERCISE_REPEATS_PER_DAY;
+    });
+  });
+}
+
 export interface ExerciseRepetitionFinding {
   dayNumber: number;
   exerciseName: string;
@@ -27,30 +105,32 @@ export interface ExerciseRepetitionFinding {
 }
 
 /**
- * Counts how many times each exercise name appears across all blocks in a
- * single day. Flags any exercise appearing more than
- * MAX_EXERCISE_REPEATS_PER_DAY times — legitimate for a superset/circuit to
- * repeat an exercise twice, but 3+ times in one workout starts looking like
- * the model ran out of variety rather than intentional programming.
+ * Flags exercises whose repeats within a single day exceed what the rule
+ * allows — more than MAX_EXERCISE_REPEATS_PER_DAY occurrences outside a
+ * ramping ladder, or a ladder longer than MAX_RAMP_ENTRIES_PER_BLOCK.
+ * `count` is the total number of occurrences that day. Legitimate for a
+ * superset/circuit to repeat an exercise twice; 3+ identical entries starts
+ * looking like the model ran out of variety rather than intentional programming.
  */
 export function checkExerciseRepetition(
-  workoutPlan: Array<{ day: number; blocks?: Array<{ exercises?: Array<{ exerciseName?: string }> }> }>
+  workoutPlan: Array<{ day: number; blocks?: RepeatBlock[] }>
 ): ExerciseRepetitionFinding[] {
   const findings: ExerciseRepetitionFinding[] = [];
 
   for (const day of workoutPlan) {
+    const survivors = planRepeatSurvivors(day);
     const counts = new Map<string, number>();
-    for (const block of day.blocks || []) {
-      for (const exercise of block.exercises || []) {
+    const dropped = new Set<string>();
+    (day.blocks || []).forEach((block, b) => {
+      (block.exercises || []).forEach((exercise, i) => {
         const name = exercise.exerciseName;
-        if (!name) continue;
+        if (!name) return;
         counts.set(name, (counts.get(name) || 0) + 1);
-      }
-    }
-    for (const [exerciseName, count] of counts) {
-      if (count > MAX_EXERCISE_REPEATS_PER_DAY) {
-        findings.push({ dayNumber: day.day, exerciseName, count });
-      }
+        if (!survivors[b][i]) dropped.add(name);
+      });
+    });
+    for (const exerciseName of dropped) {
+      findings.push({ dayNumber: day.day, exerciseName, count: counts.get(exerciseName) || 0 });
     }
   }
 
@@ -58,16 +138,16 @@ export function checkExerciseRepetition(
 }
 
 /**
- * [LR-049] Enforcement counterpart to checkExerciseRepetition: keeps the first
- * MAX_EXERCISE_REPEATS_PER_DAY occurrences of each exercise per day and drops
- * any beyond that, rewriting the affected blocks (mirrors
+ * [LR-049] Enforcement counterpart to checkExerciseRepetition: drops the
+ * occurrences the rule disallows, rewriting the affected blocks (mirrors
  * validateLimitationsAndFilter's block rewrite). Returns the (possibly)
  * modified plan plus the findings, so callers still log what was capped.
- * Only whole extra occurrences are removed — block structure is otherwise
- * untouched, so a legitimate superset that repeats an exercise twice survives.
+ * Only whole disallowed occurrences are removed — block structure is otherwise
+ * untouched, so a superset that repeats an exercise twice and a Wendler
+ * ladder both survive intact.
  */
 export function capExerciseRepetition(
-  workoutPlan: Array<{ day: number; blocks?: Array<{ exercises?: Array<{ exerciseName?: string }> }> }>
+  workoutPlan: Array<{ day: number; blocks?: RepeatBlock[] }>
 ): { workoutPlan: any[]; findings: ExerciseRepetitionFinding[] } {
   const findings = checkExerciseRepetition(workoutPlan);
   if (findings.length === 0) {
@@ -75,18 +155,12 @@ export function capExerciseRepetition(
   }
 
   const cappedPlan = workoutPlan.map((day) => {
-    const seen = new Map<string, number>();
+    const survivors = planRepeatSurvivors(day);
     return {
       ...day,
-      blocks: (day.blocks || []).map((block: any) => ({
+      blocks: (day.blocks || []).map((block: any, b: number) => ({
         ...block,
-        exercises: (block.exercises || []).filter((ex: any) => {
-          const name = ex.exerciseName;
-          if (!name) return true; // never drop an unnamed row on this basis
-          const nextCount = (seen.get(name) || 0) + 1;
-          seen.set(name, nextCount);
-          return nextCount <= MAX_EXERCISE_REPEATS_PER_DAY;
-        }),
+        exercises: (block.exercises || []).filter((_: any, i: number) => survivors[b][i]),
       })),
     };
   });

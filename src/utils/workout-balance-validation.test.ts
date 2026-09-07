@@ -2,6 +2,8 @@ import { describe, it, expect } from "@jest/globals";
 import {
   checkExerciseRepetition,
   capExerciseRepetition,
+  isRampingLadder,
+  MAX_RAMP_ENTRIES_PER_BLOCK,
   checkConsecutiveMuscleGroupOverload,
   buildMuscleRebalanceFeedback,
   reorderToMinimizeConsecutiveOverload,
@@ -186,5 +188,80 @@ describe("reorderToMinimizeConsecutiveOverload [GQ-10]", () => {
     ];
     const reordered = reorderToMinimizeConsecutiveOverload(days);
     expect(checkConsecutiveMuscleGroupOverload(reordered)).toHaveLength(0);
+  });
+});
+
+describe("ramping set ladders (Wendler / 5x5 work-ups) are exempt from the repeat cap", () => {
+  const wendlerBench = (weights: number[], blockType = "traditional") => ({
+    day: 1,
+    blocks: [
+      {
+        blockType,
+        exercises: weights.map((weight) => ({ exerciseName: "Barbell Bench Press", weight, sets: 1, reps: 5 })),
+      },
+    ],
+  });
+
+  it("isRampingLadder: distinct positive loads in a traditional block, 3+ entries", () => {
+    expect(isRampingLadder([{ weight: 85 }, { weight: 105 }, { weight: 125 }], "traditional")).toBe(true);
+    expect(isRampingLadder([{ weight: 85 }, { weight: 105 }, { weight: 125 }], undefined)).toBe(true);
+    expect(isRampingLadder([{ weight: 85 }, { weight: 105 }], "traditional")).toBe(false); // <3 = ordinary
+    expect(isRampingLadder([{ weight: 85 }, { weight: 85 }, { weight: 85 }], "traditional")).toBe(false); // same load
+    expect(isRampingLadder([{ weight: 0 }, { weight: 0 }, { weight: 0 }], "traditional")).toBe(false); // bodyweight
+    expect(isRampingLadder([{ weight: 85 }, { weight: 105 }, { weight: 125 }], "amrap")).toBe(false); // wrong block
+  });
+
+  it("keeps a full six-entry Wendler ladder intact with no findings", () => {
+    const plan = [wendlerBench([85, 105, 127, 137, 158, 179])];
+    const { workoutPlan, findings } = capExerciseRepetition(plan);
+    expect(findings).toEqual([]);
+    expect(workoutPlan).toBe(plan);
+    expect(checkExerciseRepetition(plan)).toEqual([]);
+  });
+
+  it("still caps six identical-load entries (padding, not a ladder) to two", () => {
+    const { workoutPlan, findings } = capExerciseRepetition([wendlerBench([135, 135, 135, 135, 135, 135])]);
+    expect(findings).toEqual([{ dayNumber: 1, exerciseName: "Barbell Bench Press", count: 6 }]);
+    expect(workoutPlan[0].blocks[0].exercises).toHaveLength(2);
+  });
+
+  it("does not treat distinct loads inside an AMRAP/circuit as a ladder", () => {
+    const { workoutPlan } = capExerciseRepetition([wendlerBench([85, 105, 127, 137], "amrap")]);
+    expect(workoutPlan[0].blocks[0].exercises).toHaveLength(2);
+  });
+
+  it("trims a ladder longer than MAX_RAMP_ENTRIES_PER_BLOCK to the first entries and reports it", () => {
+    const weights = Array.from({ length: MAX_RAMP_ENTRIES_PER_BLOCK + 3 }, (_, i) => 100 + i * 10);
+    const { workoutPlan, findings } = capExerciseRepetition([wendlerBench(weights)]);
+    expect(workoutPlan[0].blocks[0].exercises).toHaveLength(MAX_RAMP_ENTRIES_PER_BLOCK);
+    expect(findings[0]).toEqual({ dayNumber: 1, exerciseName: "Barbell Bench Press", count: weights.length });
+  });
+
+  it("a ladder does not consume the daily cap for the same lift elsewhere in the day", () => {
+    const plan = [
+      {
+        day: 1,
+        blocks: [
+          wendlerBench([85, 105, 127, 137, 158, 179]).blocks[0],
+          {
+            blockType: "amrap",
+            exercises: [
+              { exerciseName: "Barbell Bench Press", weight: 95 },
+              { exerciseName: "Barbell Bench Press", weight: 95 },
+              { exerciseName: "Barbell Bench Press", weight: 95 },
+              { exerciseName: "Row", weight: 0 },
+            ],
+          },
+        ],
+      },
+    ];
+    const { workoutPlan, findings } = capExerciseRepetition(plan);
+    expect(workoutPlan[0].blocks[0].exercises).toHaveLength(6); // ladder untouched
+    expect(workoutPlan[0].blocks[1].exercises.map((e: any) => e.exerciseName)).toEqual([
+      "Barbell Bench Press",
+      "Barbell Bench Press",
+      "Row",
+    ]); // 3rd identical METCON bench dropped
+    expect(findings).toEqual([{ dayNumber: 1, exerciseName: "Barbell Bench Press", count: 9 }]);
   });
 });
