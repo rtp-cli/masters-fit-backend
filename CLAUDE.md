@@ -101,6 +101,21 @@ to the matching route file. The `add-api-endpoint` skill walks through both halv
    Report the actual output. If something fails, it is not done.
 5. **Database changes are not automatic.** Editing a schema file does nothing until you push
    it — see the `change-db-schema` skill. Be careful: `db:push` alters the real database.
+6. **For production DB reads, use `scripts/db-prod-read.sh` — never bare `psql`.**
+   Ad-hoc prod queries used to mean hand-extracting the commented `DATABASE_URL` out of
+   `.env` and pointing `psql` at it. Use the wrapper instead:
+   ```bash
+   scripts/db-prod-read.sh -c 'select count(*) from users;'
+   ```
+   It pins `default_transaction_read_only=true` on the connection, so **Postgres itself**
+   refuses `INSERT`/`UPDATE`/`DELETE`/DDL, and it never echoes the connection string into
+   your scrollback. It forces Neon's **unpooled** host on purpose — the pooler rejects that
+   startup parameter, and because an unsupported parameter fails the connection outright,
+   the script can never silently connect without the read-only pin.
+
+   Writing to prod is a separate, deliberate act: use the purpose-built scripts
+   (`comp-user`, `reset-workout-prod`, `delete-user`, …) or their skills, which confirm
+   first. Bare `psql` against prod still requires explicit human approval — keep it that way.
 
 ---
 
