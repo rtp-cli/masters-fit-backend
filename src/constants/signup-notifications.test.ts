@@ -104,7 +104,7 @@ describe("signup notification config", () => {
     it("does NOT suppress a real tester", () => {
       for (const email of [
         "jane.doe@gmail.com",
-        "marcus@example.com",
+        "marcus@hey.com",
         "rtp@notmastersfit.ai",
       ]) {
         expect(isSuppressedSignupEmail(email)).toBe(false);
@@ -117,17 +117,48 @@ describe("signup notification config", () => {
     });
 
     it("suppresses the auth bypass test accounts", () => {
-      process.env.TEST_ACCOUNT_NEW = "new-tester@example.com";
-      process.env.TEST_ACCOUNT_EXISTING = "existing-tester@example.com";
-      expect(isSuppressedSignupEmail("new-tester@example.com")).toBe(true);
-      expect(isSuppressedSignupEmail("existing-tester@example.com")).toBe(true);
-      expect(isSuppressedSignupEmail("other@example.com")).toBe(false);
+      process.env.TEST_ACCOUNT_NEW = "new-tester@gmail.com";
+      process.env.TEST_ACCOUNT_EXISTING = "existing-tester@gmail.com";
+      expect(isSuppressedSignupEmail("new-tester@gmail.com")).toBe(true);
+      expect(isSuppressedSignupEmail("existing-tester@gmail.com")).toBe(true);
+      expect(isSuppressedSignupEmail("other@gmail.com")).toBe(false);
     });
 
     it("suppresses anything in the ad-hoc env list", () => {
-      process.env.SIGNUP_NOTIFY_SUPPRESS = "loud@example.com, noisy@example.com";
-      expect(isSuppressedSignupEmail("noisy@example.com")).toBe(true);
-      expect(isSuppressedSignupEmail("quiet@example.com")).toBe(false);
+      process.env.SIGNUP_NOTIFY_SUPPRESS = "loud@gmail.com, noisy@gmail.com";
+      expect(isSuppressedSignupEmail("noisy@gmail.com")).toBe(true);
+      expect(isSuppressedSignupEmail("quiet@gmail.com")).toBe(false);
+    });
+
+    it("suppresses RFC-reserved test domains", () => {
+      // Our own test data. The jobs-claim concurrency test leaves
+      // test-jobs-claim-<ts>@example.test users behind when a run is
+      // interrupted, and each survivor would otherwise read as a new stalled
+      // signup in the next digest.
+      for (const email of [
+        "test-jobs-claim-1788714813421@example.test",
+        "newsignup-probe-5587@example.com",
+        "someone@example.net",
+        "someone@example.org",
+        "probe@my-mac.local",
+        "root@localhost",
+        "typo@invalid",
+        "fixture@example",
+        "nested@mail.example.com",
+      ]) {
+        expect(isSuppressedSignupEmail(email)).toBe(true);
+      }
+    });
+
+    it("does not suppress a real domain that merely resembles a reserved one", () => {
+      for (const email of [
+        "jane@example.io",
+        "jane@myexample.com",
+        "jane@testing.com",
+        "jane@notexample.org",
+      ]) {
+        expect(isSuppressedSignupEmail(email)).toBe(false);
+      }
     });
 
     it("treats a missing or blank address as suppressed", () => {

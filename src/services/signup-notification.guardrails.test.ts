@@ -30,11 +30,14 @@ const sendAlert = emailService.sendNewUserNotificationEmail as jest.MockedFuncti
 
 const CLAIMED_AT = new Date("2026-09-03T17:41:30Z");
 
+// A routable domain on purpose: isSuppressedSignupEmail treats the RFC-reserved
+// domains (example.com, *.test, …) as our own test data and suppresses them, so
+// a fixture on example.com would make every dispatch here return "suppressed".
 function snapshot(overrides: Partial<NewUserSnapshot> = {}): NewUserSnapshot {
   return {
     userId: 148,
     name: "Jane Doe",
-    email: "jane.doe@example.com",
+    email: "jane.doe@gmail.com",
     createdAt: new Date("2026-09-03T17:35:00Z"),
     completedAt: new Date("2026-09-03T17:41:00Z"),
     subscriptionStatus: "trial",
@@ -186,8 +189,8 @@ describe("dispatchNewUserAlert guardrails", () => {
   it("passes the member's own address so Reply-To reaches them", async () => {
     await signupNotificationService.dispatchNewUserAlert(148);
     expect(sendAlert.mock.calls[0]?.[0]).toMatchObject({
-      email: "jane.doe@example.com",
-      compCommand: "npm run comp-user -- jane.doe@example.com",
+      email: "jane.doe@gmail.com",
+      compCommand: "npm run comp-user -- jane.doe@gmail.com",
     });
   });
 });

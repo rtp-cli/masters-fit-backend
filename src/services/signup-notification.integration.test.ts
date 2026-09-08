@@ -85,7 +85,17 @@ async function mailCode(opts: {
 
 /** Unique per run so parallel/repeat runs never collide on the email unique index. */
 const tag = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-const email = (name: string) => `signup-notify-${tag}-${name}@example.test`;
+
+/**
+ * A domain we own, NOT an RFC-reserved one. Almost every case in this suite
+ * stands in for a real person who must be reported, and
+ * isSuppressedSignupEmail treats the reserved domains (example.com, *.test, …)
+ * as our own test data — fixtures minted there would be filtered out of the
+ * query and every "is reported" assertion would fail. The reserved domains get
+ * their own case below.
+ */
+const email = (name: string) =>
+  `signup-notify-${tag}-${name}@testers.mastersfit.ai`;
 
 describe("SignupNotificationService (integration, local DB)", () => {
   beforeAll(async () => {
@@ -293,6 +303,20 @@ describe("SignupNotificationService (integration, local DB)", () => {
         if (previous === undefined) delete process.env.SIGNUP_NOTIFY_SUPPRESS;
         else process.env.SIGNUP_NOTIFY_SUPPRESS = previous;
       }
+    });
+
+    it("excludes rows on RFC-reserved test domains", async () => {
+      if (!dbAvailable) return;
+      // The leftovers our own test suites create — an interrupted jobs-claim
+      // run strands test-jobs-claim-<ts>@example.test users in this table.
+      // They must never reach the digest: each one would read as a new person
+      // who stalled, and no env suppression list can name them because the
+      // local part is a fresh timestamp every run.
+      const stranded = `test-jobs-claim-${tag}@example.test`;
+      const id = await makeUser({ email: stranded, createdAt: daysAgo(3) });
+
+      const report = await signupNotificationService.getStalledSignupReport(NOW);
+      expect(report.stalled.map((p) => p.userId)).not.toContain(id);
     });
 
     it("does NOT exclude a disposable rtp+<n>@ account", async () => {
