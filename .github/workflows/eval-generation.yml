@@ -25,12 +25,56 @@ name: Generation eval
 #
 # Cost: one run is ~20 full weekly generations (Haiku day calls, Sonnet
 # planning on the override scenarios). Use the `only` input for a cheap probe.
+#
+# When it runs:
+#   - on a PR that touches a file shaping what the model emits (see `paths`
+#     below) — this is the high-value trigger. Every prompt edit is a chance to
+#     help one case and break another, which is exactly the 2026-09-07 shape:
+#     the mean barely moved while one scenario collapsed. Catching that before
+#     merge beats finding it the following Monday.
+#   - Mondays, as a backstop for drift no PR explains: a new model version
+#     under us, catalog changes, slow decay.
+#   - manually, for a cheap single-scenario probe.
+# Add the `skip-eval` label to a PR to opt out (e.g. a comment-only change to a
+# listed file).
 
 on:
   schedule:
     # Mondays 12:00 UTC (07:00 Central) — a fresh number at the start of the
     # week, before the owner regenerates his own plan.
     - cron: "0 12 * * 1"
+  # Only the files that can change what the model emits. Deliberately NOT
+  # every source file: a run costs real tokens, so unrelated PRs must not pay
+  # for one. Test files are excluded — they cannot alter generation output.
+  pull_request:
+    paths:
+      - "src/utils/fanout-prompt-generator.ts"
+      - "src/utils/prompt-generator.ts"
+      - "src/utils/post-generation-validation.ts"
+      - "src/utils/constraint-enforcement.ts"
+      - "src/utils/limitation-validation.ts"
+      - "src/utils/equipment-validation.ts"
+      - "src/utils/equipment-per-day-enforcement.ts"
+      - "src/utils/duration-enforcement.ts"
+      - "src/utils/workout-balance-validation.ts"
+      - "src/utils/percent-scheme-loads.ts"
+      - "src/utils/requested-exercises.ts"
+      - "src/utils/exercise-name-resolution.ts"
+      - "src/utils/muscle-load.ts"
+      - "src/utils/weekday-constraint-compliance.ts"
+      - "src/utils/generation-response-validation.ts"
+      - "src/utils/plan-schedule.ts"
+      - "src/utils/job-reconciliation.ts"
+      - "src/services/workout-agent.service.ts"
+      - "src/services/exercise.service.ts"
+      - "src/constants/access-policy.ts"
+      # The harness and the line it grades against.
+      - "src/scripts/eval-generation.ts"
+      - "src/scripts/eval-scenarios.ts"
+      - "src/utils/generation-compliance.ts"
+      - "src/utils/eval-gate.ts"
+      - "eval-baseline/reference.json"
+      - ".github/workflows/eval-generation.yml"
   workflow_dispatch:
     inputs:
       only:
@@ -46,16 +90,19 @@ on:
         required: false
         default: ""
 
-# One eval at a time: concurrent runs would race on the same LLM rate limits
-# and produce noisy scores.
+# One eval at a time per PR (or per branch for the cron), so concurrent runs
+# don't race on the same LLM rate limits and produce noisy scores. A new push
+# to a PR supersedes its in-flight run — no point paying for a score of code
+# that has already been replaced. Scheduled runs are never cancelled.
 concurrency:
-  group: generation-eval
-  cancel-in-progress: false
+  group: generation-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   eval:
     name: Score generation quality
     runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.labels.*.name, 'skip-eval')"
     timeout-minutes: 45
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -101,6 +148,9 @@ jobs:
         id: label
         run: |
           label="${{ github.event.inputs.label }}"
+          if [ -z "$label" ] && [ -n "${{ github.event.pull_request.number }}" ]; then
+            label="pr-${{ github.event.pull_request.number }}"
+          fi
           [ -z "$label" ] && label="eval-$(date -u +%Y-%m-%d)"
           echo "label=$label" >> "$GITHUB_OUTPUT"
 
