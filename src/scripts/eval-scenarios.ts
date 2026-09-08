@@ -479,6 +479,11 @@ export const SCENARIOS: EvalScenario[] = [
       workoutDuration: 40,
       fitnessLevel: FitnessLevels.ADVANCED,
     }),
+    // Pinned: the checks assert WHICH day carries each lift, and the day
+    // number a weekday maps to depends on the day the eval runs. Captured on a
+    // Monday, this scenario silently became "bench on day 3" on a Tuesday and
+    // the gate went red for a calendar reason rather than a quality one.
+    startDate: "2026-09-07", // Monday
     customFeedback:
       "This week: Monday: Wendler 531 Week 1 bench press, including warm-up sets based on 1RM of 235# + short CrossFit-style METCON. Wednesday: Wendler 531 Week 1 squat, including warm-up sets based on 1RM of 285# + METCON. Friday: Wendler 531 Week 1 deadlift, including warm-up sets based on 1RM of 375# + METCON.",
     buildChecks: (schedule, p) => {
@@ -533,6 +538,8 @@ export const SCENARIOS: EvalScenario[] = [
       ],
       workoutDuration: 35,
     }),
+    // Pinned for the same reason as program-wendler-week above.
+    startDate: "2026-09-07", // Monday, so Tue/Thu/Sat land on days 1/2/3
     customFeedback:
       "Tuesday and Thursday: Calisthenics Challenge workout — 10 rounds for time: 6x strict pull-ups, 15x push-ups, 20x air squats, 20x sit-ups. Saturday: your choice.",
     buildChecks: (schedule, p) => {
