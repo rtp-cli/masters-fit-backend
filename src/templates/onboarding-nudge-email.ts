@@ -48,10 +48,25 @@ export const onboardingNudgeTemplate = ({
 <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 <meta name="color-scheme" content="light dark" />
 <meta name="supported-color-schemes" content="light dark" />
+<!-- Stop mail clients turning the footer address into a Maps link. iOS/Apple
+     Mail honour this meta; the CSS below neutralises the styling if a client
+     linkifies anyway, so it at least stays grey footer text rather than a blue
+     tappable link. -->
+<meta name="format-detection" content="telephone=no,date=no,address=no,email=no,url=no" />
 <title>Your MastersFit plan is still waiting</title>
 <style>
   body { margin:0; padding:0; width:100% !important; -webkit-text-size-adjust:100%; }
   a { color:#1A6B4A; }
+  /* Apple's data detectors wrap matches in their own anchor — this strips the
+     blue-and-underlined treatment so a linkified address still reads as text. */
+  a[x-apple-data-detectors] {
+    color: inherit !important;
+    text-decoration: none !important;
+    font-size: inherit !important;
+    font-family: inherit !important;
+    font-weight: inherit !important;
+    line-height: inherit !important;
+  }
   @media (max-width: 620px) {
     .wrap { padding:24px 20px !important; }
   }
