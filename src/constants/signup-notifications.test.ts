@@ -17,6 +17,7 @@ describe("signup notification config", () => {
     "SIGNUP_NOTIFY_ENABLED",
     "SIGNUP_NOTIFY_EMAIL",
     "SIGNUP_NOTIFY_SUPPRESS",
+    "SIGNUP_NOTIFY_SUPPRESS_DOMAINS",
     "TEST_ACCOUNT_NEW",
     "TEST_ACCOUNT_EXISTING",
     "STALLED_SIGNUP_MIN_HOURS",
@@ -159,6 +160,46 @@ describe("signup notification config", () => {
       ]) {
         expect(isSuppressedSignupEmail(email)).toBe(false);
       }
+    });
+
+    it("suppresses a whole domain from the env list", () => {
+      // The real case: misspellings of our OWN domain. Eleven of these reached
+      // one digest. None of them resolve, so nobody ever received a code at
+      // one — and because the digest only sends on a day a NEW name joins, a
+      // fresh misspelling is what sends the email, not just a line inside it.
+      process.env.SIGNUP_NOTIFY_SUPPRESS_DOMAINS =
+        "mastersfit.air, mastersfit.ait, mastetsfit.ai, masterafit.ai";
+      for (const email of [
+        "eview@mastersfit.air",
+        "+applereview@mastersfit.air",
+        "rp+applereview@mastersfit.ait",
+        "rtp@mastetsfit.ai",
+        "rtp@masterafit.ai",
+        "anything@mail.mastersfit.air",
+      ]) {
+        expect(isSuppressedSignupEmail(email)).toBe(true);
+      }
+    });
+
+    it("leaves the real domain alone when its misspellings are suppressed", () => {
+      // The guard on the rule that was tried and removed. Suppressing
+      // mastersfit.air must not touch mastersfit.ai, or it eats the sim tests
+      // the same way the old domain-wide rule did.
+      process.env.SIGNUP_NOTIFY_SUPPRESS_DOMAINS = "mastersfit.air,mastersfit.ait";
+      expect(isSuppressedSignupEmail("rtp+signuptest07@mastersfit.ai")).toBe(false);
+      expect(isSuppressedSignupEmail("jane@fit.ai")).toBe(false);
+    });
+
+    it("still suppresses reserved domains when the env list is unset", () => {
+      delete process.env.SIGNUP_NOTIFY_SUPPRESS_DOMAINS;
+      expect(isSuppressedSignupEmail("probe@example.com")).toBe(true);
+      expect(isSuppressedSignupEmail("jane@gmail.com")).toBe(false);
+    });
+
+    it("reads the domain list at call time, so Render can be changed without a deploy", () => {
+      expect(isSuppressedSignupEmail("rtp@mastersfit.air")).toBe(false);
+      process.env.SIGNUP_NOTIFY_SUPPRESS_DOMAINS = "mastersfit.air";
+      expect(isSuppressedSignupEmail("rtp@mastersfit.air")).toBe(true);
     });
 
     it("treats a missing or blank address as suppressed", () => {

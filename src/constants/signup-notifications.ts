@@ -51,7 +51,8 @@ export function signupNotifyRecipients(): string[] {
  * Reserved test domains (RESERVED_EMAIL_DOMAINS) are suppressed too — those
  * cannot be a real person, so a hit is always our own test data.
  *
- * SIGNUP_NOTIFY_SUPPRESS handles anything ad hoc without a deploy.
+ * SIGNUP_NOTIFY_SUPPRESS handles anything ad hoc without a deploy, and
+ * SIGNUP_NOTIFY_SUPPRESS_DOMAINS does the same for a whole domain.
  */
 export function isSuppressedSignupEmail(email: string | null | undefined): boolean {
   if (!email) return true; // No address to judge → don't notify.
@@ -61,7 +62,7 @@ export function isSuppressedSignupEmail(email: string | null | undefined): boole
 
   if (isProtectedEmail(normalized)) return true;
 
-  if (hasReservedDomain(normalized)) return true;
+  if (hasSuppressedDomain(normalized)) return true;
 
   const envAccounts = [
     ...envList("TEST_ACCOUNT_NEW"),
@@ -98,10 +99,34 @@ const RESERVED_EMAIL_DOMAINS = [
 ];
 
 /**
- * True when the address sits on a reserved domain, or any subdomain of one
+ * Domains suppressed by configuration rather than by RFC.
+ *
+ * The case this exists for is the misspelling of our OWN domain. The digest has
+ * carried eleven addresses on `mastersfit.air`, `mastersfit.ait`,
+ * `mastetsfit.ai` and `masterafit.ai` — none of which resolve, so no human
+ * being has ever received a code at one. They arrive in ones and twos over
+ * months, and because the digest only sends on a day when a NEW name joins the
+ * list, each fresh misspelling is not just a line of noise: it is the thing
+ * that sends the email.
+ *
+ * Env-driven on purpose. A new way to fat-finger the domain turns up every few
+ * weeks, and waiting on a deploy to silence one is how the list rots back to
+ * being unreadable.
+ *
+ * NOTE the deliberate difference from the `@mastersfit.ai` domain rule that was
+ * tried and removed: these domains cannot receive mail at all, so a suppression
+ * here can never hide a real person. A rule on the REAL domain could, and did —
+ * it silently ate the `rtp+<n>@mastersfit.ai` sim tests.
+ */
+function suppressedDomains(): string[] {
+  return [...RESERVED_EMAIL_DOMAINS, ...envList("SIGNUP_NOTIFY_SUPPRESS_DOMAINS")];
+}
+
+/**
+ * True when the address sits on a suppressed domain, or any subdomain of one
  * (`mail.example.com`, `db.docker.local`).
  */
-function hasReservedDomain(normalized: string): boolean {
+function hasSuppressedDomain(normalized: string): boolean {
   // lastIndexOf: the local part may legally contain an "@" when quoted.
   const at = normalized.lastIndexOf("@");
   if (at === -1) return false;
@@ -109,8 +134,8 @@ function hasReservedDomain(normalized: string): boolean {
   const domain = normalized.slice(at + 1);
   if (!domain) return false;
 
-  return RESERVED_EMAIL_DOMAINS.some(
-    (reserved) => domain === reserved || domain.endsWith(`.${reserved}`)
+  return suppressedDomains().some(
+    (suppressed) => domain === suppressed || domain.endsWith(`.${suppressed}`)
   );
 }
 
