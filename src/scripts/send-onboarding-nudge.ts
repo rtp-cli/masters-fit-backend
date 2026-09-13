@@ -157,6 +157,18 @@ async function dispatchOne(userId: number) {
     return;
   }
 
+  // --dispatch ignores the TIMING window on purpose. It must not ignore
+  // whether the nudge is true: "you never finished setting up" aimed at
+  // somebody who finished is the worst email this feature can send.
+  if (!candidate.needsOnboarding) {
+    console.error(
+      `\n  User ${userId} (${candidate.email}) has already finished onboarding.\n` +
+        `  Refusing to send them a "you never finished" email.\n`
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(`\nsend-onboarding-nudge — DISPATCH (db host: ${host()})`);
   console.log(`  user ${userId}: ${candidate.email} (${candidate.name})`);
   console.log(`  THIS SENDS A REAL EMAIL TO THEM.\n`);

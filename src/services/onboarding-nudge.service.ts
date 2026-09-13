@@ -21,6 +21,12 @@ export interface NudgeCandidate {
   email: string;
   createdAt: Date;
   stalledDays: number;
+  /**
+   * Whether they still need onboarding. Always true for scan candidates (the
+   * query requires it); carried so the ops script can refuse to DISPATCH a
+   * "you never finished" email at somebody who finished.
+   */
+  needsOnboarding: boolean;
 }
 
 export type NudgeOutcome =
@@ -91,6 +97,7 @@ export class OnboardingNudgeService extends BaseService {
           1,
           Math.floor((now.getTime() - r.createdAt.getTime()) / MS_PER_DAY)
         ),
+        needsOnboarding: true, // enforced by the WHERE clause above
       }));
   }
 
@@ -113,6 +120,7 @@ export class OnboardingNudgeService extends BaseService {
         email: users.email,
         createdAt: users.createdAt,
         optedOutAt: users.emailOptedOutAt,
+        needsOnboarding: users.needsOnboarding,
       })
       .from(users)
       .where(eq(users.id, userId));
@@ -128,6 +136,8 @@ export class OnboardingNudgeService extends BaseService {
         1,
         Math.floor((now.getTime() - row.createdAt.getTime()) / MS_PER_DAY)
       ),
+      // Nullable in the schema, and null defaults to "needs onboarding".
+      needsOnboarding: row.needsOnboarding !== false,
     };
   }
 
