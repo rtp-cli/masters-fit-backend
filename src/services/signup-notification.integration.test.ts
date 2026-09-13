@@ -396,6 +396,54 @@ describe("SignupNotificationService (integration, local DB)", () => {
       );
     });
 
+    it("EXCLUDES an address that verified a code but has no account — a DELETED user", async () => {
+      if (!dbAvailable) return;
+      // The prod case. delete-user purges the user row but deliberately leaves
+      // auth_codes behind (that is how a deleted address is recovered), so the
+      // isNull(users.id) test matches forever. Three such rows were printed
+      // under "No sign-in was ever completed" — the opposite of the truth.
+      const addr = email("verified-then-deleted");
+      await mailCode({ email: addr, createdAt: daysAgo(5), used: true });
+
+      const report = await signupNotificationService.getStalledSignupReport(NOW);
+
+      expect(report.stalledSignIns.map((p) => p.email)).not.toContain(
+        addr.toLowerCase()
+      );
+    });
+
+    it("EXCLUDES the address if ANY of its codes was used, not just the last", async () => {
+      if (!dbAvailable) return;
+      // They got in on the first code; the later unused ones are a re-login
+      // they abandoned. Still not someone stuck at the code screen.
+      const addr = email("used-then-more");
+      await mailCode({ email: addr, createdAt: daysAgo(9), used: true });
+      await mailCode({ email: addr, createdAt: daysAgo(5) });
+      await mailCode({ email: addr, createdAt: daysAgo(4) });
+
+      const report = await signupNotificationService.getStalledSignupReport(NOW);
+
+      expect(report.stalledSignIns.map((p) => p.email)).not.toContain(
+        addr.toLowerCase()
+      );
+    });
+
+    it("still reports someone who burned several codes without ever verifying one", async () => {
+      if (!dbAvailable) return;
+      // The guard on the rule above: failing repeatedly is exactly the person
+      // the digest exists to surface, so the used-check must not swallow them.
+      const addr = email("never-verified");
+      await mailCode({ email: addr, createdAt: daysAgo(6), attempts: 2 });
+      await mailCode({ email: addr, createdAt: daysAgo(5), attempts: 3 });
+
+      const report = await signupNotificationService.getStalledSignupReport(NOW);
+      const row = report.stalledSignIns.find((p) => p.email === addr.toLowerCase());
+
+      expect(row).toBeDefined();
+      expect(row?.codesSent).toBe(2);
+      expect(Number(row?.failedAttempts)).toBe(5);
+    });
+
     it("matches the account case-insensitively — nothing lowercases these columns", async () => {
       if (!dbAvailable) return;
       const addr = email("MixedCase");

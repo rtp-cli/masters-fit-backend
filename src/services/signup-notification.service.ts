@@ -295,6 +295,17 @@ export class SignupNotificationService extends BaseService {
    *
    * Emails are compared lowercased because nothing in the auth flow normalizes
    * case before storing either auth_codes.email or users.email.
+   *
+   * "No user row" is necessary but NOT sufficient, which is why the HAVING also
+   * demands that no code was ever consumed. A deleted account leaves its
+   * auth_codes rows behind on purpose — they are how a deleted user's address
+   * is recovered (see account_deletion_log) — so a purged test account matches
+   * `isNull(users.id)` forever. Three of them were reported under a heading
+   * that reads "No sign-in was ever completed", which is the precise opposite
+   * of what happened: they verified a code, got in, and were deleted later.
+   * Same failure mode the 30-day clamp in stalledSignupMaxDays() guards, and
+   * the same reason it matters — this is the one email whose entire job is
+   * triage, so a confident false claim in it is worse than a missing row.
    */
   private async getStalledSignIns(
     now: Date,
@@ -328,7 +339,11 @@ export class SignupNotificationService extends BaseService {
       // ...but apply the grace period per PERSON, on their latest code. A
       // per-row cutoff hid the fresh code of someone actively retrying right
       // now, so they'd be reported mid-sign-in with an understated code count.
-      .having(sql`max(${authCodes.created_at}) <= ${newest}`);
+      // ...and drop anyone who ever verified a code: they are not stalled at
+      // the code screen, they are an account that has since been deleted.
+      .having(
+        sql`max(${authCodes.created_at}) <= ${newest} and bool_or(${authCodes.used}) = false`
+      );
 
     return rows
       .filter((r) => !isSuppressedSignupEmail(r.email))
