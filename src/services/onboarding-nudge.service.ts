@@ -95,6 +95,43 @@ export class OnboardingNudgeService extends BaseService {
   }
 
   /**
+   * One specific person, ignoring the timing window.
+   *
+   * For the ops script only: previewing a real user's nudge, and firing one on
+   * demand. Deliberately skips the createdAt window (the whole point is to act
+   * outside it) but NOT the opt-out check — someone who unsubscribed stays
+   * unsubscribed no matter who is typing the command.
+   */
+  async getCandidateById(
+    userId: number,
+    now: Date
+  ): Promise<NudgeCandidate | null> {
+    const [row] = await this.db
+      .select({
+        userId: users.id,
+        name: users.name,
+        email: users.email,
+        createdAt: users.createdAt,
+        optedOutAt: users.emailOptedOutAt,
+      })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!row || !row.createdAt || row.optedOutAt) return null;
+
+    return {
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      createdAt: row.createdAt,
+      stalledDays: Math.max(
+        1,
+        Math.floor((now.getTime() - row.createdAt.getTime()) / MS_PER_DAY)
+      ),
+    };
+  }
+
+  /**
    * Atomically claim the right to nudge this user.
    *
    * Same conditional-UPDATE idempotency as the signup alert: several Render

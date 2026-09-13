@@ -61,7 +61,7 @@ function host(): string {
   return process.env.DATABASE_URL?.match(/@([^/]+)/)?.[1] ?? "localhost";
 }
 
-async function testSend(to: string) {
+async function testSend(to: string, userId?: number) {
   requireEnabled();
 
   // A test send is a preview, so it must not be blocked by the compliance gate
@@ -76,16 +76,36 @@ async function testSend(to: string) {
     );
   }
 
+  // With --user, render from that person's REAL row so you see exactly what
+  // they would receive. Still sends to the address you named, and still claims
+  // nothing — this is a preview of their email, not their email.
+  let name = "Charlie";
+  if (userId !== undefined) {
+    const candidate = await onboardingNudgeService.getCandidateById(
+      userId,
+      getCurrentUTCDate()
+    );
+    if (!candidate) {
+      console.error(
+        `  No user ${userId}, or they have opted out. Nothing sent.\n`
+      );
+      process.exit(1);
+    }
+    name = candidate.name;
+    console.log(`\n  rendering from user ${userId}: ${candidate.email} (${candidate.name}, stalled ${candidate.stalledDays}d)`);
+  }
+
   console.log(`\nsend-onboarding-nudge — TEST SEND`);
   console.log(`  to           : ${to}`);
   console.log(`  continue url : ${onboardingContinueUrl()}`);
   console.log(`  no database rows are touched\n`);
 
   // userId 0 signs a token that resolves to no user, so clicking unsubscribe in
-  // the preview shows the failure page instead of opting a real person out.
+  // the preview shows the failure page instead of opting a real person out —
+  // including when previewing a real person's email.
   await emailService.sendOnboardingNudgeEmail({
     to,
-    name: "Charlie",
+    name,
     userId: 0,
     postalAddress: address,
   });
@@ -118,6 +138,34 @@ async function dryRun() {
   console.log("");
 }
 
+/**
+ * Really nudge ONE named person, now, ignoring the timing window.
+ *
+ * Claims and writes exactly like the daily job, so it can never double-send:
+ * if they have already been nudged the claim fails and this reports it.
+ */
+async function dispatchOne(userId: number) {
+  requireEnabled();
+
+  const candidate = await onboardingNudgeService.getCandidateById(
+    userId,
+    getCurrentUTCDate()
+  );
+  if (!candidate) {
+    console.error(`\n  No user ${userId}, or they have opted out. Nothing sent.\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`\nsend-onboarding-nudge — DISPATCH (db host: ${host()})`);
+  console.log(`  user ${userId}: ${candidate.email} (${candidate.name})`);
+  console.log(`  THIS SENDS A REAL EMAIL TO THEM.\n`);
+
+  const outcome = await onboardingNudgeService.sendNudge(candidate);
+  console.log(`  outcome: ${outcome}\n`);
+  if (outcome !== "sent") process.exitCode = 1;
+}
+
 async function runForReal() {
   requireEnabled();
   console.log(`\nsend-onboarding-nudge — REAL RUN (db host: ${host()})\n`);
@@ -127,16 +175,21 @@ async function runForReal() {
 
 async function main() {
   const to = arg("to");
+  const userRaw = arg("user");
+  const dispatchRaw = arg("dispatch");
 
-  if (to) return testSend(to);
+  if (to) return testSend(to, userRaw ? Number(userRaw) : undefined);
+  if (dispatchRaw) return dispatchOne(Number(dispatchRaw));
   if (flag("dry-run")) return dryRun();
   if (flag("run")) return runForReal();
 
   console.error(
     "Usage:\n" +
-      "  --to <email>   test send (no db writes)\n" +
-      "  --dry-run      show who would be nudged\n" +
-      "  --run          send for real"
+      "  --to <email>              test send from sample data (no db writes)\n" +
+      "  --to <email> --user <id>  preview a REAL user's nudge, sent to you (no db writes)\n" +
+      "  --dry-run                 show who would be nudged\n" +
+      "  --dispatch <id>           really nudge one person now, window ignored\n" +
+      "  --run                     run the full scan for real"
   );
   process.exitCode = 1;
 }
