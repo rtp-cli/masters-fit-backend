@@ -9,13 +9,31 @@ import {
   stalledSignupDigestTemplate,
   type StalledSignupDigestTemplateProps,
 } from "@/templates/stalled-signup-digest-email";
+import {
+  onboardingNudgeTemplate,
+  ONBOARDING_NUDGE_SUBJECT,
+} from "@/templates/onboarding-nudge-email";
 import { signupNotifyRecipients } from "@/constants/signup-notifications";
+import {
+  onboardingContinueUrl,
+  publicApiUrl,
+} from "@/constants/onboarding-nudge";
+import { signUnsubscribeToken } from "@/utils/email-token";
 import { logger } from "@/utils/logger";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "system@alif.care";
 const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "noreply@alif.care";
+
+// The onboarding nudge is signed by a person, so it sends as one. The address
+// must still live on the Resend-verified domain (updates.mastersfit.ai) or the
+// send is rejected — hence rtp@ THERE, with Reply-To pointing at the real
+// mailbox that a human actually reads.
+const NUDGE_FROM_NAME = process.env.NUDGE_FROM_NAME || "Rich Pusateri";
+const NUDGE_FROM_EMAIL =
+  process.env.NUDGE_FROM_EMAIL || "rtp@updates.mastersfit.ai";
+const NUDGE_REPLY_TO = process.env.NUDGE_REPLY_TO || "rtp@mastersfit.ai";
 
 // Triage inboxes — Google Workspace Groups forwarding to a real person.
 // On To (never Bcc): Bcc strips the alias the Gmail filters key on.
@@ -122,6 +140,66 @@ export class EmailService {
         renewalDate,
         messageId: response.data?.id,
       },
+    });
+  }
+
+  /**
+   * The onboarding nudge — the one email in this service that goes to a
+   * customer for a reason they didn't ask for.
+   *
+   * Two departures from every other send here, both intentional:
+   *
+   *   From is a PERSON, not the brand. It still has to sit on the Resend
+   *   verified domain (updates.mastersfit.ai), so this is rtp@ on that domain
+   *   with Reply-To pointed at the real rtp@mastersfit.ai inbox. Sending a
+   *   "just hit reply" email from noreply@ would undercut the only thing the
+   *   email is actually trying to buy.
+   *
+   *   The unsubscribe link is built here rather than passed in, so no caller
+   *   can construct this email without one.
+   */
+  async sendOnboardingNudgeEmail(params: {
+    to: string;
+    name: string;
+    userId: number;
+    postalAddress: string;
+  }): Promise<void> {
+    const { to, name, userId, postalAddress } = params;
+
+    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
+      signUnsubscribeToken(userId)
+    )}`;
+
+    const { html, text } = onboardingNudgeTemplate({
+      name,
+      continueUrl: onboardingContinueUrl(),
+      unsubscribeUrl,
+      postalAddress,
+    });
+
+    const response = await resend.emails.send({
+      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      to,
+      subject: ONBOARDING_NUDGE_SUBJECT,
+      html,
+      text,
+      replyTo: NUDGE_REPLY_TO,
+      // One-click unsubscribe. Gmail and Yahoo require this header on bulk
+      // mail; without it they are entitled to treat the send as spam no matter
+      // how good the footer link is.
+      headers: {
+        "List-Unsubscribe": `<${unsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Onboarding nudge email sent", {
+      operation: "sendOnboardingNudgeEmail",
+      metadata: { userId, messageId: response.data?.id },
     });
   }
 
