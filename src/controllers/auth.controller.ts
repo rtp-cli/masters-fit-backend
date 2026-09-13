@@ -14,6 +14,15 @@ import {
 } from "@tsoa/runtime";
 import { randomBytes } from "crypto";
 import {
+  clearReviewerBypassFailures,
+  isReviewerBypassLocked,
+  recordReviewerBypassFailure,
+} from "@/middleware/rate-limit.middleware";
+import {
+  isReviewerBypassCode,
+  reviewerBypassCode,
+} from "@/constants/reviewer-bypass";
+import {
   ApiResponse,
   EmailAuthRequest,
   AuthCodeRequest,
@@ -548,21 +557,47 @@ export class AuthController extends Controller {
       };
     }
 
-    // §4.5 — 9876 test bypass, now email-gated: it only works for an email on the
-    // system_config.test_email allowlist (the Apple-reviewer path). Previously the
-    // branch trusted whatever account held the 9876 row, so anyone submitting 9876
-    // could take that account. Verification is now gated the same way generation is.
-    if (authCode === "9876") {
-      if (!email || !(await systemConfigService.isTestEmail(email))) {
+    // §4.5 — app-store reviewer bypass, gated TWICE: the submitted code must match
+    // REVIEWER_BYPASS_CODE (held in Render, never in this public repo), and the email
+    // must be on the system_config.test_email allowlist. Previously the branch trusted
+    // whatever account held the 9876 row, so anyone submitting 9876 could take that
+    // account; that hole was closed by the email gate, and hardcoding the code is
+    // closed here. Unset env => isReviewerBypassCode() is false for every input, so
+    // this branch never runs and everyone goes through the normal emailed OTP.
+    const bypassCode = reviewerBypassCode();
+    if (bypassCode && email && (await systemConfigService.isTestEmail(email))) {
+      // Attempt cap lives here, not on auth_codes: the bypass never creates a
+      // row, and the email-bound verify path below returns INVALID_CODE without
+      // touching a counter when the address has no outstanding code — which is
+      // this account's normal state. Without this, all 10,000 four-digit codes
+      // could be walked unthrottled. Fails CLOSED (see rate-limit.middleware).
+      if (await isReviewerBypassLocked(email)) {
         return {
           success: false,
           errorCode: "INVALID_CODE",
           error: "Invalid auth code or email not authorized for bypass",
         };
       }
-      // Best-effort: consume any issued bypass row so it can't be replayed.
-      await authService.invalidateAuthCode("9876");
-      return this.issueSessionForEmail(email);
+
+      if (isReviewerBypassCode(authCode)) {
+        await clearReviewerBypassFailures(email);
+        // Best-effort: consume any issued bypass row so it can't be replayed.
+        await authService.invalidateAuthCode(bypassCode);
+        return this.issueSessionForEmail(email);
+      }
+
+      // Wrong code for an allowlisted address: count it, then fall through to
+      // normal verification so a genuine emailed code still works for them.
+      try {
+        await recordReviewerBypassFailure(email);
+      } catch {
+        // Redis down — fail closed rather than allow unlimited guessing.
+        return {
+          success: false,
+          errorCode: "INVALID_CODE",
+          error: "Invalid auth code or email not authorized for bypass",
+        };
+      }
     }
 
     // §4.2/4.3/4.4 — normal verification. Bound to email when the client sends it

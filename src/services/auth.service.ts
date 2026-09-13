@@ -1,4 +1,5 @@
 import { BaseService } from "./base.service";
+import { reviewerBypassCode } from "@/constants/reviewer-bypass";
 import { authCodes } from "@/models";
 import type { AuthCode, InsertAuthCode } from "@/models";
 import { and, desc, eq } from "drizzle-orm";
@@ -134,13 +135,17 @@ export class AuthService extends BaseService {
   async generateAuthCode(email: string): Promise<string> {
     // Check if this is a bypass email (from system_config)
     const isBypass = await this.isBypassEmail(email);
-    if (isBypass) {
-      const bypassOtp = "9876";
+    const bypassOtp = reviewerBypassCode();
+    // No configured code => fall through to a normal emailed OTP even for an
+    // allowlisted address. Fails closed rather than reopening a hardcoded one.
+    if (isBypass && bypassOtp) {
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+      // Deliberately does NOT log the code — it is the secret now, and these
+      // logs are retained in Render where the whole point is that it not appear.
       logger.info("Generating bypass OTP for test email", {
         operation: "generateAuthCode",
-        metadata: { email, isBypassEmail: true, bypassOtp },
+        metadata: { email, isBypassEmail: true },
       });
 
       // First, delete any existing bypass OTP codes globally to prevent unique constraint violations
