@@ -17,6 +17,7 @@ describe("signup notification config", () => {
     "SIGNUP_NOTIFY_ENABLED",
     "SIGNUP_NOTIFY_EMAIL",
     "SIGNUP_NOTIFY_SUPPRESS",
+    "SIGNUP_NOTIFY_SUPPRESS_DOMAINS",
     "TEST_ACCOUNT_NEW",
     "TEST_ACCOUNT_EXISTING",
     "STALLED_SIGNUP_MIN_HOURS",
@@ -104,7 +105,7 @@ describe("signup notification config", () => {
     it("does NOT suppress a real tester", () => {
       for (const email of [
         "jane.doe@gmail.com",
-        "marcus@example.com",
+        "marcus@hey.com",
         "rtp@notmastersfit.ai",
       ]) {
         expect(isSuppressedSignupEmail(email)).toBe(false);
@@ -117,17 +118,88 @@ describe("signup notification config", () => {
     });
 
     it("suppresses the auth bypass test accounts", () => {
-      process.env.TEST_ACCOUNT_NEW = "new-tester@example.com";
-      process.env.TEST_ACCOUNT_EXISTING = "existing-tester@example.com";
-      expect(isSuppressedSignupEmail("new-tester@example.com")).toBe(true);
-      expect(isSuppressedSignupEmail("existing-tester@example.com")).toBe(true);
-      expect(isSuppressedSignupEmail("other@example.com")).toBe(false);
+      process.env.TEST_ACCOUNT_NEW = "new-tester@gmail.com";
+      process.env.TEST_ACCOUNT_EXISTING = "existing-tester@gmail.com";
+      expect(isSuppressedSignupEmail("new-tester@gmail.com")).toBe(true);
+      expect(isSuppressedSignupEmail("existing-tester@gmail.com")).toBe(true);
+      expect(isSuppressedSignupEmail("other@gmail.com")).toBe(false);
     });
 
     it("suppresses anything in the ad-hoc env list", () => {
-      process.env.SIGNUP_NOTIFY_SUPPRESS = "loud@example.com, noisy@example.com";
-      expect(isSuppressedSignupEmail("noisy@example.com")).toBe(true);
-      expect(isSuppressedSignupEmail("quiet@example.com")).toBe(false);
+      process.env.SIGNUP_NOTIFY_SUPPRESS = "loud@gmail.com, noisy@gmail.com";
+      expect(isSuppressedSignupEmail("noisy@gmail.com")).toBe(true);
+      expect(isSuppressedSignupEmail("quiet@gmail.com")).toBe(false);
+    });
+
+    it("suppresses RFC-reserved test domains", () => {
+      // Our own test data. The jobs-claim concurrency test leaves
+      // test-jobs-claim-<ts>@example.test users behind when a run is
+      // interrupted, and each survivor would otherwise read as a new stalled
+      // signup in the next digest.
+      for (const email of [
+        "test-jobs-claim-1788714813421@example.test",
+        "newsignup-probe-5587@example.com",
+        "someone@example.net",
+        "someone@example.org",
+        "probe@my-mac.local",
+        "root@localhost",
+        "typo@invalid",
+        "fixture@example",
+        "nested@mail.example.com",
+      ]) {
+        expect(isSuppressedSignupEmail(email)).toBe(true);
+      }
+    });
+
+    it("does not suppress a real domain that merely resembles a reserved one", () => {
+      for (const email of [
+        "jane@example.io",
+        "jane@myexample.com",
+        "jane@testing.com",
+        "jane@notexample.org",
+      ]) {
+        expect(isSuppressedSignupEmail(email)).toBe(false);
+      }
+    });
+
+    it("suppresses a whole domain from the env list", () => {
+      // The real case: misspellings of our OWN domain. Eleven of these reached
+      // one digest. None of them resolve, so nobody ever received a code at
+      // one — and because the digest only sends on a day a NEW name joins, a
+      // fresh misspelling is what sends the email, not just a line inside it.
+      process.env.SIGNUP_NOTIFY_SUPPRESS_DOMAINS =
+        "mastersfit.air, mastersfit.ait, mastetsfit.ai, masterafit.ai";
+      for (const email of [
+        "eview@mastersfit.air",
+        "+applereview@mastersfit.air",
+        "rp+applereview@mastersfit.ait",
+        "rtp@mastetsfit.ai",
+        "rtp@masterafit.ai",
+        "anything@mail.mastersfit.air",
+      ]) {
+        expect(isSuppressedSignupEmail(email)).toBe(true);
+      }
+    });
+
+    it("leaves the real domain alone when its misspellings are suppressed", () => {
+      // The guard on the rule that was tried and removed. Suppressing
+      // mastersfit.air must not touch mastersfit.ai, or it eats the sim tests
+      // the same way the old domain-wide rule did.
+      process.env.SIGNUP_NOTIFY_SUPPRESS_DOMAINS = "mastersfit.air,mastersfit.ait";
+      expect(isSuppressedSignupEmail("rtp+signuptest07@mastersfit.ai")).toBe(false);
+      expect(isSuppressedSignupEmail("jane@fit.ai")).toBe(false);
+    });
+
+    it("still suppresses reserved domains when the env list is unset", () => {
+      delete process.env.SIGNUP_NOTIFY_SUPPRESS_DOMAINS;
+      expect(isSuppressedSignupEmail("probe@example.com")).toBe(true);
+      expect(isSuppressedSignupEmail("jane@gmail.com")).toBe(false);
+    });
+
+    it("reads the domain list at call time, so Render can be changed without a deploy", () => {
+      expect(isSuppressedSignupEmail("rtp@mastersfit.air")).toBe(false);
+      process.env.SIGNUP_NOTIFY_SUPPRESS_DOMAINS = "mastersfit.air";
+      expect(isSuppressedSignupEmail("rtp@mastersfit.air")).toBe(true);
     });
 
     it("treats a missing or blank address as suppressed", () => {
