@@ -14,6 +14,11 @@ import {
 } from "@tsoa/runtime";
 import { randomBytes } from "crypto";
 import {
+  clearReviewerBypassFailures,
+  isReviewerBypassLocked,
+  recordReviewerBypassFailure,
+} from "@/middleware/rate-limit.middleware";
+import {
   isReviewerBypassCode,
   reviewerBypassCode,
 } from "@/constants/reviewer-bypass";
@@ -560,17 +565,39 @@ export class AuthController extends Controller {
     // closed here. Unset env => isReviewerBypassCode() is false for every input, so
     // this branch never runs and everyone goes through the normal emailed OTP.
     const bypassCode = reviewerBypassCode();
-    if (bypassCode && isReviewerBypassCode(authCode)) {
-      if (!email || !(await systemConfigService.isTestEmail(email))) {
+    if (bypassCode && email && (await systemConfigService.isTestEmail(email))) {
+      // Attempt cap lives here, not on auth_codes: the bypass never creates a
+      // row, and the email-bound verify path below returns INVALID_CODE without
+      // touching a counter when the address has no outstanding code — which is
+      // this account's normal state. Without this, all 10,000 four-digit codes
+      // could be walked unthrottled. Fails CLOSED (see rate-limit.middleware).
+      if (await isReviewerBypassLocked(email)) {
         return {
           success: false,
           errorCode: "INVALID_CODE",
           error: "Invalid auth code or email not authorized for bypass",
         };
       }
-      // Best-effort: consume any issued bypass row so it can't be replayed.
-      await authService.invalidateAuthCode(bypassCode);
-      return this.issueSessionForEmail(email);
+
+      if (isReviewerBypassCode(authCode)) {
+        await clearReviewerBypassFailures(email);
+        // Best-effort: consume any issued bypass row so it can't be replayed.
+        await authService.invalidateAuthCode(bypassCode);
+        return this.issueSessionForEmail(email);
+      }
+
+      // Wrong code for an allowlisted address: count it, then fall through to
+      // normal verification so a genuine emailed code still works for them.
+      try {
+        await recordReviewerBypassFailure(email);
+      } catch {
+        // Redis down — fail closed rather than allow unlimited guessing.
+        return {
+          success: false,
+          errorCode: "INVALID_CODE",
+          error: "Invalid auth code or email not authorized for bypass",
+        };
+      }
     }
 
     // §4.2/4.3/4.4 — normal verification. Bound to email when the client sends it

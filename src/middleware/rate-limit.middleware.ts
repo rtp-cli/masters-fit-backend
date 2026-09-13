@@ -63,6 +63,82 @@ async function hitBucket(key: string, bucket: Bucket): Promise<BucketState> {
   };
 }
 
+/**
+ * Failed-attempt cap for the app-store reviewer OTP bypass.
+ *
+ * Why this exists separately from everything above: the bypass code is compared
+ * against REVIEWER_BYPASS_CODE *before* any auth_codes lookup, so the `attempts`
+ * column can't see it. And the email-bound verify path returns INVALID_CODE with
+ * no counter touched when the address has no outstanding code row
+ * (auth.service.ts §4.2) — which is the reviewer account's normal state, since
+ * nobody requests reviewer logins. Net effect before this: the 4-digit bypass
+ * code could be walked end to end against /auth/verify, unthrottled, by anyone
+ * who knew the allowlisted address. That address is public in PROTECTED_EMAILS.
+ *
+ * The code has to stay 4 numeric digits because the client's verify screen is a
+ * number-pad with four boxes (verify-screen.tsx), so 10,000 combinations is the
+ * whole keyspace and throttling is what makes it a real secret — the same
+ * bargain a bank PIN makes.
+ *
+ * FAILS CLOSED, unlike otpSendRateLimit. If Redis is unreachable the bypass is
+ * refused rather than allowed, because failing open here reopens precisely the
+ * hole this closes. The blast radius of that choice is one purpose-built
+ * account, never a real user: normal sign-in never reaches this code.
+ */
+const BYPASS_ATTEMPT_BUCKET: Bucket = {
+  name: "bypass:1h",
+  windowSec: 60 * 60,
+  max: 10,
+};
+
+const bypassKey = (email: string) =>
+  `bypass-rl:${BYPASS_ATTEMPT_BUCKET.name}:${email.trim().toLowerCase()}`;
+
+/**
+ * Record one failed bypass attempt. Returns true when the address is now locked
+ * out for the rest of the window. Throws only if Redis is down; callers treat a
+ * throw as locked.
+ */
+export async function recordReviewerBypassFailure(
+  email: string
+): Promise<boolean> {
+  const state = await hitBucket(bypassKey(email), BYPASS_ATTEMPT_BUCKET);
+  if (state.blocked) {
+    logger.warn("Reviewer bypass attempts locked out", {
+      operation: "recordReviewerBypassFailure",
+      metadata: { email, retryAfterSec: state.retryAfterSec },
+    });
+  }
+  return state.blocked;
+}
+
+/**
+ * Whether this address is currently locked out of the bypass. Fails CLOSED:
+ * a Redis outage reports locked.
+ */
+export async function isReviewerBypassLocked(email: string): Promise<boolean> {
+  try {
+    const count = await redisClient.get(bypassKey(email));
+    return count !== null && Number(count) > BYPASS_ATTEMPT_BUCKET.max;
+  } catch (error) {
+    logger.error(
+      "Reviewer bypass lock check unavailable, refusing bypass",
+      error as Error,
+      { operation: "isReviewerBypassLocked", metadata: { email } }
+    );
+    return true;
+  }
+}
+
+/** Clear the counter after a successful bypass sign-in. Best-effort. */
+export async function clearReviewerBypassFailures(email: string): Promise<void> {
+  try {
+    await redisClient.del(bypassKey(email));
+  } catch {
+    // Non-fatal: the window expires on its own.
+  }
+}
+
 function humanizeWait(seconds: number): string {
   if (seconds <= 90) return "a minute";
   const minutes = Math.ceil(seconds / 60);

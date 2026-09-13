@@ -25,6 +25,15 @@ jest.mock("@/utils/redis", () => ({
       return true;
     },
     ttl: async (key: string) => store.get(key)?.ttl ?? -1,
+    get: async (key: string) => {
+      if (redisShouldThrow) throw new Error("redis down");
+      const entry = store.get(key);
+      return entry ? String(entry.count) : null;
+    },
+    del: async (key: string) => {
+      if (redisShouldThrow) throw new Error("redis down");
+      return store.delete(key) ? 1 : 0;
+    },
   },
 }));
 
@@ -34,7 +43,12 @@ jest.mock("@/utils/logger", () => ({
 
 // Imported after the mocks so the middleware picks up the fake client.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { otpSendRateLimit } = require("./rate-limit.middleware");
+const {
+  otpSendRateLimit,
+  recordReviewerBypassFailure,
+  isReviewerBypassLocked,
+  clearReviewerBypassFailures,
+} = require("./rate-limit.middleware");
 
 function makeReq(email: string, ip = "203.0.113.7"): Request {
   return {
@@ -124,5 +138,63 @@ describe("otpSendRateLimit", () => {
     const { called, res } = await run("a@example.com");
     expect(called).toBe(true);
     expect(res.body).toBeUndefined();
+  });
+});
+
+describe("reviewer bypass attempt cap", () => {
+  const EMAIL = "rtp+review@mastersfit.ai";
+  const MAX = 10; // BYPASS_ATTEMPT_BUCKET.max
+
+  beforeEach(() => {
+    store.clear();
+    redisShouldThrow = false;
+  });
+
+  it("is unlocked before any failures", async () => {
+    expect(await isReviewerBypassLocked(EMAIL)).toBe(false);
+  });
+
+  it("stays unlocked through the allowed attempts, then locks", async () => {
+    for (let i = 0; i < MAX; i++) {
+      expect(await recordReviewerBypassFailure(EMAIL)).toBe(false);
+    }
+    expect(await isReviewerBypassLocked(EMAIL)).toBe(false);
+
+    // The attempt that exceeds the bucket is the one that locks.
+    expect(await recordReviewerBypassFailure(EMAIL)).toBe(true);
+    expect(await isReviewerBypassLocked(EMAIL)).toBe(true);
+  });
+
+  it("caps guessing far below the 10,000-code keyspace", async () => {
+    for (let i = 0; i < 50; i++) await recordReviewerBypassFailure(EMAIL);
+    expect(await isReviewerBypassLocked(EMAIL)).toBe(true);
+  });
+
+  it("clears the counter after a successful sign-in", async () => {
+    for (let i = 0; i <= MAX; i++) await recordReviewerBypassFailure(EMAIL);
+    expect(await isReviewerBypassLocked(EMAIL)).toBe(true);
+
+    await clearReviewerBypassFailures(EMAIL);
+    expect(await isReviewerBypassLocked(EMAIL)).toBe(false);
+  });
+
+  it("is keyed per address, case-insensitively", async () => {
+    for (let i = 0; i <= MAX; i++) await recordReviewerBypassFailure(EMAIL);
+    expect(await isReviewerBypassLocked(EMAIL.toUpperCase())).toBe(true);
+    expect(await isReviewerBypassLocked("someone-else@example.com")).toBe(false);
+  });
+
+  // The deliberate difference from otpSendRateLimit, which fails OPEN so a
+  // Redis outage can't lock real users out of signing in. Here, failing open
+  // would restore unlimited guessing against the bypass, so it fails CLOSED —
+  // and the only account affected is the purpose-built reviewer login.
+  it("FAILS CLOSED when Redis is unreachable", async () => {
+    redisShouldThrow = true;
+    expect(await isReviewerBypassLocked(EMAIL)).toBe(true);
+  });
+
+  it("propagates a Redis failure from the recorder so callers can refuse", async () => {
+    redisShouldThrow = true;
+    await expect(recordReviewerBypassFailure(EMAIL)).rejects.toThrow("redis down");
   });
 });
