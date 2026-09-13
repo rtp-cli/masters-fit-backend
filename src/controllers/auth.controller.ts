@@ -14,6 +14,10 @@ import {
 } from "@tsoa/runtime";
 import { randomBytes } from "crypto";
 import {
+  isReviewerBypassCode,
+  reviewerBypassCode,
+} from "@/constants/reviewer-bypass";
+import {
   ApiResponse,
   EmailAuthRequest,
   AuthCodeRequest,
@@ -548,11 +552,15 @@ export class AuthController extends Controller {
       };
     }
 
-    // §4.5 — 9876 test bypass, now email-gated: it only works for an email on the
-    // system_config.test_email allowlist (the Apple-reviewer path). Previously the
-    // branch trusted whatever account held the 9876 row, so anyone submitting 9876
-    // could take that account. Verification is now gated the same way generation is.
-    if (authCode === "9876") {
+    // §4.5 — app-store reviewer bypass, gated TWICE: the submitted code must match
+    // REVIEWER_BYPASS_CODE (held in Render, never in this public repo), and the email
+    // must be on the system_config.test_email allowlist. Previously the branch trusted
+    // whatever account held the 9876 row, so anyone submitting 9876 could take that
+    // account; that hole was closed by the email gate, and hardcoding the code is
+    // closed here. Unset env => isReviewerBypassCode() is false for every input, so
+    // this branch never runs and everyone goes through the normal emailed OTP.
+    const bypassCode = reviewerBypassCode();
+    if (bypassCode && isReviewerBypassCode(authCode)) {
       if (!email || !(await systemConfigService.isTestEmail(email))) {
         return {
           success: false,
@@ -561,7 +569,7 @@ export class AuthController extends Controller {
         };
       }
       // Best-effort: consume any issued bypass row so it can't be replayed.
-      await authService.invalidateAuthCode("9876");
+      await authService.invalidateAuthCode(bypassCode);
       return this.issueSessionForEmail(email);
     }
 

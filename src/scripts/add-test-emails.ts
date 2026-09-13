@@ -1,6 +1,6 @@
 /**
  * One-off: add emails to the system_config `test_email` allowlist (enables the
- * 9876 OTP bypass for those addresses). APPEND-ONLY and idempotent — it reads
+ * reviewer OTP bypass for those addresses, whose code is REVIEWER_BYPASS_CODE in Render — see src/constants/reviewer-bypass.ts). APPEND-ONLY and idempotent — it reads
  * the current list, merges + dedupes (lowercased), and writes back, so it never
  * clobbers existing entries (e.g. the Apple-reviewer email).
  *
