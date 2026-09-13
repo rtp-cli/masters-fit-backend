@@ -35,7 +35,10 @@ export const onboardingNudgeTemplate = ({
 
   const href = escapeHtml(continueUrl);
   const unsubHref = escapeHtml(unsubscribeUrl);
-  const address = escapeHtml(postalAddress);
+  // Escape FIRST, then turn newlines into breaks — the other order would
+  // escape the <br> tags. Lets the env var hold either a one-line address or a
+  // pasted multi-line one without the HTML collapsing it into a run-on.
+  const address = escapeHtml(postalAddress).replace(/\r?\n/g, "<br />");
 
   const html = `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
