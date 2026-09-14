@@ -16,6 +16,7 @@
     "db:studio": "drizzle-kit studio",
     "tsoa": "tsoa spec-and-routes",
     "tsc": "tsc --noEmit",
+    "fix-exercise-link": "tsx src/scripts/fix-exercise-link.ts",
     "reset-user-trial": "tsx src/scripts/reset-user-trial.ts",
     "reset-workout-day": "tsx src/scripts/reset-workout-day.ts",
     "send-renewal-reminder": "tsx src/scripts/send-renewal-reminder.ts",
