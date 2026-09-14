@@ -21,6 +21,10 @@
  * link/has_demo columns. Pass --dry-run to preview without writing.
  * Reversible: the old link is printed, so you can re-run with it to roll back.
  *
+ * Also refuses to run from a checkout that is behind origin/main — this writes
+ * to prod from a laptop, so a deploy is not what decides which code runs; see
+ * lib/checkout-freshness.ts. --dry-run only warns; --stale-ok overrides.
+ *
  * Usage:
  *   # Preview against the LOCAL db:
  *   npm run fix-exercise-link -- --id 1131 \
@@ -38,6 +42,7 @@
 import { db } from "@/config/database";
 import { exercises } from "@/models/exercise.schema";
 import { checkDemoLink, extractYouTubeVideoId } from "@/utils/video-validation";
+import { assertCheckoutIsCurrent } from "./lib/checkout-freshness";
 import { eq } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
@@ -53,10 +58,11 @@ const nameArg = argValue("--name");
 const newLink = argValue("--link");
 const allowRemote = process.argv.includes("--remote");
 const dryRun = process.argv.includes("--dry-run");
+const staleOk = process.argv.includes("--stale-ok");
 
 const USAGE =
   "Usage: npm run fix-exercise-link -- (--id <id> | --name <exact name>) " +
-  "--link <url> [--remote] [--dry-run]";
+  "--link <url> [--remote] [--dry-run] [--stale-ok]";
 
 if ((!idArg && !nameArg) || (idArg && nameArg) || !newLink) {
   console.error(USAGE);
@@ -133,6 +139,15 @@ async function videoTitle(link: string | null): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  // A dry run reads and prints only, so it warns rather than blocking — but it
+  // is also the preflight for the real write, so it still says something.
+  await assertCheckoutIsCurrent({
+    skip: staleOk,
+    warnOnly: dryRun,
+    label: "fix-exercise-link",
+    effect: "write to the database",
+  });
+
   assertLocalDatabase();
 
   const [exercise] = await db
