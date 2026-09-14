@@ -13,6 +13,10 @@ import {
   onboardingNudgeTemplate,
   ONBOARDING_NUDGE_SUBJECT,
 } from "@/templates/onboarding-nudge-email";
+import {
+  compGrantedTemplate,
+  COMP_GRANTED_SUBJECT,
+} from "@/templates/comp-granted-email";
 import { signupNotifyRecipients } from "@/constants/signup-notifications";
 import {
   onboardingContinueUrl,
@@ -200,6 +204,50 @@ export class EmailService {
     logger.info("Onboarding nudge email sent", {
       operation: "sendOnboardingNudgeEmail",
       metadata: { userId, messageId: response.data?.id },
+    });
+  }
+
+  /**
+   * "I've comped your account" — sent when someone is granted COMPLIMENTARY
+   * access.
+   *
+   * TRANSACTIONAL, unlike the onboarding nudge: it reports a change to the
+   * recipient's own account, so it carries NO List-Unsubscribe headers and no
+   * postal address, and the caller does not consult `email_opted_out_at`.
+   * Opting out of setup reminders shouldn't stop us telling you your access
+   * changed.
+   *
+   * Sends as a person for the same reason the nudge does — it's signed "Rich"
+   * and it invites a reply.
+   *
+   * THROWS on failure. The caller (an ops script) has already granted the
+   * access, which is the part that matters, and must report the email failure
+   * without pretending the comp failed.
+   */
+  async sendCompGrantedEmail(params: {
+    to: string;
+    name: string;
+  }): Promise<void> {
+    const { to, name } = params;
+
+    const { html, text } = compGrantedTemplate({ name });
+
+    const response = await resend.emails.send({
+      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      to,
+      subject: COMP_GRANTED_SUBJECT,
+      html,
+      text,
+      replyTo: NUDGE_REPLY_TO,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Comp granted email sent", {
+      operation: "sendCompGrantedEmail",
+      metadata: { recipient: to, messageId: response.data?.id },
     });
   }
 
