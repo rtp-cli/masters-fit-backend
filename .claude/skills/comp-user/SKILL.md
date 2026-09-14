@@ -42,11 +42,23 @@ guests — anyone who should use the real app for free without a store purchase.
    internal accounts — see `shouldSendCompEmail` in `src/constants/comp-notification.ts`. Pass
    `--no-email` to comp silently. **The email never gates the comp:** access is granted first, and
    a send failure prints `COMP APPLIED, but the email ... failed` rather than failing the run.
+   Every lifecycle send is Bcc'd to the owner address (`lifecycleBcc` in `email.service.ts`), so a
+   copy landing in Rich's inbox is the real proof it went out.
+
+8. **The email is sent by YOUR CHECKOUT, not by Render.** `assertCheckoutIsCurrent`
+   (`src/scripts/lib/checkout-freshness.ts`) fetches `origin/main` and **refuses to run** — exit 1,
+   before any write or send — if HEAD is behind, naming the missing commits. So `git pull` before
+   comping anyone; a deploy to Render does nothing for this script. It only warns (and continues)
+   on `--dry-run`, and where git can't answer (no repo, offline, no `origin/main`). `--stale-ok`
+   overrides it everywhere — use that only when you deliberately mean to run the old code.
+   This guard exists because on 2026-09-14 a comp email went out missing its just-shipped owner
+   Bcc: the send looked perfectly successful, it was simply the previous commit's code.
 
 ## Where it runs
 
 ```bash
 cd /Users/richpusateri/Projects/MastersFit/backend
+git pull        # required — the comp email ships from this checkout (guardrail 8)
 ```
 
 Local is the default. For prod, **never handle the connection string yourself** — no `grep`ing it
@@ -109,4 +121,5 @@ Sets `access_override` back to `NULL`. The account reverts to its real trial/pai
 - **delete-user** — hard-delete a throwaway account (irreversible).
 - **reset-user-trial** (`reset-user-trial.ts`) — clear the free-workout meter instead of comping.
 - **diag-user-access** — read-only "what happens if they log in right now?".
-- **test-emails** (`add-test-emails.ts`) — the `9876` bypass-OTP allowlist, unrelated to access tier.
+- **test-emails** (`add-test-emails.ts`) — the reviewer OTP-bypass allowlist (the code itself is
+  `REVIEWER_BYPASS_CODE` in Render, no longer the old hardcoded `9876`). Unrelated to access tier.
