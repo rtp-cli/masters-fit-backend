@@ -43,6 +43,12 @@ export interface CheckoutFreshnessOptions {
   warnOnly?: boolean;
   /** Shown in the failure message, e.g. "npm run comp-user". */
   label: string;
+  /**
+   * What this script actually does to the outside world, completing "it will
+   * ___ using the older code". Keep it true per script: claiming a send that
+   * can't happen teaches the operator to skim the guard.
+   */
+  effect?: string;
 }
 
 /**
@@ -52,7 +58,12 @@ export interface CheckoutFreshnessOptions {
 export async function assertCheckoutIsCurrent(
   options: CheckoutFreshnessOptions,
 ): Promise<void> {
-  const { skip = false, warnOnly = false, label } = options;
+  const {
+    skip = false,
+    warnOnly = false,
+    label,
+    effect = "send email and write to the database",
+  } = options;
 
   if (skip) {
     console.warn(`  ⚠️  --stale-ok: skipping the checkout freshness check.\n`);
@@ -101,8 +112,8 @@ export async function assertCheckoutIsCurrent(
 
   const headline = `This checkout is ${count} commit${count === 1 ? "" : "s"} behind ${REMOTE}/${BRANCH}.`;
   const why =
-    `${label} runs from THIS directory, not from Render — it will send email and write\n` +
-    `to the database using the older code. A deploy does not fix that; only a pull does.`;
+    `${label} runs from THIS directory, not from Render — it will ${effect}\n` +
+    `using the older code. A deploy does not fix that; only a pull does.`;
 
   if (warnOnly) {
     const indented = why
