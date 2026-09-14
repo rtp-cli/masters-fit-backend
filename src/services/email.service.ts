@@ -39,10 +39,15 @@ const NUDGE_FROM_EMAIL =
   process.env.NUDGE_FROM_EMAIL || "rtp@updates.mastersfit.ai";
 const NUDGE_REPLY_TO = process.env.NUDGE_REPLY_TO || "rtp@mastersfit.ai";
 
-// Early-phase owner visibility: Rich gets a Bcc on every email that goes to a
-// real user from a person (the onboarding nudge and the comp note), so nothing
-// reaches a new member that he hasn't seen. Set LIFECYCLE_BCC_EMAIL to an empty
-// string in Render to turn it off without a deploy.
+// Early-phase owner visibility: Rich gets a Bcc on every LIFECYCLE email — the
+// ones that reach a real customer because of where they are in their
+// relationship with us, not because they asked for something (the onboarding
+// nudge, the comp note, the renewal reminder). Nothing should land in a
+// member's inbox that he hasn't seen.
+//
+// NOT on the OTP (one a minute, and he can't act on it), and not on the
+// internal alerts, which already come to him. Set LIFECYCLE_BCC_EMAIL to an
+// empty string in Render to turn it off without a deploy.
 const LIFECYCLE_BCC_EMAIL = (
   process.env.LIFECYCLE_BCC_EMAIL ?? "rtp@mastersfit.ai"
 ).trim();
@@ -145,6 +150,7 @@ export class EmailService {
     const response = await resend.emails.send({
       from: `MastersFit <${FROM_EMAIL}>`,
       to,
+      bcc: lifecycleBcc(to),
       subject: `Your MastersFit+ renews on ${renewalDate}`,
       html,
       text,
