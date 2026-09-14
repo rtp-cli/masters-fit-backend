@@ -1,10 +1,18 @@
 import Mixpanel from "mixpanel";
 import { logger } from "@/utils/logger";
 
+/**
+ * Properties we allow onto a Mixpanel person profile.
+ *
+ * Deliberately NO direct identifiers and NO health data. Profiles are keyed on
+ * the user's uuid, which is all we need to join analytics back to an account
+ * internally; shipping $email/$name as well put a real identity in a third-party
+ * tool for no analytical gain. `physical_limitations` is health data about a
+ * named person and is likewise out. Both are enforced at the chokepoint below
+ * (PROFILE_DENYLIST), not just by the callers.
+ */
 export interface UserProfileProperties {
   // Basic user info
-  $email: string;
-  $name: string;
   $created: Date;
 
   // Demographics
@@ -17,13 +25,32 @@ export interface UserProfileProperties {
   // Fitness profile
   fitness_level?: "beginner" | "intermediate" | "advanced" | "expert";
   primary_goals?: string[];
-  physical_limitations?: string[];
   workout_environment?: "home" | "gym" | "outdoor" | "mixed";
   available_equipment?: string[];
   preferred_workout_styles?: string[];
   preferred_workout_days?: string[];
   workout_intensity_preference?: "low" | "moderate" | "high" | "variable";
 }
+
+/**
+ * Never forwarded to Mixpanel, whatever a caller passes. Direct identifiers and
+ * health data about an identified person. Stripped in sanitizeProperties(), the
+ * single path every person-profile write goes through, so a future caller can't
+ * reintroduce them by accident.
+ */
+const PROFILE_DENYLIST = new Set([
+  "$email",
+  "$name",
+  "$first_name",
+  "$last_name",
+  "$phone",
+  "email",
+  "name",
+  "physical_limitations",
+  "limitations",
+  "medical_notes",
+  "medicalNotes",
+]);
 
 export interface EventProperties {
   [key: string]: string | number | boolean | Date | string[] | undefined;
@@ -254,6 +281,11 @@ export class MixpanelService {
     const sanitized: Record<string, any> = {};
 
     for (const [key, value] of Object.entries(properties)) {
+      // Direct identifiers / health data never leave for Mixpanel.
+      if (PROFILE_DENYLIST.has(key)) {
+        continue;
+      }
+
       // Skip undefined values
       if (value === undefined || value === null) {
         continue;
