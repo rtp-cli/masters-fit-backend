@@ -234,9 +234,11 @@ export class EventTrackingService {
       await this.identifyUser(user.uuid, ip);
 
       // Create comprehensive profile data
+      // No $email / $name: the profile is keyed on user.uuid, which is enough to
+      // join back to an account internally, so putting a real identity into a
+      // third-party analytics tool bought us nothing. Also enforced by
+      // PROFILE_DENYLIST in mixpanel.service.ts.
       const profileData: Record<string, any> = {
-        $email: user.email,
-        $name: user.name,
         $created: user.createdAt,
         onboarding_complete: !user.needsOnboarding,
         waiver_accepted: !!user.waiverAcceptedAt,
@@ -260,8 +262,8 @@ export class EventTrackingService {
           if (userProfile.preferredStyles)
             profileData.preferred_workout_styles = userProfile.preferredStyles;
           if (userProfile.goals) profileData.primary_goals = userProfile.goals;
-          if (userProfile.limitations)
-            profileData.physical_limitations = userProfile.limitations;
+          // Physical limitations are health data about an identified person and
+          // are deliberately not sent to Mixpanel.
         }
       } catch (profileError) {
         // Profile might not exist yet, that's okay
@@ -276,7 +278,7 @@ export class EventTrackingService {
 
       logger.info("User profile ensured in Mixpanel", {
         userUuid: user.uuid,
-        hasProfile: Object.keys(profileData).length > 4, // More than basic fields
+        hasProfile: Object.keys(profileData).length > 3, // More than the 3 base fields
         hasIP: !!ip,
         ipPreview: ip ? ip.substring(0, 8) + "..." : undefined,
       });
