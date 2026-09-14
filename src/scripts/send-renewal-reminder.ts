@@ -28,7 +28,12 @@ import "dotenv/config";
 import { emailService } from "@/services/email.service";
 import { subscriptionService } from "@/services/subscription.service";
 import { runRenewalReminderScan } from "@/jobs/renewal-reminder.job";
-import { BillingPeriod, RENEWAL_REMINDER_DAYS, MANAGE_SUBSCRIPTION_URL } from "@/constants";
+import {
+  BillingPeriod,
+  RENEWAL_REMINDER_DAYS,
+  MANAGE_SUBSCRIPTION_URL,
+} from "@/constants";
+import { assertCheckoutIsCurrent } from "./lib/checkout-freshness";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -67,11 +72,13 @@ async function testSend(to: string) {
   }
   const renewalDate =
     arg("date") ??
-    formatDate(new Date(Date.now() + RENEWAL_REMINDER_DAYS[period] * MS_PER_DAY));
+    formatDate(
+      new Date(Date.now() + RENEWAL_REMINDER_DAYS[period] * MS_PER_DAY),
+    );
   const name = arg("name") ?? "there";
 
   console.log(
-    `Sending TEST renewal reminder to ${to} — ${planLabel}, ${price ?? "no price"}, renews ${renewalDate}`
+    `Sending TEST renewal reminder to ${to} — ${planLabel}, ${price ?? "no price"}, renews ${renewalDate}`,
   );
   await emailService.sendRenewalReminderEmail({
     to,
@@ -90,12 +97,12 @@ async function runScan() {
   if (!isLocal && !flag("remote")) {
     console.error(
       "Refusing to run the real scan against a non-local DATABASE_URL without --remote.\n" +
-        "This emails REAL subscribers. Re-run with --remote if that's intended."
+        "This emails REAL subscribers. Re-run with --remote if that's intended.",
     );
     process.exit(1);
   }
   console.log(
-    `Running the real renewal-reminder scan now against ${isLocal ? "LOCAL" : "REMOTE"} db…`
+    `Running the real renewal-reminder scan now against ${isLocal ? "LOCAL" : "REMOTE"} db…`,
   );
   const result = await runRenewalReminderScan(new Date());
   console.log("✓ Scan complete:", JSON.stringify(result));
@@ -103,6 +110,15 @@ async function runScan() {
 
 async function main() {
   const to = arg("to");
+
+  // Sends from THIS checkout, never from Render — see lib/checkout-freshness.ts.
+  if (to || flag("run")) {
+    await assertCheckoutIsCurrent({
+      skip: flag("stale-ok"),
+      label: "send-renewal-reminder",
+    });
+  }
+
   if (to) {
     await testSend(to);
   } else if (flag("run")) {
@@ -111,7 +127,8 @@ async function main() {
     console.log(
       "Usage:\n" +
         "  npm run send-renewal-reminder -- --to you@example.com [--plan annual|monthly] [--name N] [--price '$89.99'] [--date 'August 12, 2026']\n" +
-        "  npm run send-renewal-reminder -- --run [--remote]   # run the real scan now"
+        "  npm run send-renewal-reminder -- --run [--remote]   # run the real scan now\n" +
+        "  add --stale-ok to either to run from a checkout that is behind main",
     );
     process.exit(1);
   }

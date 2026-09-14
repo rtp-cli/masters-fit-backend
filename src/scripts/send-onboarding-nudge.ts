@@ -37,6 +37,7 @@ import {
 } from "@/constants/onboarding-nudge";
 import { getCurrentUTCDate } from "@/utils/date.utils";
 import { pool } from "@/config/database";
+import { assertCheckoutIsCurrent } from "./lib/checkout-freshness";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -51,7 +52,7 @@ function requireEnabled() {
     console.error(
       "ONBOARDING_NUDGE_ENABLED is not 'true' — refusing to send.\n" +
         "Set it in your environment to match how production runs:\n" +
-        "  ONBOARDING_NUDGE_ENABLED=true npm run send-onboarding-nudge -- ..."
+        "  ONBOARDING_NUDGE_ENABLED=true npm run send-onboarding-nudge -- ...",
     );
     process.exit(1);
   }
@@ -72,7 +73,7 @@ async function testSend(to: string, userId?: number) {
   if (!companyPostalAddress()) {
     console.warn(
       "\n  ⚠ COMPANY_POSTAL_ADDRESS is not set. Sending with a placeholder footer.\n" +
-        "    The real job REFUSES to send without it — this preview is the only exception.\n"
+        "    The real job REFUSES to send without it — this preview is the only exception.\n",
     );
   }
 
@@ -83,16 +84,18 @@ async function testSend(to: string, userId?: number) {
   if (userId !== undefined) {
     const candidate = await onboardingNudgeService.getCandidateById(
       userId,
-      getCurrentUTCDate()
+      getCurrentUTCDate(),
     );
     if (!candidate) {
       console.error(
-        `  No user ${userId}, or they have opted out. Nothing sent.\n`
+        `  No user ${userId}, or they have opted out. Nothing sent.\n`,
       );
       process.exit(1);
     }
     name = candidate.name;
-    console.log(`\n  rendering from user ${userId}: ${candidate.email} (${candidate.name}, stalled ${candidate.stalledDays}d)`);
+    console.log(
+      `\n  rendering from user ${userId}: ${candidate.email} (${candidate.name}, stalled ${candidate.stalledDays}d)`,
+    );
   }
 
   console.log(`\nsend-onboarding-nudge — TEST SEND`);
@@ -119,7 +122,7 @@ async function dryRun() {
 
   console.log(`\nsend-onboarding-nudge — DRY RUN (db host: ${host()})`);
   console.log(
-    `  window: signed up between ${onboardingNudgeMaxDays()} days and ${onboardingNudgeMinHours()} hours ago`
+    `  window: signed up between ${onboardingNudgeMaxDays()} days and ${onboardingNudgeMinHours()} hours ago`,
   );
   console.log(`  enabled: ${isOnboardingNudgeEnabled()}`);
   console.log(`  postal address set: ${Boolean(companyPostalAddress())}\n`);
@@ -132,7 +135,7 @@ async function dryRun() {
   console.log(`  ${candidates.length} would be nudged:`);
   for (const c of candidates) {
     console.log(
-      `    • ${c.email}  (${c.name}, user ${c.userId}, stalled ${c.stalledDays}d)`
+      `    • ${c.email}  (${c.name}, user ${c.userId}, stalled ${c.stalledDays}d)`,
     );
   }
   console.log("");
@@ -149,10 +152,12 @@ async function dispatchOne(userId: number) {
 
   const candidate = await onboardingNudgeService.getCandidateById(
     userId,
-    getCurrentUTCDate()
+    getCurrentUTCDate(),
   );
   if (!candidate) {
-    console.error(`\n  No user ${userId}, or they have opted out. Nothing sent.\n`);
+    console.error(
+      `\n  No user ${userId}, or they have opted out. Nothing sent.\n`,
+    );
     process.exitCode = 1;
     return;
   }
@@ -163,7 +168,7 @@ async function dispatchOne(userId: number) {
   if (!candidate.needsOnboarding) {
     console.error(
       `\n  User ${userId} (${candidate.email}) has already finished onboarding.\n` +
-        `  Refusing to send them a "you never finished" email.\n`
+        `  Refusing to send them a "you never finished" email.\n`,
     );
     process.exitCode = 1;
     return;
@@ -190,6 +195,15 @@ async function main() {
   const userRaw = arg("user");
   const dispatchRaw = arg("dispatch");
 
+  // The email goes out from THIS checkout, not from Render, so a preview sent
+  // from stale code is a lie about what production would send. --dry-run reads
+  // the database and sends nothing, so it only warns.
+  await assertCheckoutIsCurrent({
+    skip: flag("stale-ok"),
+    warnOnly: flag("dry-run"),
+    label: "send-onboarding-nudge",
+  });
+
   if (to) return testSend(to, userRaw ? Number(userRaw) : undefined);
   if (dispatchRaw) return dispatchOne(Number(dispatchRaw));
   if (flag("dry-run")) return dryRun();
@@ -201,7 +215,8 @@ async function main() {
       "  --to <email> --user <id>  preview a REAL user's nudge, sent to you (no db writes)\n" +
       "  --dry-run                 show who would be nudged\n" +
       "  --dispatch <id>           really nudge one person now, window ignored\n" +
-      "  --run                     run the full scan for real"
+      "  --run                     run the full scan for real\n" +
+      "  --stale-ok                run even if this checkout is behind main",
   );
   process.exitCode = 1;
 }
