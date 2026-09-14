@@ -37,6 +37,16 @@ const PUBLIC_ALLOWLIST: Record<string, Array<{ method: string; route: string }>>
     // per-IP fixed-window limiter (publicReadRateLimit) and unguessable random
     // Crockford base32 codes (non-walkable). See share.routes.ts GET /:code.
     "share.routes.ts": [{ method: "get", route: "/:code" }],
+    // Unsubscribe is reached from a link in an email, by someone who may have
+    // no session on that device — requiring a JWT would make the opt-out
+    // unusable, which is itself a compliance failure. Authorization comes from
+    // an HMAC-signed, non-guessable token (utils/email-token), and the only
+    // thing the endpoint can do is set that user's email_opted_out_at. POST is
+    // the RFC 8058 one-click variant that Gmail and Yahoo call directly.
+    "email-preferences.routes.ts": [
+      { method: "get", route: "/unsubscribe" },
+      { method: "post", route: "/unsubscribe" },
+    ],
   };
 
 const ROUTE_RE =

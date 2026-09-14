@@ -37,6 +37,16 @@ export const users = pgTable(
     // digest at least once. Null means they are NEW to the list, which is what
     // gates whether today's digest sends at all.
     stalledDigestNotifiedAt: timestamp("stalled_digest_notified_at"),
+    // Outbound user-facing email. Unlike the two markers above, these govern
+    // mail that reaches the CUSTOMER, so both are load-bearing for compliance.
+    // onboardingNudgeSentAt — the "finish setting up" nudge went out. Claimed
+    // by the same atomic conditional UPDATE, and never cleared: one nudge per
+    // account, for the life of the account.
+    onboardingNudgeSentAt: timestamp("onboarding_nudge_sent_at"),
+    // emailOptedOutAt — this person clicked unsubscribe. Checked before every
+    // non-transactional send. Set by an unauthenticated link, so it is
+    // deliberately the ONLY thing that link can write.
+    emailOptedOutAt: timestamp("email_opted_out_at"),
   },
   (table) => ({
     emailIdx: index("idx_users_email").on(table.email),
@@ -99,6 +109,8 @@ export interface User {
   colorTheme: string | null;
   signupNotifiedAt: Date | null;
   stalledDigestNotifiedAt: Date | null;
+  onboardingNudgeSentAt: Date | null;
+  emailOptedOutAt: Date | null;
 }
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
