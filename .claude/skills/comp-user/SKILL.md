@@ -1,6 +1,6 @@
 ---
 name: comp-user
-description: Use to grant (or revoke) a COMPLIMENTARY subscription — free, no-paywall access — to one or more existing users by email. Triggers "/comp-user", "comp this user", "give X free access", "upgrade these testers to complimentary", "skip the paywall for Y", "revoke someone's comp". Writes to the LIVE db when run against prod, but is fully reversible with --revoke. For deleting a throwaway account use delete-user; for resetting the free-workout meter use reset-user-trial.
+description: Use to grant (or revoke) a COMPLIMENTARY subscription — free, no-paywall access — to one or more existing users by email. Triggers "/comp-user", "comp this user", "give X free access", "upgrade these testers to complimentary", "skip the paywall for Y", "revoke someone's comp". A first-time grant also EMAILS the user a short personal note from Rich (--no-email to comp silently). Writes to the LIVE db when run against prod, but is fully reversible with --revoke. For deleting a throwaway account use delete-user; for resetting the free-workout meter use reset-user-trial.
 ---
 
 # Comp a User — grant complimentary (free) access
@@ -30,8 +30,18 @@ guests — anyone who should use the real app for free without a store purchase.
 5. **Comping does not retroactively refund a real purchase.** If the row shows an active paid
    subscription (`status: 'active'` with a `plan_id`), flag that to the user before comping — they
    probably want a store-side refund, not an override.
-6. **A signed-in user may need to restart the app** (or hit any authed endpoint) for the new access
-   tier to take effect client-side.
+6. **A signed-in user must fully restart the app** for the new tier to take effect client-side.
+   `useEntitlements` (frontend) refetches only on mount and on a RevenueCat customer-info event —
+   and a comp is a backend column change, so RevenueCat never fires. Backgrounding and returning
+   is NOT reliably enough; a close-and-relaunch is. The email says exactly this.
+
+7. **A first-time grant emails the user.** Short personal note from Rich: you're on MastersFit+,
+   nothing to do, restart the app. It is TRANSACTIONAL (reports a change to their own account), so
+   it carries no unsubscribe link and deliberately ignores `email_opted_out_at`. It does NOT send
+   on `--revoke`, on `--dry-run`, on a re-run of someone already `COMPLIMENTARY`, or to protected
+   internal accounts — see `shouldSendCompEmail` in `src/constants/comp-notification.ts`. Pass
+   `--no-email` to comp silently. **The email never gates the comp:** access is granted first, and
+   a send failure prints `COMP APPLIED, but the email ... failed` rather than failing the run.
 
 ## Where it runs
 
