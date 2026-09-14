@@ -39,6 +39,25 @@ const NUDGE_FROM_EMAIL =
   process.env.NUDGE_FROM_EMAIL || "rtp@updates.mastersfit.ai";
 const NUDGE_REPLY_TO = process.env.NUDGE_REPLY_TO || "rtp@mastersfit.ai";
 
+// Early-phase owner visibility: Rich gets a Bcc on every email that goes to a
+// real user from a person (the onboarding nudge and the comp note), so nothing
+// reaches a new member that he hasn't seen. Set LIFECYCLE_BCC_EMAIL to an empty
+// string in Render to turn it off without a deploy.
+const LIFECYCLE_BCC_EMAIL = (
+  process.env.LIFECYCLE_BCC_EMAIL ?? "rtp@mastersfit.ai"
+).trim();
+
+/**
+ * Bcc for a user-facing lifecycle send, or undefined when there's nothing to
+ * add. Skipped when the recipient IS the Bcc address, so comping/nudging Rich's
+ * own account doesn't deliver him two copies.
+ */
+const lifecycleBcc = (to: string): string[] | undefined =>
+  LIFECYCLE_BCC_EMAIL &&
+  to.trim().toLowerCase() !== LIFECYCLE_BCC_EMAIL.toLowerCase()
+    ? [LIFECYCLE_BCC_EMAIL]
+    : undefined;
+
 // Triage inboxes — Google Workspace Groups forwarding to a real person.
 // On To (never Bcc): Bcc strips the alias the Gmail filters key on.
 const FEEDBACK_INBOX = "feedback@mastersfit.ai";
@@ -111,7 +130,7 @@ export class EmailService {
    * retry on a later scan.
    */
   async sendRenewalReminderEmail(
-    params: RenewalReminderEmailParams
+    params: RenewalReminderEmailParams,
   ): Promise<void> {
     const { to, name, planLabel, price, renewalDate, manageUrl } = params;
 
@@ -171,7 +190,7 @@ export class EmailService {
     const { to, name, userId, postalAddress } = params;
 
     const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
-      signUnsubscribeToken(userId)
+      signUnsubscribeToken(userId),
     )}`;
 
     const { html, text } = onboardingNudgeTemplate({
@@ -184,6 +203,7 @@ export class EmailService {
     const response = await resend.emails.send({
       from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
       to,
+      bcc: lifecycleBcc(to),
       subject: ONBOARDING_NUDGE_SUBJECT,
       html,
       text,
@@ -235,6 +255,7 @@ export class EmailService {
     const response = await resend.emails.send({
       from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
       to,
+      bcc: lifecycleBcc(to),
       subject: COMP_GRANTED_SUBJECT,
       html,
       text,
@@ -320,7 +341,7 @@ export class EmailService {
    * sweep retry — a silently dropped alert looks exactly like nobody signing up.
    */
   async sendNewUserNotificationEmail(
-    params: NewUserNotificationTemplateProps
+    params: NewUserNotificationTemplateProps,
   ): Promise<void> {
     const to = signupNotifyRecipients();
     if (to.length === 0) {
@@ -362,7 +383,7 @@ export class EmailService {
    * run treats them as new again.
    */
   async sendStalledSignupDigestEmail(
-    params: StalledSignupDigestTemplateProps
+    params: StalledSignupDigestTemplateProps,
   ): Promise<void> {
     const to = signupNotifyRecipients();
     if (to.length === 0) {
@@ -372,7 +393,9 @@ export class EmailService {
     const { html, text } = stalledSignupDigestTemplate(params);
 
     const suffix =
-      params.newCount === params.totalCount ? "" : ` (${params.totalCount} open)`;
+      params.newCount === params.totalCount
+        ? ""
+        : ` (${params.totalCount} open)`;
     const subject = `[MastersFit] ${params.newCount} new stalled signup${
       params.newCount === 1 ? "" : "s"
     }${suffix}`;
