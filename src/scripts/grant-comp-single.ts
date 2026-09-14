@@ -12,6 +12,10 @@
  * --revoke, --dry-run, and protected internal accounts never send — see
  * shouldSendCompEmail. The email NEVER decides whether the comp succeeded: the
  * access is granted first and a send failure is reported separately.
+ *
+ * Refuses to run from a checkout that is behind origin/main, because the email
+ * it sends comes from THIS directory rather than from Render — see
+ * lib/checkout-freshness.ts. --dry-run only warns; --stale-ok overrides.
  */
 import { eq } from "drizzle-orm";
 import { db, pool } from "@/config/database";
@@ -20,12 +24,13 @@ import { userSubscriptions } from "@/models/subscription.schema";
 import { AccessTier } from "@/constants/access-policy";
 import { shouldSendCompEmail } from "@/constants/comp-notification";
 import { emailService } from "@/services/email.service";
+import { assertCheckoutIsCurrent } from "./lib/checkout-freshness";
 
 async function grant(
   email: string,
   dryRun: boolean,
   revoke: boolean,
-  noEmail: boolean
+  noEmail: boolean,
 ) {
   const [u] = await db
     .select({ id: users.id, email: users.email, name: users.name })
@@ -53,7 +58,7 @@ async function grant(
 
   if (!sub) {
     console.log(
-      `\n  ⚠️  No user_subscriptions row — an UPDATE would match nothing. Have them open the app once, then re-run.\n`
+      `\n  ⚠️  No user_subscriptions row — an UPDATE would match nothing. Have them open the app once, then re-run.\n`,
     );
     return;
   }
@@ -61,7 +66,9 @@ async function grant(
   const target = revoke ? null : AccessTier.COMPLIMENTARY;
 
   if (dryRun) {
-    console.log(`\n  would set access_override = ${target ?? "NULL"} (no expiry) for user ${u.id}\n`);
+    console.log(
+      `\n  would set access_override = ${target ?? "NULL"} (no expiry) for user ${u.id}\n`,
+    );
     return;
   }
 
@@ -69,7 +76,10 @@ async function grant(
     .update(userSubscriptions)
     .set({ accessOverride: target, accessOverrideExpiresAt: null })
     .where(eq(userSubscriptions.userId, u.id))
-    .returning({ userId: userSubscriptions.userId, accessOverride: userSubscriptions.accessOverride });
+    .returning({
+      userId: userSubscriptions.userId,
+      accessOverride: userSubscriptions.accessOverride,
+    });
   console.log(`\n  ✅ applied:`, updated);
 
   // The access change is already committed. Everything below is a courtesy, so
@@ -92,9 +102,11 @@ async function grant(
     console.log(`  📧 emailed ${u.email}\n`);
   } catch (err) {
     console.error(
-      `  ⚠️  COMP APPLIED, but the email to ${u.email} failed: ${(err as Error).message}`
+      `  ⚠️  COMP APPLIED, but the email to ${u.email} failed: ${(err as Error).message}`,
     );
-    console.error(`     Their access IS granted. Re-send by hand if you want.\n`);
+    console.error(
+      `     Their access IS granted. Re-send by hand if you want.\n`,
+    );
   }
 }
 
@@ -103,15 +115,26 @@ async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const revoke = process.argv.includes("--revoke");
   const noEmail = process.argv.includes("--no-email");
+  const staleOk = process.argv.includes("--stale-ok");
   if (!emails.length) {
     console.error(
-      "Usage: grant-comp-single.ts <email> [<email>...] [--dry-run] [--revoke] [--no-email]"
+      "Usage: grant-comp-single.ts <email> [<email>...] [--dry-run] [--revoke] [--no-email] [--stale-ok]",
     );
     process.exit(1);
   }
   const host = process.env.DATABASE_URL?.match(/@([^/]+)/)?.[1] ?? "localhost";
   const mode = dryRun ? "DRY RUN" : "APPLYING";
-  console.log(`\ngrant-comp-single — db host: ${host} — ${revoke ? "REVOKE" : "GRANT"} — ${mode}\n`);
+  console.log(
+    `\ngrant-comp-single — db host: ${host} — ${revoke ? "REVOKE" : "GRANT"} — ${mode}\n`,
+  );
+
+  // Before any database work: a dry run only warns, since it neither writes nor
+  // sends, but it is also the preflight for the real run — so it still says so.
+  await assertCheckoutIsCurrent({
+    skip: staleOk,
+    warnOnly: dryRun,
+    label: "comp-user",
+  });
 
   for (const email of emails) {
     await grant(email, dryRun, revoke, noEmail);
