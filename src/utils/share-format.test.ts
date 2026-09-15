@@ -45,6 +45,30 @@ describe("summarizeSets", () => {
     expect(s.note).toBe("Reps not logged");
   });
 
+  it("calls a bare completion tick what it is, not '1 x 1'", () => {
+    // Real prod shape: a 15-min Zone 2 bike logged as a single tick. reps=1 and
+    // nothing else — no load, no duration, no distance.
+    const s = summarizeSets([set(1, null)], 1);
+    expect(s.summary).toBe("Completed");
+    // Not "Bodyweight" — nothing says it was unloaded, only unmeasured.
+    expect(s.note).toBeNull();
+  });
+
+  it("reports a ticked circuit by its rounds", () => {
+    const s = summarizeSets([set(1, null), set(1, null), set(1, null)], 3);
+    expect(s.summary).toBe("3 rounds");
+  });
+
+  it("still treats a real single rep with load as a set", () => {
+    // A 1RM attempt carries a weight, so it must not be mistaken for a tick.
+    expect(summarizeSets([set(1, 315)], 1).summary).toBe("1 x 1 @ 315 lb");
+  });
+
+  it("does not swallow a timed or measured single effort", () => {
+    expect(summarizeSets([set(1, null, { durationSeconds: 900 })], 1).summary).toBe("1 x 15m");
+    expect(summarizeSets([set(1, null, { distanceM: 5000 })], 1).summary).toBe("5000 m");
+  });
+
   it("keeps a circuit's round structure", () => {
     const s = summarizeSets(
       [set(10, 45, { round: 1 }), set(10, 45, { round: 2 }), set(10, 45, { round: 3 })],

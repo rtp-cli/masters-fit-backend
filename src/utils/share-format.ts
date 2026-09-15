@@ -53,6 +53,27 @@ export function summarizeSets(
 ): { summary: string; note: string | null } {
   if (sets.length === 0) return { summary: "Not logged", note: null };
 
+  // A bare completion tick: the app recorded "I did this" and nothing else, so
+  // every set is reps=1 with no load, no duration and no distance. Rendering it
+  // literally gives "1 x 1", which reads as broken on a 15-minute Zone 2 bike
+  // block — and 8% of prod set logs (444 of 5,490) look exactly like this.
+  // A genuine single rep carries a weight, so the two are distinguishable.
+  const isCompletionTick = sets.every(
+    (s) =>
+      s.reps === 1 &&
+      (s.weight == null || s.weight === 0) &&
+      !s.durationSeconds &&
+      !s.distanceM
+  );
+  if (isCompletionTick) {
+    return {
+      summary: rounds > 1 ? `${rounds} rounds` : "Completed",
+      // Deliberately no "Bodyweight" note — nothing here says the movement was
+      // unloaded, only that no measurement was captured.
+      note: null,
+    };
+  }
+
   const countLabel = rounds > 1 ? `${rounds} rounds` : `${sets.length} sets`;
 
   const distances = sets.map((s) => s.distanceM).filter((d): d is number => !!d);
