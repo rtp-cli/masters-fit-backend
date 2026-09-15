@@ -25,27 +25,63 @@ export type ShareKind = "completed" | "planned" | "milestone";
 export type ShareNameStyle = "first" | "full" | "anonymous";
 
 // ---------------------------------------------------------------------------
-// Frozen snapshot payload (§3.2). Everything the link serves forever lives
-// here; weights are OMITTED entirely (not included-and-hidden) when the sharer
-// left "Show weights" off, and never present at all on a `planned` card.
+// Frozen snapshot payload (§3.2), version 2.
+//
+// v2 builds a `completed` share from what was LOGGED (exercise_logs +
+// exercise_set_logs), not from the prescription in plan_day_exercises. v1 read
+// the plan, so a card could claim a prescribed 25 lb for a set the user took to
+// 45, and claim a planned 60 minutes for a 41-minute session. The prescription
+// is still the source for a `planned` share, where there is nothing logged yet.
+//
+// Warm-up / cool-down / mobility blocks are excluded entirely (product decision)
+// — from the blocks, from the rows and from every count.
+//
 // It must never contain injuries, limitations, age, goals, or the AI prompt.
 // ---------------------------------------------------------------------------
+
+/** One logged set. Omitted entirely when the sharer hid performance. */
+export interface ShareSnapshotSet {
+  reps?: number | null;
+  weight?: number | null;
+  durationSeconds?: number | null;
+  distanceM?: number | null;
+  // 1-based round, present only when the parent block ran more than one.
+  round?: number;
+}
+
 export interface ShareSnapshotExercise {
   name: string;
-  sets: number | null;
-  reps: number | null;
-  repsMin?: number | null;
-  repsMax?: number | null;
-  restSeconds?: number | null;
-  distanceM?: number | null;
-  eachSide?: boolean;
-  // Only present when show_weights is true and this is a `completed` card.
-  weight?: number | null;
+  // false when the plan carried this exercise but no log exists for it. Always
+  // true on a `planned` share, where the prescription IS the content.
+  logged: boolean;
+  // Actual logged sets, in order. Empty when !logged or performance is hidden.
+  sets: ShareSnapshotSet[];
+  // Pre-rendered one-line summary ("3 × 8-6 @ 40-50 lb"). Composed server-side
+  // so the card and the landing page can never disagree about the same set.
+  summary: string;
+  // A qualifier, never a value: "Reps not logged", "Bodyweight".
+  note?: string | null;
   // Demo affordance for the landing page — a YouTube id resolved at share time.
   demoVideoId?: string | null;
 }
 
+export interface ShareSnapshotBlock {
+  name: string | null;
+  // traditional | circuit | amrap | emom | flow | for_time | tabata
+  type: string | null;
+  // Composed server-side: "Circuit · 3 rounds · 14 min".
+  label: string;
+  rounds?: number | null;
+  // Scored protocols (amrap/emom/for_time/tabata) carry a block-level result
+  // instead of per-exercise sets. Null when block_logs has nothing for it.
+  score?: string | null;
+  exercises: ShareSnapshotExercise[];
+}
+
 export interface ShareSnapshot {
+  // Absent on v1 snapshots minted before this change; readers must treat a
+  // missing version as 1 and fall back to the flat `exercises` array.
+  version?: 2;
   kind: ShareKind;
   workoutName: string;
   // Human subline under the title, e.g. "Strength · upper body".
@@ -53,11 +89,22 @@ export interface ShareSnapshot {
   // ISO date (YYYY-MM-DD) of the plan day this share was built from.
   date?: string | null;
   // Rounded minutes for the card ("42 min") — deliberately not m:ss (§4.2).
+  // Real elapsed time when it was logged, else the prescribed sum.
   minutes?: number | null;
+  minutesAreActual: boolean;
+  // Working exercises in the plan, warm-up/cool-down already excluded.
   exerciseCount: number;
+  // How many of those carry at least one log. Equals exerciseCount on a
+  // `planned` share.
+  loggedCount: number;
+  // Logged sets for `completed`; prescribed sets for `planned`.
   setCount: number;
+  // loggedCount < exerciseCount. Drives the card banner and the muted rows.
+  partial: boolean;
   equipment: string[];
-  exercises: ShareSnapshotExercise[];
+  blocks: ShareSnapshotBlock[];
+  // Whether the sharer opted to show loads and reps at all.
+  showPerformance: boolean;
   // Streak milestone counts (kind === "milestone", or the streak chip when shown).
   streak?: number | null;
   // The resolved display label ("Michael", "Michael Foo") or null when anonymous.
@@ -77,7 +124,9 @@ export const shareLinks = pgTable(
     // null for a milestone share.
     planDayId: integer("plan_day_id").references(() => planDays.id),
     kind: text("kind").$type<ShareKind>().notNull(),
-    showWeights: boolean("show_weights").notNull().default(false),
+    // Column stays `show_weights`: the field was renamed when the toggle grew
+    // from loads-only to loads+reps, but a rename alone isn't worth a prod push.
+    showPerformance: boolean("show_weights").notNull().default(false),
     showStreak: boolean("show_streak").notNull().default(true),
     nameStyle: text("name_style").$type<ShareNameStyle>().notNull().default("first"),
     // Resolved label frozen at share time (null when anonymous).
@@ -113,7 +162,7 @@ export interface ShareLink {
   userId: number;
   planDayId: number | null;
   kind: ShareKind;
-  showWeights: boolean;
+  showPerformance: boolean;
   showStreak: boolean;
   nameStyle: ShareNameStyle;
   displayName: string | null;
@@ -127,12 +176,22 @@ export interface ShareLink {
 export type InsertShareLink = z.infer<typeof insertShareLinkSchema>;
 
 // Request body the client sends for both /preview and /workout (§3.3).
-export const shareRequestSchema = z.object({
-  planDayId: z.number().int().positive().optional(),
-  kind: z.enum(["completed", "planned", "milestone"]),
-  showWeights: z.boolean().default(false),
-  showStreak: z.boolean().default(true),
-  nameStyle: z.enum(["first", "full", "anonymous"]).default("first"),
-});
+//
+// `showWeights` is the v1 spelling and is still accepted: app builds already in
+// the wild send it, and they must keep working. When both are absent the share
+// hides performance, which is the safe default.
+export const shareRequestSchema = z
+  .object({
+    planDayId: z.number().int().positive().optional(),
+    kind: z.enum(["completed", "planned", "milestone"]),
+    showPerformance: z.boolean().optional(),
+    showWeights: z.boolean().optional(),
+    showStreak: z.boolean().default(true),
+    nameStyle: z.enum(["first", "full", "anonymous"]).default("first"),
+  })
+  .transform(({ showPerformance, showWeights, ...rest }) => ({
+    ...rest,
+    showPerformance: showPerformance ?? showWeights ?? false,
+  }));
 
 export type ShareRequest = z.infer<typeof shareRequestSchema>;

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { createHmac, randomInt, timingSafeEqual } from "crypto";
 
 import { BaseService } from "@/services/base.service";
@@ -10,16 +10,30 @@ import {
   workoutBlocks,
   planDayExercises,
   exercises,
+  exerciseLogs,
+  exerciseSetLogs,
+  blockLogs,
+  planDayLogs,
   users,
   type ShareKind,
   type ShareNameStyle,
   type ShareSnapshot,
+  type ShareSnapshotBlock,
   type ShareSnapshotExercise,
+  type ShareSnapshotSet,
   type ShareLink,
 } from "@/models";
 import { calculateScheduledWorkoutStreak } from "@/utils/streak-calculation.utils";
 import { resolveTodayString } from "@/utils/date.utils";
 import { logger } from "@/utils/logger";
+import {
+  blockLabel,
+  blockScore,
+  SCORED_BLOCK_TYPES,
+  summarizePrescription,
+  summarizeSets,
+  WARMUP_COOLDOWN,
+} from "@/utils/share-format";
 
 // ---------------------------------------------------------------------------
 // Errors — mapped to HTTP status by the route's handleError (§3.3).
@@ -78,11 +92,15 @@ type LoadedPlanDay = {
   isComplete: boolean | null;
   workout: { id: number; userId: number; name: string; description: string | null };
   blocks: Array<{
+    id: number;
     order: number | null;
     blockType: string | null;
     blockName: string | null;
     blockDurationMinutes: number | null;
+    rounds: number | null;
+    timeCapMinutes: number | null;
     exercises: Array<{
+      id: number;
       order: number | null;
       sets: number | null;
       reps: number | null;
@@ -91,6 +109,7 @@ type LoadedPlanDay = {
       weight: number | null;
       restTime: number | null;
       distanceM: number | null;
+      duration: number | null;
       notes: string | null;
       exercise: {
         name: string;
@@ -126,6 +145,7 @@ function humanizeEquipment(tag: string): string {
     .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
     .join(" ");
 }
+
 
 export class ShareService extends BaseService {
   // -------------------------------------------------------------------------
@@ -185,12 +205,124 @@ export class ShareService extends BaseService {
     return (row as unknown as LoadedPlanDay) || null;
   }
 
+  /**
+   * Pull everything that was actually LOGGED for a plan day, in one pass.
+   * Returns empty structures rather than throwing when a day has no logs —
+   * a completed day with nothing logged still has to render something.
+   */
+  private async loadLogs(
+    planDayId: number,
+    planDayExerciseIds: number[],
+    workoutBlockIds: number[]
+  ): Promise<{
+    setsByPde: Map<number, ShareSnapshotSet[]>;
+    loggedPde: Set<number>;
+    scoreByBlock: Map<number, string | null>;
+    totalTimeSeconds: number | null;
+  }> {
+    const setsByPde = new Map<number, ShareSnapshotSet[]>();
+    const loggedPde = new Set<number>();
+    const scoreByBlock = new Map<number, string | null>();
+
+    const [dayLog] = await this.selectWithRetry(
+      () =>
+        this.db
+          .select({ totalTimeSeconds: planDayLogs.totalTimeSeconds })
+          .from(planDayLogs)
+          .where(eq(planDayLogs.planDayId, planDayId))
+          .limit(1),
+      "loadPlanDayLogForShare"
+    );
+
+    if (planDayExerciseIds.length === 0) {
+      return { setsByPde, loggedPde, scoreByBlock, totalTimeSeconds: dayLog?.totalTimeSeconds ?? null };
+    }
+
+    const logs = await this.selectWithRetry(
+      () =>
+        this.db
+          .select({
+            id: exerciseLogs.id,
+            planDayExerciseId: exerciseLogs.planDayExerciseId,
+            roundNumber: exerciseLogs.roundNumber,
+          })
+          .from(exerciseLogs)
+          .where(inArray(exerciseLogs.planDayExerciseId, planDayExerciseIds)),
+      "loadExerciseLogsForShare"
+    );
+    for (const l of logs) loggedPde.add(l.planDayExerciseId);
+
+    if (logs.length > 0) {
+      const logIds = logs.map((l) => l.id);
+      const roundByLog = new Map(logs.map((l) => [l.id, l.roundNumber]));
+      const pdeByLog = new Map(logs.map((l) => [l.id, l.planDayExerciseId]));
+
+      const rows = await this.selectWithRetry(
+        () =>
+          this.db
+            .select({
+              exerciseLogId: exerciseSetLogs.exerciseLogId,
+              setNumber: exerciseSetLogs.setNumber,
+              weight: exerciseSetLogs.weight,
+              reps: exerciseSetLogs.reps,
+              durationSeconds: exerciseSetLogs.durationSeconds,
+              distanceM: exerciseSetLogs.distanceM,
+            })
+            .from(exerciseSetLogs)
+            .where(inArray(exerciseSetLogs.exerciseLogId, logIds)),
+        "loadSetLogsForShare"
+      );
+
+      // Sort by (round, set) so a ramp reads in the order it was performed.
+      const decorated = rows
+        .map((r) => ({
+          ...r,
+          round: roundByLog.get(r.exerciseLogId) ?? 1,
+          pde: pdeByLog.get(r.exerciseLogId)!,
+        }))
+        .sort((a, b) => a.round - b.round || a.setNumber - b.setNumber);
+
+      for (const r of decorated) {
+        const list = setsByPde.get(r.pde) ?? [];
+        list.push({
+          reps: r.reps ?? null,
+          // decimal comes back as a string from pg; keep it a number.
+          weight: r.weight == null ? null : Number(r.weight),
+          durationSeconds: r.durationSeconds ?? null,
+          distanceM: r.distanceM ?? null,
+          round: r.round,
+        });
+        setsByPde.set(r.pde, list);
+      }
+    }
+
+    if (workoutBlockIds.length > 0) {
+      const bLogs = await this.selectWithRetry(
+        () =>
+          this.db
+            .select({
+              workoutBlockId: blockLogs.workoutBlockId,
+              score: blockLogs.score,
+              roundsCompleted: blockLogs.roundsCompleted,
+              totalReps: blockLogs.totalReps,
+              actualTimeMinutes: blockLogs.actualTimeMinutes,
+            })
+            .from(blockLogs)
+            .where(inArray(blockLogs.workoutBlockId, workoutBlockIds)),
+        "loadBlockLogsForShare"
+      );
+      for (const b of bLogs) scoreByBlock.set(b.workoutBlockId, blockScore(b));
+    }
+
+    return { setsByPde, loggedPde, scoreByBlock, totalTimeSeconds: dayLog?.totalTimeSeconds ?? null };
+  }
+
   private async buildSnapshot(
     userId: number,
     input: {
       planDayId?: number;
       kind: ShareKind;
-      showWeights: boolean;
+      showPerformance: boolean;
       showStreak: boolean;
       nameStyle: ShareNameStyle;
     }
@@ -211,12 +343,17 @@ export class ShareService extends BaseService {
     // Milestone shares carry no plan day.
     if (input.kind === "milestone") {
       return {
+        version: 2,
         kind: "milestone",
         workoutName: "Consistency",
+        minutesAreActual: false,
         exerciseCount: 0,
+        loggedCount: 0,
         setCount: 0,
+        partial: false,
         equipment: [],
-        exercises: [],
+        blocks: [],
+        showPerformance: false,
         streak,
         displayName,
       };
@@ -228,46 +365,109 @@ export class ShareService extends BaseService {
     // Ownership: you can only share your own workout.
     if (pd.workout.userId !== userId) throw new Error("Not authorized to share this workout");
 
-    // `planned` never carries the sharer's weights (§4.2); `completed` carries
-    // them only when the sharer opted in. When off, weight is OMITTED, not
-    // included-and-hidden (§3.2).
-    const includeWeights = input.kind === "completed" && input.showWeights;
-
-    // Warmup/cooldown/mobility blocks are dropped from the card's rows AND its
-    // exercise/set counts so the card leads with the working sets and the
-    // "N exercises · N sets" reads honestly. Minutes stays the full session
-    // (wall-clock time is time). Fall back to all blocks if a plan is *only*
-    // warmup/cooldown, so a card is never empty.
+    // Warm-up / cool-down / mobility blocks are dropped from the card, the page
+    // AND every count, so the card leads with the working sets and "N exercises"
+    // reads honestly. Fall back to all blocks if a plan is *only* warm-up/cool-down,
+    // so a share is never empty.
     const isWarmupCooldown = (b: { blockType: string | null; blockName: string | null }) =>
-      /warm|cool|mobility|stretch|activation|prehab/i.test(
-        `${b.blockType || ""} ${b.blockName || ""}`
-      );
-    const workingBlocks = pd.blocks.filter((b) => !isWarmupCooldown(b));
-    const rowBlocks = workingBlocks.length > 0 ? workingBlocks : pd.blocks;
+      WARMUP_COOLDOWN.test(`${b.blockType || ""} ${b.blockName || ""}`);
+    const working = pd.blocks.filter((b) => !isWarmupCooldown(b));
+    const rowBlocks = working.length > 0 ? working : pd.blocks;
 
-    const flat = rowBlocks
-      .flatMap((b) => b.exercises)
-      .filter((e) => e && e.exercise);
+    const flat = rowBlocks.flatMap((b) => b.exercises).filter((e) => e && e.exercise);
 
-    const exerciseRows: ShareSnapshotExercise[] = flat.map((e) => {
-      const row: ShareSnapshotExercise = {
-        name: e.exercise.name,
-        sets: e.sets,
-        reps: e.reps,
-        repsMin: e.repsMin ?? undefined,
-        repsMax: e.repsMax ?? undefined,
-        restSeconds: e.restTime ?? undefined,
-        distanceM: e.distanceM ?? undefined,
-        eachSide: /each side/i.test(e.notes || "") || undefined,
-        demoVideoId: youTubeId(e.exercise.link, e.exercise.hasDemo),
+    // A `planned` share has nothing logged yet, so it reads the prescription;
+    // a `completed` share never does.
+    const fromLogs = input.kind === "completed";
+    const logs = fromLogs
+      ? await this.loadLogs(
+          pd.id,
+          flat.map((e) => e.id),
+          rowBlocks.map((b) => b.id)
+        )
+      : null;
+
+    const blocks: ShareSnapshotBlock[] = rowBlocks.map((b) => {
+      const rounds = b.rounds && b.rounds > 1 ? b.rounds : null;
+      const scored = SCORED_BLOCK_TYPES.has(b.blockType || "");
+      const score = logs?.scoreByBlock.get(b.id) ?? null;
+
+      const exercisesOut: ShareSnapshotExercise[] = b.exercises
+        .filter((e) => e && e.exercise)
+        .map((e) => {
+          const demoVideoId = youTubeId(e.exercise.link, e.exercise.hasDemo);
+
+          if (!fromLogs) {
+            return {
+              name: e.exercise.name,
+              logged: true,
+              sets: [],
+              summary: summarizePrescription(e),
+              note: /each side/i.test(e.notes || "") ? "Each side" : null,
+              demoVideoId,
+            };
+          }
+
+          const hasLog = logs!.loggedPde.has(e.id);
+          const sets = logs!.setsByPde.get(e.id) ?? [];
+
+          if (!hasLog) {
+            return { name: e.exercise.name, logged: false, sets: [], summary: "Not logged", note: null, demoVideoId };
+          }
+          if (sets.length === 0) {
+            // Logged as done, but no set detail was captured.
+            return {
+              name: e.exercise.name,
+              logged: true,
+              sets: [],
+              summary: "Completed",
+              note: "No set detail",
+              demoVideoId,
+            };
+          }
+
+          const { summary, note } = summarizeSets(sets, rounds ?? 1);
+          return {
+            name: e.exercise.name,
+            logged: true,
+            // Performance hidden: keep the row and the shape, drop the numbers.
+            sets: input.showPerformance ? sets : [],
+            summary: input.showPerformance
+              ? summary
+              : rounds
+                ? `${rounds} rounds`
+                : `${sets.length} sets`,
+            note: input.showPerformance ? note : null,
+            demoVideoId,
+          };
+        });
+
+      return {
+        name: b.blockName,
+        type: b.blockType,
+        label: blockLabel(b.blockType, rounds, b.blockDurationMinutes, b.timeCapMinutes, scored ? score : null),
+        rounds,
+        score: scored ? score : null,
+        exercises: exercisesOut,
       };
-      if (includeWeights && e.weight != null) row.weight = e.weight;
-      return row;
     });
 
-    const minutes =
+    const allExercises = blocks.flatMap((b) => b.exercises);
+    const loggedCount = allExercises.filter((e) => e.logged).length;
+
+    // Real elapsed time when we have it. The prescribed sum is the LLM's own
+    // estimate and runs long — it's a fallback, and the snapshot says which
+    // one it is so a reader is never misled about the source.
+    const prescribedMinutes =
       pd.blocks.reduce((sum, b) => sum + (b.blockDurationMinutes || 0), 0) || null;
-    const setCount = flat.reduce((sum, e) => sum + (e.sets || 0), 0);
+    const actualMinutes =
+      logs?.totalTimeSeconds != null && logs.totalTimeSeconds > 0
+        ? Math.max(1, Math.round(logs.totalTimeSeconds / 60))
+        : null;
+
+    const setCount = fromLogs
+      ? [...logs!.setsByPde.values()].reduce((n, list) => n + list.length, 0)
+      : flat.reduce((n, e) => n + (e.sets || 0), 0);
 
     const equipment = Array.from(
       new Set(flat.flatMap((e) => e.exercise.equipment || []).filter(Boolean))
@@ -276,15 +476,20 @@ export class ShareService extends BaseService {
       .map(humanizeEquipment);
 
     return {
+      version: 2,
       kind: input.kind,
       workoutName: pd.name || pd.workout.name,
       subtitle: null,
       date: pd.date || null,
-      minutes,
-      exerciseCount: exerciseRows.length,
+      minutes: actualMinutes ?? prescribedMinutes,
+      minutesAreActual: actualMinutes != null,
+      exerciseCount: allExercises.length,
+      loggedCount,
       setCount,
+      partial: fromLogs && loggedCount < allExercises.length,
       equipment,
-      exercises: exerciseRows,
+      blocks,
+      showPerformance: input.showPerformance,
       streak: input.showStreak ? streak : null,
       displayName,
     };
@@ -370,7 +575,7 @@ export class ShareService extends BaseService {
     input: {
       planDayId?: number;
       kind: ShareKind;
-      showWeights: boolean;
+      showPerformance: boolean;
       showStreak: boolean;
       nameStyle: ShareNameStyle;
     }
@@ -387,14 +592,14 @@ export class ShareService extends BaseService {
     input: {
       planDayId?: number;
       kind: ShareKind;
-      showWeights: boolean;
+      showPerformance: boolean;
       showStreak: boolean;
       nameStyle: ShareNameStyle;
     }
   ): Promise<{ code: string; url: string; cardUrl: string }> {
     await this.assertUnderRateLimit(userId);
 
-    // Idempotent per (planDayId, kind, showWeights, showStreak, nameStyle): reuse
+    // Idempotent per (planDayId, kind, showPerformance, showStreak, nameStyle): reuse
     // an existing unrevoked link rather than minting a second code (§3.3).
     const existing = await this.selectWithRetry(
       () =>
@@ -408,7 +613,7 @@ export class ShareService extends BaseService {
                 ? eq(shareLinks.planDayId, input.planDayId)
                 : isNull(shareLinks.planDayId),
               eq(shareLinks.kind, input.kind),
-              eq(shareLinks.showWeights, input.showWeights),
+              eq(shareLinks.showPerformance, input.showPerformance),
               eq(shareLinks.showStreak, input.showStreak),
               eq(shareLinks.nameStyle, input.nameStyle),
               isNull(shareLinks.revokedAt)
@@ -429,7 +634,7 @@ export class ShareService extends BaseService {
           userId,
           planDayId: input.planDayId ?? null,
           kind: input.kind,
-          showWeights: input.showWeights,
+          showPerformance: input.showPerformance,
           showStreak: input.showStreak,
           nameStyle: input.nameStyle,
           displayName: snapshot.displayName ?? null,
