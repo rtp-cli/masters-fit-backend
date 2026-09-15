@@ -29,6 +29,7 @@ import { logger } from "@/utils/logger";
 import {
   blockLabel,
   blockScore,
+  isPlausibleDuration,
   SCORED_BLOCK_TYPES,
   summarizePrescription,
   summarizeSets,
@@ -455,19 +456,18 @@ export class ShareService extends BaseService {
     const allExercises = blocks.flatMap((b) => b.exercises);
     const loggedCount = allExercises.filter((e) => e.logged).length;
 
-    // Real elapsed time when we have it. The prescribed sum is the LLM's own
-    // estimate and runs long — it's a fallback, and the snapshot says which
-    // one it is so a reader is never misled about the source.
-    const prescribedMinutes =
-      pd.blocks.reduce((sum, b) => sum + (b.blockDurationMinutes || 0), 0) || null;
-    const actualMinutes =
-      logs?.totalTimeSeconds != null && logs.totalTimeSeconds > 0
-        ? Math.max(1, Math.round(logs.totalTimeSeconds / 60))
-        : null;
-
     const setCount = fromLogs
       ? [...logs!.setsByPde.values()].reduce((n, list) => n + list.length, 0)
       : flat.reduce((n, e) => n + (e.sets || 0), 0);
+
+    // Real elapsed time when it's believable. The prescribed sum is the LLM's
+    // own estimate and runs long — it's a fallback, and the snapshot says which
+    // one it is so a reader is never misled about the source.
+    const prescribedMinutes =
+      pd.blocks.reduce((sum, b) => sum + (b.blockDurationMinutes || 0), 0) || null;
+    const actualMinutes = isPlausibleDuration(logs?.totalTimeSeconds ?? null, setCount)
+      ? Math.round(logs!.totalTimeSeconds! / 60)
+      : null;
 
     const equipment = Array.from(
       new Set(flat.flatMap((e) => e.exercise.equipment || []).filter(Boolean))

@@ -3,6 +3,7 @@ import { describe, it, expect } from "@jest/globals";
 import {
   blockLabel,
   blockScore,
+  isPlausibleDuration,
   summarizePrescription,
   summarizeSets,
 } from "@/utils/share-format";
@@ -104,5 +105,26 @@ describe("blockScore", () => {
   it("returns null when block_logs holds nothing usable", () => {
     expect(blockScore(undefined)).toBeNull();
     expect(blockScore({ score: null, roundsCompleted: null, totalReps: null, actualTimeMinutes: null })).toBeNull();
+  });
+});
+
+describe("isPlausibleDuration", () => {
+  it("accepts a believable session", () => {
+    expect(isPlausibleDuration(2760, 12)).toBe(true); // 46 min, 12 sets
+  });
+
+  it("rejects the sub-minute timer artifact", () => {
+    // Real prod shape: a full session logged, but the timer never ran.
+    expect(isPlausibleDuration(34, 19)).toBe(false);
+  });
+
+  it("rejects a duration too short for the sets logged", () => {
+    expect(isPlausibleDuration(120, 40)).toBe(false); // 2 min for 40 sets
+    expect(isPlausibleDuration(600, 40)).toBe(true); // 10 min for 40 sets
+  });
+
+  it("treats a missing or zero duration as unusable", () => {
+    expect(isPlausibleDuration(null, 10)).toBe(false);
+    expect(isPlausibleDuration(0, 10)).toBe(false);
   });
 });

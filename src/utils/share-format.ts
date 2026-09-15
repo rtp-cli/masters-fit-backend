@@ -139,3 +139,22 @@ export function blockScore(log?: {
   if (log.actualTimeMinutes != null) return `${log.actualTimeMinutes} min`;
   return null;
 }
+
+/**
+ * Is a logged elapsed time believable for the work that was logged?
+ *
+ * The timer only runs in the guided flow; marking a day done another way can
+ * leave `plan_day_logs.total_time_seconds` at a few seconds while the session
+ * still carries a full set of logs. 13 of 250 completed prod workouts have a
+ * sub-minute duration, and 11 of those logged three or more exercises — so
+ * rendering it would print "1 MINUTES" next to "8 EXERCISES · 19 SETS".
+ *
+ * When the elapsed time fails this check the snapshot falls back to the
+ * prescribed estimate and flags itself as not-actual, rather than publishing a
+ * number that cannot be true. The floor is deliberately generous: 15s per set
+ * is quicker than any real set plus its transition.
+ */
+export function isPlausibleDuration(seconds: number | null, setCount: number): boolean {
+  if (!seconds || seconds < 60) return false;
+  return seconds >= 15 * setCount;
+}
