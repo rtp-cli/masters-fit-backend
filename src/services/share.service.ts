@@ -29,9 +29,11 @@ import { logger } from "@/utils/logger";
 import {
   blockLabel,
   blockScore,
+  groupConsecutiveRuns,
   isPlausibleDuration,
   SCORED_BLOCK_TYPES,
   summarizePrescription,
+  summarizePrescriptionRun,
   summarizeSets,
   WARMUP_COOLDOWN,
 } from "@/utils/share-format";
@@ -102,6 +104,7 @@ type LoadedPlanDay = {
     timeCapMinutes: number | null;
     exercises: Array<{
       id: number;
+      exerciseId: number;
       order: number | null;
       sets: number | null;
       reps: number | null;
@@ -393,9 +396,20 @@ export class ShareService extends BaseService {
       const scored = SCORED_BLOCK_TYPES.has(b.blockType || "");
       const score = logs?.scoreByBlock.get(b.id) ?? null;
 
-      const exercisesOut: ShareSnapshotExercise[] = b.exercises
-        .filter((e) => e && e.exercise)
-        .map((e) => {
+      // Wendler 5/3/1 stores each set of a main lift as its own
+      // plan_day_exercise, so one bench press arrives as six consecutive rows.
+      // Rendered one-per-row that fills an entire card with the same name, so
+      // group consecutive rows for the same movement and treat them as one.
+      // Only CONSECUTIVE rows merge: a lift genuinely revisited later in the
+      // block is a separate piece of work and stays separate.
+      const runs = groupConsecutiveRuns(
+        b.exercises.filter((x) => x && x.exercise),
+        (e) => e.exerciseId
+      );
+
+      const exercisesOut: ShareSnapshotExercise[] = runs
+        .map((run) => {
+          const e = run[0];
           const demoVideoId = youTubeId(e.exercise.link, e.exercise.hasDemo);
 
           if (!fromLogs) {
@@ -403,14 +417,14 @@ export class ShareService extends BaseService {
               name: e.exercise.name,
               logged: true,
               sets: [],
-              summary: summarizePrescription(e),
-              note: /each side/i.test(e.notes || "") ? "Each side" : null,
+              summary: summarizePrescriptionRun(run),
+              note: run.some((r) => /each side/i.test(r.notes || "")) ? "Each side" : null,
               demoVideoId,
             };
           }
 
-          const hasLog = logs!.loggedPde.has(e.id);
-          const sets = logs!.setsByPde.get(e.id) ?? [];
+          const hasLog = run.some((r) => logs!.loggedPde.has(r.id));
+          const sets = run.flatMap((r) => logs!.setsByPde.get(r.id) ?? []);
 
           if (!hasLog) {
             return { name: e.exercise.name, logged: false, sets: [], summary: "Not logged", note: null, demoVideoId };
