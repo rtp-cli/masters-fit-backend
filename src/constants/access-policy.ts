@@ -59,6 +59,33 @@ export enum WorkoutSourceType {
   MANUAL = "MANUAL",
 }
 
+/**
+ * How a settled ledger operation maps onto the workout's lineage tag.
+ *
+ * The ledger is the authoritative record of what the user asked for, so the
+ * descriptive tag is DERIVED from it rather than guessed at each call site.
+ * That is why `workouts.source_type` is stamped when the operation settles
+ * (see `aiOperationService.settleCompletedByJobId`) instead of being threaded
+ * through `generateWorkoutPlan` — one write site, and it cannot drift from the
+ * entitlement record it describes.
+ *
+ * DAY_ADJUSTMENT maps to AI_REGENERATION because a day adjustment that creates
+ * a whole workout row is, structurally, a regeneration; the narrower REST_DAY
+ * tag is reserved for the rest-day bucket that has its own operation type.
+ *
+ * Total over AiOperationType on purpose — a new operation type won't compile
+ * until its lineage tag is decided.
+ */
+export const WORKOUT_SOURCE_BY_OPERATION: Readonly<
+  Record<AiOperationType, WorkoutSourceType>
+> = {
+  [AiOperationType.INITIAL_PLAN]: WorkoutSourceType.AI_INITIAL,
+  [AiOperationType.NEW_PROGRAM]: WorkoutSourceType.AI_NEW_PROGRAM,
+  [AiOperationType.WEEK_ADJUSTMENT]: WorkoutSourceType.AI_REGENERATION,
+  [AiOperationType.DAY_ADJUSTMENT]: WorkoutSourceType.AI_REGENERATION,
+  [AiOperationType.REST_DAY_WORKOUT]: WorkoutSourceType.REST_DAY,
+};
+
 // FREE holds the AI-adjustment capabilities too, but they are additionally
 // metered by FREE_ALLOWANCES (usage != entitlement). Only GENERATE_NEW_PROGRAM
 // and the premium read/integration capabilities are PLUS-exclusive.

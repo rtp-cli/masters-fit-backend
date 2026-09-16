@@ -11,9 +11,16 @@ import { db } from "@/config/database";
 import { users } from "@/models/user.schema";
 import { userSubscriptions } from "@/models/subscription.schema";
 import { aiOperations } from "@/models/ai-operations.schema";
+import { backgroundJobs } from "@/models/jobs.schema";
+import { prompts } from "@/models/prompts.schema";
+import { workouts } from "@/models/workout.schema";
 import { aiOperationService } from "@/services/ai-operation.service";
 import { subscriptionService } from "@/services/subscription.service";
-import { AccessTier, AiOperationType } from "@/constants/access-policy";
+import {
+  AccessTier,
+  AiOperationType,
+  WorkoutSourceType,
+} from "@/constants/access-policy";
 import { SubscriptionStatus } from "@/constants";
 
 /**
@@ -32,6 +39,40 @@ const KEY = (s: string) => `test-aiop-${testUserId}-${s}`;
 
 async function resetLedger() {
   await db.delete(aiOperations).where(eq(aiOperations.userId, testUserId));
+}
+
+/**
+ * Minimal persisted workout to stamp. promptId is a notNull FK, so seed one.
+ *
+ * isActive MUST be false: `idx_workouts_user_active` is a partial unique index
+ * allowing one active workout per user, and these fixtures exist only to be
+ * stamped — several per user, none of them "the current plan".
+ */
+async function createWorkoutFixture(): Promise<number> {
+  const [p] = await db
+    .insert(prompts)
+    .values({ userId: testUserId, prompt: "test", response: "{}" })
+    .returning({ id: prompts.id });
+  const [w] = await db
+    .insert(workouts)
+    .values({
+      userId: testUserId,
+      promptId: p.id,
+      startDate: "2026-01-01",
+      endDate: "2026-01-07",
+      name: "Lineage fixture",
+      isActive: false,
+    })
+    .returning({ id: workouts.id });
+  return w.id;
+}
+
+async function createJobFixture(): Promise<number> {
+  const [j] = await db
+    .insert(backgroundJobs)
+    .values({ userId: testUserId, jobType: "workout_generation" })
+    .returning({ id: backgroundJobs.id });
+  return j.id;
 }
 
 async function setTier(tier: AccessTier) {
@@ -69,6 +110,9 @@ describe("AiOperationService (integration, local DB)", () => {
   afterAll(async () => {
     if (!dbAvailable || !testUserId) return;
     await db.delete(aiOperations).where(eq(aiOperations.userId, testUserId));
+    await db.delete(workouts).where(eq(workouts.userId, testUserId));
+    await db.delete(prompts).where(eq(prompts.userId, testUserId));
+    await db.delete(backgroundJobs).where(eq(backgroundJobs.userId, testUserId));
     await db
       .delete(userSubscriptions)
       .where(eq(userSubscriptions.userId, testUserId));
@@ -202,5 +246,83 @@ describe("AiOperationService (integration, local DB)", () => {
     expect(await aiOperationService.resolveGenerationType(testUserId)).toBe(
       AiOperationType.NEW_PROGRAM
     );
+  });
+  /**
+   * Regression: source_type was declared on `workouts` but nothing ever wrote
+   * it, so every generated plan landed NULL and prod could not tell an initial
+   * plan from a regeneration. Settlement is the one place that knows both the
+   * workout and the operation that authorized it.
+   */
+  it("settleCompletedByJobId stamps the workout's lineage tag from the ledger", async () => {
+    if (!dbAvailable) return;
+
+    const cases: [AiOperationType, WorkoutSourceType][] = [
+      [AiOperationType.INITIAL_PLAN, WorkoutSourceType.AI_INITIAL],
+      [AiOperationType.WEEK_ADJUSTMENT, WorkoutSourceType.AI_REGENERATION],
+      [AiOperationType.REST_DAY_WORKOUT, WorkoutSourceType.REST_DAY],
+    ];
+
+    for (const [operationType, expected] of cases) {
+      await setTier(AccessTier.PLUS); // sidestep free allowances; not what's under test
+      const workoutId = await createWorkoutFixture();
+      const jobId = await createJobFixture();
+
+      const reserved = await aiOperationService.reserve({
+        userId: testUserId,
+        operationType,
+        idempotencyKey: KEY(`stamp-${operationType}-${workoutId}`),
+      });
+      expect(reserved.status).toBe("reserved");
+      if (reserved.status !== "reserved") return;
+
+      await aiOperationService.attachJob(reserved.operationId, jobId);
+      await aiOperationService.settleCompletedByJobId(jobId, {
+        totalTokens: 100,
+        resultWorkoutId: workoutId,
+      });
+
+      const [row] = await db
+        .select({ sourceType: workouts.sourceType })
+        .from(workouts)
+        .where(eq(workouts.id, workoutId));
+      expect(row.sourceType).toBe(expected);
+    }
+  });
+
+  it("settleCompletedByJobId is a no-op on re-run and never clears the tag", async () => {
+    if (!dbAvailable) return;
+    await setTier(AccessTier.PLUS);
+
+    const workoutId = await createWorkoutFixture();
+    const jobId = await createJobFixture();
+    const reserved = await aiOperationService.reserve({
+      userId: testUserId,
+      operationType: AiOperationType.INITIAL_PLAN,
+      idempotencyKey: KEY(`stamp-rerun-${workoutId}`),
+    });
+    if (reserved.status !== "reserved") throw new Error("expected reservation");
+    await aiOperationService.attachJob(reserved.operationId, jobId);
+
+    await aiOperationService.settleCompletedByJobId(jobId, {
+      totalTokens: 100,
+      resultWorkoutId: workoutId,
+    });
+    // A Bull retry re-running an already-settled op matches no RESERVED row.
+    await aiOperationService.settleCompletedByJobId(jobId, {
+      totalTokens: 999,
+      resultWorkoutId: workoutId,
+    });
+
+    const [row] = await db
+      .select({ sourceType: workouts.sourceType })
+      .from(workouts)
+      .where(eq(workouts.id, workoutId));
+    expect(row.sourceType).toBe(WorkoutSourceType.AI_INITIAL);
+
+    const [op] = await db
+      .select({ totalTokens: aiOperations.totalTokens })
+      .from(aiOperations)
+      .where(eq(aiOperations.id, reserved.operationId));
+    expect(op.totalTokens).toBe(100); // the re-run did not overwrite
   });
 });

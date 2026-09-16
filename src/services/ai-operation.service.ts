@@ -5,6 +5,7 @@ import { logger } from "@/utils/logger";
 import { SubscriptionStatus } from "@/constants";
 import { userSubscriptions } from "@/models/subscription.schema";
 import { aiOperations } from "@/models/ai-operations.schema";
+import { workouts } from "@/models/workout.schema";
 import {
   AccessTier,
   Capability,
@@ -13,6 +14,7 @@ import {
   CAPABILITIES_BY_TIER,
   FREE_ALLOWANCES,
   REASONABLE_USE,
+  WORKOUT_SOURCE_BY_OPERATION,
 } from "@/constants/access-policy";
 
 /**
@@ -425,28 +427,56 @@ export class AiOperationService extends BaseService {
     backgroundJobId: number,
     tokens: SettleTokens
   ): Promise<void> {
-    await this.db
-      .update(aiOperations)
-      .set({
-        status: AiOperationStatus.COMPLETED,
-        inputTokens: tokens.inputTokens ?? 0,
-        outputTokens: tokens.outputTokens ?? 0,
-        totalTokens: tokens.totalTokens ?? 0,
-        model: tokens.model ?? null,
-        provider: tokens.provider ?? null,
-        estimatedCostUsd:
-          tokens.estimatedCostUsd != null
-            ? String(tokens.estimatedCostUsd)
-            : null,
-        resultWorkoutId: tokens.resultWorkoutId ?? null,
-        completedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(aiOperations.backgroundJobId, backgroundJobId),
-          eq(aiOperations.status, AiOperationStatus.RESERVED)
+    await this.db.transaction(async (tx) => {
+      const [settled] = await tx
+        .update(aiOperations)
+        .set({
+          status: AiOperationStatus.COMPLETED,
+          inputTokens: tokens.inputTokens ?? 0,
+          outputTokens: tokens.outputTokens ?? 0,
+          totalTokens: tokens.totalTokens ?? 0,
+          model: tokens.model ?? null,
+          provider: tokens.provider ?? null,
+          estimatedCostUsd:
+            tokens.estimatedCostUsd != null
+              ? String(tokens.estimatedCostUsd)
+              : null,
+          resultWorkoutId: tokens.resultWorkoutId ?? null,
+          completedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(aiOperations.backgroundJobId, backgroundJobId),
+            eq(aiOperations.status, AiOperationStatus.RESERVED)
+          )
         )
-      );
+        .returning({
+          operationType: aiOperations.operationType,
+          resultWorkoutId: aiOperations.resultWorkoutId,
+        });
+
+      // Stamp the workout's descriptive lineage tag from the operation we just
+      // settled. Nothing wrote source_type before this, so every generated plan
+      // landed NULL and the initial-vs-regeneration mix was invisible to
+      // analytics. Deriving it here — rather than threading a parameter through
+      // generateWorkoutPlan — keeps one write site and guarantees the tag agrees
+      // with the ledger row that authorized the work.
+      //
+      // No row means this was a re-run of an already-settled operation (the
+      // idempotency this method is built on), so there is nothing to stamp.
+      if (!settled?.resultWorkoutId) return;
+
+      const sourceType =
+        WORKOUT_SOURCE_BY_OPERATION[
+          settled.operationType as AiOperationType
+        ] ?? null;
+      if (!sourceType) return;
+
+      await tx
+        .update(workouts)
+        .set({ sourceType })
+        .where(eq(workouts.id, settled.resultWorkoutId));
+    });
   }
 
   async settleFailedByJobId(
