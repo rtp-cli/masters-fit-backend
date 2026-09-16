@@ -29,7 +29,8 @@
     "test-emails": "tsx src/scripts/add-test-emails.ts",
     "eval-generation": "tsx src/scripts/eval-generation.ts",
     "eval-gate": "tsx src/scripts/eval-gate.ts",
-    "migrate-muscle-taxonomy": "tsx src/scripts/migrate-muscle-taxonomy.ts"
+    "migrate-muscle-taxonomy": "tsx src/scripts/migrate-muscle-taxonomy.ts",
+    "backfill-workout-source-type": "tsx src/scripts/backfill-workout-source-type.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.51.0",
