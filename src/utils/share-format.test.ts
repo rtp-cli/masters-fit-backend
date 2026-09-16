@@ -3,8 +3,10 @@ import { describe, it, expect } from "@jest/globals";
 import {
   blockLabel,
   blockScore,
+  groupConsecutiveRuns,
   isPlausibleDuration,
   summarizePrescription,
+  summarizePrescriptionRun,
   summarizeSets,
 } from "@/utils/share-format";
 
@@ -150,5 +152,61 @@ describe("isPlausibleDuration", () => {
   it("treats a missing or zero duration as unusable", () => {
     expect(isPlausibleDuration(null, 10)).toBe(false);
     expect(isPlausibleDuration(0, 10)).toBe(false);
+  });
+});
+
+describe("summarizePrescriptionRun", () => {
+  const row = (sets: number | null, reps: number | null, over = {}) => ({
+    sets, reps, repsMin: null, repsMax: null, distanceM: null, duration: null, ...over,
+  });
+
+  it("collapses a Wendler main lift into one line", () => {
+    // Six plan_day_exercise rows for one bench press: 1x5, 1x5, 1x3, 1x3, 1x3, 1x3.
+    const run = [row(1, 5), row(1, 5), row(1, 3), row(1, 3), row(1, 3), row(1, 3)];
+    expect(summarizePrescriptionRun(run)).toBe("6 x 3-5");
+  });
+
+  it("leaves a single row exactly as it was", () => {
+    expect(summarizePrescriptionRun([row(4, 8)])).toBe("4 x 8");
+  });
+
+  it("sums sets across the run rather than counting rows", () => {
+    expect(summarizePrescriptionRun([row(3, 10), row(2, 10)])).toBe("5 x 10");
+  });
+
+  it("spans rep ranges across the run", () => {
+    const run = [row(3, null, { repsMin: 8, repsMax: 12 }), row(2, null, { repsMin: 6, repsMax: 10 })];
+    expect(summarizePrescriptionRun(run)).toBe("5 x 6-12");
+  });
+
+  it("handles distance and duration runs", () => {
+    expect(summarizePrescriptionRun([row(1, null, { distanceM: 400 }), row(1, null, { distanceM: 800 })]))
+      .toBe("400-800 m");
+    expect(summarizePrescriptionRun([row(1, null, { duration: 45 }), row(1, null, { duration: 45 })]))
+      .toBe("2 x 45s");
+  });
+});
+
+describe("groupConsecutiveRuns", () => {
+  const ids = (runs: { id: number }[][]) => runs.map((r) => r.map((x) => x.id));
+  const items = (...keys: number[]) => keys.map((k, i) => ({ id: i + 1, key: k }));
+
+  it("folds a Wendler main lift's six rows into one run", () => {
+    const runs = groupConsecutiveRuns(items(7, 7, 7, 7, 7, 7), (x) => x.key);
+    expect(runs.length).toBe(1);
+    expect(ids(runs)).toEqual([[1, 2, 3, 4, 5, 6]]);
+  });
+
+  it("keeps distinct movements apart", () => {
+    expect(ids(groupConsecutiveRuns(items(1, 2, 3), (x) => x.key))).toEqual([[1], [2], [3]]);
+  });
+
+  it("does NOT merge a lift revisited later — only consecutive rows", () => {
+    // 5,5,9,5 is a lift, another lift, then back to the first: three runs.
+    expect(ids(groupConsecutiveRuns(items(5, 5, 9, 5), (x) => x.key))).toEqual([[1, 2], [3], [4]]);
+  });
+
+  it("handles an empty list", () => {
+    expect(groupConsecutiveRuns([], (x) => x)).toEqual([]);
   });
 });

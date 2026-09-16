@@ -179,3 +179,58 @@ export function isPlausibleDuration(seconds: number | null, setCount: number): b
   if (!seconds || seconds < 60) return false;
   return seconds >= 15 * setCount;
 }
+
+/**
+ * The prescription line for a RUN of rows that all describe the same movement.
+ *
+ * Wendler 5/3/1 stores each set of a main lift as its own plan_day_exercise, so
+ * a single bench press arrives as six rows of 1x5, 1x5, 1x3, 1x3, 1x3, 1x3.
+ * Rendered one-per-row that is six identical lines that fill an entire card;
+ * collapsed it is "6 x 3-5", which is what the lift actually was.
+ */
+export function summarizePrescriptionRun(
+  items: Array<{
+    sets: number | null;
+    reps: number | null;
+    repsMin: number | null;
+    repsMax: number | null;
+    distanceM: number | null;
+    duration: number | null;
+  }>
+): string {
+  if (items.length === 1) return summarizePrescription(items[0]);
+
+  const totalSets = items.reduce((n, e) => n + (e.sets ?? 1), 0);
+
+  const distances = items.map((e) => e.distanceM).filter((d): d is number => !!d);
+  if (distances.length === items.length) return `${range(distances)} m`;
+
+  const durations = items.map((e) => e.duration).filter((d): d is number => !!d);
+  if (durations.length === items.length) {
+    const uniq = [...new Set(durations)];
+    return `${totalSets} x ${uniq.length === 1 ? formatSeconds(uniq[0]) : `${range(durations)}s`}`;
+  }
+
+  // Each row can carry its own target, so the run spans a range of reps.
+  const reps = items.flatMap((e) =>
+    e.repsMin && e.repsMax ? [e.repsMin, e.repsMax] : e.reps != null ? [e.reps] : []
+  );
+  return reps.length ? `${totalSets} x ${range(reps)}` : `${totalSets} sets`;
+}
+
+/**
+ * Split a list into runs of CONSECUTIVE items sharing a key.
+ *
+ * Used to fold Wendler-style repeated rows (one plan_day_exercise per set of a
+ * main lift) back into a single movement. Consecutive only, deliberately: a
+ * lift revisited later in the same block is separate work, not the same run.
+ */
+export function groupConsecutiveRuns<T>(items: T[], keyOf: (item: T) => unknown): T[][] {
+  const runs: T[][] = [];
+  for (const item of items) {
+    const last = runs[runs.length - 1];
+    if (last && keyOf(last[0]) === keyOf(item)) last.push(item);
+    else runs.push([item]);
+  }
+  return runs;
+}
