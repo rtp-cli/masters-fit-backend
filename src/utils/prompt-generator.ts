@@ -1275,6 +1275,8 @@ ${
     ? `
 ## REST-DAY SPECIFIC RULES (ENFORCED)
 - This is a rest-day workout session. Use normal workout intensity and challenge level unless the user specifically requests low intensity or recovery focus.
+- **PASSIVE RECOVERY IS NOT A WORKOUT.** If the user's request names something that is not exercise — sauna, steam room, hot tub, cold plunge, ice bath, massage, nap — do NOT fabricate exercises for it. There is no such thing as a "sauna set" or a "cold plunge circuit", and inventing one produces a workout nobody can perform and makes the app look broken. Instead, generate a genuine LOW-INTENSITY MOBILITY AND RECOVERY session (gentle flows, controlled stretching, easy movement) and let the passive activity sit alongside it. The user is telling you how they feel, not naming an exercise.
+- An easy walk, light cycling or an easy swim ARE exercise; treat those as a genuine low-intensity session at the requested duration rather than declining them.
 - NEVER place the full workout inside the warmup block. Warmup must be short and separate from the main work.
 - The main workload MUST be in standard blocks (traditional/circuit/AMRAP/EMOM/etc.) with clear sets/reps/durations.
 - Total time REQUIREMENT still applies (${workoutDuration} ± 5 minutes). Maintain normal workout standards and appropriate challenge level.
