@@ -51,3 +51,24 @@ export const workoutCompletedSchema = z.object({
   duration_ms: z.number().min(0),
   completion_percentage: z.number().min(0).max(100),
 });
+
+/**
+ * Generic client event schema - the durable-mirror endpoint.
+ *
+ * Deliberately permissive about WHICH event: the client registry
+ * (frontend/lib/analytics-events.ts) is the source of truth for event names, and
+ * duplicating that allow-list here would mean a backend deploy every time a new
+ * client event is added. Names are length-capped and properties must be flat and
+ * PII-free -- the same contract the client registry documents.
+ */
+export const clientEventSchema = z.object({
+  event_name: z.string().min(1).max(100),
+  /** Idempotency key. apiRequest retries once after a token refresh. */
+  client_event_id: z.string().min(1).max(100),
+  /** Flat primitives only. Never email, name, or medical data. */
+  properties: z
+    .record(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .optional(),
+  /** Device-side timestamp, ISO 8601. */
+  occurred_at: z.string().datetime().optional(),
+});

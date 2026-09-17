@@ -1,4 +1,5 @@
 import { mixpanelService } from "./mixpanel.service";
+import { analyticsPersistenceService } from "./analytics-persistence.service";
 import { BACKEND_ANALYTICS_EVENT } from "@/constants/analytics-events";
 import { logger } from "@/utils/logger";
 
@@ -38,6 +39,19 @@ export class EventTrackingService {
 
       // Identify user in Mixpanel first
       await this.identifyUser(userUuid, ip);
+
+      // Durable mirror FIRST, deliberately. This is the copy the funnel is
+      // queried from, so it must not be skipped by a Mixpanel failure -- if the
+      // mirror ran after and mixpanelService.track threw, the shared catch below
+      // would swallow the error and silently drop the row. Ordering it first
+      // makes the durable write independent of the non-durable one. It never
+      // throws, so it cannot conversely block the Mixpanel send.
+      await analyticsPersistenceService.record({
+        userUuid,
+        eventName,
+        properties,
+        source: "server",
+      });
 
       // Track the event (Mixpanel handles timestamp automatically)
       await mixpanelService.track(userUuid, eventName, properties, ip);
