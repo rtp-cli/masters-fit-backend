@@ -9,7 +9,9 @@ import {
   workoutAbandonedSchema,
   workoutStartedSchema,
   workoutCompletedSchema,
+  clientEventSchema,
 } from "@/models/analytics.schema";
+import { analyticsPersistenceService } from "@/services/analytics-persistence.service";
 import {
   VideoEngagementRequest,
   AppOpenedRequest,
@@ -229,6 +231,47 @@ export class AnalyticsController {
         success: false,
         error: error instanceof Error ? error.message : "Failed to track event",
       };
+    }
+  }
+
+  /**
+   * Record a client-emitted analytics event in Postgres.
+   *
+   * This is the durable mirror ONLY -- the client SDK has already sent the event
+   * to Mixpanel itself, so this deliberately does not re-emit it. Re-emitting
+   * would double-count every client event in the analytics product.
+   *
+   * Always returns success: analytics must never break the calling screen.
+   */
+  public async trackClientEvent(
+    requestBody: unknown,
+    request: ExpressRequest,
+    userUuid?: string,
+    userId?: number
+  ): Promise<ApiResponse> {
+    try {
+      const validated = clientEventSchema.parse(requestBody);
+
+      await analyticsPersistenceService.record({
+        userId: userId ?? null,
+        userUuid: userUuid ?? null,
+        eventName: validated.event_name,
+        properties: validated.properties ?? null,
+        source: "client",
+        clientEventId: validated.client_event_id,
+        occurredAt: validated.occurred_at
+          ? new Date(validated.occurred_at)
+          : null,
+      });
+
+      return { success: true };
+    } catch (error) {
+      logger.warn("Failed to record client analytics event", {
+        operation: "trackClientEvent",
+      });
+      // Swallowed on purpose. The client fires this and moves on; a failure
+      // here must not surface as an error on a screen the user is using.
+      return { success: true };
     }
   }
 

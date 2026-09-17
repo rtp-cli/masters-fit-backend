@@ -1,4 +1,5 @@
 import { mixpanelService } from "./mixpanel.service";
+import { analyticsPersistenceService } from "./analytics-persistence.service";
 import { BACKEND_ANALYTICS_EVENT } from "@/constants/analytics-events";
 import { logger } from "@/utils/logger";
 
@@ -41,6 +42,16 @@ export class EventTrackingService {
 
       // Track the event (Mixpanel handles timestamp automatically)
       await mixpanelService.track(userUuid, eventName, properties, ip);
+
+      // Durable mirror so the funnel is answerable from Postgres, not only
+      // Mixpanel. Every backend-emitted event flows through here, so this one
+      // line covers workout_started and everything alongside it. Never throws.
+      await analyticsPersistenceService.record({
+        userUuid,
+        eventName,
+        properties,
+        source: "server",
+      });
 
       logger.info("Event tracked successfully", {
         userUuid,

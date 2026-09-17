@@ -98,4 +98,22 @@ router.post("/workout-completed", requireAuth, async (req, res) => {
   }
 });
 
+// Durable mirror for CLIENT-emitted events. The client SDK has already sent the
+// event to Mixpanel; this only writes the Postgres copy so the activation funnel
+// is answerable with db-prod-read.sh. Never returns an error to the caller.
+router.post("/event", requireAuth, async (req, res) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const response = await controller.trackClientEvent(
+      req.body,
+      authReq,
+      authReq.userUuid,
+      authReq.userId
+    );
+    res.json(response);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 export const analyticsRouter = router;
