@@ -14,6 +14,11 @@ import {
   ONBOARDING_NUDGE_SUBJECT,
 } from "@/templates/onboarding-nudge-email";
 import {
+  activationNudgeTemplate,
+  ACTIVATION_NUDGE_SUBJECT,
+} from "@/templates/activation-nudge-email";
+import { activationStartUrl } from "@/constants/activation-nudge";
+import {
   compGrantedTemplate,
   COMP_GRANTED_SUBJECT,
 } from "@/templates/comp-granted-email";
@@ -229,6 +234,65 @@ export class EmailService {
 
     logger.info("Onboarding nudge email sent", {
       operation: "sendOnboardingNudgeEmail",
+      metadata: { userId, messageId: response.data?.id },
+    });
+  }
+
+  /**
+   * "Your first session is ready" — sent to someone whose plan is built and
+   * untouched.
+   *
+   * COMMERCIAL, exactly like the onboarding nudge: List-Unsubscribe headers, a
+   * footer unsubscribe, and a postal address the caller is required to supply.
+   * The caller also consults `email_opted_out_at` before ever reaching here.
+   */
+  async sendActivationNudgeEmail(params: {
+    to: string;
+    name: string;
+    userId: number;
+    planName: string;
+    firstSessionName: string | null;
+    postalAddress: string;
+  }): Promise<void> {
+    const { to, name, userId, planName, firstSessionName, postalAddress } =
+      params;
+
+    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
+      signUnsubscribeToken(userId),
+    )}`;
+
+    const { html, text } = activationNudgeTemplate({
+      name,
+      planName,
+      firstSessionName,
+      startUrl: activationStartUrl(),
+      unsubscribeUrl,
+      postalAddress,
+    });
+
+    const response = await resend.emails.send({
+      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      to,
+      bcc: lifecycleBcc(to),
+      subject: ACTIVATION_NUDGE_SUBJECT,
+      html,
+      text,
+      replyTo: NUDGE_REPLY_TO,
+      // One-click unsubscribe. Gmail and Yahoo require this header on bulk
+      // mail; without it they are entitled to treat the send as spam no matter
+      // how good the footer link is.
+      headers: {
+        "List-Unsubscribe": `<${unsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Activation nudge email sent", {
+      operation: "sendActivationNudgeEmail",
       metadata: { userId, messageId: response.data?.id },
     });
   }

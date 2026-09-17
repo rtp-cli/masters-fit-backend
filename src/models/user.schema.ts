@@ -43,6 +43,12 @@ export const users = pgTable(
     // by the same atomic conditional UPDATE, and never cleared: one nudge per
     // account, for the life of the account.
     onboardingNudgeSentAt: timestamp("onboarding_nudge_sent_at"),
+    // activationNudgeSentAt — the "your plan is waiting" nudge went out.
+    // Separate column from onboardingNudgeSentAt on purpose: they target
+    // different failures (never finished setup vs. finished setup, got a plan,
+    // never started it) and a user can legitimately be eligible for both. One
+    // shared column would silently suppress the second.
+    activationNudgeSentAt: timestamp("activation_nudge_sent_at"),
     // emailOptedOutAt — this person clicked unsubscribe. Checked before every
     // non-transactional send. Set by an unauthenticated link, so it is
     // deliberately the ONLY thing that link can write.
@@ -110,6 +116,7 @@ export interface User {
   signupNotifiedAt: Date | null;
   stalledDigestNotifiedAt: Date | null;
   onboardingNudgeSentAt: Date | null;
+  activationNudgeSentAt: Date | null;
   emailOptedOutAt: Date | null;
 }
 

@@ -35,6 +35,12 @@ import {
   closeOnboardingNudgeQueue,
 } from "./queues/onboarding-nudge.queue";
 import { processOnboardingNudge } from "./jobs/onboarding-nudge.job";
+import {
+  activationNudgeQueue,
+  scheduleActivationNudgeJob,
+  closeActivationNudgeQueue,
+} from "./queues/activation-nudge.queue";
+import { processActivationNudge } from "./jobs/activation-nudge.job";
 
 const port = parseInt(process.env.PORT || "5000", 10);
 
@@ -138,6 +144,12 @@ async function initializeServices() {
     onboardingNudgeQueue.process('onboarding-nudge', 1, processOnboardingNudge);
     await scheduleOnboardingNudgeJob();
 
+    // Activation nudge: the second scheduled job that mails CUSTOMERS. Same
+    // shape and same inertness — nothing goes out unless
+    // ACTIVATION_NUDGE_ENABLED is set AND COMPANY_POSTAL_ADDRESS has a value.
+    activationNudgeQueue.process('activation-nudge', 1, processActivationNudge);
+    await scheduleActivationNudgeJob();
+
   } catch (error) {
     logger.error('Failed to initialize services', error as Error);
     process.exit(1);
@@ -156,6 +168,7 @@ async function gracefulShutdown() {
     await closeRenewalReminderQueue();
     await closeStalledSignupDigestQueue();
     await closeOnboardingNudgeQueue();
+    await closeActivationNudgeQueue();
 
     // Close Redis
     await closeRedis();
