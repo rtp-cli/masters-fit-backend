@@ -42,6 +42,7 @@ import {
   formatDateAsString,
 } from "@/utils/date.utils";
 import { buildPlanDaySchedule, PlanDaySlot } from "@/utils/plan-schedule";
+import { resolveInsertPosition } from "@/utils/plan-day-position.utils";
 import { markPhaseElapsed } from "@/utils/phase-timing";
 import { workoutLogs } from "../models/logs.schema";
 import { logger } from "@/utils/logger";
@@ -2759,9 +2760,20 @@ export class WorkoutService extends BaseService {
   /**
    * Create a new plan day for a rest day and renumber subsequent days
    */
+  /**
+   * Insert a single extra plan day into an existing plan.
+   *
+   * @param asAdditionalSession [LR-069] The date already has a session and the
+   *   user deliberately asked for ANOTHER one ("I trained this morning and have
+   *   20 minutes tonight"). Changes only the ordering: a bonus session sorts
+   *   AFTER the session it supplements, not before it. Without this the new day
+   *   takes the existing day's dayNumber and pushes the original down, so the
+   *   plan reads as though the bonus came first.
+   */
   async createPlanDayForRestDay(
     workoutId: number,
-    date: string
+    date: string,
+    asAdditionalSession = false
   ): Promise<PlanDay> {
     // Get all existing plan days for this workout, ordered by date
     const existingDays = await this.db.query.planDays.findMany({
@@ -2769,9 +2781,13 @@ export class WorkoutService extends BaseService {
       orderBy: [asc(planDays.date)],
     });
 
-    // Determine where this date fits in the sequence
-    const insertPosition =
-      existingDays.filter((day) => day.date < date).length + 1;
+    // Determine where this date fits in the sequence. A bonus session counts
+    // same-date days as already ahead of it, so it lands after them.
+    const insertPosition = resolveInsertPosition(
+      existingDays.map((day) => day.date),
+      date,
+      asAdditionalSession
+    );
 
     // Update dayNumber for all days that come after the insert position
     for (const day of existingDays) {
