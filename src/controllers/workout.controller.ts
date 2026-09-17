@@ -867,6 +867,15 @@ export class WorkoutController extends Controller {
       limitations?: string[];
       threadId?: string;
       durationOverride?: number;
+      /**
+       * [LR-069] Deliberately add a SECOND session to a date that already has
+       * one — "I did my hour this morning, I've got 20 minutes tonight".
+       *
+       * Opt-in rather than the default because the 400 this bypasses is also
+       * what stops a double-tapped button from silently generating two
+       * workouts. Every existing caller omits it and keeps the old behaviour.
+       */
+      additionalSession?: boolean;
     }
   ): Promise<{ success: boolean; jobId: number; message: string }> {
     // Same clamp as regenerateDailyWorkoutAsync — this path shares the
@@ -897,14 +906,19 @@ export class WorkoutController extends Controller {
         const existingPlanDay = activeWorkout.planDays?.find(
           (day) => day.date === requestBody.date
         );
-        if (existingPlanDay) {
+        // [LR-069] A date that already has a session is only a conflict when
+        // the caller did not ask for an extra one. The single most-requested
+        // thing from an engaged user is exactly this case: finish the planned
+        // hour, then add 20 minutes of upper body in the evening.
+        if (existingPlanDay && !requestBody.additionalSession) {
           this.setStatus(400);
           throw new Error("This date already has a workout scheduled");
         }
 
         newPlanDay = await workoutService.createPlanDayForRestDay(
           activeWorkout.id,
-          requestBody.date
+          requestBody.date,
+          Boolean(existingPlanDay)
         );
       } else {
         // No active workout — create a standalone single-day workout (inactive until job completes)
