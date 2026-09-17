@@ -1,5 +1,7 @@
+import { eq } from "drizzle-orm";
+
 import { db } from "@/config/database";
-import { analyticsEvents, AnalyticsEventSource } from "@/models";
+import { analyticsEvents, AnalyticsEventSource, users } from "@/models";
 import { logger } from "@/utils/logger";
 
 /**
@@ -21,8 +23,17 @@ export class AnalyticsPersistenceService {
     occurredAt?: Date | null;
   }): Promise<void> {
     try {
+      // Backend-emitted events only carry the uuid (EventTrackingService is
+      // keyed on Mixpanel's distinct_id), so without this every server row would
+      // land with a null user_id -- making the (user_id, event_name, created_at)
+      // index useless for exactly those events, and forcing funnel queries to
+      // join on uuid for server rows and id for client rows. Resolve it once so
+      // every row is queryable the same way. users.uuid is uniquely indexed and
+      // event volume is low, so the extra lookup is not worth avoiding.
+      const userId = params.userId ?? (await this.resolveUserId(params.userUuid));
+
       await db.insert(analyticsEvents).values({
-        userId: params.userId ?? null,
+        userId: userId ?? null,
         userUuid: params.userUuid ?? null,
         eventName: params.eventName,
         properties: params.properties ?? null,
@@ -46,6 +57,24 @@ export class AnalyticsPersistenceService {
         eventName: params.eventName,
         source: params.source,
       });
+    }
+  }
+
+  /** uuid -> users.id, or null if absent/unknown. Never throws. */
+  private async resolveUserId(
+    userUuid?: string | null
+  ): Promise<number | null> {
+    if (!userUuid) return null;
+    try {
+      const [row] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.uuid, userUuid))
+        .limit(1);
+      return row?.id ?? null;
+    } catch {
+      // A row with a null user_id is still worth keeping -- user_uuid is on it.
+      return null;
     }
   }
 }

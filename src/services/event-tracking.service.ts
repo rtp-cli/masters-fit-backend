@@ -40,18 +40,21 @@ export class EventTrackingService {
       // Identify user in Mixpanel first
       await this.identifyUser(userUuid, ip);
 
-      // Track the event (Mixpanel handles timestamp automatically)
-      await mixpanelService.track(userUuid, eventName, properties, ip);
-
-      // Durable mirror so the funnel is answerable from Postgres, not only
-      // Mixpanel. Every backend-emitted event flows through here, so this one
-      // line covers workout_started and everything alongside it. Never throws.
+      // Durable mirror FIRST, deliberately. This is the copy the funnel is
+      // queried from, so it must not be skipped by a Mixpanel failure -- if the
+      // mirror ran after and mixpanelService.track threw, the shared catch below
+      // would swallow the error and silently drop the row. Ordering it first
+      // makes the durable write independent of the non-durable one. It never
+      // throws, so it cannot conversely block the Mixpanel send.
       await analyticsPersistenceService.record({
         userUuid,
         eventName,
         properties,
         source: "server",
       });
+
+      // Track the event (Mixpanel handles timestamp automatically)
+      await mixpanelService.track(userUuid, eventName, properties, ip);
 
       logger.info("Event tracked successfully", {
         userUuid,
