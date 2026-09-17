@@ -14,3 +14,7 @@ eval-runs/
 muscle-taxonomy-rollback-*.json
 
 .DS_Store
+
+# Claude Code private worktrees — entire nested checkouts (564MB as of 2026-09-17).
+# Untracked but unignored means one `git add -A` commits three copies of this repo.
+.claude/worktrees/
