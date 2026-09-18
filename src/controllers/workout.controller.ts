@@ -31,6 +31,7 @@ import {
   userService,
 } from "@/services";
 import { eventTrackingService } from "@/services/event-tracking.service";
+import { maxSessionsPerDate } from "@/constants/workout-sessions";
 import {
   InsertWorkout,
   InsertPlanDayExercise,
@@ -903,9 +904,24 @@ export class WorkoutController extends Controller {
 
       if (activeWorkout) {
         // Check if this date already has a workout in the active plan
-        const existingPlanDay = activeWorkout.planDays?.find(
-          (day) => day.date === requestBody.date
-        );
+        const sessionsOnDate =
+          activeWorkout.planDays?.filter(
+            (day) => day.date === requestBody.date
+          ) ?? [];
+        const existingPlanDay = sessionsOnDate[0];
+
+        // [LR-069] Hard cap, enforced here rather than only in the UI so it
+        // cannot be bypassed by a stale client or a repeated tap. Each session
+        // costs a DAY_ADJUSTMENT, of which a free account has three for its
+        // lifetime — an uncapped button on the completed screen would spend
+        // them in one evening.
+        const cap = maxSessionsPerDate();
+        if (requestBody.additionalSession && sessionsOnDate.length >= cap) {
+          this.setStatus(400);
+          throw new Error(
+            `You already have ${sessionsOnDate.length} workouts scheduled for this day.`
+          );
+        }
         // [LR-069] A date that already has a session is only a conflict when
         // the caller did not ask for an extra one. The single most-requested
         // thing from an engaged user is exactly this case: finish the planned
