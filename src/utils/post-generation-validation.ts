@@ -7,6 +7,7 @@ import {
 } from "./percent-scheme-loads";
 import { validateEquipmentAndFilter } from "@/utils/equipment-validation";
 import { validateLimitationsAndFilter } from "@/utils/limitation-validation";
+import { validateFitnessLevelAndFilter } from "@/utils/fitness-level-validation";
 import {
   capExerciseRepetition,
   ExerciseRepetitionFinding,
@@ -110,11 +111,24 @@ export function applyPostGenerationValidation(
     profile
   );
 
+  // [LR-073] Beginner guardrail, third in the filter chain for the same reason
+  // limitations run after equipment: each filter's output feeds the next, and
+  // everything downstream (the AVOID swap, the repetition cap, the duration
+  // pad) should see the final exercise set. Dropping here rather than later
+  // also means the duration pad gets a chance to backfill the gap with
+  // something a beginner can actually do. No-op unless the profile says
+  // beginner.
+  const levelFiltered = validateFitnessLevelAndFilter(
+    limitationFiltered.exercisesToAdd,
+    limitationFiltered.workoutPlan,
+    profile
+  );
+
   // [GQ-07] Deterministic AVOID enforcement (no-op when there are no avoid
   // terms or no violation — the common case).
   const enforced = enforceAvoidConstraints(
-    limitationFiltered.workoutPlan,
-    limitationFiltered.exercisesToAdd,
+    levelFiltered.workoutPlan,
+    levelFiltered.exercisesToAdd,
     constraintOptions?.avoidExerciseTerms,
     constraintOptions?.catalog || []
   );

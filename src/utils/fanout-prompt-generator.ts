@@ -1,6 +1,7 @@
 import { Profile } from "@/models";
 import { AvailableEquipment, PreferredStyles } from "@/constants/profile";
 import { CANONICAL_MUSCLE_GROUPS } from "@/constants/muscle-groups";
+import { fitnessLevelPromptSection } from "@/utils/fitness-level-validation";
 import {
   PlanDaySlot,
   formatSlotLabel,
@@ -547,7 +548,7 @@ const buildProfileContext = (profile: Profile): string => {
 - Intensity Level: ${profile.intensityLevel}
 - Medical Notes: ${profile.medicalNotes || "None"}
 
-**Training Preferences:**
+${fitnessLevelPromptSection(profile.fitnessLevel)}**Training Preferences:**
 - Preferred Styles: ${profile.preferredStyles?.join(", ") || "General fitness"}
 - Available Days: ${effectiveAvailableDays(profile.availableDays).join(", ")}
 - Workout Duration: ${profile.workoutDuration} minutes per session

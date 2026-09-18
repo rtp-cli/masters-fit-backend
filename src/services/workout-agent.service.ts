@@ -19,6 +19,10 @@ import {
   filterExercisesByLimitations,
   validateLimitationsAndFilter,
 } from "@/utils/limitation-validation";
+import {
+  filterExercisesByFitnessLevel,
+  validateFitnessLevelAndFilter,
+} from "@/utils/fitness-level-validation";
 import type { PhysicalLimitation } from "@/types";
 import {
   checkConsecutiveMuscleGroupOverload,
@@ -231,7 +235,12 @@ export class WorkoutAgentService {
     const styles = Array.isArray(profile.preferredStyles)
       ? [...profile.preferredStyles].sort().join(",")
       : "";
-    return `${profile.environment}:${equipment}:${limitations}:${styles}`;
+    // [LR-073] Beginner guardrails trim `high`-difficulty exercises out of the
+    // catalog, so the level is part of what this key identifies — without it a
+    // beginner's trimmed catalog would be served to the next intermediate user
+    // with the same environment/equipment/limitations/styles, and vice versa.
+    const level = profile.fitnessLevel || "";
+    return `${profile.environment}:${equipment}:${limitations}:${styles}:${level}`;
   }
 
   private async getFilteredExercises(
@@ -335,7 +344,12 @@ export class WorkoutAgentService {
       // [LR-013] The primary enforcement point: exclude contraindicated
       // exercises before the LLM ever sees them as an option, rather than
       // relying solely on the post-generation check below for exercisesToAdd.
-      const allowed = filterExercisesByLimitations(pool, profile);
+      const withinLimitations = filterExercisesByLimitations(pool, profile);
+      // [LR-073] Then the beginner guardrail, on the same principle: a beginner
+      // never sees a `high`-difficulty movement as an option. Runs over the
+      // whole pool for the same reason limitations do — so excluded movements
+      // never consume menu slots.
+      const allowed = filterExercisesByFitnessLevel(withinLimitations, profile);
       const exercises = stratifyCatalog(allowed, {
         preferredStyles: profile.preferredStyles as string[] | null,
         limit: GENERATION_CATALOG_SIZE,
@@ -350,7 +364,8 @@ export class WorkoutAgentService {
         cacheKey,
         resultCount: exercises.length,
         poolCount: pool.length,
-        excludedByLimitations: pool.length - allowed.length,
+        excludedByLimitations: pool.length - withinLimitations.length,
+        excludedByFitnessLevel: withinLimitations.length - allowed.length,
       });
 
       return { menu: exercises, pool: allowed };
@@ -734,21 +749,37 @@ Please generate the workout now, addressing this feedback while following all sy
       // regen prescribed Box Jump to a knee-replacement user. Same drop
       // semantics as the weekly path; validateLimitationsAndFilter no-ops for
       // profiles without limitations.
-      if (dayNumber) {
-        const screened = validateLimitationsAndFilter(
-          (workout as any).exercisesToAdd || [],
-          [workout],
+      // [LR-073] The beginner guardrail is chained onto the same two calls for
+      // the same reason: this path never runs applyPostGenerationValidation, so
+      // without it a daily regen could hand a beginner a movement the weekly
+      // path would have dropped. Both filters no-op for profiles they don't
+      // apply to.
+      const screenDaily = (toAdd: any[], plan: any[]) => {
+        const afterLimitations = validateLimitationsAndFilter(
+          toAdd,
+          plan,
           profile
+        );
+        return validateFitnessLevelAndFilter(
+          afterLimitations.exercisesToAdd,
+          afterLimitations.workoutPlan,
+          profile
+        );
+      };
+
+      if (dayNumber) {
+        const screened = screenDaily(
+          (workout as any).exercisesToAdd || [],
+          [workout]
         );
         workout = {
           ...screened.workoutPlan[0],
           exercisesToAdd: screened.exercisesToAdd,
         };
       } else if ((workout as any).workoutPlan) {
-        const screened = validateLimitationsAndFilter(
+        const screened = screenDaily(
           (workout as any).exercisesToAdd || [],
-          (workout as any).workoutPlan,
-          profile
+          (workout as any).workoutPlan
         );
         workout = {
           ...workout,
