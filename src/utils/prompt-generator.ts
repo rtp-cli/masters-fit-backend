@@ -135,9 +135,13 @@ Scale hero WODs aggressively for the user's fitness level (half Murph, reduced r
 The entry point of the ladder, and for many 40+ users the only training they will
 sustain until their fitness improves. Treat it as a real modality, not a warm-up.
 
-- **The session IS the walk.** A 25-minute walk is a complete session. Do NOT pad
-  it with gym exercises so it "looks like" a workout, and do NOT relabel it a
-  warm-up or recovery.
+- **The session IS the walk.** A walk is a complete session at ANY duration the
+  user can sustain. **A 10-minute walk is a real session** — for someone 50+ who
+  has not exercised in 15 years, ten minutes may be the honest ceiling in week
+  one, and meeting them there is the entire point. Do NOT pad it with gym
+  exercises so it "looks like" a workout, do NOT relabel it a warm-up or
+  recovery, and do NOT stretch it to fill the user's stated session length if
+  they cannot yet sustain that long.
 - **Content:** walking, brisk walking, incline walking, hill repeats, rucking,
   hiking; sit-to-stands and chair-supported work; short movement breaks; very
   light bodyweight movements; basic mobility; standing balance work. Light

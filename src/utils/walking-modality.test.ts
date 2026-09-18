@@ -41,6 +41,11 @@ describe("Walking & Movement modality [LR-084]", () => {
     expect(guide).toMatch(/NEVER prescribe jogging, running, jumping/i);
     expect(guide).toMatch(/sit-to-stand/i);
     expect(guide).toMatch(/rucking/i);
+    // The bottom of the ladder is lower than it looks: 52, 70 lb overweight,
+    // 15 years off, a 10-minute walk is the ceiling. The guide must not imply
+    // a minimum duration, and must not pad a short walk out to the user's
+    // stated session length.
+    expect(guide).toMatch(/A 10-minute walk is a real session/i);
     // It must not be demoted to a warm-up when combined with another style.
     expect(guide).toMatch(/does not become a\s*\n?warm-up/i);
   });
