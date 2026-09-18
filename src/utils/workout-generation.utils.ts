@@ -22,6 +22,10 @@ export function determineBlockType(
     balance: "traditional", // Balance gets traditional format
     mobility: "flow", // Mobility gets flow format
     rehab: "traditional", // Rehab gets traditional format
+    // [LR-084] A walk is one continuous effort, not sets or a circuit. Mapping
+    // it to "circuit" (as `cardio` is) is what produced rounds of "Jogging in
+    // Place" for a beginner with knee pain.
+    walking_movement: "traditional",
   };
 
   // Find the first matching style and return its block type
