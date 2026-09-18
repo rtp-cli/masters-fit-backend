@@ -1,6 +1,7 @@
 import { Profile } from "@/models";
 import { WorkoutEnvironments } from "@/constants/profile";
 import { effectiveAvailableDays } from "@/utils/plan-schedule";
+import { fitnessLevelPromptSection } from "@/utils/fitness-level-validation";
 
 export const getEquipmentDescription = (
   environment?: string | null,
@@ -796,7 +797,7 @@ You are an experienced fitness trainer and certified fitness professional. Your 
 - Intensity Level: ${profile.intensityLevel}
 - Medical Notes: ${profile.medicalNotes || "None"}
 
-**Training Preferences:**
+${fitnessLevelPromptSection(profile.fitnessLevel)}**Training Preferences:**
 - Preferred Styles: ${profile.preferredStyles?.join(", ") || "General fitness"}
 - Available Days: ${effectiveAvailableDays(profile.availableDays).join(", ")}
 - Workout Duration: ${workoutDuration} minutes per session
@@ -942,7 +943,7 @@ You are an experienced fitness trainer and certified fitness professional. Your 
 - Intensity Level: ${profile.intensityLevel}
 - Medical Notes: ${profile.medicalNotes || "None"}
 
-**Training Preferences:**
+${fitnessLevelPromptSection(profile.fitnessLevel)}**Training Preferences:**
 - Preferred Styles: ${profile.preferredStyles?.join(", ") || "General fitness"}
 - Available Days: ${effectiveAvailableDays(profile.availableDays).join(", ")}
 - Workout Duration: ${workoutDuration} minutes per session
