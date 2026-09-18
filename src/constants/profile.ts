@@ -96,6 +96,13 @@ export const PreferredStyles = {
   YOGA: "yoga",
   BALANCE: "balance",
   MOBILITY: "mobility",
+  // [LR-084] The "getting moving" modality. Not a peer of pilates/crossfit in
+  // scope — it is the whole content vocabulary for someone whose training IS
+  // walking: walks, incline walks, sit-to-stands, light bodyweight, balance and
+  // basic mobility. Deliberately expressible at ANY fitness level, because
+  // "where I'm starting from" and "what I want to do" are different questions —
+  // a consistent walker who won't do gym work is not a beginner.
+  WALKING_MOVEMENT: "walking_movement",
 } as const;
 
 // Helper functions for automatic equipment assignment

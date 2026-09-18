@@ -131,7 +131,37 @@ Scale hero WODs aggressively for the user's fitness level (half Murph, reduced r
 - **Balance:** Single-leg movements, unstable surface exercises, control, proprioception, safe progression. Weight assignment: May use light weights for added challenge (light dumbbells for single-leg deadlifts). Set to 0 for pure balance work.
 - **Cardio:** High-intensity circuits, EMOM, steady-state intervals, heart rate elevation with jumping jacks, running, cycling. Weight assignment: For weighted cardio exercises (weighted burpees, dumbbell complexes), specify appropriate weights. Set to 0 for pure cardio movements.
 
+### Walking & Movement Programming
+The entry point of the ladder, and for many 40+ users the only training they will
+sustain until their fitness improves. Treat it as a real modality, not a warm-up.
+
+- **The session IS the walk.** A walk is a complete session at ANY duration the
+  user can sustain. **A 10-minute walk is a real session** — for someone 50+ who
+  has not exercised in 15 years, ten minutes may be the honest ceiling in week
+  one, and meeting them there is the entire point. Do NOT pad it with gym
+  exercises so it "looks like" a workout, do NOT relabel it a warm-up or
+  recovery, and do NOT stretch it to fill the user's stated session length if
+  they cannot yet sustain that long.
+- **Content:** walking, brisk walking, incline walking, hill repeats, rucking,
+  hiking; sit-to-stands and chair-supported work; short movement breaks; very
+  light bodyweight movements; basic mobility; standing balance work. Light
+  resistance appears LATER, once walking volume is established.
+- **NEVER prescribe jogging, running, jumping, or "in place" cardio for this
+  style.** "Light jog in place" and "High Knees" are not scaled walking — they
+  are higher-impact movements that a walker specifically did not ask for.
+- **Structure:** one continuous effort with a stated duration and effort level
+  ("conversational pace", "brisk enough that talking takes effort"), not rounds
+  or circuits. A session is typically 1-3 blocks with FEW movements, not 9.
+- **Progression is duration first**, then pace, then grade or pack weight —
+  never by adding complexity. Leave obvious room to add next week.
+- **Weight assignment:** 0 for walking and bodyweight movements; state pack
+  weight in the instructions for rucking.
+
 Choose the most appropriate format and structure for the styles selected. Combine intelligently when multiple styles are used (e.g., CrossFit + Strength may use a strength-biased WOD). Always adjust exercise selection, intensity, and structure based on the user's environment, equipment, fitness level, and physical limitations.
+
+**When Walking & Movement is combined with another style, it does not become a
+warm-up for that style.** Give it its own sessions on its own days; the other
+style gets the remaining days.
 `;
 };
 

@@ -32,6 +32,15 @@ import { logger } from "@/utils/logger";
  *   in validateLimitationsAndFilter. Keyword rules work on a name alone, so
  *   they cover both.
  *
+ * [LR-084] The user-facing question is now behavioural — "getting moving" /
+ * "building fitness" / "training regularly" — because a self-rating
+ * (beginner/intermediate/advanced) is both badly answered and quietly shaming.
+ * The STORED values are unchanged (`beginner`/`intermediate`/`advanced`) so no
+ * migration is needed and every consumer below still works; only the question
+ * and the labels moved. Note the mapping is an approximation for profiles that
+ * answered the OLD question: "beginner" (a skill claim) and "getting moving" (a
+ * behaviour claim) are not quite the same thing.
+ *
  * Only `beginner` is constrained. Intermediate and advanced are returned
  * untouched: their `high` share (9.3% and 19.6%) is the system working, and a
  * null/absent fitnessLevel is treated as unconstrained rather than assumed
@@ -189,7 +198,8 @@ export function describeFitnessLevelProgramming(
   if (fitnessLevel !== FitnessLevels.BEGINNER) return null;
 
   return [
-    "**THIS USER IS A BEGINNER — PROGRAM FOR WEEK ONE, NOT FOR A TRAINING AGE.**",
+    "**THIS USER IS GETTING MOVING — PROGRAM FOR WEEK ONE, NOT FOR A TRAINING AGE.**",
+    "They told us they do little or no exercise right now and want to establish basic activity and consistency. That is a statement about their CURRENT WEEK, not their ceiling — program for the person who has to start, not the person they may become.",
     "Assume someone returning to exercise after years away, not a trained person on an easy day.",
     "- Choose SIMPLE, low-skill movements they can perform correctly unsupervised on the first attempt. Machines, bodyweight basics, supported and bilateral variations before free-standing, unilateral or loaded ones.",
     "- NO high-impact or high-skill movements: no burpees, jumping, plyometrics, sprinting, olympic lifts, or anything requiring an existing skill to attempt safely.",

@@ -142,7 +142,9 @@ describe("validateFitnessLevelAndFilter [LR-073]", () => {
 describe("describeFitnessLevelProgramming [LR-073]", () => {
   it("returns programming semantics for a beginner", () => {
     const text = describeFitnessLevelProgramming("beginner")!;
-    expect(text).toContain("BEGINNER");
+    // [LR-084] The stored value is still `beginner`; the user-facing framing is
+    // behavioural ("getting moving"), and the prompt must speak that language.
+    expect(text).toContain("GETTING MOVING");
     expect(text).toMatch(/burpees/i);
     expect(text).toMatch(/walking/i);
   });
