@@ -5,6 +5,7 @@ import { workoutService } from "@/services/workout.service";
 import { ZodError } from "zod";
 import {
   requireAuth,
+  requireCapabilityWhen,
   requireSelf,
   requireOwnership,
 } from "@/middleware/authz.middleware";
@@ -12,7 +13,9 @@ import {
   aiOperationService,
   ReserveResult,
 } from "@/services/ai-operation.service";
-import { AiOperationType } from "@/constants/access-policy";
+import {
+  Capability, AiOperationType
+} from "@/constants/access-policy";
 import { PAYWALL_COPY } from "@/constants/paywall-copy";
 import { clearPersistedGenerationStatus } from "@/utils/websocket-progress.utils";
 
@@ -435,6 +438,14 @@ router.post(
   "/:userId/rest-day-workout",
   requireAuth,
   requireSelf("userId"),
+  // [LR-069] Filling an EMPTY date stays free; adding a SECOND session to a day
+  // already trained is PLUS-only. The guard reads the body so one endpoint can
+  // serve both — and runs BEFORE withReservation, so a free user hits the
+  // paywall instead of spending one of their three lifetime day-adjustments.
+  requireCapabilityWhen(
+    Capability.ADD_BONUS_SESSION,
+    (req) => req.body?.additionalSession === true
+  ),
   async (req, res) => {
     const userId = Number(req.params.userId);
     await withReservation(req, res, AiOperationType.REST_DAY_WORKOUT, () =>
