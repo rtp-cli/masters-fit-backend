@@ -361,6 +361,36 @@ export function requireCapability(capability: Capability): RequestHandler {
   };
 }
 
+/**
+ * [LR-069] Gate a capability only when the request actually asks for it.
+ *
+ * POST /rest-day-workout serves two things: filling an EMPTY date, which stays
+ * free, and adding a SECOND session to a date already trained, which is
+ * PLUS-only. A plain requireCapability on the route would paywall both, so the
+ * check has to read the body.
+ *
+ * The button stays visible to free users on purpose — tapping it should reach
+ * the paywall and say what they were about to do, rather than the feature being
+ * invisible. That is also the only way to learn how many free users want it.
+ */
+export function requireCapabilityWhen(
+  capability: Capability,
+  applies: (req: AuthedRequest) => boolean
+): RequestHandler {
+  const guard = requireCapability(capability);
+  return function conditionalCapabilityGuard(
+    req: AuthedRequest,
+    res: Response,
+    next: NextFunction
+  ): void {
+    if (!applies(req)) {
+      next();
+      return;
+    }
+    void guard(req, res, next);
+  };
+}
+
 export function requireAdmin(
   req: AuthedRequest,
   res: Response,

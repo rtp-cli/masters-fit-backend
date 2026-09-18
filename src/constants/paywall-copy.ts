@@ -16,6 +16,8 @@ export const PAYWALL_COPY = {
     "Track your progress over time with strength trends, training volume, and personal records—all with MastersFit+.",
   REQUIRES_PLUS_HEALTH:
     "Automatically sync your workouts with Apple Health and Health Connect using MastersFit+.",
+  REQUIRES_PLUS_BONUS_SESSION:
+    "Train twice in a day whenever you want—add an extra session on top of your plan with MastersFit+.",
   REQUIRES_PLUS_GENERIC:
     "Upgrade to MastersFit+ to unlock this feature and keep your training evolving.",
 } as const;
@@ -30,6 +32,8 @@ export function requiresPlusMessageFor(capability: Capability): string {
       return PAYWALL_COPY.REQUIRES_PLUS_ANALYTICS;
     case Capability.SYNC_HEALTH:
       return PAYWALL_COPY.REQUIRES_PLUS_HEALTH;
+    case Capability.ADD_BONUS_SESSION:
+      return PAYWALL_COPY.REQUIRES_PLUS_BONUS_SESSION;
     default:
       return PAYWALL_COPY.REQUIRES_PLUS_GENERIC;
   }

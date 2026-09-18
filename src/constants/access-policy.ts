@@ -28,6 +28,10 @@ export enum Capability {
   GENERATE_NEW_PROGRAM = "GENERATE_NEW_PROGRAM",
   ADJUST_WEEK = "ADJUST_WEEK",
   ADJUST_DAY = "ADJUST_DAY",
+  // [LR-069] Adding a SECOND session to a day already trained. PLUS-only, and
+  // deliberately separate from ADJUST_DAY: changing today's workout stays free
+  // (metered), while asking for an extra one on top is the upgrade reason.
+  ADD_BONUS_SESSION = "ADD_BONUS_SESSION",
   VIEW_PROGRESS_ANALYTICS = "VIEW_PROGRESS_ANALYTICS",
   SYNC_HEALTH = "SYNC_HEALTH",
 }
