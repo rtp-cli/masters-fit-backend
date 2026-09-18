@@ -2784,7 +2784,7 @@ export class WorkoutService extends BaseService {
     // Determine where this date fits in the sequence. A bonus session counts
     // same-date days as already ahead of it, so it lands after them.
     const insertPosition = resolveInsertPosition(
-      existingDays.map((day) => day.date),
+      existingDays.map((day) => ({ date: day.date, dayNumber: day.dayNumber })),
       date,
       asAdditionalSession
     );
