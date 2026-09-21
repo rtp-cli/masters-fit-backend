@@ -58,13 +58,59 @@ export interface ExerciseMetadata {
  * The LLM's menu used to be `LIMIT 200` with no ORDER BY over ~1,690 rows —
  * an arbitrary slice that changed between generations and could omit whole
  * movement families (the majority experience: ~65% of users are
- * commercial_gym and get no equipment narrowing). This picks round-robin
- * across muscle-group buckets so every family is represented, and within a
- * bucket prefers the user's preferred styles, then exercises with demo
- * videos, then name — same inputs, same menu, every time.
+ * commercial_gym and get no equipment narrowing). This picks across
+ * muscle-group buckets so every family is represented, and within a bucket
+ * prefers the user's preferred styles, then exercises with demo videos —
+ * same inputs, same menu, every time.
+ *
+ * [#101] Two defects in the original round-robin, both measured against the
+ * real prod catalog (2026-09-21) and both fixed here:
+ *
+ *   UNIFORM QUOTAS. Drawing one row per bucket per pass gave every bucket the
+ *   same number of slots regardless of size. For a commercial-gym user
+ *   (pool 1,755 -> menu 200) every bucket got 11: `core` held 326 rows and was
+ *   admitted at 3%, while a 2-row bucket was admitted at 100%. Bucket depth is
+ *   an artifact of how muscle_groups[0] happens to be written, not a training
+ *   judgement, so slots are now proportional to bucket size with a floor
+ *   (MIN_SLOTS_PER_BUCKET) so small families keep a voice.
+ *
+ *   ALPHABETICAL TRUNCATION. `styleMatch` is binary and `hasDemo` is nearly
+ *   universal (309 of those 326 core rows have one), so for most of the
+ *   catalog the tiebreak that actually decided visibility was
+ *   `name.localeCompare`. The 11 core rows a strength+HIIT user could see were
+ *   the first 11 matching rows from A to H; anything later in the alphabet was
+ *   permanently invisible. Ties now break on a hash of the name: still fully
+ *   deterministic (same inputs, same menu, and the cache key is unchanged) but
+ *   with no systematic bias toward the front of the alphabet.
+ *
+ * This is the mechanic behind LR-085, where every real walk sat in the 95-deep
+ * `quads` bucket at rank 85+ and the only walk the model could see was
+ * "Walking in Place" in the 4-deep `cardio` bucket.
  *
  * Pure and exported for tests.
  */
+/**
+ * [#101] Smallest number of slots any bucket keeps, however small it is. The
+ * point of bucketing is that no movement family disappears entirely, and pure
+ * proportional allocation would round a 3-row family down to nothing.
+ */
+export const MIN_SLOTS_PER_BUCKET = 3;
+
+/**
+ * [#101] Deterministic, alphabet-blind tiebreak. FNV-1a over the name: stable
+ * across runs and processes (so the menu cache stays valid and two identical
+ * profiles get identical menus), but uncorrelated with spelling, so "Ab Roller
+ * Rollout" gets no permanent advantage over "Yoga Tree Pose".
+ */
+function nameRank(name: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
+}
+
 export function stratifyCatalog(
   pool: ExerciseMetadata[],
   options: { preferredStyles?: string[] | null; limit: number }
@@ -94,12 +140,21 @@ export function stratifyCatalog(
       (a, b) =>
         styleMatch(b) - styleMatch(a) ||
         Number(b.hasDemo ?? false) - Number(a.hasDemo ?? false) ||
-        a.name.localeCompare(b.name)
+        nameRank(a.name) - nameRank(b.name)
     );
   }
 
-  // Round-robin across buckets (alphabetical bucket order for determinism)
-  // until the limit is reached or the pool runs dry.
+  // [#101] Slots proportional to bucket size, floored so small families keep a
+  // voice and capped at what the bucket actually holds.
+  const quotas = new Map<string, number>();
+  for (const [key, bucket] of buckets) {
+    const share = Math.round((options.limit * bucket.length) / pool.length);
+    quotas.set(key, Math.min(bucket.length, Math.max(MIN_SLOTS_PER_BUCKET, share)));
+  }
+
+  // Round-robin across buckets (alphabetical bucket order for determinism),
+  // each bucket stopping at its quota. Interleaving is kept on purpose: the
+  // menu reads as a varied list rather than 37 core movements in a row.
   const orderedBuckets = [...buckets.keys()].sort();
   const selected: ExerciseMetadata[] = [];
   let depth = 0;
@@ -107,7 +162,7 @@ export function stratifyCatalog(
     let drewAny = false;
     for (const key of orderedBuckets) {
       const bucket = buckets.get(key)!;
-      if (depth < bucket.length) {
+      if (depth < quotas.get(key)!) {
         selected.push(bucket[depth]);
         drewAny = true;
         if (selected.length >= options.limit) break;
@@ -115,6 +170,21 @@ export function stratifyCatalog(
     }
     if (!drewAny) break;
     depth++;
+  }
+
+  // Quotas can sum to less than the limit (rounding down across many buckets).
+  // Spend what is left on the best remaining rows rather than returning a
+  // short menu — the token budget was already paid for.
+  if (selected.length < options.limit) {
+    const taken = new Set(selected);
+    for (const key of orderedBuckets) {
+      const bucket = buckets.get(key)!;
+      for (let i = quotas.get(key)!; i < bucket.length; i++) {
+        if (selected.length >= options.limit) break;
+        if (!taken.has(bucket[i])) selected.push(bucket[i]);
+      }
+      if (selected.length >= options.limit) break;
+    }
   }
   return selected;
 }
