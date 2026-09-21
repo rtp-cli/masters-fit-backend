@@ -17,7 +17,11 @@ import {
 } from "@/models";
 import { BaseService } from "./base.service";
 import { logger } from "@/utils/logger";
-import { AvailableEquipment, IntensityLevels } from "@/constants/profile";
+import {
+  AvailableEquipment,
+  IntensityLevels,
+  WorkoutEnvironments,
+} from "@/constants/profile";
 import { resolveTodayString } from "@/utils/date.utils";
 import {
   isRecognizedDatePhrase,
@@ -533,6 +537,23 @@ export class SearchService extends BaseService {
           userEquipment = Array.isArray(userProfile.equipment)
             ? userProfile.equipment
             : [];
+        }
+        // [#112] A bodyweight-only user's `equipment` column is an EMPTY array
+        // — the environment carries the constraint, not the list. The filter
+        // below is skipped entirely when the resolved list is empty, so
+        // `userEquipmentOnly: true` silently meant "no filter at all" for
+        // exactly the users with the least equipment: replacing a walk offered
+        // them "Bike Steady Pace" and "5 Minute Alternating Bike and Row".
+        //
+        // Generation never had this bug because getSharedGenerationCatalog
+        // DERIVES the list from the environment rather than reading the column
+        // (`bodyweight_only` -> ["bodyweight"]). Same derivation here, so the
+        // two paths agree.
+        if (
+          userEquipment.length === 0 &&
+          userProfile?.environment === WorkoutEnvironments.BODYWEIGHT_ONLY
+        ) {
+          userEquipment = [AvailableEquipment.BODYWEIGHT];
         }
       }
 
