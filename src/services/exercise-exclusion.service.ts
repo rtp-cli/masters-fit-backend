@@ -12,6 +12,10 @@ import {
 import { BaseService } from "./base.service";
 import { logger } from "@/utils/logger";
 import { resolveTodayString } from "@/utils/date.utils";
+import { filterExercisesByLimitations } from "@/utils/limitation-validation";
+import { filterExercisesByFitnessLevel } from "@/utils/fitness-level-validation";
+import { filterExercisesForWalkingModality } from "@/utils/walking-modality";
+import { profiles } from "@/models/profile.schema";
 
 // One catalog entry as ranked for a replacement slot. Everything the frontend
 // needs to assemble the templated sentence and the covered/dashed muscle chips
@@ -155,7 +159,73 @@ export class ExerciseExclusionService extends BaseService {
    * user's exclusions) — equipment is a FILTER, not a tiebreak. Survivors are
    * then ordered: muscle-overlap count desc → difficulty distance asc → hasDemo
    * first. No model call; pure ranking over real columns.
+   *
+   * [#109] Then the three Tier-1 safety guardrails, which this path was
+   * missing entirely. Measured 2026-09-21: a BEGINNER with ARTHRITIS whose only
+   * style is Walking & Movement, tapping Replace on their walk, was offered
+   * "Driveway Hill Run", "Box Jump", "Bodyweight Jumping Jacks" and "Burpees".
+   * `Burpees` and `Box Jump` are listed by name in BEGINNER_EXCLUDED_MOVEMENTS
+   * — the app was offering, by name, the movements LR-073 exists to withhold.
+   *
+   * The hole was that `difficultyDistance` is a TIEBREAK, not a filter: it
+   * prefers a similar difficulty but excludes nothing, so nothing stopped a
+   * `high` movement ranking into the list. All three guardrails lived only in
+   * getSharedGenerationCatalog, and each was written after a real incident
+   * (LR-013 contraindications, LR-073 beginners handed burpees, LR-085 walkers
+   * handed in-place cardio) — every one of which was reachable again here.
+   *
+   * THE LINE THIS DRAWS, deliberately:
+   *   - The app's SUGGESTIONS respect the guardrails. Seeding the replace list
+   *     is the app choosing what to put in front of someone, which is the same
+   *     act as the generator choosing, so it earns the same constraints.
+   *   - The user's own SEARCH does not. searchExercisesWithFilters stays
+   *     unfiltered, so a deliberate, typed-out search still finds any movement.
+   *     That escape hatch is the whole reason #102 needs no new plumbing.
+   *
+   * A profile that cannot be loaded leaves the pool unconstrained rather than
+   * assumed fragile — the same stance fitness-level-validation.ts already
+   * documents for a null fitnessLevel, and it keeps a data hiccup from emptying
+   * the replace list.
    */
+  /**
+   * [#109] The three Tier-1 guardrails from getSharedGenerationCatalog, applied
+   * to a candidate pool. Kept private and profile-loading so callers cannot
+   * forget it — the bug was that this path simply never ran them.
+   */
+  private async applySafetyGuardrails(
+    userId: number,
+    pool: Exercise[]
+  ): Promise<Exercise[]> {
+    const profile = await this.db.query.profiles.findFirst({
+      where: eq(profiles.userId, userId),
+    });
+    if (!profile) {
+      logger.warn("No profile for replacement guardrails; leaving pool unconstrained", {
+        userId,
+        operation: "rankReplacements",
+      });
+      return pool;
+    }
+
+    const withinLimitations = filterExercisesByLimitations(pool, profile);
+    const withinLevel = filterExercisesByFitnessLevel(withinLimitations, profile);
+    const allowed = filterExercisesForWalkingModality(withinLevel, profile);
+
+    if (allowed.length !== pool.length) {
+      logger.info("Replacement candidates filtered by safety guardrails", {
+        userId,
+        operation: "rankReplacements",
+        metadata: {
+          poolCount: pool.length,
+          excludedByLimitations: pool.length - withinLimitations.length,
+          excludedByFitnessLevel: withinLimitations.length - withinLevel.length,
+          excludedByWalkingModality: withinLevel.length - allowed.length,
+        },
+      });
+    }
+    return allowed;
+  }
+
   async rankReplacements(
     userId: number,
     originalExerciseId: number,
@@ -184,7 +254,13 @@ export class ExerciseExclusionService extends BaseService {
       (original.muscleGroups ?? []).map((m) => m.toLowerCase())
     );
 
-    const ranked = (pool as Exercise[])
+    // [#109] Same guardrails, same order, as the generation catalog.
+    const safePool = await this.applySafetyGuardrails(
+      userId,
+      pool as Exercise[]
+    );
+
+    const ranked = safePool
       .map((c) => ({
         candidate: c,
         overlapCount: (c.muscleGroups ?? []).filter((m) =>
