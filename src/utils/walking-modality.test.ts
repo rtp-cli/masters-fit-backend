@@ -4,6 +4,10 @@ import { getStyleInterpretationGuide } from "@/utils/prompt-generator";
 import { determineBlockType as determineBlockTypeA } from "@/utils/workout-block-configuration.utils";
 import { determineBlockType as determineBlockTypeB } from "@/utils/workout-generation.utils";
 import { CANONICAL_BASICS_STYLES } from "@/utils/requested-exercises";
+import {
+  filterExercisesForWalkingModality,
+  isNonWalkingCardio,
+} from "@/utils/walking-modality";
 
 const WALKING = PreferredStyles.WALKING_MOVEMENT;
 
@@ -48,5 +52,70 @@ describe("Walking & Movement modality [LR-084]", () => {
     expect(guide).toMatch(/A 10-minute walk is a real session/i);
     // It must not be demoted to a warm-up when combined with another style.
     expect(guide).toMatch(/does not become a\s*\n?warm-up/i);
+  });
+});
+
+describe("filterExercisesForWalkingModality [LR-085]", () => {
+  const ex = (name: string) => ({ name });
+  const profileWith = (styles: string[]) => ({ preferredStyles: styles }) as never;
+
+  const CATALOG = [
+    ex("Walking"),
+    ex("Brisk Walk"),
+    ex("Standing Marches"),
+    ex("Chair Sit-to-Stand"),
+    ex("Walking in Place"),
+    ex("Gentle Walking in Place"),
+    ex("Marching on the Spot"),
+    ex("Light jog in place"),
+    ex("High Knees"),
+    ex("Jumping Jacks"),
+  ];
+
+  it("strips in-place, jogging and jumping cardio for a walking-only user", () => {
+    const names = filterExercisesForWalkingModality(CATALOG, profileWith([WALKING])).map(
+      (e) => e.name
+    );
+    expect(names).toEqual([
+      "Walking",
+      "Brisk Walk",
+      "Standing Marches",
+      "Chair Sit-to-Stand",
+    ]);
+  });
+
+  it("keeps the real walks it exists to protect", () => {
+    const names = filterExercisesForWalkingModality(CATALOG, profileWith([WALKING])).map(
+      (e) => e.name
+    );
+    expect(names).toContain("Walking");
+    expect(names).toContain("Brisk Walk");
+  });
+
+  // The combined-style case the prompt describes: walking gets its own days and
+  // the other style gets the rest, so a Walking+HIIT user still needs jacks.
+  it("is a no-op for a Walking + HIIT user, whose HIIT days need the jumping work", () => {
+    const out = filterExercisesForWalkingModality(CATALOG, profileWith([WALKING, "hiit"]));
+    expect(out).toHaveLength(CATALOG.length);
+    expect(out.map((e) => e.name)).toContain("Jumping Jacks");
+  });
+
+  it("is a no-op for users who never mentioned walking", () => {
+    const out = filterExercisesForWalkingModality(CATALOG, profileWith(["strength"]));
+    expect(out).toHaveLength(CATALOG.length);
+  });
+
+  it("is a no-op when no styles are set rather than assuming walking", () => {
+    expect(filterExercisesForWalkingModality(CATALOG, profileWith([]))).toHaveLength(
+      CATALOG.length
+    );
+  });
+
+  it("does not mistake a plain walk for in-place cardio", () => {
+    expect(isNonWalkingCardio("Walking")).toBe(false);
+    expect(isNonWalkingCardio("Brisk Walk")).toBe(false);
+    expect(isNonWalkingCardio("Incline Walk")).toBe(false);
+    expect(isNonWalkingCardio("Walking in Place")).toBe(true);
+    expect(isNonWalkingCardio("Marching on the Spot")).toBe(true);
   });
 });
