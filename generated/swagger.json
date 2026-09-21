@@ -2296,7 +2296,8 @@
 					"functional",
 					"pilates",
 					"yoga",
-					"mobility"
+					"mobility",
+					"walking_movement"
 				]
 			},
 			"PreferredDay": {
@@ -2485,6 +2486,21 @@
 						"type": "string",
 						"format": "date-time",
 						"nullable": true
+					},
+					"onboardingNudgeSentAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"activationNudgeSentAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"emailOptedOutAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
 					}
 				},
 				"required": [
@@ -2502,7 +2518,10 @@
 					"themeMode",
 					"colorTheme",
 					"signupNotifiedAt",
-					"stalledDigestNotifiedAt"
+					"stalledDigestNotifiedAt",
+					"onboardingNudgeSentAt",
+					"activationNudgeSentAt",
+					"emailOptedOutAt"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -3190,6 +3209,9 @@
 						"type": "boolean"
 					},
 					"ADJUST_DAY": {
+						"type": "boolean"
+					},
+					"ADD_BONUS_SESSION": {
 						"type": "boolean"
 					},
 					"VIEW_PROGRESS_ANALYTICS": {
@@ -3902,6 +3924,24 @@
 						},
 						"type": "array"
 					},
+					"coachingCautions": {
+						"items": {
+							"properties": {
+								"why": {
+									"type": "string"
+								},
+								"what": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"why",
+								"what"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
 					"startDate": {
 						"type": "string"
 					},
@@ -4054,6 +4094,20 @@
 									"type": "string"
 								},
 								"request": {
+									"type": "string"
+								}
+							},
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"coachingCautions": {
+						"items": {
+							"properties": {
+								"why": {
+									"type": "string"
+								},
+								"what": {
 									"type": "string"
 								}
 							},
@@ -12014,6 +12068,10 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"additionalSession": {
+										"type": "boolean",
+										"description": "[LR-069] Deliberately add a SECOND session to a date that already has\none — \"I did my hour this morning, I've got 20 minutes tonight\".\n\nOpt-in rather than the default because the 400 this bypasses is also\nwhat stops a double-tapped button from silently generating two\nworkouts. Every existing caller omits it and keeps the old behaviour."
+									},
 									"durationOverride": {
 										"type": "number",
 										"format": "double"
