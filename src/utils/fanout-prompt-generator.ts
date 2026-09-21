@@ -99,11 +99,30 @@ export interface FeedbackConflict {
   reason: string;
 }
 
+/**
+ * [GQ-04b] A request the plan DID honor in full that still carries a real
+ * training risk worth naming — shown in-app under "One thing to watch".
+ *
+ * Deliberately a SEPARATE channel from FeedbackConflict, which means strictly
+ * "couldn't apply this". Prod 2026-09-21 (workout 927) is why: the planner put
+ * an advisory into feedbackConflicts whose own text read "the plan honors your
+ * request exactly as written", and the banner announced it as an adjustment.
+ * The content was good; the channel was wrong. Keeping them apart lets the
+ * heading stay true to the payload.
+ */
+export interface CoachingCaution {
+  /** What to watch, restated briefly, e.g. "the same metcon three days in a row". */
+  what: string;
+  /** Why it matters AND what the user can do about it, plain language. */
+  why: string;
+}
+
 export interface WeekPlan {
   name: string;
   description: string;
   constraints?: WeekConstraints;
   feedbackConflicts?: FeedbackConflict[];
+  coachingCautions?: CoachingCaution[];
   days: WeekPlanDay[];
 }
 
@@ -247,7 +266,7 @@ export const WEEK_PLAN_SCHEMA = {
     feedbackConflicts: {
       type: "array",
       description:
-        "[GQ-04] Parts of the user's CURRENT custom feedback you could NOT fully honor, and why — surfaced to the user in-app. ONLY include a genuine conflict: a request that is self-contradictory ('avoid all leg work but focus on squats'), infeasible given their profile/equipment, or unsafe given their limitations. Do NOT list things you DID honor, and do NOT invent conflicts — an empty array is the normal case. Do NOT report scheduling or day-count conflicts (how many days, or which weekdays) — those are detected separately, so listing them here would duplicate. Phrase each for the user: `request` = what they asked (short), `reason` = why it couldn't be applied (short, plain language).",
+        "[GQ-04] Parts of the user's CURRENT custom feedback you could NOT fully honor, and why — surfaced to the user in-app. ONLY include a genuine conflict: a request that is self-contradictory ('avoid all leg work but focus on squats'), infeasible given their profile/equipment, or unsafe given their limitations. Do NOT list things you DID honor, and do NOT invent conflicts — an empty array is the normal case. If you DID build the request as written but want to flag a risk, that is NOT a conflict — put it in `coachingCautions` instead. This field means 'not applied'; if the plan follows the request, it does not belong here. Do NOT report scheduling or day-count conflicts (how many days, or which weekdays) — those are detected separately, so listing them here would duplicate. Phrase each for the user: `request` = what they asked (short), `reason` = why it couldn't be applied (short, plain language).",
       items: {
         type: "object",
         properties: {
@@ -263,6 +282,27 @@ export const WEEK_PLAN_SCHEMA = {
           },
         },
         required: ["request", "reason"],
+      },
+    },
+    coachingCautions: {
+      type: "array",
+      description:
+        "[GQ-04b] Requests you DID honor in full that carry a real training risk the user should know about — surfaced in-app under \"One thing to watch\". This is the home for every \"I built exactly what you asked, but...\" note: if the plan follows the request as written, it belongs HERE and never in feedbackConflicts. ONLY include a specific risk that follows from THIS user's request and THIS week's plan (e.g. the same high-volume benchmark on consecutive days, a heavy compound the day before a long conditioning piece). Do NOT include generic training advice, warmup/hydration/form/sleep reminders, or anything you actually changed — an empty array is the normal case, and one entry is plenty. Phrase each for the user: `what` = the thing to watch (short), `why` = the risk plus what they can do about it (short, plain language, no medical claims).",
+      items: {
+        type: "object",
+        properties: {
+          what: {
+            type: "string",
+            description:
+              "The thing to watch, restated briefly, e.g. 'the same 10 RFT workout on three consecutive days'.",
+          },
+          why: {
+            type: "string",
+            description:
+              "Why it's worth watching and what the user can do about it, plain language, e.g. 'repeating a high-volume bodyweight benchmark three days running builds up fatigue in the knees and shoulders — scale the rounds or swap one day for easier work if soreness stacks up'.",
+          },
+        },
+        required: ["what", "why"],
       },
     },
     days: {
@@ -580,7 +620,7 @@ You operate in one of two modes per request (the user message states which):
 2. **DAY GENERATION**: build one complete workout day according to its assignment in an already-designed weekly plan.
 
 ## LANGUAGE RULES (STRICT — user-visible text)
-MastersFit is a fitness app, NOT a medical device or clinical service. In EVERY user-visible string you write (plan name, plan description, day name, day focus, exercise notes, and any feedback-conflict reason) you MUST NOT claim or imply that a plan, workout, or exercise is medically safe, protective, or guaranteed for a condition. NEVER use words or phrases such as: "safe", "shoulder-safe", "knee-safe", "joint-safe", "injury-safe", "safe for", "injury-proof", "pain-free", "prevents injury", "rehabilitates", "treats", "cures", "medically/doctor/clinically approved". Instead describe what the plan is built AROUND, using neutral, factual phrasing, e.g. "adapted around your reported shoulder history", "selected based on the limitations you provided", "a lower-impact alternative", "adjusted to reflect your training profile". Never promise safety, treatment, medical clearance, or injury prevention.
+MastersFit is a fitness app, NOT a medical device or clinical service. In EVERY user-visible string you write (plan name, plan description, day name, day focus, exercise notes, any feedback-conflict reason, and any coaching-caution note) you MUST NOT claim or imply that a plan, workout, or exercise is medically safe, protective, or guaranteed for a condition. NEVER use words or phrases such as: "safe", "shoulder-safe", "knee-safe", "joint-safe", "injury-safe", "safe for", "injury-proof", "pain-free", "prevents injury", "rehabilitates", "treats", "cures", "medically/doctor/clinically approved". Instead describe what the plan is built AROUND, using neutral, factual phrasing, e.g. "adapted around your reported shoulder history", "selected based on the limitations you provided", "a lower-impact alternative", "adjusted to reflect your training profile". Never promise safety, treatment, medical clearance, or injury prevention.
 
 ${includeWarmup ? "" : "**USER HAS DISABLED WARMUPS**: Do NOT include any warmup blocks. Begin workouts directly with main exercise blocks.\n"}${includeCooldown ? "" : "**USER HAS DISABLED COOLDOWNS**: Do NOT include any cooldown blocks.\n"}
 ${getConstraintIntegrationProtocol()}

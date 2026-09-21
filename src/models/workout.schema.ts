@@ -44,6 +44,12 @@ export const workouts = pgTable("workouts", {
   feedbackConflicts: jsonb("feedback_conflicts").$type<
     { request: string; reason: string }[]
   >(),
+  // [GQ-04b] "One thing to watch" — requests the plan DID honor that carry a
+  // training risk worth naming. Separate from feedbackConflicts on purpose:
+  // that column means "couldn't apply", this one means "applied, but watch it".
+  coachingCautions: jsonb("coaching_cautions").$type<
+    { what: string; why: string }[]
+  >(),
   completed: boolean("completed").default(false),
   // Lineage tag (AI_INITIAL | AI_NEW_PROGRAM | AI_REGENERATION | REST_DAY |
   // REPEAT | MANUAL). Descriptive metadata for analytics/debugging/cleanup —
@@ -215,6 +221,10 @@ export const insertWorkoutSchema = createInsertSchema(workouts, {
   // so InsertWorkout.feedbackConflicts matches the column's $type (GQ-04).
   feedbackConflicts: z
     .array(z.object({ request: z.string(), reason: z.string() }))
+    .nullable()
+    .optional(),
+  coachingCautions: z
+    .array(z.object({ what: z.string(), why: z.string() }))
     .nullable()
     .optional(),
 }).omit({

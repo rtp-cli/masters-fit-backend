@@ -64,6 +64,8 @@ type DBWorkoutResult = {
   description: string | null;
   // [GQ-04] Persisted "couldn't apply X because Y" list (jsonb column).
   feedbackConflicts: { request: string; reason: string }[] | null;
+  // [GQ-04b] Persisted "one thing to watch" list (jsonb column).
+  coachingCautions: { what: string; why: string }[] | null;
   userId: number;
   startDate: string;
   endDate: string;
@@ -132,6 +134,7 @@ type DBWorkoutQueryResult = {
   name: string;
   description: string | null;
   feedbackConflicts: { request: string; reason: string }[] | null;
+  coachingCautions: { what: string; why: string }[] | null;
   userId: number;
   startDate: string;
   endDate: string;
@@ -232,6 +235,8 @@ export class WorkoutService extends BaseService {
       description: workout.description ?? undefined,
       // [GQ-04] "Couldn't apply X because Y" — surfaced in the week banner.
       feedbackConflicts: workout.feedbackConflicts ?? undefined,
+      // [GQ-04b] "One thing to watch" — the honored-but-risky advisory.
+      coachingCautions: workout.coachingCautions ?? undefined,
       startDate: workout.startDate,
       endDate: workout.endDate,
       promptId: workout.promptId,
@@ -392,6 +397,7 @@ export class WorkoutService extends BaseService {
         name: workout.name,
         description: workout.description,
         feedbackConflicts: workout.feedbackConflicts,
+        coachingCautions: workout.coachingCautions,
         userId: workout.userId,
         startDate: workout.startDate || getTodayString(),
         endDate: workout.endDate || getTodayString(),
@@ -490,6 +496,7 @@ export class WorkoutService extends BaseService {
         name: workout.name,
         description: workout.description,
         feedbackConflicts: workout.feedbackConflicts,
+        coachingCautions: workout.coachingCautions,
         userId: workout.userId,
         startDate: workout.startDate || getTodayString(),
         endDate: workout.endDate || getTodayString(),
@@ -1075,6 +1082,8 @@ export class WorkoutService extends BaseService {
       description: response.description,
       // [GQ-04] Persist the "couldn't apply X because Y" list for the in-app banner.
       feedbackConflicts: response.feedbackConflicts,
+      // [GQ-04b] Persist the "one thing to watch" advisory alongside it.
+      coachingCautions: response.coachingCautions,
     });
 
     if (response.exercisesToAdd) {

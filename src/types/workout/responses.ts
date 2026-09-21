@@ -70,6 +70,9 @@ export interface Workout {
   // [GQ-04] Parts of the user's request the plan couldn't honor ("couldn't
   // apply X because Y"), surfaced in the week banner. Undefined/empty is normal.
   feedbackConflicts?: { request: string; reason: string }[];
+  // [GQ-04b] Requests the plan DID honor that are worth watching, shown under
+  // "One thing to watch". Undefined/empty is normal.
+  coachingCautions?: { what: string; why: string }[];
   startDate: string;
   endDate: string;
   promptId: number;
