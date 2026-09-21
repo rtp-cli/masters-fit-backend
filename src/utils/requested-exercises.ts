@@ -69,6 +69,42 @@ export const CANONICAL_BASICS_STYLES: ReadonlySet<string> = new Set([
   "functional",
 ]);
 
+/**
+ * [LR-085] The walking staples, reserved for Walking & Movement users the same
+ * way the barbell canon is reserved for lifters.
+ *
+ * Walking needs a pin more than the lifts ever did. stratifyCatalog buckets the
+ * pool by `muscleGroups[0]` and round-robins across buckets, so a movement's
+ * odds of reaching the menu depend on how crowded its bucket is — and every
+ * real walk sat in `quads` (95 deep for a bodyweight-only user) while "Walking
+ * in Place" sat in `cardio` (4 deep) and was drawn on the first pass. A
+ * walking-modality beginner's menu therefore contained exactly one walk-shaped
+ * movement: marching on the spot. The model then prescribed 25 continuous
+ * minutes of it, twice, in direct violation of the prompt's own "NEVER
+ * prescribe ... 'in place' cardio for this style" rule — it had no compliant
+ * option to choose. Bucket depth is not a training judgement, so the fix is to
+ * stop leaving this to the round-robin.
+ *
+ * Ordered easiest first: pins are capped at MAX_PINNED_EXERCISES, so for a
+ * walking+strength user the entry-level walks must be the ones that survive.
+ * `Hill Walk Repeats` is `high` and is dropped upstream for beginners by
+ * filterExercisesByFitnessLevel; pins only ever draw from the already-filtered
+ * pool, so it simply won't be found for them.
+ */
+export const WALKING_BASICS: readonly string[] = [
+  "Walking",
+  "Brisk Walk",
+  "Incline Walk",
+  "Hiking",
+  "Rucking",
+  "Hill Walk Repeats",
+];
+
+/** Styles whose users get WALKING_BASICS reserved. */
+export const WALKING_BASICS_STYLES: ReadonlySet<string> = new Set([
+  "walking_movement",
+]);
+
 /** Single-token names shorter than this are too generic to pin from prose ("row", "run", "curl"). */
 const MIN_SINGLE_TOKEN_NAME_LENGTH = 5;
 const MAX_ALIAS_NGRAM = 4;
@@ -159,20 +195,34 @@ export function findRequestedExercises(
 }
 
 /**
- * CANONICAL_BASICS rows present in `pool`, for users whose preferred styles
- * include a lifting/conditioning style (or who have no styles set). Yoga-,
- * pilates- or mobility-only users get none — their menu stays theirs.
+ * The staple rows present in `pool` for this user's styles: WALKING_BASICS for
+ * Walking & Movement users, CANONICAL_BASICS for lifting/conditioning users (or
+ * users with no styles set). Yoga-, pilates- or mobility-only users get none —
+ * their menu stays theirs.
+ *
+ * A user can hold both styles, and then gets both lists. Walking leads, because
+ * pinExercises caps the total at MAX_PINNED_EXERCISES (24) and CANONICAL_BASICS
+ * alone is 21 rows — appending walking would let the barbell canon crowd out the
+ * walks for a walking+strength user, which is the exact failure this pin exists
+ * to prevent.
  */
 export function selectCanonicalBasics(
   pool: ExerciseMetadata[],
   preferredStyles: string[] | null | undefined
 ): ExerciseMetadata[] {
+  if (pool.length === 0) return [];
   const styles = (preferredStyles ?? []).map((s) => s.toLowerCase());
-  const eligible = styles.length === 0 || styles.some((s) => CANONICAL_BASICS_STYLES.has(s));
-  if (!eligible || pool.length === 0) return [];
+
+  const names: string[] = [];
+  if (styles.some((s) => WALKING_BASICS_STYLES.has(s))) names.push(...WALKING_BASICS);
+  if (styles.length === 0 || styles.some((s) => CANONICAL_BASICS_STYLES.has(s))) {
+    names.push(...CANONICAL_BASICS);
+  }
+  if (names.length === 0) return [];
+
   const poolByExactLower = new Map(pool.map((ex) => [ex.name.trim().toLowerCase(), ex]));
   const out: ExerciseMetadata[] = [];
-  for (const name of CANONICAL_BASICS) {
+  for (const name of names) {
     const row = poolByExactLower.get(name.toLowerCase());
     if (row) out.push(row);
   }
@@ -246,7 +296,7 @@ export function formatGenerationMenu(exercises: ExerciseMetadata[]): string {
     out += "\n";
   }
   if (canonical.length > 0) {
-    out += "### CANONICAL LIFTS & BODYWEIGHT STAPLES — always available; prefer these over obscure variants when a plan names the movement generically:\n";
+    out += "### STAPLE MOVEMENTS FOR THIS USER'S STYLE — always available; prefer these over obscure variants when a plan names the movement generically:\n";
     out += canonical.map(renderRow).join("");
     out += "\n";
   }

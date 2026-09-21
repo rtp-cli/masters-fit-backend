@@ -155,6 +155,58 @@ export const SCENARIOS: EvalScenario[] = [
     }),
     buildChecks: (_s, p) => [duration(p.workoutDuration || 30), noRepeat],
   },
+  {
+    // [LR-085] The walking regression. A QA account with exactly these answers
+    // was handed a week whose every walking block was "Walking in Place" — 25
+    // continuous minutes of marching on the spot, twice — because the catalog
+    // menu contained no other walk-shaped movement. The eval had no walking
+    // scenario at the time, so nothing caught it.
+    //
+    // The two checks encode the modality's own prompt rules: the session must
+    // BE a walk (a real catalog walk appears, matched exactly so that "Walking
+    // in Place" cannot satisfy it), and "NEVER prescribe jogging, running,
+    // jumping, or 'in place' cardio for this style" is scored rather than
+    // merely asserted in the prompt.
+    id: "control-walking-beginner",
+    category: "control",
+    description:
+      "Baseline: deconditioned 55yo, Walking & Movement only, bodyweight, arthritis, no request",
+    profile: baseProfile({
+      age: 55,
+      goals: [FitnessGoals.GENERAL_FITNESS, FitnessGoals.ENDURANCE],
+      limitations: [PhysicalLimitations.ARTHRITIS],
+      fitnessLevel: FitnessLevels.BEGINNER,
+      environment: WorkoutEnvironments.BODYWEIGHT_ONLY,
+      equipment: [],
+      preferredStyles: [PreferredStyles.WALKING_MOVEMENT],
+      availableDays: [
+        PreferredDays.MONDAY,
+        PreferredDays.TUESDAY,
+        PreferredDays.WEDNESDAY,
+        PreferredDays.THURSDAY,
+        PreferredDays.FRIDAY,
+      ],
+      workoutDuration: 30,
+      intensityLevel: IntensityLevels.LOW,
+    }),
+    buildChecks: (_s, p) => [
+      duration(p.workoutDuration || 30),
+      noRepeat,
+      {
+        id: "real-walk-present",
+        label: "prescribes an actual walk",
+        type: "includes",
+        names: ["Walking", "Brisk Walk", "Incline Walk", "Hiking", "Rucking"],
+        exact: true,
+      },
+      {
+        id: "no-in-place-cardio",
+        label: 'no "in place" cardio for a walking user',
+        type: "excludes",
+        needle: "in place",
+      },
+    ],
+  },
 
   // ---- Exclusions ----
   {

@@ -23,6 +23,7 @@ import {
   filterExercisesByFitnessLevel,
   validateFitnessLevelAndFilter,
 } from "@/utils/fitness-level-validation";
+import { filterExercisesForWalkingModality } from "@/utils/walking-modality";
 import type { PhysicalLimitation } from "@/types";
 import {
   checkConsecutiveMuscleGroupOverload,
@@ -349,7 +350,11 @@ export class WorkoutAgentService {
       // never sees a `high`-difficulty movement as an option. Runs over the
       // whole pool for the same reason limitations do — so excluded movements
       // never consume menu slots.
-      const allowed = filterExercisesByFitnessLevel(withinLimitations, profile);
+      const withinLevel = filterExercisesByFitnessLevel(withinLimitations, profile);
+      // [LR-085] Then the walking guardrail: a user whose ONLY style is Walking
+      // & Movement never sees in-place/jogging/jumping cardio, which the prompt
+      // has forbidden for this style since LR-084 without anything enforcing it.
+      const allowed = filterExercisesForWalkingModality(withinLevel, profile);
       const exercises = stratifyCatalog(allowed, {
         preferredStyles: profile.preferredStyles as string[] | null,
         limit: GENERATION_CATALOG_SIZE,
@@ -365,7 +370,8 @@ export class WorkoutAgentService {
         resultCount: exercises.length,
         poolCount: pool.length,
         excludedByLimitations: pool.length - withinLimitations.length,
-        excludedByFitnessLevel: withinLimitations.length - allowed.length,
+        excludedByFitnessLevel: withinLimitations.length - withinLevel.length,
+        excludedByWalkingModality: withinLevel.length - allowed.length,
       });
 
       return { menu: exercises, pool: allowed };

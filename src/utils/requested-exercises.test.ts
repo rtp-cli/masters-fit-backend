@@ -31,6 +31,15 @@ const POOL: ExerciseMetadata[] = [
   ex("Curl", { equipment: ["dumbbells"], muscleGroups: ["biceps"] }),
   ex("Barbell Curl", { equipment: ["barbells"], muscleGroups: ["biceps"] }),
   ex("Butterfly Fold", { equipment: ["foam_roller"], muscleGroups: ["hips"] }),
+  // [LR-085] Walking staples. `Hill Walk Repeats` is deliberately absent from
+  // the pool: it is `high` difficulty and filterExercisesByFitnessLevel removes
+  // it for beginners upstream, so the pin must cope with it simply not existing.
+  ex("Walking", { equipment: ["bodyweight"], muscleGroups: ["cardio"], difficulty: "low", tag: "walking_movement" }),
+  ex("Brisk Walk", { equipment: ["bodyweight"], muscleGroups: ["cardio"], difficulty: "moderate", tag: "walking_movement" }),
+  ex("Incline Walk", { equipment: ["bodyweight"], muscleGroups: ["cardio"], difficulty: "moderate", tag: "walking_movement" }),
+  ex("Hiking", { equipment: ["bodyweight"], muscleGroups: ["cardio"], difficulty: "moderate", tag: "walking_movement" }),
+  ex("Rucking", { equipment: ["bodyweight"], muscleGroups: ["cardio"], difficulty: "moderate", tag: "walking_movement" }),
+  ex("Walking in Place", { equipment: ["bodyweight"], muscleGroups: ["cardio"], difficulty: "low" }),
 ];
 
 const RICH_REQUEST =
@@ -110,6 +119,39 @@ describe("selectCanonicalBasics", () => {
   it("treats no styles as eligible", () => {
     expect(selectCanonicalBasics(POOL, null).length).toBeGreaterThan(0);
   });
+
+  // [LR-085] The regression this pin exists for: a walking-modality user's menu
+  // contained exactly one walk-shaped movement ("Walking in Place" — marching on
+  // the spot) because stratifyCatalog's bucket round-robin buried every real
+  // walk in the 95-deep `quads` bucket. The model then prescribed 25 continuous
+  // minutes of it, twice, having no compliant alternative to choose.
+  it("reserves the walking staples for a Walking & Movement user", () => {
+    const names = selectCanonicalBasics(POOL, ["walking_movement"]).map((e) => e.name);
+    expect(names).toEqual(["Walking", "Brisk Walk", "Incline Walk", "Hiking", "Rucking"]);
+  });
+
+  it("does not reserve marching-in-place as a walk", () => {
+    const names = selectCanonicalBasics(POOL, ["walking_movement"]).map((e) => e.name);
+    expect(names).not.toContain("Walking in Place");
+  });
+
+  it("skips walking staples missing from the pool rather than inventing them", () => {
+    // `Hill Walk Repeats` is in WALKING_BASICS but filtered out for beginners.
+    const names = selectCanonicalBasics(POOL, ["walking_movement"]).map((e) => e.name);
+    expect(names).not.toContain("Hill Walk Repeats");
+  });
+
+  it("gives a walking+strength user both lists, walking first so the cap cannot crowd out the walks", () => {
+    const names = selectCanonicalBasics(POOL, ["walking_movement", "strength"]).map((e) => e.name);
+    expect(names.slice(0, 5)).toEqual(["Walking", "Brisk Walk", "Incline Walk", "Hiking", "Rucking"]);
+    expect(names).toContain("Barbell Back Squat");
+  });
+
+  it("gives a walking-only user none of the barbell canon", () => {
+    const names = selectCanonicalBasics(POOL, ["walking_movement"]).map((e) => e.name);
+    expect(names).not.toContain("Barbell Back Squat");
+    expect(names).not.toContain("Strict Pull-Up");
+  });
 });
 
 describe("pinExercises", () => {
@@ -167,7 +209,7 @@ describe("formatGenerationMenu", () => {
       ex("Butterfly Fold"),
     ]);
     const req = out.indexOf("NAMED IN THE USER'S REQUEST");
-    const canon = out.indexOf("CANONICAL LIFTS");
+    const canon = out.indexOf("STAPLE MOVEMENTS");
     const full = out.indexOf("FULL MENU");
     expect(req).toBeGreaterThanOrEqual(0);
     expect(canon).toBeGreaterThan(req);
