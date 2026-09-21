@@ -6,7 +6,9 @@ import { determineBlockType as determineBlockTypeB } from "@/utils/workout-gener
 import { CANONICAL_BASICS_STYLES } from "@/utils/requested-exercises";
 import {
   filterExercisesForWalkingModality,
+  filterOutSwapOnly,
   isNonWalkingCardio,
+  isSwapOnly,
 } from "@/utils/walking-modality";
 
 const WALKING = PreferredStyles.WALKING_MOVEMENT;
@@ -144,5 +146,39 @@ describe("NON_WALKING_CARDIO breadth [#109]", () => {
     for (const n of ["Walking", "Brisk Walk", "Incline Walk", "Hiking", "Rucking"]) {
       expect(isNonWalkingCardio(n)).toBe(false);
     }
+  });
+});
+
+describe("SWAP_ONLY_EXERCISES [#102]", () => {
+  it("keeps Indoor Walk out of any generation catalog", () => {
+    const pool = [
+      { name: "Walking" },
+      { name: "Brisk Walk" },
+      { name: "Indoor Walk" },
+      { name: "Air Squat" },
+    ];
+    expect(filterOutSwapOnly(pool).map((e) => e.name)).toEqual([
+      "Walking",
+      "Brisk Walk",
+      "Air Squat",
+    ]);
+  });
+
+  it("is unconditional — not scoped to walking users", () => {
+    // A strength user has even less business being handed it.
+    expect(filterOutSwapOnly([{ name: "Indoor Walk" }])).toEqual([]);
+  });
+
+  it("matches case-insensitively, like the catalog's unique index", () => {
+    expect(isSwapOnly("indoor walk")).toBe(true);
+    expect(isSwapOnly("  Indoor Walk  ")).toBe(true);
+    expect(isSwapOnly("Walking")).toBe(false);
+  });
+
+  // The trap this list exists for: the name carries none of the words
+  // NON_WALKING_CARDIO matches, so without an explicit exclusion the generator
+  // would prescribe it freely and rebuild LR-085 under a nicer name.
+  it("is NOT already covered by the in-place pattern", () => {
+    expect(isNonWalkingCardio("Indoor Walk")).toBe(false);
   });
 });
