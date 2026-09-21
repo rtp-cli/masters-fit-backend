@@ -44,9 +44,18 @@ import { logger } from "@/utils/logger";
  *
  * "Walking High Knees" is deliberately included: it is a high-knee drill, which
  * the prompt names explicitly, not a way of walking.
+ *
+ * [#109] Widened from `\brunning\b` to `\brun(?:s|ning)?\b` plus `sprints?`
+ * after the replace-suggestion audit surfaced "Driveway Hill Run" as the second
+ * movement offered to a walking-only beginner. The old pattern matched the
+ * gerund only, so a noun-form name sailed through. Measured against the real
+ * catalog this adds exactly 12 rows and every one is genuinely a run or a
+ * sprint — Driveway Hill Run, Incline Driveway Run, and ten bike/rower/ski-erg
+ * sprints. Note the word boundary keeps "Runner's Lunge"-style names safe:
+ * `\brun\b` does not match inside "Runner".
  */
 const NON_WALKING_CARDIO =
-  /\b(?:in[- ]place|on the spot)\b|\bjog(?:ging)?\b|\brunning\b|\bhigh[- ]knees?\b|\bjumping[- ]jacks?\b|\bjump[- ]rope\b/i;
+  /\b(?:in[- ]place|on the spot)\b|\bjog(?:ging)?\b|\brun(?:s|ning)?\b|\bsprints?\b|\bhigh[- ]knees?\b|\bjumping[- ]jacks?\b|\bjump[- ]rope\b/i;
 
 /** True when Walking & Movement is this user's ONLY stated style. */
 export function isWalkingOnlyUser(profile: Profile): boolean {

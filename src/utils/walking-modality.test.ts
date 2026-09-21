@@ -119,3 +119,30 @@ describe("filterExercisesForWalkingModality [LR-085]", () => {
     expect(isNonWalkingCardio("Marching on the Spot")).toBe(true);
   });
 });
+
+describe("NON_WALKING_CARDIO breadth [#109]", () => {
+  // Surfaced by the replace-suggestion audit: "Driveway Hill Run" was the
+  // SECOND movement offered to a walking-only beginner, because the old
+  // pattern matched the gerund "running" but not the noun "Run".
+  it.each([
+    "Driveway Hill Run",
+    "Incline Driveway Run",
+    "Bike Interval Sprint",
+    "Rower Sprint Intervals",
+    "Wall Tap Sprints",
+  ])("strips %s", (name) => {
+    expect(isNonWalkingCardio(name)).toBe(true);
+  });
+
+  it("does not catch 'run' inside a longer word", () => {
+    // Word boundaries keep these safe — they are stretches, not running.
+    expect(isNonWalkingCardio("Runner's Lunge")).toBe(false);
+    expect(isNonWalkingCardio("Runner's Stretch")).toBe(false);
+  });
+
+  it("still leaves the real walks alone", () => {
+    for (const n of ["Walking", "Brisk Walk", "Incline Walk", "Hiking", "Rucking"]) {
+      expect(isNonWalkingCardio(n)).toBe(false);
+    }
+  });
+});
