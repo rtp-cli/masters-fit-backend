@@ -227,7 +227,7 @@ async function main() {
   });
 
   console.log(
-    `\nfeature tour — ${emails.length} address(es) — ${send ? "SENDING" : "DRY RUN"}\n`,
+    `\ncomeback — ${emails.length} address(es) — ${send ? "SENDING" : "DRY RUN"}\n`,
   );
 
   const counts: Record<string, number> = {};
