@@ -37,6 +37,24 @@ name: Generation eval
 #   - manually, for a cheap single-scenario probe.
 # Add the `skip-eval` label to a PR to opt out (e.g. a comment-only change to a
 # listed file).
+#
+# Re-capturing eval-baseline/reference.json: dispatch this workflow with
+# repeat=3 and commit the artifact's run file as the new reference. Do it HERE
+# rather than locally — the reference must be captured against
+# EVAL_DATABASE_URL's catalog, or its scores aren't comparable with CI's. The
+# committed reference is a single run from 2026-09-07, so each scenario's number
+# is wherever that one sample happened to land (muscle-balance-6day sits at
+# 100%, the top of its range). Confirmation absorbs most of that bias; a median
+# reference would remove the rest. Cost: scenarios × 3 generations.
+#
+# Two-stage verdict (2026-09-22): the first gate pass is SOFT — it names the
+# scenarios that look regressed but never fails. Those are then re-run twice and
+# the final gate judges each on the MEDIAN of its samples. Generation is
+# stochastic and the scores are quantized (muscle-balance-6day moves in ~11pt
+# steps and spanned 67-100% across three runs of untouched main), so a single
+# sample against a 15pt allowance fired on noise about half the time. Widening
+# the allowance was the wrong fix — it would blind the gate to the 2026-09-07
+# shape, where the mean barely moved while one scenario collapsed.
 
 on:
   schedule:
@@ -89,6 +107,10 @@ on:
         description: "Run label (names the artifact)"
         required: false
         default: ""
+      repeat:
+        description: "Runs per scenario; the median is scored. Use 3 to capture a new reference."
+        required: false
+        default: "1"
 
 # One eval at a time per PR (or per branch for the cron), so concurrent runs
 # don't race on the same LLM rate limits and produce noisy scores. A new push
@@ -162,13 +184,42 @@ jobs:
           npm run eval-generation --
           --label "${{ steps.label.outputs.label }}"
           --concurrency "${{ github.event.inputs.concurrency || '3' }}"
+          --repeat "${{ github.event.inputs.repeat || '1' }}"
           ${{ github.event.inputs.only && format('--only {0}', github.event.inputs.only) || '' }}
 
+      # Stage 1 of 2 — SOFT. Generation is stochastic, so one run is a sample,
+      # not a measurement: muscle-balance-6day scored 67/100/89 across three
+      # runs on an untouched main, while the allowance is 15pt. Failing here
+      # would red-flag PRs at roughly a coin flip. Instead this names the
+      # suspect scenarios and always exits 0; the confirm stage decides.
+      - name: Gate (soft) — identify suspect scenarios
+        if: steps.cfg.outputs.ready == 'true'
+        id: softgate
+        run: >-
+          npm run eval-gate --
+          --current "eval-runs/${{ steps.label.outputs.label }}.json"
+          --soft
+
+      # Only a suspected regression pays for extra generations — a passing PR
+      # costs exactly what it did before this stage existed.
+      - name: Re-run suspect scenarios
+        if: steps.cfg.outputs.ready == 'true' && steps.softgate.outputs.confirm != ''
+        run: >-
+          npm run eval-generation --
+          --label "${{ steps.label.outputs.label }}-confirm"
+          --only "${{ steps.softgate.outputs.confirm }}"
+          --repeat 2
+          --concurrency "${{ github.event.inputs.concurrency || '3' }}"
+
+      # Stage 2 of 2 — the authoritative verdict. With --confirm, each re-run
+      # scenario is judged on the median of all its samples (the original run
+      # counts as evidence too, so it's a median of three).
       - name: Gate against the committed reference
         if: steps.cfg.outputs.ready == 'true'
         run: >-
           npm run eval-gate --
           --current "eval-runs/${{ steps.label.outputs.label }}.json"
+          ${{ steps.softgate.outputs.confirm != '' && format('--confirm eval-runs/{0}-confirm.json', steps.label.outputs.label) || '' }}
 
       # Uploaded even when the gate fails — the per-check detail is how you see
       # WHICH check moved, which the summary table doesn't show.
