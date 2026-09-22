@@ -18,6 +18,13 @@
  *   npm run eval-generation -- --label baseline
  *   npm run eval-generation -- --label after --compare baseline
  *   npm run eval-generation -- --label smoke --only exclude-burpees --concurrency 1
+ *   npm run eval-generation -- --label confirm --only muscle-balance-6day --repeat 2
+ *
+ * --repeat N runs each selected scenario N times and reports the MEDIAN, keeping
+ * every sample. Generation is stochastic — muscle-balance-6day scored 67/100/89
+ * across three runs on an untouched main — so a single number is a sample, not a
+ * measurement. Used by the eval workflow to confirm a suspected regression
+ * before failing a PR on it.
  */
 import fs from "fs";
 import path from "path";
@@ -54,9 +61,43 @@ interface ScenarioResult {
   description: string;
   ok: boolean;
   error?: string;
-  overall: number; // 0..1
+  overall: number; // 0..1 — the median when repeated
+  /** Every score observed, in run order. Only written when --repeat > 1. */
+  samples?: number[];
   durationMs: number;
   checks: CheckResult[];
+}
+
+const medianOf = (values: number[]): number => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+};
+
+/**
+ * Collapse repeated runs of one scenario into a single result: median score,
+ * every sample kept, and the CHECKS from the run that actually scored the
+ * median — so the printed detail describes a real generation rather than an
+ * average that never happened.
+ */
+function collapseRepeats(runs: ScenarioResult[]): ScenarioResult {
+  if (runs.length === 1) return runs[0];
+  const samples = runs.map((r) => r.overall);
+  const med = medianOf(samples);
+  const representative =
+    [...runs].sort(
+      (a, b) => Math.abs(a.overall - med) - Math.abs(b.overall - med)
+    )[0] ?? runs[0];
+  return {
+    ...representative,
+    overall: med,
+    samples,
+    // Total wall-clock across the repeats, so the cost stays visible.
+    durationMs: runs.reduce((sum, r) => sum + r.durationMs, 0),
+    ok: runs.every((r) => r.ok),
+  };
 }
 
 function parseArgs(argv: string[]) {
@@ -287,7 +328,10 @@ function printReport(label: string, results: ScenarioResult[]) {
   console.log(`\n${"=".repeat(72)}\nEVAL RUN: ${label}\n${"=".repeat(72)}`);
   for (const r of results) {
     const status = r.ok ? "" : " [GENERATION FAILED]";
-    console.log(`\n▸ ${r.id} (${r.category}) — ${pct(r.overall)}${status}`);
+    const spread = r.samples
+      ? ` (median of ${r.samples.map(pct).join("/")})`
+      : "";
+    console.log(`\n▸ ${r.id} (${r.category}) — ${pct(r.overall)}${spread}${status}`);
     console.log(`  ${r.description}  [${(r.durationMs / 1000).toFixed(1)}s]`);
     if (r.error) console.log(`  ERROR: ${r.error}`);
     for (const c of r.checks) {
@@ -341,6 +385,7 @@ async function run() {
   const label = args.label || "run";
   const concurrency = Number(args.concurrency || 3);
   const only = args.only ? new Set(args.only.split(",")) : null;
+  const repeat = Math.max(1, Number(args.repeat || 1));
 
   // [Calendar-aligned series] Alignment scenarios are only meaningful with the
   // flag on — their expected day counts assume the calendar window.
@@ -356,15 +401,29 @@ async function run() {
   }
 
   console.log(
-    `Running ${scenarios.length} scenario(s) at concurrency ${concurrency} (eval user ${EVAL_USER_ID}, local catalog)...`
+    `Running ${scenarios.length} scenario(s)${
+      repeat > 1 ? ` × ${repeat} repeats (median scored)` : ""
+    } at concurrency ${concurrency} (eval user ${EVAL_USER_ID}, local catalog)...`
   );
 
-  const results = await pool(scenarios, concurrency, async (s) => {
-    console.log(`  … ${s.id}`);
-    const r = await runScenario(s);
-    console.log(`  ${r.ok ? "done" : "FAIL"} ${s.id} — ${pct(r.overall)} (${(r.durationMs / 1000).toFixed(1)}s)`);
+  // Flatten scenario × repeat into one task list so concurrency still applies
+  // across repeats — 3 repeats of 1 scenario parallelise like 3 scenarios do.
+  const tasks = scenarios.flatMap((s) =>
+    Array.from({ length: repeat }, (_, attempt) => ({ scenario: s, attempt }))
+  );
+
+  const runs = await pool(tasks, concurrency, async ({ scenario, attempt }) => {
+    const tag = repeat > 1 ? `${scenario.id} (${attempt + 1}/${repeat})` : scenario.id;
+    console.log(`  … ${tag}`);
+    const r = await runScenario(scenario);
+    console.log(`  ${r.ok ? "done" : "FAIL"} ${tag} — ${pct(r.overall)} (${(r.durationMs / 1000).toFixed(1)}s)`);
     return r;
   });
+
+  // Group back by scenario, preserving the order of `scenarios`.
+  const results = scenarios.map((s) =>
+    collapseRepeats(runs.filter((r) => r.id === s.id))
+  );
 
   printReport(label, results);
 

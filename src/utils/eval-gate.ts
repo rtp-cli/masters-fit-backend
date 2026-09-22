@@ -20,13 +20,32 @@
  * CALENDAR_ALIGNED_SERIES=true) are reported, never failed — a skipped
  * scenario is a coverage gap, not a regression.
  *
+ * CONFIRMATION (2026-09-22). Generation is stochastic, so a single run is a
+ * sample, not a measurement. `muscle-balance-6day` is the worst case: its
+ * muscleBalance check awards partial credit in thirds, so the scenario score can
+ * only land on 67/78/89/100 — ~11pt steps — and three runs on an UNTOUCHED main
+ * scored 67/100/89. Against a 15pt allowance and a reference that happens to
+ * hold the top of that range, the gate fired on noise roughly half the time
+ * (it red-flagged PR #112, which had not touched anything that scenario
+ * exercises — it has no customFeedback at all).
+ *
+ * The fix is NOT a wider allowance: that would blind the gate to the very shape
+ * it exists to catch (2026-09-07 — the mean barely moved while one scenario
+ * collapsed). Instead a failing scenario is RE-RUN and judged on the median of
+ * its samples. `mergeConfirmationRun` folds those extra samples in. Only a
+ * suspected regression pays for the extra generations, so a passing PR costs
+ * exactly what it did before.
+ *
  * Pure and exported for tests; the CLI wrapper lives in scripts/eval-gate.ts.
  */
 
 export interface EvalScenarioResult {
   id: string;
   category?: string;
+  /** The score the gate judges. With samples present this is their median. */
   overall: number;
+  /** Every score observed for this scenario; absent or length-1 for a single run. */
+  samples?: number[];
   ok?: boolean;
 }
 
@@ -67,6 +86,8 @@ export interface GateScenarioRow {
   current: number | null;
   /** current - reference, in percentage points; null when either side is missing. */
   deltaPt: number | null;
+  /** All samples behind `current`, when the scenario was re-run to confirm. */
+  samples?: number[];
 }
 
 export interface GateReport {
@@ -84,6 +105,47 @@ export interface GateReport {
 
 const mean = (values: number[]): number =>
   values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+
+/**
+ * Middle value, averaging the two middles on an even count. Median rather than
+ * mean so one outlier run — a timeout, a model hiccup — can't drag a scenario
+ * under the gate on its own.
+ */
+export const median = (values: number[]): number => {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+};
+
+/** Every score behind a result: explicit samples, else the single overall. */
+const samplesOf = (r: EvalScenarioResult): number[] =>
+  r.samples && r.samples.length > 0 ? r.samples : [r.overall];
+
+/**
+ * Fold re-run samples into a base run. Scenarios absent from `confirmation` are
+ * passed through untouched, so this is a no-op when nothing needed confirming.
+ *
+ * Both sides' samples are pooled — the original run is evidence too, so one
+ * suspicious run plus two re-runs is judged on the median of three, not of two.
+ */
+export function mergeConfirmationRun(
+  base: EvalRunFile,
+  confirmation: EvalRunFile
+): EvalRunFile {
+  const extraById = new Map(confirmation.results.map((r) => [r.id, r]));
+  return {
+    ...base,
+    results: base.results.map((result) => {
+      const extra = extraById.get(result.id);
+      if (!extra) return result;
+      const samples = [...samplesOf(result), ...samplesOf(extra)];
+      return { ...result, samples, overall: median(samples) };
+    }),
+  };
+}
 
 const pt = (value: number): number => Math.round(value * 100);
 
@@ -109,6 +171,7 @@ export function evaluateEvalGate(
       reference: ref ? ref.overall : null,
       current: cur ? cur.overall : null,
       deltaPt: cur && ref ? pt(cur.overall) - pt(ref.overall) : null,
+      samples: cur?.samples && cur.samples.length > 1 ? cur.samples : undefined,
     };
   });
 
@@ -132,8 +195,22 @@ export function evaluateEvalGate(
     }
   }
 
-  const currentOverall = mean(current.results.map((r) => r.overall));
-  const referenceOverall = mean(reference.results.map((r) => r.overall));
+  // Average over the scenarios this run actually COVERED, on both sides. Taking
+  // the reference's mean over all 21 while the run covered 3 compares different
+  // populations: a `--only` dispatch, or a run where the calendar-aligned
+  // scenarios were skipped, then "regresses" by construction. Surfaced by a
+  // single-scenario dispatch on 2026-09-22 that reported -16pt overall from one
+  // scenario scoring 83%.
+  const comparableIds = rows
+    .filter((r) => r.current !== null && r.reference !== null)
+    .map((r) => r.id);
+  const comparable = new Set(comparableIds);
+  const currentOverall = mean(
+    current.results.filter((r) => comparable.has(r.id)).map((r) => r.overall)
+  );
+  const referenceOverall = mean(
+    reference.results.filter((r) => comparable.has(r.id)).map((r) => r.overall)
+  );
   const overallDeltaPt = pt(currentOverall) - pt(referenceOverall);
   if (overallDeltaPt < -thresholds.maxOverallDropPt) {
     failures.push({
@@ -152,6 +229,34 @@ export function evaluateEvalGate(
     referenceOverall,
     overallDeltaPt,
   };
+}
+
+/**
+ * Which scenarios are worth re-running before believing a red verdict.
+ *
+ * Scenario-level failures name themselves. An overall-only regression names no
+ * scenario, so fall back to the biggest droppers — that is where a real mean
+ * regression lives, and re-running them is what distinguishes it from a few
+ * scenarios all sampling low at once.
+ *
+ * Returns [] for a passing report: nothing to confirm, nothing to pay for.
+ */
+export function scenariosToConfirm(report: GateReport, limit = 3): string[] {
+  if (report.passed) return [];
+  const ids = report.failures
+    .map((f) => f.scenarioId)
+    .filter((id): id is string => Boolean(id));
+
+  if (ids.length === 0) {
+    // Overall-only regression: take the worst actually-run droppers.
+    const worst = report.rows
+      .filter((r) => r.current !== null && r.deltaPt !== null)
+      .sort((a, b) => (a.deltaPt ?? 0) - (b.deltaPt ?? 0))
+      .slice(0, limit)
+      .map((r) => r.id);
+    return worst;
+  }
+  return [...new Set(ids)];
 }
 
 /** GitHub-flavoured markdown for the workflow's job summary. */
@@ -176,11 +281,26 @@ export function renderGateSummary(report: GateReport, label = "run"): string {
     lines.push("");
   }
 
-  lines.push("| scenario | reference | this run | change |", "| --- | --- | --- | --- |");
+  const confirmed = report.rows.some((r) => r.samples);
+  lines.push(
+    confirmed
+      ? "| scenario | reference | this run | change | samples |"
+      : "| scenario | reference | this run | change |",
+    confirmed ? "| --- | --- | --- | --- | --- |" : "| --- | --- | --- | --- |"
+  );
   for (const row of [...report.rows].sort(
     (a, b) => (a.deltaPt ?? 0) - (b.deltaPt ?? 0) || a.id.localeCompare(b.id)
   )) {
-    lines.push(`| ${row.id} | ${cell(row.reference)} | ${cell(row.current)} | ${delta(row.deltaPt)} |`);
+    const base = `| ${row.id} | ${cell(row.reference)} | ${cell(row.current)} | ${delta(row.deltaPt)} |`;
+    if (!confirmed) {
+      lines.push(base);
+      continue;
+    }
+    // "median of 67/89/89" makes it obvious when a verdict rests on a re-run.
+    const samples = row.samples
+      ? `median of ${row.samples.map((v) => `${pt(v)}%`).join("/")}`
+      : "–";
+    lines.push(`${base} ${samples} |`);
   }
 
   if (report.notRun.length > 0) {
