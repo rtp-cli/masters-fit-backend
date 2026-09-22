@@ -1,6 +1,6 @@
 {
   "label": "reference",
-  "ranAt": "2026-09-07T17:48:15.573Z",
+  "ranAt": "2026-09-22T13:15:56.031Z",
   "results": [
     {
       "id": "control-strength-gym",
@@ -8,21 +8,29 @@
       "description": "Baseline: 5-day commercial-gym strength+HIIT, no custom request",
       "ok": true,
       "overall": 1,
+      "durationMs": 71935,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 5 days within \u00b15 of 45m"
         },
         {
           "id": "no-repeat",
           "label": "no exercise >2\u00d7 per day",
           "type": "noRepeatOverTwice",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no exercise repeated >2\u00d7 in a day"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -31,21 +39,76 @@
       "description": "Baseline: older user, yoga+mobility at home, arthritis, no request",
       "ok": true,
       "overall": 1,
+      "durationMs": 59411,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 30m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 3 days within \u00b15 of 30m"
         },
         {
           "id": "no-repeat",
           "label": "no exercise >2\u00d7 per day",
           "type": "noRepeatOverTwice",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no exercise repeated >2\u00d7 in a day"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "control-walking-beginner",
+      "category": "control",
+      "description": "Baseline: deconditioned 55yo, Walking & Movement only, bodyweight, arthritis, no request",
+      "ok": true,
+      "overall": 0.75,
+      "durationMs": 54950,
+      "checks": [
+        {
+          "id": "duration",
+          "label": "duration \u00b15 of 30m",
+          "type": "durationCompliance",
+          "score": 1,
+          "passed": true,
+          "detail": "all 5 days within \u00b15 of 30m"
+        },
+        {
+          "id": "no-repeat",
+          "label": "no exercise >2\u00d7 per day",
+          "type": "noRepeatOverTwice",
+          "score": 1,
+          "passed": true,
+          "detail": "no exercise repeated >2\u00d7 in a day"
+        },
+        {
+          "id": "real-walk-present",
+          "label": "prescribes an actual walk",
+          "type": "includes",
+          "score": 0,
+          "passed": false,
+          "detail": "none of [Walking | Brisk Walk | Incline Walk | Hiking | Rucking] present"
+        },
+        {
+          "id": "no-in-place-cardio",
+          "label": "no \"in place\" cardio for a walking user",
+          "type": "excludes",
+          "score": 1,
+          "passed": true,
+          "detail": "no \"in place\" present"
+        }
+      ],
+      "samples": [
+        0.75,
+        0.75,
+        0.75
       ]
     },
     {
@@ -53,22 +116,30 @@
       "category": "exclusion",
       "description": "Explicit exclusion: no burpees",
       "ok": true,
-      "overall": 0.9,
+      "overall": 1,
+      "durationMs": 93085,
       "checks": [
         {
           "id": "no-burpee",
           "label": "excludes \"burpee\"",
           "type": "excludes",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no \"burpee\" present"
         },
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
-          "score": 0.8,
-          "passed": false
+          "score": 1,
+          "passed": true,
+          "detail": "all 5 days within \u00b15 of 45m"
         }
+      ],
+      "samples": [
+        0.9,
+        1,
+        1
       ]
     },
     {
@@ -77,21 +148,29 @@
       "description": "Explicit exclusion: no deadlifts (mirrors the user-41 deadlift incident)",
       "ok": true,
       "overall": 1,
+      "durationMs": 86782,
       "checks": [
         {
           "id": "no-deadlift",
           "label": "excludes \"deadlift\"",
           "type": "excludes",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no \"deadlift\" present"
         },
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 5 days within \u00b15 of 45m"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -100,28 +179,37 @@
       "description": "Multiple exclusions: no burpees and no box jumps",
       "ok": true,
       "overall": 1,
+      "durationMs": 102755,
       "checks": [
         {
           "id": "no-burpee",
           "label": "excludes \"burpee\"",
           "type": "excludes",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no \"burpee\" present"
         },
         {
           "id": "no-box-jump",
           "label": "excludes \"box jump\"",
           "type": "excludes",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no \"box jump\" present"
         },
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 5 days within \u00b15 of 45m"
         }
+      ],
+      "samples": [
+        0.8666666666666667,
+        1,
+        1
       ]
     },
     {
@@ -130,21 +218,29 @@
       "description": "Equipment rule: full gym available, but user wants no barbell work",
       "ok": true,
       "overall": 1,
+      "durationMs": 90264,
       "checks": [
         {
           "id": "no-barbell",
           "label": "excludes \"barbell\"",
           "type": "excludes",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no \"barbell\" present"
         },
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 5 days within \u00b15 of 45m"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -153,21 +249,29 @@
       "description": "Day-scoped equipment rule: make the travel day bodyweight-only",
       "ok": true,
       "overall": 1,
+      "durationMs": 79083,
       "checks": [
         {
           "id": "bodyweight-wed",
-          "label": "day 2 (Wed) bodyweight-only",
+          "label": "day 1 (Wed) bodyweight-only",
           "type": "equipmentFreeDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 14 exercises on day 1 are bodyweight"
         },
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 3 days within \u00b15 of 45m"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -176,21 +280,29 @@
       "description": "Format ask: include an AMRAP finisher every day",
       "ok": true,
       "overall": 1,
+      "durationMs": 96057,
       "checks": [
         {
           "id": "amrap-each-day",
           "label": "AMRAP block each day",
           "type": "blockTypeEachDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "5/5 days have a amrap block"
         },
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 5 days within \u00b15 of 45m"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -199,28 +311,37 @@
       "description": "Format ask: pure strength, no AMRAP/circuit conditioning",
       "ok": true,
       "overall": 1,
+      "durationMs": 89818,
       "checks": [
         {
           "id": "no-amrap",
           "label": "no AMRAP blocks",
           "type": "blockTypeAbsent",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no amrap blocks present"
         },
         {
           "id": "no-circuit",
           "label": "no circuit blocks",
           "type": "blockTypeAbsent",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no circuit blocks present"
         },
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 5 days within \u00b15 of 45m"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -229,21 +350,29 @@
       "description": "60-minute target must be met",
       "ok": true,
       "overall": 1,
+      "durationMs": 66306,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 60m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 3 days within \u00b15 of 60m"
         },
         {
           "id": "no-repeat",
           "label": "no exercise >2\u00d7 per day",
           "type": "noRepeatOverTwice",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no exercise repeated >2\u00d7 in a day"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -252,21 +381,29 @@
       "description": "Long session: 75-minute target must be met",
       "ok": true,
       "overall": 1,
+      "durationMs": 77997,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 75m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 4 days within \u00b15 of 75m"
         },
         {
           "id": "no-repeat",
           "label": "no exercise >2\u00d7 per day",
           "type": "noRepeatOverTwice",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no exercise repeated >2\u00d7 in a day"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -275,21 +412,29 @@
       "description": "Very long session: 90-minute target must be met",
       "ok": true,
       "overall": 1,
+      "durationMs": 77547,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 90m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 3 days within \u00b15 of 90m"
         },
         {
           "id": "no-repeat",
           "label": "no exercise >2\u00d7 per day",
           "type": "noRepeatOverTwice",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no exercise repeated >2\u00d7 in a day"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -298,14 +443,21 @@
       "description": "Short session: 20-minute bodyweight target must be met",
       "ok": true,
       "overall": 1,
+      "durationMs": 58388,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 20m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 4 days within \u00b15 of 20m"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -314,28 +466,37 @@
       "description": "6 consecutive training days \u2014 no muscle should be hammered back-to-back",
       "ok": true,
       "overall": 1,
+      "durationMs": 93487,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 6 days within \u00b15 of 45m"
         },
         {
           "id": "no-repeat",
           "label": "no exercise >2\u00d7 per day",
           "type": "noRepeatOverTwice",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no exercise repeated >2\u00d7 in a day"
         },
         {
           "id": "muscle-overlap",
           "label": "no consecutive-day muscle overload",
           "type": "muscleBalance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no muscle heavily loaded on back-to-back days"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        0.888888888888889
       ]
     },
     {
@@ -344,28 +505,37 @@
       "description": "Partial week: user names specific training days (Mon/Wed/Fri)",
       "ok": true,
       "overall": 1,
+      "durationMs": 110167,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 3 days within \u00b15 of 45m"
         },
         {
           "id": "sched-daycount",
           "label": "3 workout days",
           "type": "schedule",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "schedule=3, plan=3, want 3"
         },
         {
           "id": "sched-weekdays",
           "label": "days = monday/wednesday/friday",
           "type": "schedule",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "got wednesday/friday/monday"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -374,21 +544,29 @@
       "description": "Partial week: user asks for a specific day COUNT (3)",
       "ok": true,
       "overall": 1,
+      "durationMs": 76741,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 3 days within \u00b15 of 45m"
         },
         {
           "id": "sched-daycount",
           "label": "3 workout days",
           "type": "schedule",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "schedule=3, plan=3, want 3"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -397,28 +575,37 @@
       "description": "Day override: weekends only (outside the profile's weekday schedule)",
       "ok": true,
       "overall": 1,
+      "durationMs": 89135,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 2 days within \u00b15 of 45m"
         },
         {
           "id": "sched-daycount",
           "label": "2 workout days",
           "type": "schedule",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "schedule=2, plan=2, want 2"
         },
         {
           "id": "sched-weekdays",
           "label": "days = saturday/sunday",
           "type": "schedule",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "got saturday/sunday"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -427,42 +614,53 @@
       "description": "Calendar ask: keep Friday legs-light because of a Saturday long run",
       "ok": true,
       "overall": 1,
+      "durationMs": 86206,
       "checks": [
         {
           "id": "fri-no-squat",
-          "label": "no \"squat\" on Fri (day 4)",
+          "label": "no \"squat\" on Fri (day 3)",
           "type": "excludesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no \"squat\" on day 3"
         },
         {
           "id": "fri-no-deadlift",
-          "label": "no \"deadlift\" on Fri (day 4)",
+          "label": "no \"deadlift\" on Fri (day 3)",
           "type": "excludesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no \"deadlift\" on day 3"
         },
         {
           "id": "fri-no-lunge",
-          "label": "no \"lunge\" on Fri (day 4)",
+          "label": "no \"lunge\" on Fri (day 3)",
           "type": "excludesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "no \"lunge\" on day 3"
         },
         {
           "id": "duration",
           "label": "duration \u00b15 of 45m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 5 days within \u00b15 of 45m"
         },
         {
           "id": "sched-daycount",
           "label": "5 workout days",
           "type": "schedule",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "schedule=5, plan=5, want 5"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -471,77 +669,93 @@
       "description": "Named program: Wendler 5/3/1 bench/squat/deadlift days (home gym with barbells) \u2014 canonical barbell lifts with a full set ladder",
       "ok": true,
       "overall": 1,
+      "durationMs": 95526,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 40m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 3 days within \u00b15 of 40m"
         },
         {
           "id": "mon-barbell-bench",
           "label": "Mon has Barbell Bench Press",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Barbell Bench Press on day 1"
         },
         {
           "id": "mon-loads",
           "label": "mon loads \u2264 235 1RM and \u00d75 lb",
           "type": "loadsOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "6 loads ok: 85/110/130/140/160/180"
         },
         {
           "id": "mon-bench-ladder",
           "label": "Mon barbell bench \u22655 set entries",
           "type": "minOccurrencesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "6 \"barbell bench press\" entries on day 1 (want \u22655)"
         },
         {
           "id": "wed-barbell-squat",
           "label": "Wed has Barbell Back Squat",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Barbell Back Squat on day 2"
         },
         {
           "id": "wed-loads",
           "label": "wed loads \u2264 285 1RM and \u00d75 lb",
           "type": "loadsOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "6 loads ok: 105/130/155/170/195/220"
         },
         {
           "id": "wed-squat-ladder",
           "label": "Wed squat \u22655 set entries",
           "type": "minOccurrencesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "6 \"back squat\" entries on day 2 (want \u22655)"
         },
         {
           "id": "fri-barbell-deadlift",
           "label": "Fri has a barbell deadlift",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Deadlift on day 3"
         },
         {
           "id": "fri-loads",
           "label": "fri loads \u2264 375 1RM and \u00d75 lb",
           "type": "loadsOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "6 loads ok: 135/170/205/220/255/290"
         },
         {
           "id": "fri-deadlift-ladder",
           "label": "Fri deadlift \u22655 set entries",
           "type": "minOccurrencesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "7 \"deadlift\" entries on day 3 (want \u22655)"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     },
     {
@@ -550,70 +764,85 @@
       "description": "Prescribed circuit: 10 RFT of strict pull-ups / push-ups / air squats / sit-ups on Tue+Thu \u2014 the named movements, not band/decline/knee-tuck variants",
       "ok": true,
       "overall": 1,
+      "durationMs": 121365,
       "checks": [
         {
           "id": "duration",
           "label": "duration \u00b15 of 35m",
           "type": "durationCompliance",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "all 3 days within \u00b15 of 35m"
         },
         {
           "id": "tue-strict-pullup",
           "label": "tue has strict pull-up",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Strict Pull-Up on day 1"
         },
         {
           "id": "tue-pushup",
           "label": "tue has push-up",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Push-Up on day 1"
         },
         {
           "id": "tue-air-squat",
           "label": "tue has air squat",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Air Squat on day 1"
         },
         {
           "id": "tue-situp",
           "label": "tue has sit-up",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Sit-Up on day 1"
         },
         {
           "id": "thu-strict-pullup",
           "label": "thu has strict pull-up",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Strict Pull-Up on day 2"
         },
         {
           "id": "thu-pushup",
           "label": "thu has push-up",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Push-Up on day 2"
         },
         {
           "id": "thu-air-squat",
           "label": "thu has air squat",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Air Squat on day 2"
         },
         {
           "id": "thu-situp",
           "label": "thu has sit-up",
           "type": "includesOnDay",
           "score": 1,
-          "passed": true
+          "passed": true,
+          "detail": "found Sit-Up on day 2"
         }
+      ],
+      "samples": [
+        1,
+        1,
+        1
       ]
     }
   ]
