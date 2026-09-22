@@ -19,6 +19,10 @@ import {
 } from "@/templates/activation-nudge-email";
 import { activationStartUrl } from "@/constants/activation-nudge";
 import {
+  featureTourTemplate,
+  FEATURE_TOUR_SUBJECT,
+} from "@/templates/feature-tour-email";
+import {
   compGrantedTemplate,
   COMP_GRANTED_SUBJECT,
 } from "@/templates/comp-granted-email";
@@ -293,6 +297,64 @@ export class EmailService {
 
     logger.info("Activation nudge email sent", {
       operation: "sendActivationNudgeEmail",
+      metadata: { userId, messageId: response.data?.id },
+    });
+  }
+
+  /**
+   * "A few features you may have missed" — the feature tour, to people who
+   * have actually trained with the app.
+   *
+   * COMMERCIAL, exactly like the two nudges: List-Unsubscribe headers, a footer
+   * unsubscribe, and a postal address the caller is required to supply. The
+   * caller also consults `email_opted_out_at` before ever reaching here.
+   *
+   * Takes no per-user content beyond the name. Unlike the activation nudge,
+   * which has to name the specific session waiting for you, this email is the
+   * same for everyone — the personalisation is the greeting and nothing else,
+   * so there is no plan lookup to get wrong.
+   */
+  async sendFeatureTourEmail(params: {
+    to: string;
+    name: string;
+    userId: number;
+    postalAddress: string;
+  }): Promise<void> {
+    const { to, name, userId, postalAddress } = params;
+
+    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
+      signUnsubscribeToken(userId),
+    )}`;
+
+    const { html, text } = featureTourTemplate({
+      name,
+      unsubscribeUrl,
+      postalAddress,
+    });
+
+    const response = await resend.emails.send({
+      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      to,
+      bcc: lifecycleBcc(to),
+      subject: FEATURE_TOUR_SUBJECT,
+      html,
+      text,
+      replyTo: NUDGE_REPLY_TO,
+      // One-click unsubscribe. Gmail and Yahoo require this header on bulk
+      // mail; without it they are entitled to treat the send as spam no matter
+      // how good the footer link is.
+      headers: {
+        "List-Unsubscribe": `<${unsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Feature tour email sent", {
+      operation: "sendFeatureTourEmail",
       metadata: { userId, messageId: response.data?.id },
     });
   }

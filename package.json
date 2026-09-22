@@ -23,6 +23,7 @@
     "send-activation-nudge": "tsx src/scripts/send-activation-nudge.ts",
     "send-signup-notification": "tsx src/scripts/send-signup-notification.ts",
     "send-onboarding-nudge": "tsx src/scripts/send-onboarding-nudge.ts",
+    "send-feature-tour": "tsx src/scripts/send-feature-tour.ts",
     "comp-user": "tsx src/scripts/grant-comp-single.ts",
     "delete-user": "tsx src/scripts/delete-users.ts",
     "check-deletion": "tsx src/scripts/check-deletion.ts",
