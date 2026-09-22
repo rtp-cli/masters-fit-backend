@@ -44,9 +44,18 @@ import { logger } from "@/utils/logger";
  *
  * "Walking High Knees" is deliberately included: it is a high-knee drill, which
  * the prompt names explicitly, not a way of walking.
+ *
+ * [#109] Widened from `\brunning\b` to `\brun(?:s|ning)?\b` plus `sprints?`
+ * after the replace-suggestion audit surfaced "Driveway Hill Run" as the second
+ * movement offered to a walking-only beginner. The old pattern matched the
+ * gerund only, so a noun-form name sailed through. Measured against the real
+ * catalog this adds exactly 12 rows and every one is genuinely a run or a
+ * sprint — Driveway Hill Run, Incline Driveway Run, and ten bike/rower/ski-erg
+ * sprints. Note the word boundary keeps "Runner's Lunge"-style names safe:
+ * `\brun\b` does not match inside "Runner".
  */
 const NON_WALKING_CARDIO =
-  /\b(?:in[- ]place|on the spot)\b|\bjog(?:ging)?\b|\brunning\b|\bhigh[- ]knees?\b|\bjumping[- ]jacks?\b|\bjump[- ]rope\b/i;
+  /\b(?:in[- ]place|on the spot)\b|\bjog(?:ging)?\b|\brun(?:s|ning)?\b|\bsprints?\b|\bhigh[- ]knees?\b|\bjumping[- ]jacks?\b|\bjump[- ]rope\b/i;
 
 /** True when Walking & Movement is this user's ONLY stated style. */
 export function isWalkingOnlyUser(profile: Profile): boolean {
@@ -83,4 +92,48 @@ export function filterExercisesForWalkingModality<T extends { name: string }>(
     }
     return true;
   });
+}
+
+/**
+ * [#102] Catalog rows that exist ONLY as a user-chosen swap and must never be
+ * generated, for anybody.
+ *
+ * "Indoor Walk" is the walk you do when you cannot get outside. That is a
+ * CONSTRAINT answer, not a difficulty answer — twenty minutes of marching on
+ * the spot is not easier than a fifteen-minute stroll, it is just the only
+ * thing available — and nothing in the profile says who is in that situation.
+ * There is no indoor/outdoor field; `environment` is equipment-only. So the
+ * generator would have to guess, and its demonstrated bias is to over-reach
+ * for in-place cardio: given `Walking` AND `Brisk Walk` pinned at the top of
+ * its menu it still chose "Walking in Place" seven times in one five-day week.
+ *
+ * Note this is NOT covered by NON_WALKING_CARDIO: the name contains no "in
+ * place", no "jog", no "run". Without an explicit exclusion the generator
+ * would prescribe it freely and we would have rebuilt LR-085 under a nicer
+ * name. Applied unconditionally in getSharedGenerationCatalog — not scoped to
+ * walking-only users, because a strength user has even less business being
+ * handed it.
+ *
+ * The escape hatch is rankReplacements, which pins it deliberately when a
+ * walking-only user is replacing a walk. Matched lower-cased, mirroring the
+ * catalog's case-insensitive unique index.
+ */
+/** The exact catalog name, so the pin and the exclusion cannot drift apart. */
+export const INDOOR_WALK_NAME = "Indoor Walk";
+
+export const SWAP_ONLY_EXERCISES: ReadonlySet<string> = new Set([
+  INDOOR_WALK_NAME.toLowerCase(),
+]);
+
+/** True when this row may only reach a plan through a deliberate user swap. */
+export function isSwapOnly(name: string | null | undefined): boolean {
+  return SWAP_ONLY_EXERCISES.has((name ?? "").trim().toLowerCase());
+}
+
+/**
+ * Removes swap-only rows from a generation catalog. Unconditional: no profile,
+ * no exceptions — if it is on the list, the model never sees it.
+ */
+export function filterOutSwapOnly<T extends { name: string }>(pool: T[]): T[] {
+  return pool.filter((exercise) => !isSwapOnly(exercise.name));
 }

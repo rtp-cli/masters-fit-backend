@@ -12,6 +12,14 @@ import {
 import { BaseService } from "./base.service";
 import { logger } from "@/utils/logger";
 import { resolveTodayString } from "@/utils/date.utils";
+import { filterExercisesByLimitations } from "@/utils/limitation-validation";
+import { filterExercisesByFitnessLevel } from "@/utils/fitness-level-validation";
+import {
+  filterExercisesForWalkingModality,
+  isWalkingOnlyUser,
+  INDOOR_WALK_NAME,
+} from "@/utils/walking-modality";
+import { profiles } from "@/models/profile.schema";
 
 // One catalog entry as ranked for a replacement slot. Everything the frontend
 // needs to assemble the templated sentence and the covered/dashed muscle chips
@@ -27,6 +35,11 @@ export interface ReplacementCandidate {
   hasDemo: boolean | null;
   /** Count of the ORIGINAL's muscle groups this candidate also trains. */
   overlapCount: number;
+  /**
+   * [#102] Set when this row was reserved rather than ranked in. Drives the
+   * label the client puts on it; absent on every ordinarily-ranked candidate.
+   */
+  pinned?: "indoor-swap";
 }
 
 // A scheduled exercise that overlaps the excluded one on muscle group — the
@@ -155,7 +168,73 @@ export class ExerciseExclusionService extends BaseService {
    * user's exclusions) — equipment is a FILTER, not a tiebreak. Survivors are
    * then ordered: muscle-overlap count desc → difficulty distance asc → hasDemo
    * first. No model call; pure ranking over real columns.
+   *
+   * [#109] Then the three Tier-1 safety guardrails, which this path was
+   * missing entirely. Measured 2026-09-21: a BEGINNER with ARTHRITIS whose only
+   * style is Walking & Movement, tapping Replace on their walk, was offered
+   * "Driveway Hill Run", "Box Jump", "Bodyweight Jumping Jacks" and "Burpees".
+   * `Burpees` and `Box Jump` are listed by name in BEGINNER_EXCLUDED_MOVEMENTS
+   * — the app was offering, by name, the movements LR-073 exists to withhold.
+   *
+   * The hole was that `difficultyDistance` is a TIEBREAK, not a filter: it
+   * prefers a similar difficulty but excludes nothing, so nothing stopped a
+   * `high` movement ranking into the list. All three guardrails lived only in
+   * getSharedGenerationCatalog, and each was written after a real incident
+   * (LR-013 contraindications, LR-073 beginners handed burpees, LR-085 walkers
+   * handed in-place cardio) — every one of which was reachable again here.
+   *
+   * THE LINE THIS DRAWS, deliberately:
+   *   - The app's SUGGESTIONS respect the guardrails. Seeding the replace list
+   *     is the app choosing what to put in front of someone, which is the same
+   *     act as the generator choosing, so it earns the same constraints.
+   *   - The user's own SEARCH does not. searchExercisesWithFilters stays
+   *     unfiltered, so a deliberate, typed-out search still finds any movement.
+   *     That escape hatch is the whole reason #102 needs no new plumbing.
+   *
+   * A profile that cannot be loaded leaves the pool unconstrained rather than
+   * assumed fragile — the same stance fitness-level-validation.ts already
+   * documents for a null fitnessLevel, and it keeps a data hiccup from emptying
+   * the replace list.
    */
+  /**
+   * [#109] The three Tier-1 guardrails from getSharedGenerationCatalog, applied
+   * to a candidate pool. Kept private and profile-loading so callers cannot
+   * forget it — the bug was that this path simply never ran them.
+   */
+  private async applySafetyGuardrails(
+    userId: number,
+    pool: Exercise[]
+  ): Promise<Exercise[]> {
+    const profile = await this.db.query.profiles.findFirst({
+      where: eq(profiles.userId, userId),
+    });
+    if (!profile) {
+      logger.warn("No profile for replacement guardrails; leaving pool unconstrained", {
+        userId,
+        operation: "rankReplacements",
+      });
+      return pool;
+    }
+
+    const withinLimitations = filterExercisesByLimitations(pool, profile);
+    const withinLevel = filterExercisesByFitnessLevel(withinLimitations, profile);
+    const allowed = filterExercisesForWalkingModality(withinLevel, profile);
+
+    if (allowed.length !== pool.length) {
+      logger.info("Replacement candidates filtered by safety guardrails", {
+        userId,
+        operation: "rankReplacements",
+        metadata: {
+          poolCount: pool.length,
+          excludedByLimitations: pool.length - withinLimitations.length,
+          excludedByFitnessLevel: withinLimitations.length - withinLevel.length,
+          excludedByWalkingModality: withinLevel.length - allowed.length,
+        },
+      });
+    }
+    return allowed;
+  }
+
   async rankReplacements(
     userId: number,
     originalExerciseId: number,
@@ -184,7 +263,13 @@ export class ExerciseExclusionService extends BaseService {
       (original.muscleGroups ?? []).map((m) => m.toLowerCase())
     );
 
-    const ranked = (pool as Exercise[])
+    // [#109] Same guardrails, same order, as the generation catalog.
+    const safePool = await this.applySafetyGuardrails(
+      userId,
+      pool as Exercise[]
+    );
+
+    const ranked = safePool
       .map((c) => ({
         candidate: c,
         overlapCount: (c.muscleGroups ?? []).filter((m) =>
@@ -201,7 +286,7 @@ export class ExerciseExclusionService extends BaseService {
           a.candidate.name.localeCompare(b.candidate.name)
       );
 
-    return ranked.slice(0, limit).map((r) => ({
+    const out: ReplacementCandidate[] = ranked.slice(0, limit).map((r) => ({
       id: r.candidate.id,
       name: r.candidate.name,
       description: r.candidate.description ?? null,
@@ -211,6 +296,84 @@ export class ExerciseExclusionService extends BaseService {
       hasDemo: r.candidate.hasDemo ?? null,
       overlapCount: r.overlapCount,
     }));
+
+    return this.withIndoorWalkSwap(userId, original, out, limit);
+  }
+
+  /**
+   * [#102] Reserve "Indoor Walk" at the top when a walking-only user is
+   * replacing a walk.
+   *
+   * This is the ONE way that row can reach a plan: it is excluded from the
+   * generation catalog for everybody (SWAP_ONLY_EXERCISES), and the walking
+   * guardrail strips in-place cardio from ordinary suggestions. The rule the
+   * exception encodes: the guardrail stops in-place cardio SUBSTITUTING FOR
+   * TRAINING; it should not stop an indoor walk substituting for a walk when
+   * the user is the one choosing.
+   *
+   * Deliberately narrow on both axes. Only for a sole-style walker — a
+   * Walking+HIIT user has other days and other options. And only when the
+   * movement being replaced is itself a walk, so it never appears while
+   * someone swaps out a squat.
+   *
+   * Fails open: if the row is missing (a database that predates it), the
+   * ordinary ranked list is returned untouched rather than erroring.
+   */
+  private async withIndoorWalkSwap(
+    userId: number,
+    original: Exercise,
+    ranked: ReplacementCandidate[],
+    limit: number
+  ): Promise<ReplacementCandidate[]> {
+    const profile = await this.db.query.profiles.findFirst({
+      where: eq(profiles.userId, userId),
+    });
+    if (!profile || !isWalkingOnlyUser(profile)) return ranked;
+
+    // "Replacing a walk" = the original carries the walking tag. Every walk in
+    // the catalog does (LR-085), and nothing else does.
+    const replacingAWalk =
+      (original.tag ?? "").toLowerCase() === "walking_movement";
+    if (!replacingAWalk) return ranked;
+
+    // Never offer a row as a replacement for itself.
+    if (original.name.trim().toLowerCase() === INDOOR_WALK_NAME.toLowerCase()) {
+      return ranked;
+    }
+
+    const indoor = await this.db.query.exercises.findFirst({
+      where: eq(exercises.name, INDOOR_WALK_NAME),
+    });
+    if (!indoor) {
+      logger.warn("Indoor Walk row missing; offering no indoor swap", {
+        userId,
+        operation: "rankReplacements",
+      });
+      return ranked;
+    }
+
+    const already = ranked.some((c) => c.id === indoor.id);
+    const rest = already ? ranked.filter((c) => c.id !== indoor.id) : ranked;
+
+    return [
+      {
+        id: indoor.id,
+        name: indoor.name,
+        description: indoor.description ?? null,
+        muscleGroups: indoor.muscleGroups ?? [],
+        equipment: indoor.equipment ?? null,
+        difficulty: indoor.difficulty ?? null,
+        hasDemo: indoor.hasDemo ?? null,
+        // Same measure as every other row: how much of the original it trains.
+        overlapCount: (indoor.muscleGroups ?? []).filter((m) =>
+          (original.muscleGroups ?? []).some(
+            (o) => o.toLowerCase() === m.toLowerCase()
+          )
+        ).length,
+        pinned: "indoor-swap" as const,
+      },
+      ...rest,
+    ].slice(0, Math.max(limit, 1));
   }
 
   /**

@@ -23,7 +23,10 @@ import {
   filterExercisesByFitnessLevel,
   validateFitnessLevelAndFilter,
 } from "@/utils/fitness-level-validation";
-import { filterExercisesForWalkingModality } from "@/utils/walking-modality";
+import {
+  filterExercisesForWalkingModality,
+  filterOutSwapOnly,
+} from "@/utils/walking-modality";
 import type { PhysicalLimitation } from "@/types";
 import {
   checkConsecutiveMuscleGroupOverload,
@@ -355,7 +358,11 @@ export class WorkoutAgentService {
       // [LR-085] Then the walking guardrail: a user whose ONLY style is Walking
       // & Movement never sees in-place/jogging/jumping cardio, which the prompt
       // has forbidden for this style since LR-084 without anything enforcing it.
-      const allowed = filterExercisesForWalkingModality(withinLevel, profile);
+      const withinModality = filterExercisesForWalkingModality(withinLevel, profile);
+      // [#102] Finally, swap-only rows. Unconditional — "Indoor Walk" exists
+      // solely as a user-chosen replacement and must never be generated, and
+      // its name carries none of the words NON_WALKING_CARDIO matches.
+      const allowed = filterOutSwapOnly(withinModality);
       const exercises = stratifyCatalog(allowed, {
         preferredStyles: profile.preferredStyles as string[] | null,
         limit: GENERATION_CATALOG_SIZE,
@@ -372,7 +379,8 @@ export class WorkoutAgentService {
         poolCount: pool.length,
         excludedByLimitations: pool.length - withinLimitations.length,
         excludedByFitnessLevel: withinLimitations.length - withinLevel.length,
-        excludedByWalkingModality: withinLevel.length - allowed.length,
+        excludedByWalkingModality: withinLevel.length - withinModality.length,
+        excludedBySwapOnly: withinModality.length - allowed.length,
       });
 
       return { menu: exercises, pool: allowed };

@@ -193,10 +193,14 @@ function matchedLimitation(
  * exercises are never shown to the LLM as an option in the first place — the primary
  * enforcement point, since most exercises come from this catalog rather than exercisesToAdd.
  */
-export function filterExercisesByLimitations(
-  exercises: ExerciseMetadata[],
+// [#109] Generic over the row shape, matching filterExercisesByFitnessLevel and
+// filterExercisesForWalkingModality. Only `name` is read, and the replace path
+// (exercise-exclusion.service) needs to run this over full `Exercise` rows
+// without losing their type.
+export function filterExercisesByLimitations<T extends { name: string }>(
+  exercises: T[],
   profile: Profile
-): ExerciseMetadata[] {
+): T[] {
   const limitations = profile.limitations ?? [];
   if (limitations.length === 0) return exercises;
 

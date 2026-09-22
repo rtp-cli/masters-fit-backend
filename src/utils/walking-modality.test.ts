@@ -6,7 +6,9 @@ import { determineBlockType as determineBlockTypeB } from "@/utils/workout-gener
 import { CANONICAL_BASICS_STYLES } from "@/utils/requested-exercises";
 import {
   filterExercisesForWalkingModality,
+  filterOutSwapOnly,
   isNonWalkingCardio,
+  isSwapOnly,
 } from "@/utils/walking-modality";
 
 const WALKING = PreferredStyles.WALKING_MOVEMENT;
@@ -117,5 +119,66 @@ describe("filterExercisesForWalkingModality [LR-085]", () => {
     expect(isNonWalkingCardio("Incline Walk")).toBe(false);
     expect(isNonWalkingCardio("Walking in Place")).toBe(true);
     expect(isNonWalkingCardio("Marching on the Spot")).toBe(true);
+  });
+});
+
+describe("NON_WALKING_CARDIO breadth [#109]", () => {
+  // Surfaced by the replace-suggestion audit: "Driveway Hill Run" was the
+  // SECOND movement offered to a walking-only beginner, because the old
+  // pattern matched the gerund "running" but not the noun "Run".
+  it.each([
+    "Driveway Hill Run",
+    "Incline Driveway Run",
+    "Bike Interval Sprint",
+    "Rower Sprint Intervals",
+    "Wall Tap Sprints",
+  ])("strips %s", (name) => {
+    expect(isNonWalkingCardio(name)).toBe(true);
+  });
+
+  it("does not catch 'run' inside a longer word", () => {
+    // Word boundaries keep these safe — they are stretches, not running.
+    expect(isNonWalkingCardio("Runner's Lunge")).toBe(false);
+    expect(isNonWalkingCardio("Runner's Stretch")).toBe(false);
+  });
+
+  it("still leaves the real walks alone", () => {
+    for (const n of ["Walking", "Brisk Walk", "Incline Walk", "Hiking", "Rucking"]) {
+      expect(isNonWalkingCardio(n)).toBe(false);
+    }
+  });
+});
+
+describe("SWAP_ONLY_EXERCISES [#102]", () => {
+  it("keeps Indoor Walk out of any generation catalog", () => {
+    const pool = [
+      { name: "Walking" },
+      { name: "Brisk Walk" },
+      { name: "Indoor Walk" },
+      { name: "Air Squat" },
+    ];
+    expect(filterOutSwapOnly(pool).map((e) => e.name)).toEqual([
+      "Walking",
+      "Brisk Walk",
+      "Air Squat",
+    ]);
+  });
+
+  it("is unconditional — not scoped to walking users", () => {
+    // A strength user has even less business being handed it.
+    expect(filterOutSwapOnly([{ name: "Indoor Walk" }])).toEqual([]);
+  });
+
+  it("matches case-insensitively, like the catalog's unique index", () => {
+    expect(isSwapOnly("indoor walk")).toBe(true);
+    expect(isSwapOnly("  Indoor Walk  ")).toBe(true);
+    expect(isSwapOnly("Walking")).toBe(false);
+  });
+
+  // The trap this list exists for: the name carries none of the words
+  // NON_WALKING_CARDIO matches, so without an explicit exclusion the generator
+  // would prescribe it freely and rebuild LR-085 under a nicer name.
+  it("is NOT already covered by the in-place pattern", () => {
+    expect(isNonWalkingCardio("Indoor Walk")).toBe(false);
   });
 });
