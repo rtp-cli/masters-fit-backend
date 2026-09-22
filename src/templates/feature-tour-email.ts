@@ -10,8 +10,8 @@ interface FeatureTourTemplateProps {
 }
 
 /**
- * "Four things you probably haven't found" — to the handful of people who have
- * ACTUALLY used the app.
+ * "Six features that are too easy to miss" — to the handful of people who
+ * have actually trained with the app.
  *
  * Deliberately NOT sent to the never-activated. Someone who has never logged a
  * set does not need to hear about correcting a log; they need the activation
@@ -24,15 +24,17 @@ interface FeatureTourTemplateProps {
  * logo lockup and a hero image it becomes a newsletter, and newsletters get
  * archived unread.
  *
- * The one concession to structure is the bolded lead-in plus a muted path line
- * per item. The whole premise of the email is "you didn't know where this was",
- * so the exact tap path is the payload — burying it inside a paragraph would
- * reproduce the very problem the email exists to fix.
+ * Each item is three lines — what it is, where it is, why you'd want it — and
+ * the middle line carries the weight. The whole premise of the email is "you
+ * didn't know where this was", so the tap path is the payload; the explanation
+ * under it is set muted precisely so the path wins the eye.
  *
- * Every path below is verified against the shipped 1.2.2 UI, and the labels are
- * quoted exactly as they render. Settings is a PERSON icon, not a gear. The
- * repeat door reads "Use a workout I've done before", not "Repeat Past
- * Workout". A path that is almost right is worse than no email.
+ * Every path is verified against the shipped 1.2.2 UI and the labels are quoted
+ * as they render: Settings is a PERSON icon, the correction control reads
+ * "Edit log", the share control reads "Share workout", and the repeat door
+ * reads "Use a workout I've done before" (NOT "Repeat Past Workout", which
+ * MF-022 removed from the UI). A path that is almost right is worse than no
+ * email.
  *
  * COMMERCIAL, not transactional: unsubscribe footer, postal address, and the
  * caller must consult `email_opted_out_at` before reaching here.
@@ -48,11 +50,15 @@ export const featureTourTemplate = ({
 
   const P =
     "margin:0 0 16px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#1A1A1A;";
-  // Item lead-in sits tight to its path line, so the pair reads as one unit.
-  const ITEM =
-    "margin:0 0 4px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#1A1A1A;";
-  const PATH =
-    "margin:0 0 20px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.6; color:#5A5A5A;";
+  // The three lines of an item are one unit: tight leading between them, a
+  // full gap after. Heading and path stay full-contrast; the explanation is
+  // muted so the path is what the eye lands on when this is skimmed.
+  const ITEM_HEAD =
+    "margin:0 0 2px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.5; color:#1A1A1A;";
+  const ITEM_PATH =
+    "margin:0 0 2px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.5; color:#1A1A1A;";
+  const ITEM_BODY =
+    "margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.6; color:#5A5A5A;";
 
   const unsubHref = escapeHtml(unsubscribeUrl);
   // Escape FIRST, then turn newlines into breaks — the other order would escape
@@ -68,7 +74,7 @@ export const featureTourTemplate = ({
 <meta name="color-scheme" content="light dark" />
 <meta name="supported-color-schemes" content="light dark" />
 <meta name="format-detection" content="telephone=no,date=no,address=no,email=no,url=no" />
-<title>Four things you probably haven't found</title>
+<title>Six features that are too easy to miss</title>
 <style>
   body { margin:0; padding:0; width:100% !important; -webkit-text-size-adjust:100%; }
   a { color:#1A6B4A; }
@@ -82,7 +88,7 @@ export const featureTourTemplate = ({
 <body style="margin:0; padding:0; background-color:#FFFFFF;">
 
   <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#FFFFFF; opacity:0;">
-    Four things already in the app that almost nobody has found.
+    Six things worth knowing about &mdash; including how to send me feedback without leaving the app.
   </div>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;">
@@ -92,39 +98,53 @@ export const featureTourTemplate = ({
         <p style="${P}">${greeting}</p>
 
         <p style="${P}">
-          You're one of the few people actually training with MastersFit, which makes you the right person to send this to.
+          I&rsquo;ve added quite a bit to MastersFit over the last few releases, and I realized some of the better features are a little too easy to miss.
+        </p>
+
+        <p style="${P}">Here are six worth knowing about:</p>
+
+        <p style="${ITEM_HEAD}"><strong>1. Send feedback without leaving the app</strong></p>
+        <p style="${ITEM_PATH}">Tap the person icon &rarr; Feedback.</p>
+        <p style="${ITEM_BODY}">
+          Bug, idea, confusing screen, something that annoys you &mdash; send it there. You can even dictate instead of typing. It automatically includes your app version and device info, which makes it much easier for me to track down problems.
+        </p>
+
+        <p style="${ITEM_HEAD}"><strong>2. Fix a workout log after the fact</strong></p>
+        <p style="${ITEM_PATH}">Go to Calendar &rarr; tap any completed workout &rarr; Edit log.</p>
+        <p style="${ITEM_BODY}">
+          Wrong weight? Missed a set? Marked something complete that you skipped? You can go back and fix it anytime.
+        </p>
+
+        <p style="${ITEM_HEAD}"><strong>3. Repeat a workout you liked</strong></p>
+        <p style="${ITEM_PATH}">Go to Calendar &rarr; select an upcoming workout &rarr; Change Workout &rarr; Use a workout I&rsquo;ve done before.</p>
+        <p style="${ITEM_BODY}">
+          MastersFit will replace that day with one of your previous workouts.
+        </p>
+
+        <p style="${ITEM_HEAD}"><strong>4. Share a completed workout</strong></p>
+        <p style="${ITEM_PATH}">Open a completed workout and tap Share workout.</p>
+        <p style="${ITEM_BODY}">
+          MastersFit creates a shareable card, and you can choose whether to include your results and streak.
+        </p>
+
+        <p style="${ITEM_HEAD}"><strong>5. Add a second workout on a day you&rsquo;ve already trained</strong></p>
+        <p style="${ITEM_PATH}">Finish today&rsquo;s workout, then tap + Add another workout.</p>
+        <p style="${ITEM_BODY}">
+          Tell it what you want to work on and how long you&rsquo;ve got, and it builds a second session for today. Two sessions a day is the limit.
+        </p>
+
+        <p style="${ITEM_HEAD}"><strong>6. Walking &amp; Movement is now a workout type</strong></p>
+        <p style="${ITEM_PATH}">Person icon &rarr; Preferred Workout Types &rarr; Walking &amp; Movement, then rebuild your week.</p>
+        <p style="${ITEM_BODY}">
+          This one is new since some of you originally set up your profiles. If you want walking, easy hills, or lighter movement mixed into your programming, that&rsquo;s where to turn it on.
         </p>
 
         <p style="${P}">
-          There are four things already in the app that almost nobody has found. None of them are new &mdash; they're just buried, which is my fault rather than yours.
-        </p>
-
-        <p style="${ITEM}"><strong>1. Tell me something's wrong without leaving the app.</strong></p>
-        <p style="${PATH}">
-          Person icon, top right &rarr; Feedback. A bug, an idea, or just "this annoyed me". You can talk it instead of typing it. It lands in my inbox with your app version and phone attached, so I can actually chase it.
-        </p>
-
-        <p style="${ITEM}"><strong>2. Fix a log you got wrong.</strong></p>
-        <p style="${PATH}">
-          Calendar &rarr; tap any completed day &rarr; "Edit log" under the summary. Any past day, not just today's. Wrong weight, a set you forgot to tick, something marked done that you actually skipped.
-        </p>
-
-        <p style="${ITEM}"><strong>3. Do a workout you liked again.</strong></p>
-        <p style="${PATH}">
-          Calendar &rarr; tap an upcoming day &rarr; Change Workout &rarr; "Use a workout I've done before". It replaces that day with one you've already completed.
-        </p>
-
-        <p style="${ITEM}"><strong>4. Share a workout you're pleased with.</strong></p>
-        <p style="${PATH}">
-          Same row as Edit log &mdash; "Share workout" under a completed day. It makes a card you can send or save, and you choose whether your numbers and your streak are on it.
+          And please use the feedback button aggressively. If something is confusing, hard to find, doesn&rsquo;t work, or just feels dumb, I want to know.
         </p>
 
         <p style="${P}">
-          One more, because it arrived after you set your profile up: <strong>Walking &amp; Movement</strong> is now a training style of its own &mdash; walks, easy hills, gentle movement. If you want some of that in the mix, it's Person icon &rarr; Preferred Workout Types, then rebuild the week.
-        </p>
-
-        <p style="${P}">
-          If any of this doesn't work the way I've just described it, that's exactly what number 1 is for. Or just hit reply &mdash; it comes straight to me.
+          Thanks again for helping me beat on this thing.
         </p>
 
         <p style="margin:0 0 32px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#1A1A1A;">
@@ -147,25 +167,37 @@ export const featureTourTemplate = ({
 
   const text = `${textGreeting}
 
-You're one of the few people actually training with MastersFit, which makes you the right person to send this to.
+I've added quite a bit to MastersFit over the last few releases, and I realized some of the better features are a little too easy to miss.
 
-There are four things already in the app that almost nobody has found. None of them are new - they're just buried, which is my fault rather than yours.
+Here are six worth knowing about:
 
-1. Tell me something's wrong without leaving the app.
-Person icon, top right -> Feedback. A bug, an idea, or just "this annoyed me". You can talk it instead of typing it. It lands in my inbox with your app version and phone attached, so I can actually chase it.
+1. Send feedback without leaving the app
+Tap the person icon -> Feedback.
+Bug, idea, confusing screen, something that annoys you - send it there. You can even dictate instead of typing. It automatically includes your app version and device info, which makes it much easier for me to track down problems.
 
-2. Fix a log you got wrong.
-Calendar -> tap any completed day -> "Edit log" under the summary. Any past day, not just today's. Wrong weight, a set you forgot to tick, something marked done that you actually skipped.
+2. Fix a workout log after the fact
+Go to Calendar -> tap any completed workout -> Edit log.
+Wrong weight? Missed a set? Marked something complete that you skipped? You can go back and fix it anytime.
 
-3. Do a workout you liked again.
-Calendar -> tap an upcoming day -> Change Workout -> "Use a workout I've done before". It replaces that day with one you've already completed.
+3. Repeat a workout you liked
+Go to Calendar -> select an upcoming workout -> Change Workout -> Use a workout I've done before.
+MastersFit will replace that day with one of your previous workouts.
 
-4. Share a workout you're pleased with.
-Same row as Edit log - "Share workout" under a completed day. It makes a card you can send or save, and you choose whether your numbers and your streak are on it.
+4. Share a completed workout
+Open a completed workout and tap Share workout.
+MastersFit creates a shareable card, and you can choose whether to include your results and streak.
 
-One more, because it arrived after you set your profile up: Walking & Movement is now a training style of its own - walks, easy hills, gentle movement. If you want some of that in the mix, it's Person icon -> Preferred Workout Types, then rebuild the week.
+5. Add a second workout on a day you've already trained
+Finish today's workout, then tap + Add another workout.
+Tell it what you want to work on and how long you've got, and it builds a second session for today. Two sessions a day is the limit.
 
-If any of this doesn't work the way I've just described it, that's exactly what number 1 is for. Or just hit reply - it comes straight to me.
+6. Walking & Movement is now a workout type
+Person icon -> Preferred Workout Types -> Walking & Movement, then rebuild your week.
+This one is new since some of you originally set up your profiles. If you want walking, easy hills, or lighter movement mixed into your programming, that's where to turn it on.
+
+And please use the feedback button aggressively. If something is confusing, hard to find, doesn't work, or just feels dumb, I want to know.
+
+Thanks again for helping me beat on this thing.
 
 - Rich
 
@@ -180,14 +212,14 @@ ${postalAddress}
 /**
  * Subject line.
  *
- * Names a specific, countable payoff rather than announcing itself as news.
+ * Taken from the opening sentence's own framing rather than invented: the email
+ * says the good features are easy to miss, so the subject says exactly that.
  * "What's new in MastersFit" is a newsletter header and gets archived on sight;
- * "Four things you probably haven't found" is a claim about the reader that
- * they can check in ten seconds, which is the whole reason to open it.
+ * this is a claim the reader can check in ten seconds.
  *
  * Deliberately not "you're missing out" — these people are the ones who DID
- * show up, and an email that opens by implying they've done it wrong spends
- * goodwill that the reply request at the bottom then needs.
+ * show up, and an email that opens by implying they've done it wrong spends the
+ * goodwill the feedback request at the bottom then needs.
  */
 export const FEATURE_TOUR_SUBJECT =
-  "Four things in MastersFit you probably haven't found";
+  "Six MastersFit features that are too easy to miss";
