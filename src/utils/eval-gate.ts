@@ -195,8 +195,22 @@ export function evaluateEvalGate(
     }
   }
 
-  const currentOverall = mean(current.results.map((r) => r.overall));
-  const referenceOverall = mean(reference.results.map((r) => r.overall));
+  // Average over the scenarios this run actually COVERED, on both sides. Taking
+  // the reference's mean over all 21 while the run covered 3 compares different
+  // populations: a `--only` dispatch, or a run where the calendar-aligned
+  // scenarios were skipped, then "regresses" by construction. Surfaced by a
+  // single-scenario dispatch on 2026-09-22 that reported -16pt overall from one
+  // scenario scoring 83%.
+  const comparableIds = rows
+    .filter((r) => r.current !== null && r.reference !== null)
+    .map((r) => r.id);
+  const comparable = new Set(comparableIds);
+  const currentOverall = mean(
+    current.results.filter((r) => comparable.has(r.id)).map((r) => r.overall)
+  );
+  const referenceOverall = mean(
+    reference.results.filter((r) => comparable.has(r.id)).map((r) => r.overall)
+  );
   const overallDeltaPt = pt(currentOverall) - pt(referenceOverall);
   if (overallDeltaPt < -thresholds.maxOverallDropPt) {
     failures.push({

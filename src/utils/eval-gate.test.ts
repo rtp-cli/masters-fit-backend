@@ -323,3 +323,36 @@ describe("renderGateSummary with confirmations", () => {
     expect(markdown).not.toContain("samples");
   });
 });
+
+describe("overall is averaged over comparable scenarios only", () => {
+  it("does not penalise a partial run for the scenarios it didn't cover", () => {
+    // A --only dispatch of one scenario: its 78% must be compared against that
+    // scenario's reference (78%), not against the 4-scenario reference mean.
+    const partial: EvalRunFile = {
+      results: [{ id: "muscle-balance-6day", overall: 0.78, category: "muscle" }],
+    };
+    const report = evaluateEvalGate(partial, REFERENCE);
+    expect(report.referenceOverall).toBeCloseTo(0.78);
+    expect(report.overallDeltaPt).toBe(0);
+    expect(report.failures.map((f) => f.kind)).not.toContain("overall-regression");
+    // The scenarios it skipped are reported, never failed.
+    expect(report.notRun.sort()).toEqual([
+      "control-strength-gym",
+      "program-calisthenics-rft",
+      "program-wendler-week",
+    ]);
+  });
+
+  it("still catches a real mean regression across the covered scenarios", () => {
+    const report = evaluateEvalGate(
+      run([
+        ["control-strength-gym", 0.9],
+        ["program-wendler-week", 0.9],
+        ["program-calisthenics-rft", 0.88],
+        ["muscle-balance-6day", 0.72],
+      ]),
+      REFERENCE
+    );
+    expect(report.failures.map((f) => f.kind)).toContain("overall-regression");
+  });
+});
