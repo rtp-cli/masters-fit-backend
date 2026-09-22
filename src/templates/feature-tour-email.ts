@@ -36,16 +36,15 @@ export const FEATURE_TOUR_COPY = {
   /**
    * Subject line.
    *
-   * Takes the opening sentence's own framing rather than inventing one: the
-   * email says the good features are easy to miss, so the subject says exactly
-   * that. "What's new in MastersFit" is a newsletter header and gets archived
-   * on sight; this is a claim the reader can check in ten seconds.
+   * Reads like a person rather than a product announcement: no "what's new in
+   * MastersFit", which is a newsletter header and gets archived on sight.
    *
-   * Deliberately not "you're missing out" — these people are the ones who DID
-   * show up, and opening by implying they've done it wrong spends the goodwill
-   * the feedback request at the bottom then needs.
+   * "You may have missed" puts the fault on the app being easy to miss, not on
+   * the reader for not noticing — these are the people who DID show up, and
+   * opening by implying they've done it wrong spends the goodwill the feedback
+   * request at the bottom then needs.
    */
-  subject: "Five MastersFit features that are too easy to miss",
+  subject: "A few MastersFit features you may have missed",
 
   /**
    * The grey line after the subject in most inboxes. Left unset, clients scrape
@@ -131,8 +130,8 @@ const toPlain = (s: string): string =>
     .replace(/[“”]/g, '"');
 
 /**
- * "Five features that are too easy to miss" — to the handful of people who
- * have actually trained with the app.
+ * The feature tour — to the handful of people who have actually trained with
+ * the app.
  *
  * Deliberately NOT sent to the never-activated. Someone who has never logged a
  * set does not need to hear about correcting a log; they need the activation
