@@ -4,12 +4,12 @@ interface ComebackTemplateProps {
   /** User's display name; a first name is derived for the greeting. */
   name: string;
   /**
-   * How many days ago their plan's last day fell. Used to say "a couple of
-   * weeks ago" rather than pretending the plan is still waiting for them.
-   * Null when it somehow can't be resolved — the copy then omits the clause
-   * rather than inventing a timeframe.
+   * Days since they signed up, used to pick the "you set this up ___" phrase.
+   * It has to adapt: this cohort ranges from 8 days to 289, and "a few weeks
+   * back" is plainly wrong at both ends. A timeframe a recipient knows to be
+   * false is the exact tell that turns a personal note into a mailshot.
    */
-  daysSincePlanEnded: number | null;
+  daysSinceSignup: number;
   /** Fully-built unsubscribe link, token already signed. */
   unsubscribeUrl: string;
   /** Postal address for the CAN-SPAM footer. Required by the caller. */
@@ -17,57 +17,65 @@ interface ComebackTemplateProps {
 }
 
 /**
- * The comeback email — for someone who got a plan, never started it, and whose
- * plan has since RUN OUT.
+ * The comeback email — for someone who finished setup, got a plan, never
+ * started it, and whose plan has since RUN OUT.
  *
  * WHY THIS IS NOT THE ACTIVATION NUDGE AGAIN. That email says "your session is
- * ready", which was true on day two. On 2026-09-22, seven of the eight people in
- * this cohort had an active plan whose last day was already in the past — by up
- * to 21 days. The nudge's premise had quietly expired, and five of them had
- * already received it and ignored it.
+ * ready", which was true on day two. On 2026-09-22 every person in this cohort
+ * had an active plan whose last day was already in the past — by up to 21 days —
+ * and five had already received the nudge and ignored it. Its premise had
+ * quietly expired.
  *
- * Worse, the app agrees with them: with no plan day matching today, the workout
- * tab shows "No Active Workout", and the dashboard's plan-ended recap reports
- * how many days they finished — which for every one of these people is zero. So
- * a second "come back to your plan" email walks them into a screen that says
- * they did nothing and have nothing scheduled. That is the opposite of a nudge.
+ * The app agrees with them: with no plan day matching today the workout tab
+ * shows "No Active Workout", and the dashboard's plan-ended recap reports days
+ * completed, which for every one of these people is zero. A second "come back to
+ * your plan" email walks them into a screen saying they did nothing and have
+ * nothing scheduled. So this one names the expiry in its second sentence, which
+ * is what the app will confirm when they tap through.
  *
- * So this email does three things the nudge cannot:
+ * WHAT THIS EMAIL DELIBERATELY DOES NOT DO: it does not offer to shrink their
+ * plan. An earlier draft did, on a theory that the first week looked
+ * intimidating. Rich pushed back and he was right — zero logged sets is evidence
+ * of not starting, not of why, and "they got distracted" fits the same data at
+ * least as well. The copy hands them the controls instead of diagnosing them.
  *
- *   1. It tells the truth first. The plan expired. Saying so removes the guilt
- *      of an unopened app before making any ask, and it matches what they will
- *      actually see when they tap through.
- *   2. It offers a SMALLER plan, not the same one again. Their profiles asked
- *      for a lot — one asked for seven days a week at sixty minutes, and two
- *      beginners asked for five days a week. A week that size is not a plan you
- *      lapse from, it is a plan you never begin.
- *   3. It asks for ONE session. Not a week, not a habit. The measured failure is
- *      entirely plan-on-screen → first-set-logged, so the only ask that matters
- *      is the first one.
+ * It also does not mention any feature. That was Email A's job, and its contents
+ * are noise to someone who never did a first workout.
  *
- * It deliberately makes no promise about features, mentions nothing they have
- * missed, and does not reference the feature-tour email — that one went to
- * people who train, and its contents are noise to someone who never started.
+ * ONE LINE IS LOAD-BEARING: "Your complimentary access is still active." Two of
+ * the seven recipients had spent every free AI operation they had — ccowdery's
+ * ledger showed INITIAL_PLAN 1/1 and WEEK_ADJUSTMENT 1/1 against free limits of
+ * exactly 1 each — so from the day their plan expired, every attempt to build a
+ * new week hit the paywall. They were locked out, not uninterested. Both were
+ * comped on 2026-09-22, which is what makes that sentence true.
  *
  * COMMERCIAL, not transactional: unsubscribe footer, postal address, and the
  * caller must consult `email_opted_out_at` before reaching here.
  */
 export const COMEBACK_COPY = {
-  /**
-   * Subject. Names the real situation rather than performing enthusiasm.
-   * "Your plan is waiting" is the line this email exists BECAUSE it stopped
-   * being true, so it must not be reused here in any form.
-   */
-  subject: "Your MastersFit plan ran out — want a smaller one?",
+  /** Rich's own subject. An invitation, not a reprimand. */
+  subject: "Still want to give MastersFit a try?",
 
   /**
-   * The grey line after the subject. Carries the actual offer, because the
-   * subject is a question and the offer is the reason to open.
+   * The grey line after the subject. Leads with the access point rather than
+   * the lapse, because for at least two recipients that IS the news.
    */
-  preheader: "No catch-up, no guilt. I'll build you a shorter week to start from.",
+  preheader:
+    "Your complimentary access is still active — nothing to renew or purchase.",
 
-  signoff: "— Rich",
+  signoff: "Rich",
 } as const;
+
+/**
+ * How to refer to when they signed up. Vague on purpose: an exact day count
+ * reads as surveillance, and the register here is a note from a person.
+ */
+function signupPhrase(days: number): string {
+  if (days >= 90) return "a while back";
+  if (days >= 21) return "a few weeks back";
+  if (days >= 12) return "a couple of weeks back";
+  return "last week";
+}
 
 /** Typographic copy → ASCII, for the text/plain half. */
 const toPlain = (s: string): string =>
@@ -79,39 +87,30 @@ const toPlain = (s: string): string =>
 
 export const comebackTemplate = ({
   name,
-  daysSincePlanEnded,
+  daysSinceSignup,
   unsubscribeUrl,
   postalAddress,
 }: ComebackTemplateProps) => {
   const firstName = name?.trim().split(/\s+/)[0] || "";
-  const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi there,";
-  const textGreeting = firstName ? `Hi ${firstName},` : "Hi there,";
+  // Rich's own greeting style for this one: "Hi Chris —", not "Hi Chris,".
+  const greeting = firstName ? `Hi ${escapeHtml(firstName)} —` : "Hi there —";
+  const textGreeting = firstName ? `Hi ${firstName} -` : "Hi there -";
 
-  // Vague on purpose. "Your plan ended 14 days ago" is a number that reads as
-  // surveillance and as a scolding; "a couple of weeks ago" is the same fact in
-  // the register a person would use.
-  const when =
-    daysSincePlanEnded === null
-      ? "a while back"
-      : daysSincePlanEnded >= 14
-        ? "a couple of weeks ago"
-        : daysSincePlanEnded >= 7
-          ? "last week"
-          : "a few days ago";
+  const when = signupPhrase(daysSinceSignup);
+
+  const body = [
+    `Just a quick nudge from me. You set MastersFit up ${when} and got your first plan, but it looks like you never got started on it — and that plan has since run out.`,
+    `Your complimentary access is still active, so there's nothing to renew or purchase. Open the app and it'll offer to build you a fresh week.`,
+    `If the schedule doesn't fit your life, you can change it yourself — how many days a week, and how long each session. It's under the person icon in the top right, in "Your week".`,
+    `And if something got in the way the first time — confusing onboarding, a technical issue, or just life — I'd be interested in hearing that too. That feedback helps me make the app better.`,
+    `Hope you'll give it a shot.`,
+  ];
 
   const P =
     "margin:0 0 16px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#1A1A1A;";
 
   const unsubHref = escapeHtml(unsubscribeUrl);
   const address = escapeHtml(postalAddress).replace(/\r?\n/g, "<br />");
-
-  const body = [
-    `The workout plan MastersFit built for you ran out ${when}, and you never got a chance to start it. I'd rather find out why than let it sit there.`,
-    `If the week it gave you looked like too much — too many days, too long, too hard — that's worth telling me, and it's the most common reason a plan doesn't get started. I can build you a smaller one. Two days instead of five. Twenty minutes instead of forty-five. Something you'd actually finish.`,
-    `You don't have to catch up on anything. The old plan is gone and nothing is counting against you.`,
-    `Open the app and it'll offer to build a new week. Or just hit reply and tell me what would work — how many days, how long, what you'd actually want to do — and I'll set it up myself.`,
-    `And if MastersFit just isn't for you, that's genuinely useful to know too. One line is plenty.`,
-  ];
 
   const bodyHtml = body
     .map((para) => `        <p style="${P}">\n          ${escapeHtml(para)}\n        </p>`)

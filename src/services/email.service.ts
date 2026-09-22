@@ -23,6 +23,10 @@ import {
   FEATURE_TOUR_SUBJECT,
 } from "@/templates/feature-tour-email";
 import {
+  comebackTemplate,
+  COMEBACK_SUBJECT,
+} from "@/templates/comeback-email";
+import {
   compGrantedTemplate,
   COMP_GRANTED_SUBJECT,
 } from "@/templates/comp-granted-email";
@@ -355,6 +359,62 @@ export class EmailService {
 
     logger.info("Feature tour email sent", {
       operation: "sendFeatureTourEmail",
+      metadata: { userId, messageId: response.data?.id },
+    });
+  }
+
+  /**
+   * "Still want to give MastersFit a try?" — to someone who finished setup, got
+   * a plan, never started it, and whose plan has since expired.
+   *
+   * COMMERCIAL, like the nudges and the feature tour: List-Unsubscribe headers,
+   * a footer unsubscribe, and a postal address the caller must supply. The
+   * caller also consults `email_opted_out_at` before reaching here.
+   *
+   * Takes daysSinceSignup so the template can pick a timeframe that is true for
+   * this recipient — the cohort spans 8 days to 289, and one wrong "a few weeks
+   * back" is what makes a personal note read as a mailshot.
+   */
+  async sendComebackEmail(params: {
+    to: string;
+    name: string;
+    userId: number;
+    daysSinceSignup: number;
+    postalAddress: string;
+  }): Promise<void> {
+    const { to, name, userId, daysSinceSignup, postalAddress } = params;
+
+    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
+      signUnsubscribeToken(userId),
+    )}`;
+
+    const { html, text } = comebackTemplate({
+      name,
+      daysSinceSignup,
+      unsubscribeUrl,
+      postalAddress,
+    });
+
+    const response = await resend.emails.send({
+      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      to,
+      bcc: lifecycleBcc(to),
+      subject: COMEBACK_SUBJECT,
+      html,
+      text,
+      replyTo: NUDGE_REPLY_TO,
+      headers: {
+        "List-Unsubscribe": `<${unsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Comeback email sent", {
+      operation: "sendComebackEmail",
       metadata: { userId, messageId: response.data?.id },
     });
   }
