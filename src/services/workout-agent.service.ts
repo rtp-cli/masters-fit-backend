@@ -67,6 +67,7 @@ import {
   WeekPlan,
   PromptFeedback,
   FeedbackConflict,
+  CoachingCaution,
 } from "@/utils/fanout-prompt-generator";
 import {
   buildPlanDaySchedule,
@@ -1093,6 +1094,7 @@ ${exerciseContext}`;
     let weekPlan!: WeekPlan;
     let expectedDayCount!: number;
     let feedbackConflicts!: FeedbackConflict[];
+    let coachingCautions!: CoachingCaution[];
 
     // The user's request references a specific weekday — its content is
     // date-locked. Drives the weekday-compliance retry inside the loop AND the
@@ -1184,11 +1186,17 @@ ${exerciseContext}`;
       const clampConflict = scheduleClampConflict(scheduleOverride, effective);
       if (clampConflict) feedbackConflicts.push(clampConflict);
 
+      // [GQ-04b] The advisory channel: honored-but-risky. Purely the planner's
+      // judgment — there is no deterministic half here, and nothing is appended
+      // to it downstream, so a caution always reflects the plan as built.
+      coachingCautions = [...(weekPlan.coachingCautions || [])];
+
       logger.info("Fan-out planning call completed", {
         userId,
         returnedDayCount: weekPlan?.days?.length || 0,
         expectedDayCount,
         feedbackConflictCount: feedbackConflicts.length,
+        coachingCautionCount: coachingCautions.length,
         weekPlanName: weekPlan?.name,
         operation: "generateWeeklyWorkout",
       });
@@ -1812,6 +1820,8 @@ ${exerciseContext}`;
         // [GQ-04] Ride along on the workout object so it's persisted and returned
         // to the client for the "we adjusted your requests" banner.
         feedbackConflicts,
+        // [GQ-04b] Same ride-along for the "one thing to watch" note.
+        coachingCautions,
       },
       tokenUsage: usageTotals,
       // [GQ-01] Hand the schedule back so persistence stamps the identical dates.

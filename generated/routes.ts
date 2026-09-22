@@ -432,6 +432,7 @@ const models: TsoaRoute.Models = {
             "difficulty": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "hasDemo": {"dataType":"union","subSchemas":[{"dataType":"boolean"},{"dataType":"enum","enums":[null]}],"required":true},
             "overlapCount": {"dataType":"double","required":true},
+            "pinned": {"dataType":"enum","enums":["indoor-swap"]},
         },
         "additionalProperties": false,
     },
@@ -834,7 +835,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreferredStyles": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["hiit"]},{"dataType":"enum","enums":["cardio"]},{"dataType":"enum","enums":["rehab"]},{"dataType":"enum","enums":["crossfit"]},{"dataType":"enum","enums":["functional"]},{"dataType":"enum","enums":["pilates"]},{"dataType":"enum","enums":["yoga"]},{"dataType":"enum","enums":["mobility"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["hiit"]},{"dataType":"enum","enums":["cardio"]},{"dataType":"enum","enums":["rehab"]},{"dataType":"enum","enums":["crossfit"]},{"dataType":"enum","enums":["functional"]},{"dataType":"enum","enums":["pilates"]},{"dataType":"enum","enums":["yoga"]},{"dataType":"enum","enums":["mobility"]},{"dataType":"enum","enums":["walking_movement"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreferredDay": {
@@ -895,6 +896,9 @@ const models: TsoaRoute.Models = {
             "colorTheme": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "signupNotifiedAt": {"dataType":"union","subSchemas":[{"dataType":"datetime"},{"dataType":"enum","enums":[null]}],"required":true},
             "stalledDigestNotifiedAt": {"dataType":"union","subSchemas":[{"dataType":"datetime"},{"dataType":"enum","enums":[null]}],"required":true},
+            "onboardingNudgeSentAt": {"dataType":"union","subSchemas":[{"dataType":"datetime"},{"dataType":"enum","enums":[null]}],"required":true},
+            "activationNudgeSentAt": {"dataType":"union","subSchemas":[{"dataType":"datetime"},{"dataType":"enum","enums":[null]}],"required":true},
+            "emailOptedOutAt": {"dataType":"union","subSchemas":[{"dataType":"datetime"},{"dataType":"enum","enums":[null]}],"required":true},
         },
         "additionalProperties": false,
     },
@@ -1123,7 +1127,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Record_Capability.boolean_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"GENERATE_INITIAL_PLAN":{"dataType":"boolean"},"GENERATE_NEW_PROGRAM":{"dataType":"boolean"},"ADJUST_WEEK":{"dataType":"boolean"},"ADJUST_DAY":{"dataType":"boolean"},"VIEW_PROGRESS_ANALYTICS":{"dataType":"boolean"},"SYNC_HEALTH":{"dataType":"boolean"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"GENERATE_INITIAL_PLAN":{"dataType":"boolean"},"GENERATE_NEW_PROGRAM":{"dataType":"boolean"},"ADJUST_WEEK":{"dataType":"boolean"},"ADJUST_DAY":{"dataType":"boolean"},"ADD_BONUS_SESSION":{"dataType":"boolean"},"VIEW_PROGRESS_ANALYTICS":{"dataType":"boolean"},"SYNC_HEALTH":{"dataType":"boolean"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AllowanceStatus": {
@@ -1370,6 +1374,7 @@ const models: TsoaRoute.Models = {
             "name": {"dataType":"string","required":true},
             "description": {"dataType":"string"},
             "feedbackConflicts": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"reason":{"dataType":"string","required":true},"request":{"dataType":"string","required":true}}}},
+            "coachingCautions": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"why":{"dataType":"string","required":true},"what":{"dataType":"string","required":true}}}},
             "startDate": {"dataType":"string","required":true},
             "endDate": {"dataType":"string","required":true},
             "promptId": {"dataType":"double","required":true},
@@ -1421,7 +1426,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Partial_InsertWorkout_": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"isActive":{"dataType":"any"},"startDate":{"dataType":"string"},"endDate":{"dataType":"string"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"feedbackConflicts":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"reason":{"dataType":"string"},"request":{"dataType":"string"}}}},"completed":{"dataType":"any"},"sourceType":{"dataType":"string"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"userId":{"dataType":"any"},"name":{"dataType":"string"},"description":{"dataType":"string"},"isActive":{"dataType":"any"},"startDate":{"dataType":"string"},"endDate":{"dataType":"string"},"updatedAt":{"dataType":"any"},"promptId":{"dataType":"any"},"feedbackConflicts":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"reason":{"dataType":"string"},"request":{"dataType":"string"}}}},"coachingCautions":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"why":{"dataType":"string"},"what":{"dataType":"string"}}}},"completed":{"dataType":"any"},"sourceType":{"dataType":"string"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PlanDayResponse": {
@@ -4616,7 +4621,7 @@ export function RegisterRoutes(app: Router) {
             function WorkoutController_generateRestDayWorkoutAsync(request: any, response: any, next: any) {
             const args = {
                     userId: {"in":"path","name":"userId","required":true,"dataType":"double"},
-                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"durationOverride":{"dataType":"double"},"threadId":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"styles":{"dataType":"array","array":{"dataType":"string"}},"reason":{"dataType":"string","required":true},"date":{"dataType":"string","required":true}}},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"additionalSession":{"dataType":"boolean"},"durationOverride":{"dataType":"double"},"threadId":{"dataType":"string"},"limitations":{"dataType":"array","array":{"dataType":"string"}},"styles":{"dataType":"array","array":{"dataType":"string"}},"reason":{"dataType":"string","required":true},"date":{"dataType":"string","required":true}}},
             };
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa

@@ -74,12 +74,19 @@ describe("plan-safety-language", () => {
   });
 
   describe("sanitizeGeneratedContent walks a full generated plan", () => {
-    it("sanitizes name, description, day focus, block description, exercise notes, and conflicts — leaves ids/enums alone", () => {
+    it("sanitizes name, description, day focus, block description, exercise notes, conflicts, and cautions — leaves ids/enums alone", () => {
       const plan = {
         name: "Shoulder-Safe Full-Body Strength",
         description: "Knee-safe programming that prevents injury.",
         feedbackConflicts: [
           { request: "heavy squats", reason: "kept the day joint-safe instead" },
+        ],
+        // [GQ-04b] the "one thing to watch" channel is user-visible too
+        coachingCautions: [
+          {
+            what: "three metcons in a row",
+            why: "the spacing is safe for your knees and prevents injury",
+          },
         ],
         workoutPlan: [
           {
@@ -111,6 +118,8 @@ describe("plan-safety-language", () => {
         value.description,
         value.feedbackConflicts[0].request,
         value.feedbackConflicts[0].reason,
+        value.coachingCautions[0].what,
+        value.coachingCautions[0].why,
         value.workoutPlan[0].name,
         value.workoutPlan[0].focus,
         value.workoutPlan[0].blocks[0].description,

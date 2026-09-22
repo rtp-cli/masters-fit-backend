@@ -1,7 +1,7 @@
 /**
  * Runtime guard against medical / absolute-safety / guaranteed-outcome claims in
  * LLM-generated, USER-VISIBLE plan text (plan name + description, day name/focus,
- * block descriptions, exercise notes, feedback-conflict messages).
+ * block descriptions, exercise notes, feedback-conflict messages, coaching cautions).
  *
  * Why a code guard and not just the prompt: the model reliably reaches for
  * "shoulder-safe", "knee-safe", "pain-free" etc. for limitation profiles, and a
@@ -33,6 +33,10 @@ export const USER_VISIBLE_TEXT_KEYS = new Set([
   "title",
   "request",
   "reason",
+  // [GQ-04b] coachingCautions entries — user-visible, so they go through the
+  // same medical/absolute-safety sanitize as every other generated string.
+  "what",
+  "why",
   "label",
 ]);
 
