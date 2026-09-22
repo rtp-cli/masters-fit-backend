@@ -39,7 +39,10 @@ name: Generation eval
 # listed file).
 #
 # Re-capturing eval-baseline/reference.json: dispatch this workflow with
-# repeat=3 and commit the artifact's run file as the new reference. Do it HERE
+# repeat=3 and commit the artifact's run file as the new reference. A dispatch
+# with repeat>1 SKIPS the gate entirely — that run is a measurement, not a
+# verdict, and gating it against the reference it is about to replace would
+# both fail by construction and burn extra generations on confirmation. Do it HERE
 # rather than locally — the reference must be captured against
 # EVAL_DATABASE_URL's catalog, or its scores aren't comparable with CI's. The
 # committed reference is a single run from 2026-09-07, so each scenario's number
@@ -193,7 +196,7 @@ jobs:
       # would red-flag PRs at roughly a coin flip. Instead this names the
       # suspect scenarios and always exits 0; the confirm stage decides.
       - name: Gate (soft) — identify suspect scenarios
-        if: steps.cfg.outputs.ready == 'true'
+        if: steps.cfg.outputs.ready == 'true' && (github.event.inputs.repeat || '1') == '1'
         id: softgate
         run: >-
           npm run eval-gate --
@@ -203,7 +206,7 @@ jobs:
       # Only a suspected regression pays for extra generations — a passing PR
       # costs exactly what it did before this stage existed.
       - name: Re-run suspect scenarios
-        if: steps.cfg.outputs.ready == 'true' && steps.softgate.outputs.confirm != ''
+        if: steps.cfg.outputs.ready == 'true' && (github.event.inputs.repeat || '1') == '1' && steps.softgate.outputs.confirm != ''
         run: >-
           npm run eval-generation --
           --label "${{ steps.label.outputs.label }}-confirm"
@@ -215,7 +218,7 @@ jobs:
       # scenario is judged on the median of all its samples (the original run
       # counts as evidence too, so it's a median of three).
       - name: Gate against the committed reference
-        if: steps.cfg.outputs.ready == 'true'
+        if: steps.cfg.outputs.ready == 'true' && (github.event.inputs.repeat || '1') == '1'
         run: >-
           npm run eval-gate --
           --current "eval-runs/${{ steps.label.outputs.label }}.json"
