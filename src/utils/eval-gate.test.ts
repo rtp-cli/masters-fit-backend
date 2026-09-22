@@ -1,5 +1,6 @@
 import { describe, it, expect } from "@jest/globals";
 import {
+  detectCatalogDrift,
   evaluateEvalGate,
   median,
   mergeConfirmationRun,
@@ -354,5 +355,100 @@ describe("overall is averaged over comparable scenarios only", () => {
       REFERENCE
     );
     expect(report.failures.map((f) => f.kind)).toContain("overall-regression");
+  });
+});
+
+describe("detectCatalogDrift", () => {
+  const withCatalog = (
+    entries: Array<[string, number]>,
+    exerciseCount: number,
+    maxExerciseId: number
+  ): EvalRunFile => ({ ...run(entries), catalog: { exerciseCount, maxExerciseId } });
+
+  it("flags a run whose catalog is behind the reference's", () => {
+    // The real 2026-09-22 shape: the eval branch predated the walking catalog.
+    const drift = detectCatalogDrift(
+      withCatalog([["control-walking-beginner", 0.75]], 1690, 2137),
+      withCatalog([["control-walking-beginner", 1]], 1714, 2144)
+    );
+    expect(drift.kind).toBe("behind");
+    expect(drift.message).toContain("BEHIND");
+    expect(drift.message).toContain("reset the eval database branch");
+  });
+
+  it("flags a missing exercise even when the count happens to match", () => {
+    // Same total, but the newest ids are absent — an old branch plus churn.
+    const drift = detectCatalogDrift(
+      withCatalog([["a", 1]], 1714, 2100),
+      withCatalog([["a", 1]], 1714, 2144)
+    );
+    expect(drift.kind).toBe("behind");
+  });
+
+  it("treats a grown catalog as harmless and only nudges for a re-capture", () => {
+    const drift = detectCatalogDrift(
+      withCatalog([["a", 1]], 1720, 2150),
+      withCatalog([["a", 1]], 1714, 2144)
+    );
+    expect(drift.kind).toBe("ahead");
+    expect(drift.message).toContain("due a re-capture");
+  });
+
+  it("is a match when both sides agree", () => {
+    const drift = detectCatalogDrift(
+      withCatalog([["a", 1]], 1714, 2144),
+      withCatalog([["a", 1]], 1714, 2144)
+    );
+    expect(drift.kind).toBe("match");
+    expect(drift.message).toBe("");
+  });
+
+  it("is unknown for runs captured before fingerprints existed", () => {
+    expect(detectCatalogDrift(run([["a", 1]]), run([["a", 1]])).kind).toBe("unknown");
+  });
+});
+
+describe("renderGateSummary surfaces a stale database", () => {
+  const staleRun: EvalRunFile = {
+    ...run([
+      ["control-strength-gym", 1],
+      ["program-wendler-week", 1],
+      ["program-calisthenics-rft", 1],
+      ["muscle-balance-6day", 0.4],
+    ]),
+    catalog: { exerciseCount: 1690, maxExerciseId: 2137 },
+  };
+  const freshReference: EvalRunFile = {
+    ...REFERENCE,
+    catalog: { exerciseCount: 1714, maxExerciseId: 2144 },
+  };
+
+  it("puts the warning ABOVE the numbers, not in a footnote", () => {
+    const markdown = renderGateSummary(
+      evaluateEvalGate(staleRun, freshReference),
+      "pr-1"
+    );
+    const warnAt = markdown.indexOf("Stale eval database");
+    const overallAt = markdown.indexOf("overall ");
+    expect(warnAt).toBeGreaterThan(-1);
+    expect(warnAt).toBeLessThan(overallAt);
+  });
+
+  it("tells the reader not to trust the failures beneath it", () => {
+    const markdown = renderGateSummary(
+      evaluateEvalGate(staleRun, freshReference),
+      "pr-1"
+    );
+    expect(markdown).toContain("before treating any of these as a code regression");
+  });
+
+  it("stays quiet when the catalogs agree", () => {
+    const ok: EvalRunFile = {
+      ...REFERENCE,
+      catalog: { exerciseCount: 1714, maxExerciseId: 2144 },
+    };
+    const markdown = renderGateSummary(evaluateEvalGate(ok, ok), "pr-1");
+    expect(markdown).not.toContain("Stale eval database");
+    expect(markdown).not.toContain("due a re-capture");
   });
 });

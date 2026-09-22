@@ -400,6 +400,20 @@ async function run() {
     process.exit(1);
   }
 
+  // Stamp the catalog this run scored against. The gate compares it with the
+  // reference's, so a stale eval database announces itself instead of looking
+  // like a product regression (2026-09-22: a Neon branch three weeks behind
+  // prod had none of the walking exercises, and control-walking-beginner failed
+  // "prescribes an actual walk" 3 for 3).
+  const allExercises = await exerciseService.getExercises();
+  const catalog = {
+    exerciseCount: allExercises.length,
+    maxExerciseId: allExercises.reduce((max, e) => (e.id > max ? e.id : max), 0),
+  };
+  console.log(
+    `Catalog: ${catalog.exerciseCount} exercises (max id ${catalog.maxExerciseId})`
+  );
+
   console.log(
     `Running ${scenarios.length} scenario(s)${
       repeat > 1 ? ` × ${repeat} repeats (median scored)` : ""
@@ -432,7 +446,11 @@ async function run() {
   const outPath = path.join(OUT_DIR, `${label}.json`);
   fs.writeFileSync(
     outPath,
-    JSON.stringify({ label, ranAt: new Date().toISOString(), results }, null, 2)
+    JSON.stringify(
+      { label, ranAt: new Date().toISOString(), catalog, results },
+      null,
+      2
+    )
   );
   console.log(`\nSaved summary → ${outPath}`);
 
