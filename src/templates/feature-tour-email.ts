@@ -29,20 +29,15 @@ interface FeatureTourTemplateProps {
  * didn't know where this was", so the tap path is the payload; the explanation
  * under it is set muted precisely so the path wins the eye.
  *
- * The close does NOT assert that feedback is taken seriously; it proves it.
- * Item 4 exists because user 109 filed exactly that idea on 2026-08-06 ("I can
- * just click 'add additional workout today' ... and it asks me what type and
- * duration"), and LR-069 shipped it. A demonstrated instance is worth more than
- * any promise, and the person who sent it is on the recipient list. She is
- * deliberately NOT named: unnamed, every reader thinks "that could be mine",
- * which is the behaviour the email is trying to buy — and it avoids publishing
- * who writes in to a group that all know each other.
- *
  * Every path is verified against the shipped 1.2.2 UI and the labels are quoted
  * as they render: Settings is a PERSON icon, the correction control reads
  * "Edit log", and the repeat door reads "Use a workout I've done before" (NOT
  * "Repeat Past Workout", which MF-022 removed from the UI). A path that is
  * almost right is worse than no email.
+ *
+ * Item 5's body is written in the SINGULAR ("since you originally set up your
+ * profile"). Every other line already reads one-to-one, and a stray "some of
+ * you" is the one word that tells the reader they are on a list.
  *
  * COMMERCIAL, not transactional: unsubscribe footer, postal address, and the
  * caller must consult `email_opted_out_at` before reaching here.
@@ -96,7 +91,7 @@ export const featureTourTemplate = ({
 <body style="margin:0; padding:0; background-color:#FFFFFF;">
 
   <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#FFFFFF; opacity:0;">
-    Five things worth knowing about &mdash; including one that exists because a tester asked for it.
+    Some of the better things in the app are buried. Here&rsquo;s where to find them.
   </div>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;">
@@ -106,7 +101,7 @@ export const featureTourTemplate = ({
         <p style="${P}">${greeting}</p>
 
         <p style="${P}">
-          I&rsquo;ve added quite a bit to MastersFit over the last few releases, and I realized some of the better features are a little too easy to miss.
+          I&rsquo;ve added quite a bit to MastersFit since the beginning of September, and I realized some of those features might be easy to miss.
         </p>
 
         <p style="${P}">Here are five worth knowing about:</p>
@@ -138,15 +133,15 @@ export const featureTourTemplate = ({
         <p style="${ITEM_HEAD}"><strong>5. Walking &amp; Movement is now a workout type</strong></p>
         <p style="${ITEM_PATH}">Person icon &rarr; Preferred Workout Types &rarr; Walking &amp; Movement, then rebuild your week.</p>
         <p style="${ITEM_BODY}">
-          This one is new since some of you originally set up your profiles. If you want walking, easy hills, or lighter movement mixed into your programming, that&rsquo;s where to turn it on.
+          This one is new since you originally set up your profile. If you want walking, easy hills, or lighter movement mixed into your programming, that&rsquo;s where to turn it on.
         </p>
 
         <p style="${P}">
-          And please use that feedback button aggressively. I read everything that comes through it, and it moves to the front of the line &mdash; number 4 on this list exists because one of you wrote in back in August asking for exactly that: let me add a bonus workout, and let it ask me what I want and how long I&rsquo;ve got. That&rsquo;s the whole feature. If something is confusing, hard to find, doesn&rsquo;t work, or just feels dumb, I want to know.
+          And please use in-app feedback aggressively. I read everything that comes through it, and it moves to the front of the line. If something is confusing, hard to find, doesn&rsquo;t work, or just doesn&rsquo;t feel right, I want to know.
         </p>
 
         <p style="${P}">
-          There&rsquo;s more coming that I&rsquo;m not ready to show yet &mdash; a couple of bigger pieces I&rsquo;ve been building toward for a while. You&rsquo;ll get them before anyone else does.
+          There&rsquo;s more coming soon &mdash; stay tuned!
         </p>
 
         <p style="${P}">
@@ -173,7 +168,7 @@ export const featureTourTemplate = ({
 
   const text = `${textGreeting}
 
-I've added quite a bit to MastersFit over the last few releases, and I realized some of the better features are a little too easy to miss.
+I've added quite a bit to MastersFit since the beginning of September, and I realized some of those features might be easy to miss.
 
 Here are five worth knowing about:
 
@@ -195,11 +190,11 @@ Tell it what you want to work on and how long you've got, and it builds a second
 
 5. Walking & Movement is now a workout type
 Person icon -> Preferred Workout Types -> Walking & Movement, then rebuild your week.
-This one is new since some of you originally set up your profiles. If you want walking, easy hills, or lighter movement mixed into your programming, that's where to turn it on.
+This one is new since you originally set up your profile. If you want walking, easy hills, or lighter movement mixed into your programming, that's where to turn it on.
 
-And please use that feedback button aggressively. I read everything that comes through it, and it moves to the front of the line - number 4 on this list exists because one of you wrote in back in August asking for exactly that: let me add a bonus workout, and let it ask me what I want and how long I've got. That's the whole feature. If something is confusing, hard to find, doesn't work, or just feels dumb, I want to know.
+And please use in-app feedback aggressively. I read everything that comes through it, and it moves to the front of the line. If something is confusing, hard to find, doesn't work, or just doesn't feel right, I want to know.
 
-There's more coming that I'm not ready to show yet - a couple of bigger pieces I've been building toward for a while. You'll get them before anyone else does.
+There's more coming soon - stay tuned!
 
 Thanks again for helping me beat on this thing.
 
