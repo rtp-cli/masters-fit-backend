@@ -1165,6 +1165,14 @@
 						"type": "number",
 						"format": "double",
 						"description": "Count of the ORIGINAL's muscle groups this candidate also trains."
+					},
+					"pinned": {
+						"type": "string",
+						"enum": [
+							"indoor-swap"
+						],
+						"nullable": false,
+						"description": "[#102] Set when this row was reserved rather than ranked in. Drives the\nlabel the client puts on it; absent on every ordinarily-ranked candidate."
 					}
 				},
 				"required": [

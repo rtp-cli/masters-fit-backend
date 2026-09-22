@@ -432,6 +432,7 @@ const models: TsoaRoute.Models = {
             "difficulty": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
             "hasDemo": {"dataType":"union","subSchemas":[{"dataType":"boolean"},{"dataType":"enum","enums":[null]}],"required":true},
             "overlapCount": {"dataType":"double","required":true},
+            "pinned": {"dataType":"enum","enums":["indoor-swap"]},
         },
         "additionalProperties": false,
     },
