@@ -9,6 +9,127 @@ interface FeatureTourTemplateProps {
   postalAddress: string;
 }
 
+/** One numbered entry: what it is, where it is, why you'd want it. */
+interface FeatureTourItem {
+  /** Numbered heading, e.g. "1. Send feedback without leaving the app". */
+  head: string;
+  /** The tap path, quoted from the shipped UI. The payload of the whole email. */
+  path: string;
+  /** Why you'd care. Set muted, so the path above wins the eye on a skim. */
+  body: string;
+}
+
+/**
+ * EVERY WORD THE READER SEES. Edit the copy here and nowhere else.
+ *
+ * This block exists because the HTML and plain-text halves used to carry their
+ * own full copies of the prose, and keeping two hand-synced transcriptions of
+ * the same paragraphs is a drift bug waiting to happen: nothing typechecks the
+ * difference, and the mismatch only ever surfaces in a reader's mail client.
+ * Both halves are now rendered from this object.
+ *
+ * Write normal prose with real punctuation — curly apostrophes, em dashes, and
+ * → arrows. The HTML half escapes it; the text half transliterates to ASCII.
+ * There is no markup to get right.
+ */
+export const FEATURE_TOUR_COPY = {
+  /**
+   * Subject line.
+   *
+   * Takes the opening sentence's own framing rather than inventing one: the
+   * email says the good features are easy to miss, so the subject says exactly
+   * that. "What's new in MastersFit" is a newsletter header and gets archived
+   * on sight; this is a claim the reader can check in ten seconds.
+   *
+   * Deliberately not "you're missing out" — these people are the ones who DID
+   * show up, and opening by implying they've done it wrong spends the goodwill
+   * the feedback request at the bottom then needs.
+   */
+  subject: "Five MastersFit features that are too easy to miss",
+
+  /**
+   * The grey line after the subject in most inboxes. Left unset, clients scrape
+   * the greeting instead, which wastes the slot on "Hi Kelly, I've added…".
+   * Must never promise something the body doesn't deliver.
+   */
+  preheader: "Some of the better things in the app are buried. Here's where to find them.",
+
+  /**
+   * Deliberately undated. An earlier draft said "since the beginning of
+   * September", but items 1 and 2 shipped 2026-07-28 and 2026-08-11 — "lately"
+   * is the version that is true for every reader, including the two who have
+   * been here since before September.
+   */
+  intro:
+    "I've added quite a bit to MastersFit lately, and I realized some of those features might be easy to miss.",
+
+  lead: "Here are five worth knowing about:",
+
+  /**
+   * Every path is verified against the shipped 1.2.2 UI and the labels are
+   * quoted as they render: Settings is a PERSON icon, the correction control
+   * reads "Edit log", and the repeat door reads "Use a workout I've done
+   * before" (NOT "Repeat Past Workout", which MF-022 removed from the UI). A
+   * path that is almost right is worse than no email — re-walk them on a device
+   * before changing any of these lines.
+   */
+  items: [
+    {
+      head: "1. Send feedback without leaving the app",
+      path: "Tap the person icon → Feedback.",
+      body: "Bug, idea, confusing screen, something that annoys you — send it there. You can even dictate instead of typing. It includes your app version and device info by default, which makes it much easier for me to track down problems.",
+    },
+    {
+      head: "2. Fix a workout log after the fact",
+      path: "Go to Calendar → tap any completed workout → Edit log.",
+      body: "Wrong weight? Missed a set? Marked something complete that you skipped? You can go back and fix it anytime.",
+    },
+    {
+      head: "3. Repeat a workout you liked",
+      path: "Go to Calendar → select an upcoming workout → Change Workout → Use a workout I've done before.",
+      body: "MastersFit will replace that day with one of your previous workouts.",
+    },
+    {
+      // LR-069. MastersFit+ only, enforced server-side — every intended
+      // recipient is complimentary or subscribed, so the tier is deliberately
+      // not mentioned. Check that still holds before adding anyone new.
+      head: "4. Add a second workout on a day you've already trained",
+      path: "Finish today's workout, then tap + Add another workout.",
+      body: "Tell it what you want to work on and how long you've got, and it builds a second session for today. Two sessions a day is the limit.",
+    },
+    {
+      // Singular on purpose. Every other line reads one-to-one, and a stray
+      // "some of you" is the one word that tells the reader they're on a list.
+      head: "5. Walking & Movement is now a workout type",
+      path: "Person icon → Preferred Workout Types → Walking & Movement, then rebuild your week.",
+      body: "This one is new since you originally set up your profile. If you want walking, easy hills, or lighter movement mixed into your programming, that's where to turn it on.",
+    },
+  ] as FeatureTourItem[],
+
+  close: [
+    "And please use in-app feedback aggressively. I read everything that comes through it, and it moves to the front of the line. If something is confusing, hard to find, doesn't work, or just doesn't feel right, I want to know.",
+    "There's more coming soon — stay tuned!",
+    "Thanks again for helping me beat on this thing.",
+  ],
+
+  signoff: "— Rich",
+} as const;
+
+/**
+ * Typographic copy → ASCII, for the text/plain half.
+ *
+ * The clients most likely to render text/plain are the ones least likely to
+ * have good glyph coverage, and every existing template in this directory
+ * already spells these as ASCII. Applied at render time so the copy block above
+ * can stay readable prose.
+ */
+const toPlain = (s: string): string =>
+  s
+    .replace(/→/g, "->")
+    .replace(/—/g, "-")
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"');
+
 /**
  * "Five features that are too easy to miss" — to the handful of people who
  * have actually trained with the app.
@@ -19,25 +140,14 @@ interface FeatureTourTemplateProps {
  * an email that is wrong for both.
  *
  * Same undesigned note styling as the activation nudge and the comp email, and
- * for the same reason: at five recipients who all know Rich by name, a plain
- * message from a person outperforms a designed one. The moment this grows a
- * logo lockup and a hero image it becomes a newsletter, and newsletters get
+ * for the same reason: at a handful of recipients who all know Rich by name, a
+ * plain message from a person outperforms a designed one. The moment this grows
+ * a logo lockup and a hero image it becomes a newsletter, and newsletters get
  * archived unread.
  *
- * Each item is three lines — what it is, where it is, why you'd want it — and
- * the middle line carries the weight. The whole premise of the email is "you
- * didn't know where this was", so the tap path is the payload; the explanation
- * under it is set muted precisely so the path wins the eye.
- *
- * Every path is verified against the shipped 1.2.2 UI and the labels are quoted
- * as they render: Settings is a PERSON icon, the correction control reads
- * "Edit log", and the repeat door reads "Use a workout I've done before" (NOT
- * "Repeat Past Workout", which MF-022 removed from the UI). A path that is
- * almost right is worse than no email.
- *
- * Item 5's body is written in the SINGULAR ("since you originally set up your
- * profile"). Every other line already reads one-to-one, and a stray "some of
- * you" is the one word that tells the reader they are on a list.
+ * Each item renders as three lines, with the tap path carrying the weight: the
+ * whole premise of the email is "you didn't know where this was", so the path
+ * is the payload and the explanation under it is muted to let the path win.
  *
  * COMMERCIAL, not transactional: unsubscribe footer, postal address, and the
  * caller must consult `email_opted_out_at` before reaching here.
@@ -47,6 +157,7 @@ export const featureTourTemplate = ({
   unsubscribeUrl,
   postalAddress,
 }: FeatureTourTemplateProps) => {
+  const c = FEATURE_TOUR_COPY;
   const firstName = name?.trim().split(/\s+/)[0] || "";
   const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi there,";
   const textGreeting = firstName ? `Hi ${firstName},` : "Hi there,";
@@ -68,6 +179,24 @@ export const featureTourTemplate = ({
   // the <br> tags.
   const address = escapeHtml(postalAddress).replace(/\r?\n/g, "<br />");
 
+  const itemsHtml = c.items
+    .map(
+      (item) => `        <p style="${ITEM_HEAD}"><strong>${escapeHtml(item.head)}</strong></p>
+        <p style="${ITEM_PATH}">${escapeHtml(item.path)}</p>
+        <p style="${ITEM_BODY}">
+          ${escapeHtml(item.body)}
+        </p>`
+    )
+    .join("\n\n");
+
+  const closeHtml = c.close
+    .map(
+      (para) => `        <p style="${P}">
+          ${escapeHtml(para)}
+        </p>`
+    )
+    .join("\n\n");
+
   const html = `<!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -77,7 +206,7 @@ export const featureTourTemplate = ({
 <meta name="color-scheme" content="light dark" />
 <meta name="supported-color-schemes" content="light dark" />
 <meta name="format-detection" content="telephone=no,date=no,address=no,email=no,url=no" />
-<title>Five features that are too easy to miss</title>
+<title>${escapeHtml(c.subject)}</title>
 <style>
   body { margin:0; padding:0; width:100% !important; -webkit-text-size-adjust:100%; }
   a { color:#1A6B4A; }
@@ -91,7 +220,7 @@ export const featureTourTemplate = ({
 <body style="margin:0; padding:0; background-color:#FFFFFF;">
 
   <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#FFFFFF; opacity:0;">
-    Some of the better things in the app are buried. Here&rsquo;s where to find them.
+    ${escapeHtml(c.preheader)}
   </div>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;">
@@ -101,55 +230,17 @@ export const featureTourTemplate = ({
         <p style="${P}">${greeting}</p>
 
         <p style="${P}">
-          I&rsquo;ve added quite a bit to MastersFit since the beginning of September, and I realized some of those features might be easy to miss.
+          ${escapeHtml(c.intro)}
         </p>
 
-        <p style="${P}">Here are five worth knowing about:</p>
+        <p style="${P}">${escapeHtml(c.lead)}</p>
 
-        <p style="${ITEM_HEAD}"><strong>1. Send feedback without leaving the app</strong></p>
-        <p style="${ITEM_PATH}">Tap the person icon &rarr; Feedback.</p>
-        <p style="${ITEM_BODY}">
-          Bug, idea, confusing screen, something that annoys you &mdash; send it there. You can even dictate instead of typing. It includes your app version and device info by default, which makes it much easier for me to track down problems.
-        </p>
+${itemsHtml}
 
-        <p style="${ITEM_HEAD}"><strong>2. Fix a workout log after the fact</strong></p>
-        <p style="${ITEM_PATH}">Go to Calendar &rarr; tap any completed workout &rarr; Edit log.</p>
-        <p style="${ITEM_BODY}">
-          Wrong weight? Missed a set? Marked something complete that you skipped? You can go back and fix it anytime.
-        </p>
-
-        <p style="${ITEM_HEAD}"><strong>3. Repeat a workout you liked</strong></p>
-        <p style="${ITEM_PATH}">Go to Calendar &rarr; select an upcoming workout &rarr; Change Workout &rarr; Use a workout I&rsquo;ve done before.</p>
-        <p style="${ITEM_BODY}">
-          MastersFit will replace that day with one of your previous workouts.
-        </p>
-
-        <p style="${ITEM_HEAD}"><strong>4. Add a second workout on a day you&rsquo;ve already trained</strong></p>
-        <p style="${ITEM_PATH}">Finish today&rsquo;s workout, then tap + Add another workout.</p>
-        <p style="${ITEM_BODY}">
-          Tell it what you want to work on and how long you&rsquo;ve got, and it builds a second session for today. Two sessions a day is the limit.
-        </p>
-
-        <p style="${ITEM_HEAD}"><strong>5. Walking &amp; Movement is now a workout type</strong></p>
-        <p style="${ITEM_PATH}">Person icon &rarr; Preferred Workout Types &rarr; Walking &amp; Movement, then rebuild your week.</p>
-        <p style="${ITEM_BODY}">
-          This one is new since you originally set up your profile. If you want walking, easy hills, or lighter movement mixed into your programming, that&rsquo;s where to turn it on.
-        </p>
-
-        <p style="${P}">
-          And please use in-app feedback aggressively. I read everything that comes through it, and it moves to the front of the line. If something is confusing, hard to find, doesn&rsquo;t work, or just doesn&rsquo;t feel right, I want to know.
-        </p>
-
-        <p style="${P}">
-          There&rsquo;s more coming soon &mdash; stay tuned!
-        </p>
-
-        <p style="${P}">
-          Thanks again for helping me beat on this thing.
-        </p>
+${closeHtml}
 
         <p style="margin:0 0 32px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#1A1A1A;">
-          &mdash; Rich
+          ${escapeHtml(c.signoff)}
         </p>
 
         <hr style="border:0; border-top:1px solid #E5E5E5; margin:0 0 16px 0;" />
@@ -166,39 +257,23 @@ export const featureTourTemplate = ({
 </body>
 </html>`;
 
+  const itemsText = c.items
+    .map((item) => `${toPlain(item.head)}\n${toPlain(item.path)}\n${toPlain(item.body)}`)
+    .join("\n\n");
+
+  const closeText = c.close.map(toPlain).join("\n\n");
+
   const text = `${textGreeting}
 
-I've added quite a bit to MastersFit since the beginning of September, and I realized some of those features might be easy to miss.
+${toPlain(c.intro)}
 
-Here are five worth knowing about:
+${toPlain(c.lead)}
 
-1. Send feedback without leaving the app
-Tap the person icon -> Feedback.
-Bug, idea, confusing screen, something that annoys you - send it there. You can even dictate instead of typing. It includes your app version and device info by default, which makes it much easier for me to track down problems.
+${itemsText}
 
-2. Fix a workout log after the fact
-Go to Calendar -> tap any completed workout -> Edit log.
-Wrong weight? Missed a set? Marked something complete that you skipped? You can go back and fix it anytime.
+${closeText}
 
-3. Repeat a workout you liked
-Go to Calendar -> select an upcoming workout -> Change Workout -> Use a workout I've done before.
-MastersFit will replace that day with one of your previous workouts.
-
-4. Add a second workout on a day you've already trained
-Finish today's workout, then tap + Add another workout.
-Tell it what you want to work on and how long you've got, and it builds a second session for today. Two sessions a day is the limit.
-
-5. Walking & Movement is now a workout type
-Person icon -> Preferred Workout Types -> Walking & Movement, then rebuild your week.
-This one is new since you originally set up your profile. If you want walking, easy hills, or lighter movement mixed into your programming, that's where to turn it on.
-
-And please use in-app feedback aggressively. I read everything that comes through it, and it moves to the front of the line. If something is confusing, hard to find, doesn't work, or just doesn't feel right, I want to know.
-
-There's more coming soon - stay tuned!
-
-Thanks again for helping me beat on this thing.
-
-- Rich
+${toPlain(c.signoff)}
 
 ---
 Unsubscribe from these emails: ${unsubscribeUrl}
@@ -208,17 +283,5 @@ ${postalAddress}
   return { html, text };
 };
 
-/**
- * Subject line.
- *
- * Taken from the opening sentence's own framing rather than invented: the email
- * says the good features are easy to miss, so the subject says exactly that.
- * "What's new in MastersFit" is a newsletter header and gets archived on sight;
- * this is a claim the reader can check in ten seconds.
- *
- * Deliberately not "you're missing out" — these people are the ones who DID
- * show up, and an email that opens by implying they've done it wrong spends the
- * goodwill the feedback request at the bottom then needs.
- */
-export const FEATURE_TOUR_SUBJECT =
-  "Five MastersFit features that are too easy to miss";
+/** Re-exported so callers don't reach into the copy block for the subject. */
+export const FEATURE_TOUR_SUBJECT = FEATURE_TOUR_COPY.subject;
