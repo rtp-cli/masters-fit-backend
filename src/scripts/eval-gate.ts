@@ -78,6 +78,12 @@ if (process.env.GITHUB_OUTPUT) {
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `confirm=${confirm.join(",")}\n`);
 }
 
+// Surface a stale eval database as its own annotation — independent of whether
+// the gate passed, because a stale catalog makes a PASS suspect too.
+if (report.catalogDrift.kind === "behind") {
+  console.log(`::warning::${report.catalogDrift.message}`);
+}
+
 const soft = args.soft === "true";
 for (const failure of report.failures) {
   // GitHub annotation so the failure shows on the run, not just in the log.
