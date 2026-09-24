@@ -8,6 +8,8 @@ import {
   requireCapabilityWhen,
   requireSelf,
   requireOwnership,
+  requireOwnershipFromBody,
+  requireUsableExerciseFromBody,
 } from "@/middleware/authz.middleware";
 import {
   aiOperationService,
@@ -203,6 +205,10 @@ router.post(
   "/days/:planDayId/exercises",
   requireAuth,
   requireOwnership("planDay", "planDayId"),
+  // The block is named in the body, so owning the path's plan day proved
+  // nothing about it.
+  requireOwnershipFromBody("workoutBlock", "workoutBlockId"),
+  requireUsableExerciseFromBody("exerciseId"),
   async (req, res) => {
     try {
       const response = await controller.createPlanDayExercise(
@@ -256,6 +262,7 @@ router.put(
   "/exercise/:id/replace",
   requireAuth,
   requireOwnership("planDayExercise", "id"),
+  requireUsableExerciseFromBody("newExerciseId"),
   async (req, res) => {
     try {
       const response = await controller.replaceExercise(

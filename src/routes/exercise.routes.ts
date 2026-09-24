@@ -2,6 +2,7 @@ import { Router } from "express";
 import { ExerciseController } from "@/controllers/exercise.controller";
 import { ZodError } from "zod";
 import { requireAuth, requireAdmin } from "@/middleware/authz.middleware";
+import { exerciseService } from "@/services/exercise.service";
 
 const router = Router();
 const controller = new ExerciseController();
@@ -21,9 +22,10 @@ const handleError = (error: unknown, res: any) => {
   }
 };
 
-// The exercises table is a single GLOBAL catalog (no per-user ownership).
-// Reads require auth; mutations are admin-only (previously unauthenticated —
-// any anonymous caller could edit/delete the shared library for all users).
+// The exercises table is the GLOBAL catalog plus users' own exercises
+// (owner_user_id set). Reads require auth; catalog mutations are admin-only
+// (previously unauthenticated — any anonymous caller could edit/delete the
+// shared library for all users). A user may create only their own.
 
 // Get all exercises
 router.get("/", requireAuth, async (req, res) => {
@@ -35,9 +37,24 @@ router.get("/", requireAuth, async (req, res) => {
   }
 });
 
-// Get exercise by ID
+// Create one of the caller's own exercises. Registered before "/:exerciseId"
+// routes for readability; POST never collides with them anyway.
+router.post("/custom", requireAuth, async (req, res) => {
+  try {
+    const response = await controller.createCustomExercise(req.body, req);
+    res.status(201).json(response);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+// Get exercise by ID (another user's own exercise reads as not found)
 router.get("/:exerciseId", requireAuth, async (req, res) => {
   try {
+    const exerciseId = Number(req.params.exerciseId);
+    if (!(await exerciseService.isUsableBy(exerciseId, (req as any).userId))) {
+      return res.status(404).json({ success: false, error: "Exercise not found" });
+    }
     const response = await controller.getExercise(
       Number(req.params.exerciseId)
     );

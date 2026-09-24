@@ -130,6 +130,8 @@ export class SearchController extends Controller {
       userEquipmentOnly: userEquipmentOnly ?? true,
       limit: limit ?? 20,
       offset: offset ?? 0,
+      // Edit-search is where a user finds the exercises they typed in.
+      includeOwnExercises: true,
     };
 
     const result = await searchService.searchExercisesWithFilters(userId, options);
