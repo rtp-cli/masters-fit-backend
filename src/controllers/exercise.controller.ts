@@ -6,6 +6,7 @@ import {
   Path,
   Post,
   Put,
+  Request,
   Route,
   Response,
   SuccessResponse,
@@ -20,7 +21,7 @@ import {
   ExerciseResponse,
 } from "@/types/exercise/responses";
 import { exerciseService } from "@/services";
-import { insertExerciseSchema } from "@/models";
+import { Exercise as ExerciseRow, insertExerciseSchema } from "@/models";
 import { validateExerciseLink } from "@/utils/linkUtils";
 
 @Route("exercises")
@@ -51,6 +52,27 @@ export class ExerciseController extends Controller {
       success: true,
       exercises,
     };
+  }
+
+  /**
+   * Create one of the caller's own exercises — the "not in the library? add
+   * your own" path from edit-search. Returns the raw row, the same shape the
+   * filtered search returns, so the client can select it like a search hit.
+   * Idempotent per user by name.
+   */
+  @Post("/custom")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(201, "Created")
+  public async createCustomExercise(
+    @Body() requestBody: { name: string },
+    @Request() request: any
+  ): Promise<{ success: boolean; exercise: ExerciseRow }> {
+    const name = typeof requestBody?.name === "string" ? requestBody.name : "";
+    const exercise = await exerciseService.createCustomExercise(
+      request.userId,
+      name
+    );
+    return { success: true, exercise };
   }
 
   /**

@@ -1,4 +1,4 @@
-import { eq, sql, and, ilike } from "drizzle-orm";
+import { eq, sql, and, or, ilike } from "drizzle-orm";
 import {
   workouts,
   planDays,
@@ -246,7 +246,8 @@ export class SearchService extends BaseService {
         where: eq(exercises.id, exerciseId),
       });
 
-      if (!exercise) {
+      // Another user's own exercise reads as not found, same as a bad id.
+      if (!exercise || (exercise.ownerUserId !== null && exercise.ownerUserId !== userId)) {
         throw new Error("Exercise not found");
       }
 
@@ -422,7 +423,10 @@ export class SearchService extends BaseService {
 
       // Shared with the count query below — a single source of truth for
       // "what counts as a match" so the two can't drift apart.
+      // Catalog only: this endpoint has no user, so it never shows anyone's
+      // own exercises.
       const whereCondition = sql`
+          ${exercises.ownerUserId} IS NULL AND (
           LOWER(${exercises.name}) LIKE ${searchTerm} OR
           LOWER(${exercises.description}) LIKE ${searchTerm} OR
           EXISTS (
@@ -430,6 +434,7 @@ export class SearchService extends BaseService {
             WHERE LOWER(muscle_group) LIKE ${searchTerm}
           ) OR
           similarity(LOWER(${exercises.name}), ${lowerQuery}) > 0.3
+          )
         `;
 
       // Real total match count — lets the UI show "20 of 40" instead of
@@ -506,6 +511,13 @@ export class SearchService extends BaseService {
       userEquipmentOnly?: boolean;
       limit?: number;
       offset?: number;
+      /**
+       * Also match the user's own exercises (by text query only). Opt-in: the
+       * edit-search endpoint sets it; internal callers like rankReplacements
+       * must not, or a user's "neighborhood loop" becomes a suggested — and
+       * sweep-forward auto-applied — replacement for a bench press.
+       */
+      includeOwnExercises?: boolean;
     }
   ): Promise<{
     exercises: Exercise[];
@@ -526,6 +538,7 @@ export class SearchService extends BaseService {
         userEquipmentOnly = true,
         limit = 20,
         offset = 0,
+        includeOwnExercises = false,
       } = options;
 
       // Get user's equipment if auto-filtering is enabled
@@ -557,8 +570,13 @@ export class SearchService extends BaseService {
         }
       }
 
-      // Build WHERE conditions
+      // Build WHERE conditions. `conditions` apply to every row; the
+      // muscle/equipment/difficulty filters go in `catalogFilters`, which only
+      // constrain catalog rows — the user's own exercises carry none of that
+      // metadata, so those filters would hide them from the one person who
+      // made them.
       const conditions: any[] = [];
+      const catalogFilters: any[] = [];
 
       // Text search — terms hoisted so the ORDER BY below reuses the same ones.
       const lowerQuery = query ? query.toLowerCase() : "";
@@ -569,7 +587,13 @@ export class SearchService extends BaseService {
         // The plain searchExercises path already had this; the filtered path
         // (used whenever a muscle/equipment/difficulty filter is applied) did
         // not. 0.3 = pg_trgm's default similarity_threshold GUC.
-        conditions.push(sql`
+        //
+        // The outer parentheses are load-bearing: drizzle's and() joins its
+        // operands with " and " WITHOUT wrapping each one, and AND binds
+        // tighter than OR. Unwrapped, any name/description/muscle match
+        // skipped every later condition — equipment, excludeId, the user's
+        // "never prescribe this again" exclusions, and whose exercise it is.
+        conditions.push(sql`(
           LOWER(${exercises.name}) LIKE ${searchTerm} OR
           LOWER(${exercises.description}) LIKE ${searchTerm} OR
           EXISTS (
@@ -577,12 +601,12 @@ export class SearchService extends BaseService {
             WHERE LOWER(muscle_group) LIKE ${searchTerm}
           ) OR
           similarity(LOWER(${exercises.name}), ${lowerQuery}) > 0.3
-        `);
+        )`);
       }
 
       // Muscle groups filter
       if (muscleGroups && muscleGroups.length > 0) {
-        conditions.push(sql`
+        catalogFilters.push(sql`
           EXISTS (
             SELECT 1 FROM unnest(${exercises.muscleGroups}) AS muscle_group
             WHERE muscle_group = ANY(ARRAY[${sql.join(muscleGroups.map(g => sql`${g}`), sql`, `)}])
@@ -598,7 +622,7 @@ export class SearchService extends BaseService {
 
         if (includesBodyweight) {
           // If bodyweight is selected, include exercises with no equipment OR exercises that use selected equipment
-          conditions.push(sql`
+          catalogFilters.push(sql`
             (
               ${exercises.equipment} IS NULL OR
               cardinality(${exercises.equipment}) = 0 OR
@@ -610,7 +634,7 @@ export class SearchService extends BaseService {
           `);
         } else {
           // If bodyweight is NOT selected, only include exercises that specifically require the selected equipment
-          conditions.push(sql`
+          catalogFilters.push(sql`
             EXISTS (
               SELECT 1 FROM unnest(${exercises.equipment}) AS exercise_equipment
               WHERE exercise_equipment = ANY(ARRAY[${sql.join(equipmentToFilter.map(e => sql`${e}`), sql`, `)}])
@@ -621,7 +645,7 @@ export class SearchService extends BaseService {
 
       // Difficulty filter
       if (difficulty) {
-        conditions.push(sql`${exercises.difficulty} = ${difficulty}`);
+        catalogFilters.push(sql`${exercises.difficulty} = ${difficulty}`);
       }
 
       // Exclude specific exercise
@@ -642,8 +666,18 @@ export class SearchService extends BaseService {
         )
       `);
 
+      // Catalog rows (filtered), plus this user's own when they typed
+      // something — never another user's. Browsing by filters alone stays
+      // catalog-only: own rows have no muscles/equipment to match a filter on.
+      const catalogRows = and(sql`${exercises.ownerUserId} IS NULL`, ...catalogFilters);
+      conditions.push(
+        includeOwnExercises && query
+          ? or(catalogRows, sql`${exercises.ownerUserId} = ${userId}`)
+          : catalogRows
+      );
+
       // Combine all conditions
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const whereClause = and(...conditions);
 
       const results = await this.db.query.exercises.findMany({
         where: whereClause,

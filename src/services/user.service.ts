@@ -7,7 +7,7 @@ import {
   exerciseSetLogs, planDayLogs, workoutLogs, blockLogs, shareLinks, aiOperations,
   backgroundJobs, trialUsage, userSubscriptions, profiles, prompts,
   impersonationAudit, appFeedback, planDayFeedback, accountDeletionLog,
-  trainingLocations,
+  trainingLocations, exercises,
 } from "@/models";
 import type { UpdateUser, User } from "@/models";
 import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
@@ -92,6 +92,11 @@ export async function purgeUserData(tx: any, userId: number, meta: PurgeMeta): P
     await tx.update(aiOperations).set({ resultWorkoutId: null }).where(inArray(aiOperations.resultWorkoutId, workoutIds));
     await tx.delete(workouts).where(eq(workouts.userId, userId));
   }
+
+  // The user's own exercises. After the plan rows above: plan_day_exercises
+  // references exercises with no cascade. Nobody else's plan can reference
+  // these — add/replace only accept catalog rows or the caller's own.
+  await tx.delete(exercises).where(eq(exercises.ownerUserId, userId));
 
   await tx.delete(appFeedback).where(eq(appFeedback.userId, userId));
   await tx.delete(trialUsage).where(eq(trialUsage.userId, userId));
