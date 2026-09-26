@@ -28,7 +28,7 @@ import { exerciseService } from "./exercise.service";
 import { AvailableEquipment, IntensityLevel } from "@/types/profile/types";
 import { profileService } from "./profile.service";
 import { PreferredDays } from "@/constants";
-import type { WorkoutSourceType } from "@/constants/access-policy";
+import { WorkoutSourceType } from "@/constants/access-policy";
 import { PreferredDay } from "@/types/profile/types";
 import {
   getTodayString,
@@ -2159,6 +2159,10 @@ export class WorkoutService extends BaseService {
         startDate: sql`${newStartDate}::date`,
         endDate: sql`${newEndDate}::date`,
         promptId: originalWorkout.promptId, // Copy the prompt ID from original workout
+        // [LR-087] A repeated week involves no AI operation, so the ledger-based
+        // stamping in aiOperationService never sees it — tag it here. This is the
+        // main path for a free user who has used their plan builds.
+        sourceType: WorkoutSourceType.REPEAT,
         isActive: true,
         completed: false,
         createdAt: new Date(),
@@ -2672,6 +2676,7 @@ export class WorkoutService extends BaseService {
           startDate: sql`${newDate}::date`,
           endDate: sql`${newDate}::date`,
           promptId: prompt.id,
+          sourceType: WorkoutSourceType.REPEAT,
           isActive: true,
           completed: false,
           createdAt: new Date(),
