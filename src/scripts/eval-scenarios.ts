@@ -205,6 +205,15 @@ export const SCENARIOS: EvalScenario[] = [
         type: "excludes",
         needle: "in place",
       },
+      // [LR-085] The getting-moving shape. Days per week is fixed by the
+      // schedule builder (unit-tested); this scores the part only the model
+      // controls — whether it keeps each session to a learnable size.
+      {
+        id: "max-4-working-movements",
+        label: "at most 4 working movements per session",
+        type: "maxWorkingMovements",
+        max: 4,
+      },
     ],
   },
 
