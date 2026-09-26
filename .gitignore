@@ -18,3 +18,7 @@ muscle-taxonomy-rollback-*.json
 # Claude Code private worktrees — entire nested checkouts (564MB as of 2026-09-17).
 # Untracked but unignored means one `git add -A` commits three copies of this repo.
 .claude/worktrees/
+
+# tsc incremental cache (tsconfig: incremental + tsBuildInfoFile). Per-checkout;
+# CI runs on a fresh clone, so it only ever speeds up repeat local runs.
+.tsbuildinfo
