@@ -49,10 +49,89 @@ export interface EvalScenarioResult {
   ok?: boolean;
 }
 
+/**
+ * A cheap shape-of-the-catalog stamp, recorded on every run.
+ *
+ * Why: on 2026-09-22 the eval's Neon branch was three weeks behind prod and
+ * simply did not contain the walking exercises. control-walking-beginner failed
+ * "prescribes an actual walk" 3 for 3 — a perfectly reproducible signal that
+ * looked exactly like a product bug and cost a full investigation. The model
+ * cannot pick what isn't in the catalog. Stamping the catalog turns that into
+ * one line at the top of the report.
+ */
+export interface CatalogFingerprint {
+  exerciseCount: number;
+  maxExerciseId: number;
+}
+
 export interface EvalRunFile {
   label?: string;
   ranAt?: string;
+  /** Absent on runs captured before this was introduced — drift is then unknown. */
+  catalog?: CatalogFingerprint;
   results: EvalScenarioResult[];
+}
+
+export type CatalogDriftKind = "behind" | "ahead" | "match" | "unknown";
+
+export interface CatalogDrift {
+  kind: CatalogDriftKind;
+  current?: CatalogFingerprint;
+  reference?: CatalogFingerprint;
+  /** Human-readable, empty for "match" / "unknown". */
+  message: string;
+}
+
+/**
+ * Compare the catalog a run scored against with the one the reference was
+ * captured against.
+ *
+ * "behind" is the dangerous direction — the eval database is missing exercises
+ * the reference had, so scenarios can fail for want of an exercise rather than
+ * for want of quality. "ahead" is the ordinary consequence of adding catalog
+ * entries and only means the reference is due a re-capture.
+ */
+export function detectCatalogDrift(
+  current: EvalRunFile,
+  reference: EvalRunFile
+): CatalogDrift {
+  const cur = current.catalog;
+  const ref = reference.catalog;
+  if (!cur || !ref) {
+    return {
+      kind: "unknown",
+      current: cur,
+      reference: ref,
+      message: "",
+    };
+  }
+  const countDelta = cur.exerciseCount - ref.exerciseCount;
+  const idDelta = cur.maxExerciseId - ref.maxExerciseId;
+
+  if (countDelta < 0 || idDelta < 0) {
+    return {
+      kind: "behind",
+      current: cur,
+      reference: ref,
+      message:
+        `This run's catalog is BEHIND the reference's: ${cur.exerciseCount} exercises ` +
+        `(max id ${cur.maxExerciseId}) vs ${ref.exerciseCount} (max id ${ref.maxExerciseId}). ` +
+        "Scenarios can fail here because an exercise is missing, not because quality " +
+        "regressed — reset the eval database branch from its parent before believing a failure.",
+    };
+  }
+  if (countDelta > 0 || idDelta > 0) {
+    return {
+      kind: "ahead",
+      current: cur,
+      reference: ref,
+      message:
+        `Catalog has grown since the reference was captured: ${cur.exerciseCount} exercises ` +
+        `(max id ${cur.maxExerciseId}) vs ${ref.exerciseCount} (max id ${ref.maxExerciseId}). ` +
+        "Harmless, but the reference is due a re-capture.",
+    };
+  }
+  return { kind: "match", current: cur, reference: ref, message: "" };
 }
 
 export interface GateThresholds {
@@ -93,6 +172,8 @@ export interface GateScenarioRow {
 export interface GateReport {
   passed: boolean;
   failures: GateFailure[];
+  /** Whether this run's catalog matches the one the reference was captured on. */
+  catalogDrift: CatalogDrift;
   rows: GateScenarioRow[];
   /** Scenario ids in the reference that this run did not cover. */
   notRun: string[];
@@ -222,6 +303,7 @@ export function evaluateEvalGate(
   return {
     passed: failures.length === 0,
     failures,
+    catalogDrift: detectCatalogDrift(current, reference),
     rows,
     notRun: rows.filter((r) => r.current === null).map((r) => r.id),
     unreferenced: rows.filter((r) => r.reference === null).map((r) => r.id),
@@ -271,13 +353,29 @@ export function renderGateSummary(report: GateReport, label = "run"): string {
   const lines: string[] = [
     `## Generation eval — ${report.passed ? "✅ pass" : "❌ regression"}`,
     "",
-    `**${label}**: overall ${pt(report.currentOverall)}% vs reference ${pt(report.referenceOverall)}% (${delta(report.overallDeltaPt)})`,
-    "",
   ];
+
+  // Catalog drift goes ABOVE the numbers, not in a footnote — when the eval
+  // database is behind, it is the first thing that explains a red run, and a
+  // note further down is exactly what got missed on 2026-09-22.
+  if (report.catalogDrift.kind === "behind") {
+    lines.push(`> ⚠️ **Stale eval database.** ${report.catalogDrift.message}`, "");
+  }
+
+  lines.push(
+    `**${label}**: overall ${pt(report.currentOverall)}% vs reference ${pt(report.referenceOverall)}% (${delta(report.overallDeltaPt)})`,
+    ""
+  );
 
   if (!report.passed) {
     lines.push("### What failed", "");
     for (const failure of report.failures) lines.push(`- ${failure.message}`);
+    if (report.catalogDrift.kind === "behind") {
+      lines.push(
+        "",
+        "_Check the stale-database warning above before treating any of these as a code regression._"
+      );
+    }
     lines.push("");
   }
 
@@ -308,6 +406,9 @@ export function renderGateSummary(report: GateReport, label = "run"): string {
   }
   if (report.unreferenced.length > 0) {
     lines.push("", `_New since the reference: ${report.unreferenced.join(", ")}._`);
+  }
+  if (report.catalogDrift.kind === "ahead") {
+    lines.push("", `_${report.catalogDrift.message}_`);
   }
   return lines.join("\n");
 }

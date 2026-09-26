@@ -1,6 +1,10 @@
 {
   "label": "reference",
   "ranAt": "2026-09-22T13:52:56.621Z",
+  "catalog": {
+    "exerciseCount": 1688,
+    "maxExerciseId": 2144
+  },
   "results": [
     {
       "id": "control-strength-gym",
