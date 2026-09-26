@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, or, sql } from "drizzle-orm";
 import { BaseService } from "@/services/base.service";
 import { subscriptionService } from "@/services/subscription.service";
 import { logger } from "@/utils/logger";
@@ -95,6 +95,31 @@ const CONSUMING_STATUSES = [
 ];
 
 /**
+ * [LR-087] Whether a ledger row still counts — toward a free LIFETIME allowance,
+ * or as proof the user has already had their one initial plan.
+ *
+ * COMPLETED counts forever. RESERVED counts only while fresh: a reservation
+ * older than STALE_RESERVATION_MS whose job never settled (worker crash, deploy,
+ * orphaned job) is treated as dead, so a user is never charged for a failure.
+ *
+ * Until 2026-09-26 the stale cutoff was applied to BOTH statuses, so a COMPLETED
+ * operation stopped counting 15 minutes after it was created. Every "lifetime"
+ * free allowance was really one-per-15-minutes: free users could rebuild their
+ * week indefinitely, and a returning user could be handed another free initial
+ * plan. The original tests missed it because each one made its requests within
+ * seconds of each other, well inside the window.
+ */
+function stillCounts(staleCutoff: Date) {
+  return or(
+    eq(aiOperations.status, AiOperationStatus.COMPLETED),
+    and(
+      eq(aiOperations.status, AiOperationStatus.RESERVED),
+      gt(aiOperations.createdAt, staleCutoff)
+    )
+  );
+}
+
+/**
  * The authoritative gate + ledger for all AI-backed operations. Every AI
  * request reserves here (atomically, under a per-user row lock) before a Bull
  * job is enqueued; the job settles the reservation on completion/failure.
@@ -124,8 +149,7 @@ export class AiOperationService extends BaseService {
         and(
           eq(aiOperations.userId, userId),
           eq(aiOperations.operationType, AiOperationType.INITIAL_PLAN),
-          inArray(aiOperations.status, CONSUMING_STATUSES),
-          gt(aiOperations.createdAt, staleCutoff)
+          stillCounts(staleCutoff)
         )
       );
     return n > 0 ? AiOperationType.NEW_PROGRAM : AiOperationType.INITIAL_PLAN;
@@ -151,9 +175,8 @@ export class AiOperationService extends BaseService {
           and(
             eq(aiOperations.userId, userId),
             inArray(aiOperations.operationType, types),
-            inArray(aiOperations.status, CONSUMING_STATUSES),
             eq(aiOperations.countedAgainstFreeAllowance, true),
-            gt(aiOperations.createdAt, staleCutoff)
+            stillCounts(staleCutoff)
           )
         );
       return n;
@@ -309,9 +332,8 @@ export class AiOperationService extends BaseService {
             and(
               eq(aiOperations.userId, userId),
               inArray(aiOperations.operationType, bucketTypes),
-              inArray(aiOperations.status, CONSUMING_STATUSES),
               eq(aiOperations.countedAgainstFreeAllowance, true),
-              gt(aiOperations.createdAt, staleCutoff)
+              stillCounts(staleCutoff)
             )
           );
         if (used >= limit) {
