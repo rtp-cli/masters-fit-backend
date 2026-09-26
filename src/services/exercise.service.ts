@@ -20,6 +20,16 @@ import {
   singularizeNormalizedName,
 } from "@/utils/exercise-name-resolution";
 
+/**
+ * The shared catalog: every row no user owns. Generation, LLM name
+ * resolution and catalog listings read only these — a user's own exercises
+ * (ownerUserId set) are visible to that user's edit-search and nowhere else.
+ */
+const IN_CATALOG = isNull(exercises.ownerUserId);
+
+/** Longest name a user can give their own exercise — a label, not a paragraph. */
+export const CUSTOM_EXERCISE_NAME_MAX = 80;
+
 /** Result of resolveExercisesByNames — see that method for the pass order. */
 export interface ExerciseNameResolution {
   /** Keyed by the exact requested string, so callers keep their `map.get(exercise.exerciseName)` shape. */
@@ -325,9 +335,10 @@ export class ExerciseService extends BaseService {
 
   /**
    * Same insert as createExercise, but with a bare `.onConflictDoNothing()`
-   * (no target) so it no-ops against idx_exercises_name_unique instead of
-   * throwing. No target is needed since that's the only unique constraint on
-   * this table — bare ON CONFLICT DO NOTHING applies to any of them. (An
+   * (no target) so it no-ops against idx_exercises_catalog_name_unique instead of
+   * throwing. No target is needed: bare ON CONFLICT DO NOTHING covers every
+   * unique index on the table, partial ones included (a catalog insert has a
+   * null owner, so the per-owner index never fires here). (An
    * earlier version tried a raw sql`` template to target `lower(name)`
    * explicitly, since Drizzle's typed onConflictDoNothing() only accepts real
    * columns — but sql`` silently mis-binds a plain JS array value as a
@@ -368,7 +379,7 @@ export class ExerciseService extends BaseService {
 
   private async getExerciseByExactName(name: string) {
     return await this.db.query.exercises.findFirst({
-      where: sql`lower(${exercises.name}) = lower(${name})`,
+      where: and(IN_CATALOG, sql`lower(${exercises.name}) = lower(${name})`),
     });
   }
 
@@ -381,7 +392,10 @@ export class ExerciseService extends BaseService {
     const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, "");
     if (!normalized) return undefined;
     return await this.db.query.exercises.findFirst({
-      where: sql`regexp_replace(lower(${exercises.name}), '[^a-z0-9]', '', 'g') = ${normalized}`,
+      where: and(
+        IN_CATALOG,
+        sql`regexp_replace(lower(${exercises.name}), '[^a-z0-9]', '', 'g') = ${normalized}`
+      ),
     });
   }
 
@@ -394,7 +408,7 @@ export class ExerciseService extends BaseService {
   }
 
   async getExercises(): Promise<Exercise[]> {
-    const result = await this.db.query.exercises.findMany();
+    const result = await this.db.query.exercises.findMany({ where: IN_CATALOG });
     return result;
   }
 
@@ -427,7 +441,7 @@ export class ExerciseService extends BaseService {
   /**
    * Resolve an LLM-chosen exercise name to a catalog row.
    *
-   * Exact case-insensitive match first (hits idx_exercises_name_unique,
+   * Exact case-insensitive match first (hits idx_exercises_catalog_name_unique,
    * unambiguous). Only on a miss does it fall back to substring matching —
    * and then deterministically, preferring the SHORTEST containing name so
    * "Back Squat" resolves to "Back Squat"-like variants before
@@ -445,7 +459,7 @@ export class ExerciseService extends BaseService {
     const [fuzzy] = await this.db
       .select()
       .from(exercises)
-      .where(ilike(exercises.name, `%${trimmed}%`))
+      .where(and(IN_CATALOG, ilike(exercises.name, `%${trimmed}%`)))
       .orderBy(sql`length(${exercises.name}) asc`, exercises.name)
       .limit(1);
 
@@ -464,7 +478,7 @@ export class ExerciseService extends BaseService {
    * which fired one `ILIKE '%name%'` query per exercise (~30-45 per weekly plan) —
    * and, because a leading-wildcard ILIKE cannot use the name index, each was a
    * sequential scan of the whole catalog. This matches `lower(name)` exactly, hitting
-   * the `idx_exercises_name_unique` functional index. The LLM is instructed to use the
+   * the `idx_exercises_catalog_name_unique` functional index. The LLM is instructed to use the
    * exact names from the provided catalog, so exact match is correct here.
    */
   async getExercisesByNames(names: string[]): Promise<Exercise[]> {
@@ -476,7 +490,7 @@ export class ExerciseService extends BaseService {
     const result = await this.db
       .select()
       .from(exercises)
-      .where(inArray(sql`lower(${exercises.name})`, unique));
+      .where(and(IN_CATALOG, inArray(sql`lower(${exercises.name})`, unique)));
 
     return result as Exercise[];
   }
@@ -540,9 +554,12 @@ export class ExerciseService extends BaseService {
       .select()
       .from(exercises)
       .where(
-        or(
-          inArray(normalizedKey, wantedNormalized),
-          inArray(sql`regexp_replace(${normalizedKey}, 's$', '')`, wantedSingular)
+        and(
+          IN_CATALOG,
+          or(
+            inArray(normalizedKey, wantedNormalized),
+            inArray(sql`regexp_replace(${normalizedKey}, 's$', '')`, wantedSingular)
+          )
         )
       )
       .orderBy(sql`${exercises.hasDemo} desc nulls last`, exercises.id)) as Exercise[];
@@ -601,7 +618,7 @@ export class ExerciseService extends BaseService {
         })
         .from(exercises);
 
-      const conditions = [];
+      const conditions = [IN_CATALOG];
 
       // Filter by muscle groups (if any muscle group overlaps)
       if (filters.muscleGroups && filters.muscleGroups.length > 0) {
@@ -706,11 +723,79 @@ export class ExerciseService extends BaseService {
       .from(exercises);
 
     const condition = this.buildEquipmentCondition(equipment);
-    if (condition) {
-      query = query.where(condition) as any;
-    }
+    query = query.where(condition ? and(IN_CATALOG, condition) : IN_CATALOG) as any;
     const result = await query;
     return result as ExerciseMetadata[];
+  }
+
+  /**
+   * A user's own exercise, typed in when edit-search had nothing for it.
+   * Idempotent per user: the same name (case-insensitive) returns the row they
+   * already made rather than erroring, so a double-tap or a re-add of
+   * yesterday's "Sled push + pull" just finds it again.
+   *
+   * Deliberately bare: no muscle groups (an empty array, so it never inflates
+   * a muscle's volume in analytics), no equipment, no demo. The generator never
+   * sees it, so none of the fields it plans around are needed.
+   */
+  async createCustomExercise(userId: number, rawName: string): Promise<Exercise> {
+    const name = rawName.trim().replace(/\s+/g, " ");
+    if (!name) throw new Error("Exercise name is required");
+    if (name.length > CUSTOM_EXERCISE_NAME_MAX) {
+      throw new Error(`Exercise name must be ${CUSTOM_EXERCISE_NAME_MAX} characters or fewer`);
+    }
+
+    const findOwn = () =>
+      this.db.query.exercises.findFirst({
+        where: and(
+          eq(exercises.ownerUserId, userId),
+          sql`lower(${exercises.name}) = lower(${name})`
+        ),
+      });
+
+    const existing = await findOwn();
+    if (existing) return existing as Exercise;
+
+    // Bare onConflictDoNothing(): the per-owner unique index is partial, which
+    // a targeted conflict clause can't name. A concurrent twin insert loses the
+    // race and reads back the winner.
+    const [inserted] = await this.db
+      .insert(exercises)
+      .values({
+        name,
+        instructions: "",
+        muscleGroups: [],
+        ownerUserId: userId,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (inserted) {
+      logger.info("Custom exercise created", {
+        operation: "createCustomExercise",
+        userId,
+        metadata: { exerciseId: inserted.id },
+      });
+      return inserted as Exercise;
+    }
+
+    const winner = await findOwn();
+    if (winner) return winner as Exercise;
+    throw new Error("Could not create exercise");
+  }
+
+  /**
+   * Whether `userId` may put `exerciseId` into a workout: any catalog row, or
+   * one of their own. Guards add/replace, which otherwise accept any id —
+   * without it one user could reference (and so read the name of) another
+   * user's exercise, and account deletion would then trip that FK.
+   */
+  async isUsableBy(exerciseId: number, userId: number): Promise<boolean> {
+    const row = await this.db.query.exercises.findFirst({
+      where: eq(exercises.id, exerciseId),
+      columns: { ownerUserId: true },
+    });
+    if (!row) return false;
+    return row.ownerUserId === null || row.ownerUserId === userId;
   }
 }
 

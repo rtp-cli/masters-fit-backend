@@ -37,6 +37,7 @@ import {
 import {
   buildPlanDaySchedule,
   buildCalendarAlignedSchedule,
+  trainingDaysFor,
   computeAdjacentDayPairs,
 } from "@/utils/plan-schedule";
 import {
@@ -254,10 +255,17 @@ async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
     (profile.timezone
       ? getCurrentDateStringInTimezone(profile.timezone)
       : getCurrentDateString());
+  // [LR-085] Same training days the agent will use — a getting-moving profile
+  // trains on a spread subset of its available days.
+  const trainingDays = trainingDaysFor(
+    profile.fitnessLevel,
+    profile.availableDays,
+    startDate
+  );
   const schedule =
     process.env.CALENDAR_ALIGNED_SERIES === "true"
-      ? buildCalendarAlignedSchedule(profile.availableDays, startDate)
-      : buildPlanDaySchedule(profile.availableDays, startDate);
+      ? buildCalendarAlignedSchedule(trainingDays, startDate)
+      : buildPlanDaySchedule(trainingDays, startDate);
   const checks = scenario.buildChecks(schedule, profile);
 
   const startedAt = Date.now();

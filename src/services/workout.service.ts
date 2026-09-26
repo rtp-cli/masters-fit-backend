@@ -881,10 +881,14 @@ export class WorkoutService extends BaseService {
       eq0.every((e) => e.includes("bodyweight") || e.includes("none"));
 
     // Update the exercise ID while preserving the other workout parameters.
+    // Except `notes`: that's the generator's coaching cue for the OLD movement
+    // ("lower chest to near floor"), which read as instructions for whatever
+    // replaced it — glaring once the replacement is a user's own "sled push".
     const [updatedExercise] = await this.db
       .update(planDayExercises)
       .set({
         exerciseId: newExerciseId,
+        notes: null,
         ...(isBodyweight ? { weight: null } : {}),
         updatedAt: new Date(),
       })

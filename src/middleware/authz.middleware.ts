@@ -2,6 +2,7 @@ import { Request, Response, NextFunction, RequestHandler } from "express";
 import { expressAuthentication } from "@/middleware/auth.middleware";
 import { ownershipService, OwnedObjectType } from "@/services/ownership.service";
 import { accessService } from "@/services/access.service";
+import { exerciseService } from "@/services/exercise.service";
 import { Capability } from "@/constants/access-policy";
 import { requiresPlusMessageFor } from "@/constants/paywall-copy";
 import { logger } from "@/utils/logger";
@@ -199,6 +200,41 @@ export function requireOwnershipFromBody(
         operation: "requireOwnershipFromBody",
         userId: req.userId,
         metadata: { type, objectId },
+      });
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  };
+}
+
+/**
+ * Asserts the exercise id in req.body[bodyKey] is one the caller may put in a
+ * workout: a catalog exercise or one they created themselves. Exercises are
+ * not "owned" objects in ownershipService's sense — catalog rows belong to no
+ * one — so this is its own guard. 404 (not 403) for another user's exercise,
+ * so the response doesn't confirm that id exists.
+ */
+export function requireUsableExerciseFromBody(bodyKey: string): RequestHandler {
+  return async function requireUsableExerciseFromBodyGuard(
+    req: AuthedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    const exerciseId = Number(req.body?.[bodyKey]);
+    if (!Number.isInteger(exerciseId) || exerciseId <= 0) {
+      res.status(400).json({ success: false, error: `Invalid ${bodyKey}` });
+      return;
+    }
+    try {
+      if (!(await exerciseService.isUsableBy(exerciseId, req.userId!))) {
+        res.status(404).json({ success: false, error: "Exercise not found" });
+        return;
+      }
+      next();
+    } catch (error) {
+      logger.error("Exercise usability check failed", error as Error, {
+        operation: "requireUsableExerciseFromBody",
+        userId: req.userId,
+        metadata: { exerciseId },
       });
       res.status(500).json({ success: false, error: "Internal server error" });
     }

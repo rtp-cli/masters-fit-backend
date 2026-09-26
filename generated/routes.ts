@@ -15,6 +15,8 @@ import { ExerciseController } from './../src/controllers/exercise.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { FeedbackController } from './../src/controllers/feedback.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { LoggedActivityController } from './../src/controllers/logged-activity.controller';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { LogsController } from './../src/controllers/logs.controller';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { ProfileController } from './../src/controllers/profile.controller';
@@ -518,6 +520,55 @@ const models: TsoaRoute.Models = {
         "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "LoggedActivityType": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["walk"]},{"dataType":"enum","enums":["run"]},{"dataType":"enum","enums":["bike"]},{"dataType":"enum","enums":["swim"]},{"dataType":"enum","enums":["hike"]},{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["yoga"]},{"dataType":"enum","enums":["racket_sport"]},{"dataType":"enum","enums":["golf"]},{"dataType":"enum","enums":["other"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "LoggedActivityEffort": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["easy"]},{"dataType":"enum","enums":["moderate"]},{"dataType":"enum","enums":["hard"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "LoggedActivity": {
+        "dataType": "refObject",
+        "properties": {
+            "id": {"dataType":"double","required":true},
+            "userId": {"dataType":"double","required":true},
+            "date": {"dataType":"string","required":true},
+            "activityType": {"ref":"LoggedActivityType","required":true},
+            "customType": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+            "durationMinutes": {"dataType":"double","required":true},
+            "effort": {"dataType":"union","subSchemas":[{"ref":"LoggedActivityEffort"},{"dataType":"enum","enums":[null]}],"required":true},
+            "notes": {"dataType":"union","subSchemas":[{"dataType":"string"},{"dataType":"enum","enums":[null]}],"required":true},
+            "createdAt": {"dataType":"datetime","required":true},
+            "updatedAt": {"dataType":"datetime","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "CreateActivityResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"boolean","required":true},
+            "error": {"dataType":"string"},
+            "data": {"dataType":"void"},
+            "activity": {"ref":"LoggedActivity"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "ListActivitiesResponse": {
+        "dataType": "refObject",
+        "properties": {
+            "success": {"dataType":"boolean","required":true},
+            "error": {"dataType":"string"},
+            "data": {"dataType":"void"},
+            "activities": {"dataType":"array","array":{"dataType":"refObject","ref":"LoggedActivity"},"required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "ExerciseLog": {
         "dataType": "refObject",
         "properties": {
@@ -805,12 +856,12 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Gender": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["male"]},{"dataType":"enum","enums":["female"]},{"dataType":"enum","enums":["other"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["other"]},{"dataType":"enum","enums":["male"]},{"dataType":"enum","enums":["female"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "FitnessGoal": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["general_fitness"]},{"dataType":"enum","enums":["fat_loss"]},{"dataType":"enum","enums":["endurance"]},{"dataType":"enum","enums":["muscle_gain"]},{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["mobility_flexibility"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["recovery"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["general_fitness"]},{"dataType":"enum","enums":["fat_loss"]},{"dataType":"enum","enums":["endurance"]},{"dataType":"enum","enums":["muscle_gain"]},{"dataType":"enum","enums":["mobility_flexibility"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["recovery"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "FitnessLevel": {
@@ -830,12 +881,12 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "AvailableEquipment": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["bodyweight"]},{"dataType":"enum","enums":["barbells"]},{"dataType":"enum","enums":["bench"]},{"dataType":"enum","enums":["incline_decline_bench"]},{"dataType":"enum","enums":["pull_up_bar"]},{"dataType":"enum","enums":["bike"]},{"dataType":"enum","enums":["medicine_balls"]},{"dataType":"enum","enums":["plyo_box"]},{"dataType":"enum","enums":["rings"]},{"dataType":"enum","enums":["resistance_bands"]},{"dataType":"enum","enums":["stability_ball"]},{"dataType":"enum","enums":["dumbbells"]},{"dataType":"enum","enums":["kettlebells"]},{"dataType":"enum","enums":["squat_rack"]},{"dataType":"enum","enums":["dip_bar"]},{"dataType":"enum","enums":["rowing_machine"]},{"dataType":"enum","enums":["slam_balls"]},{"dataType":"enum","enums":["cable_machine"]},{"dataType":"enum","enums":["jump_rope"]},{"dataType":"enum","enums":["foam_roller"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["bike"]},{"dataType":"enum","enums":["bodyweight"]},{"dataType":"enum","enums":["barbells"]},{"dataType":"enum","enums":["bench"]},{"dataType":"enum","enums":["incline_decline_bench"]},{"dataType":"enum","enums":["pull_up_bar"]},{"dataType":"enum","enums":["medicine_balls"]},{"dataType":"enum","enums":["plyo_box"]},{"dataType":"enum","enums":["rings"]},{"dataType":"enum","enums":["resistance_bands"]},{"dataType":"enum","enums":["stability_ball"]},{"dataType":"enum","enums":["dumbbells"]},{"dataType":"enum","enums":["kettlebells"]},{"dataType":"enum","enums":["squat_rack"]},{"dataType":"enum","enums":["dip_bar"]},{"dataType":"enum","enums":["rowing_machine"]},{"dataType":"enum","enums":["slam_balls"]},{"dataType":"enum","enums":["cable_machine"]},{"dataType":"enum","enums":["jump_rope"]},{"dataType":"enum","enums":["foam_roller"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreferredStyles": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["hiit"]},{"dataType":"enum","enums":["cardio"]},{"dataType":"enum","enums":["rehab"]},{"dataType":"enum","enums":["crossfit"]},{"dataType":"enum","enums":["functional"]},{"dataType":"enum","enums":["pilates"]},{"dataType":"enum","enums":["yoga"]},{"dataType":"enum","enums":["mobility"]},{"dataType":"enum","enums":["walking_movement"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["strength"]},{"dataType":"enum","enums":["yoga"]},{"dataType":"enum","enums":["balance"]},{"dataType":"enum","enums":["hiit"]},{"dataType":"enum","enums":["cardio"]},{"dataType":"enum","enums":["rehab"]},{"dataType":"enum","enums":["crossfit"]},{"dataType":"enum","enums":["functional"]},{"dataType":"enum","enums":["pilates"]},{"dataType":"enum","enums":["mobility"]},{"dataType":"enum","enums":["walking_movement"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "PreferredDay": {
@@ -845,7 +896,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "IntensityLevel": {
         "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["low"]},{"dataType":"enum","enums":["moderate"]},{"dataType":"enum","enums":["high"]}],"validators":{}},
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["moderate"]},{"dataType":"enum","enums":["low"]},{"dataType":"enum","enums":["high"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Profile": {
@@ -2502,6 +2553,88 @@ export function RegisterRoutes(app: Router) {
 
               const promise = controller.createFeedback.apply(controller, validatedArgs as any);
               promiseHandler(controller, promise, response, 201, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.post('/activities',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LoggedActivityController)),
+            ...(fetchMiddlewares<RequestHandler>(LoggedActivityController.prototype.createActivity)),
+
+            function LoggedActivityController_createActivity(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+                    requestBody: {"in":"body","name":"requestBody","required":true,"dataType":"any"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new LoggedActivityController();
+
+
+              const promise = controller.createActivity.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 201, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.get('/activities',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LoggedActivityController)),
+            ...(fetchMiddlewares<RequestHandler>(LoggedActivityController.prototype.listActivities)),
+
+            function LoggedActivityController_listActivities(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+                    startDate: {"in":"query","name":"startDate","dataType":"string"},
+                    endDate: {"in":"query","name":"endDate","dataType":"string"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new LoggedActivityController();
+
+
+              const promise = controller.listActivities.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        app.delete('/activities/:activityId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LoggedActivityController)),
+            ...(fetchMiddlewares<RequestHandler>(LoggedActivityController.prototype.deleteActivity)),
+
+            function LoggedActivityController_deleteActivity(request: any, response: any, next: any) {
+            const args = {
+                    request: {"in":"request","name":"request","required":true,"dataType":"object"},
+                    activityId: {"in":"path","name":"activityId","required":true,"dataType":"double"},
+            };
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = getValidatedArgs(args, request, response);
+
+                const controller = new LoggedActivityController();
+
+
+              const promise = controller.deleteActivity.apply(controller, validatedArgs as any);
+              promiseHandler(controller, promise, response, 200, next);
             } catch (err) {
                 return next(err);
             }

@@ -34,6 +34,18 @@ async function resetLedger() {
   await db.delete(aiOperations).where(eq(aiOperations.userId, testUserId));
 }
 
+/**
+ * [LR-087] Age every ledger row for the test user by `minutes`. The original
+ * tests made all their requests within seconds, so they could never see that
+ * completed operations stopped counting once they were 15 minutes old.
+ */
+async function backdateLedger(minutes: number) {
+  await db
+    .update(aiOperations)
+    .set({ createdAt: sql`now() - make_interval(mins => ${minutes})` })
+    .where(eq(aiOperations.userId, testUserId));
+}
+
 async function setTier(tier: AccessTier) {
   // FREE = trial; PLUS = active. Set directly for the test.
   const status =
@@ -199,6 +211,93 @@ describe("AiOperationService (integration, local DB)", () => {
         totalTokens: 10,
       });
     }
+    expect(await aiOperationService.resolveGenerationType(testUserId)).toBe(
+      AiOperationType.NEW_PROGRAM
+    );
+  });
+
+  // ── [LR-087] A spent free allowance must stay spent ─────────────────────
+  // Before the fix, the 15-minute stale-RESERVATION cutoff was also applied to
+  // COMPLETED rows, so every "lifetime" free allowance was one-per-15-minutes.
+
+  it("a completed free week build still counts an hour later (lifetime, not 15 min)", async () => {
+    if (!dbAvailable) return;
+    const first = await aiOperationService.reserve({
+      userId: testUserId,
+      operationType: AiOperationType.WEEK_ADJUSTMENT,
+      idempotencyKey: KEY("w-old"),
+    });
+    expect(first.status).toBe("reserved");
+    if (first.status === "reserved") {
+      await aiOperationService.settleCompleted(first.operationId, {
+        totalTokens: 100,
+      });
+    }
+    await backdateLedger(60);
+
+    const second = await aiOperationService.reserve({
+      userId: testUserId,
+      operationType: AiOperationType.WEEK_ADJUSTMENT,
+      idempotencyKey: KEY("w-new"),
+    });
+    expect(second.status).toBe("denied");
+    if (second.status === "denied") {
+      expect(second.reason).toBe("FREE_ALLOWANCE_EXHAUSTED");
+    }
+  });
+
+  it("status endpoint reports an hour-old completed week build as used", async () => {
+    if (!dbAvailable) return;
+    const r = await aiOperationService.reserve({
+      userId: testUserId,
+      operationType: AiOperationType.WEEK_ADJUSTMENT,
+      idempotencyKey: KEY("w-status"),
+    });
+    if (r.status === "reserved") {
+      await aiOperationService.settleCompleted(r.operationId, {
+        totalTokens: 100,
+      });
+    }
+    await backdateLedger(60);
+
+    const status = await aiOperationService.getFreeAllowanceStatus(testUserId);
+    expect(status.weekAdjustment).toEqual({ limit: 1, used: 1, remaining: 0 });
+  });
+
+  it("a stale reservation that never settled still does NOT consume the allowance", async () => {
+    if (!dbAvailable) return;
+    // Reserve but never settle (a crashed job), then age it past the window.
+    const r = await aiOperationService.reserve({
+      userId: testUserId,
+      operationType: AiOperationType.WEEK_ADJUSTMENT,
+      idempotencyKey: KEY("w-stale"),
+    });
+    expect(r.status).toBe("reserved");
+    await backdateLedger(60);
+
+    const status = await aiOperationService.getFreeAllowanceStatus(testUserId);
+    expect(status.weekAdjustment.remaining).toBe(1);
+    const retry = await aiOperationService.reserve({
+      userId: testUserId,
+      operationType: AiOperationType.WEEK_ADJUSTMENT,
+      idempotencyKey: KEY("w-after-stale"),
+    });
+    expect(retry.status).toBe("reserved");
+  });
+
+  it("resolveGenerationType: an hour-old completed initial plan still means NEW_PROGRAM", async () => {
+    if (!dbAvailable) return;
+    const r = await aiOperationService.reserve({
+      userId: testUserId,
+      operationType: AiOperationType.INITIAL_PLAN,
+      idempotencyKey: KEY("init-old"),
+    });
+    if (r.status === "reserved") {
+      await aiOperationService.settleCompleted(r.operationId, {
+        totalTokens: 10,
+      });
+    }
+    await backdateLedger(60);
     expect(await aiOperationService.resolveGenerationType(testUserId)).toBe(
       AiOperationType.NEW_PROGRAM
     );

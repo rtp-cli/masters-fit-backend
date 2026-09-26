@@ -193,9 +193,16 @@ export function validateFitnessLevelAndFilter(
  * scary exercises removed.
  */
 export function describeFitnessLevelProgramming(
-  fitnessLevel: string | null | undefined
+  fitnessLevel: string | null | undefined,
+  preferredStyles?: string[] | null
 ): string | null {
   if (fitnessLevel !== FitnessLevels.BEGINNER) return null;
+
+  // [LR-085] The walking floor depends on whether they said walking is their
+  // training. Two of three sessions if so; at least one a week regardless.
+  const walks = (preferredStyles ?? []).some(
+    (st) => st?.toLowerCase() === "walking_movement"
+  );
 
   return [
     "**THIS USER IS GETTING MOVING — PROGRAM FOR WEEK ONE, NOT FOR A TRAINING AGE.**",
@@ -206,6 +213,12 @@ export function describeFitnessLevelProgramming(
     "- Keep volume conservative: fewer sets, rep ranges they can finish with form intact, and generous rest. A session they complete beats a session that is 'correct'.",
     "- Walking, incline walking and rucking are fully legitimate primary sessions at this level — for someone who has neglected their fitness, a walk may be the only training they can sustain until it improves. Program it as real training, not as a warm-up or a filler.",
     "- Progression is the point: leave obvious room to add minutes, reps or load next week. Do not spend the whole ceiling in week one.",
+    // [LR-085] The getting-moving plan SHAPE, not just its content.
+    "- **The schedule lists every training day — usually 3 a week, spread out.** The user said they're free on more days than that; the others are deliberate REST. Never add a session, a 'light day' or an 'active recovery' day on a date that isn't listed. Rest is part of this plan.",
+    "- **At most 4 working movements per session**, not counting the warm-up and cool-down. Fill the time with more sets of fewer movements, not with more movements — a beginner can't learn nine new movements in one sitting.",
+    walks
+      ? "- **They chose Walking & Movement: make at least 2 of each week's sessions walk-led** (brisk walk, incline walk, hills, rucking or hiking as the main block). The remaining session can be simple strength, mobility and balance."
+      : "- **Include at least one walk-led session each week** (brisk walk, incline walk or hills as the main block), even though walking isn't their chosen style. It is the most sustainable training at this level.",
   ].join("\n");
 }
 
@@ -215,8 +228,105 @@ export function describeFitnessLevelProgramming(
  * can interpolate it inline without leaving a stray heading or blank gap.
  */
 export function fitnessLevelPromptSection(
-  fitnessLevel: string | null | undefined
+  fitnessLevel: string | null | undefined,
+  preferredStyles?: string[] | null
 ): string {
-  const section = describeFitnessLevelProgramming(fitnessLevel);
+  const section = describeFitnessLevelProgramming(fitnessLevel, preferredStyles);
   return section ? `${section}\n\n` : "";
+}
+
+/** [LR-085] Working movements per session for a "getting moving" user. */
+export const BEGINNER_MAX_WORKING_MOVEMENTS = 4;
+
+export interface WorkingMovementCapFinding {
+  day: number;
+  kept: number;
+  dropped: string[];
+}
+
+/**
+ * [LR-085] Trim each session to its first `max` distinct WORKING movements for a
+ * "getting moving" user. Warm-up and cool-down blocks are untouched.
+ *
+ * The prompt asks for this, and the first real run showed why asking isn't
+ * enough: the walk days complied and the strength day came back with SEVEN
+ * working movements. Same lesson as limitations and repeats — prompt, then
+ * enforce.
+ *
+ * Keeps movements in plan order, because the first working block is the main
+ * one — EXCEPT that for a Walking & Movement user, walking movements are kept
+ * first. The second real run dropped "Walking" from a walker's day purely
+ * because it was listed fifth; for them the walk is the last thing to cut.
+ * A movement that appears again later — a
+ * ramping ladder, a second set listed separately — is kept, since it isn't a new
+ * movement to learn. A block left with no exercises is removed.
+ *
+ * Runs immediately BEFORE the duration fit, which only adds sets/rounds to
+ * existing exercises: a trimmed day is topped back up with more work on the same
+ * few movements, never with new ones. No-op for every other level.
+ */
+export function capWorkingMovements(
+  workoutPlan: any[],
+  profile: Profile,
+  max = BEGINNER_MAX_WORKING_MOVEMENTS
+): { workoutPlan: any[]; findings: WorkingMovementCapFinding[] } {
+  if (!isBeginner(profile)) return { workoutPlan, findings: [] };
+
+  const WARMUP_COOLDOWN = new Set(["warmup", "cooldown"]);
+  const key = (n: unknown) => String(n ?? "").trim().toLowerCase();
+  const findings: WorkingMovementCapFinding[] = [];
+
+  const walker = ((profile.preferredStyles as string[] | null) ?? []).some(
+    (st) => key(st) === "walking_movement"
+  );
+  // Walk-shaped movements — never "in place" marching, which the walking
+  // modality already rules out.
+  const isWalk = (k: string) =>
+    /\b(walk|walking|hike|hiking|ruck|rucking)\b/.test(k) && !k.includes("in place");
+
+  const capped = (workoutPlan ?? []).map((day) => {
+    // Distinct working movements in plan order; walkers get walks promoted.
+    const order: string[] = [];
+    for (const block of day.blocks || []) {
+      if (WARMUP_COOLDOWN.has(key(block.blockType))) continue;
+      for (const ex of block.exercises || []) {
+        const k = key(ex.exerciseName);
+        if (k && !order.includes(k)) order.push(k);
+      }
+    }
+    const ranked = walker
+      ? [...order.filter(isWalk), ...order.filter((k) => !isWalk(k))]
+      : order;
+    const keep = new Set(ranked.slice(0, max));
+
+    const dropped: string[] = [];
+    const blocks = (day.blocks || [])
+      .map((block: any) => {
+        if (WARMUP_COOLDOWN.has(key(block.blockType))) return block;
+        const exercises = (block.exercises || []).filter((ex: any) => {
+          const k = key(ex.exerciseName);
+          if (!k || keep.has(k)) return true;
+          dropped.push(ex.exerciseName);
+          return false;
+        });
+        return { ...block, exercises };
+      })
+      .filter(
+        (block: any) =>
+          WARMUP_COOLDOWN.has(key(block.blockType)) ||
+          (block.exercises || []).length > 0
+      );
+    if (dropped.length > 0) {
+      findings.push({ day: day.day, kept: keep.size, dropped });
+      logger.warn("Trimmed a getting-moving session to its first working movements", {
+        operation: "capWorkingMovements",
+        day: day.day,
+        max,
+        dropped,
+      });
+    }
+    return { ...day, blocks };
+  });
+
+  return { workoutPlan: capped, findings };
 }

@@ -79,6 +79,10 @@ import {
   resolveEffectiveSchedule,
   computeAdjacentDayPairs,
   scheduleClampConflict,
+  effectiveAvailableDays,
+  normalizeWeekdays,
+  trainingDaysFor,
+  beginnerDaysPerWeek,
 } from "@/utils/plan-schedule";
 import {
   getCurrentDateString,
@@ -909,9 +913,32 @@ Please generate the workout now, addressing this feedback while following all sy
     // can recompute this after planning. Calendar-aligned mode bounds the
     // series by the calendar window (through the next Sunday >= 7 days out)
     // instead of one slot per available day.
+    // [LR-085] "Getting moving" users train on a spread subset of the days
+    // they're free (default 3/week, Mon/Wed/Fri-style, including today when an
+    // equally spread set allows) rather than every available day.
+    // A 42-year-old beginner who ticked all seven days was given ten straight
+    // training days; rest is part of the plan at this level. They can still ask
+    // for more in "Change my whole week" (see asksForDayCount below).
+    const availableForSchedule = effectiveAvailableDays(profile.availableDays);
+    const trainingDays = trainingDaysFor(
+      profile.fitnessLevel,
+      profile.availableDays,
+      scheduleStartDate
+    );
+    if (trainingDays.length < availableForSchedule.length) {
+      logger.info("Applied getting-moving training-day spread", {
+        userId,
+        operation: "generateWeeklyWorkout",
+        metadata: {
+          availableDays: availableForSchedule,
+          trainingDays,
+          perWeek: beginnerDaysPerWeek(),
+        },
+      });
+    }
     let schedule = CALENDAR_ALIGNED_SERIES
-      ? buildCalendarAlignedSchedule(profile.availableDays, scheduleStartDate)
-      : buildPlanDaySchedule(profile.availableDays, scheduleStartDate);
+      ? buildCalendarAlignedSchedule(trainingDays, scheduleStartDate)
+      : buildPlanDaySchedule(trainingDays, scheduleStartDate);
 
     // Abort scope for the fan-out: forwards an external abort, and lets a
     // terminal day failure cancel sibling in-flight calls instead of letting
@@ -1137,9 +1164,16 @@ ${exerciseContext}`;
       const scheduleOverride = mentionsScheduleChange(customFeedback)
         ? weekPlan.constraints?.schedule
         : undefined;
+      // [LR-085] An explicit day COUNT or named days in the live request is the
+      // user asking for a different number of training days — resolve it
+      // against everything they're free, so "I want five days" escapes the
+      // getting-moving spread. A start-day-only change keeps the spread.
+      const asksForDayCount =
+        scheduleOverride?.dayCount != null ||
+        normalizeWeekdays(scheduleOverride?.daysOfWeek).length > 0;
       const effective = resolveEffectiveSchedule(
         scheduleOverride,
-        profile.availableDays,
+        asksForDayCount ? profile.availableDays : trainingDays,
         scheduleStartDate
       );
       if (effective.overridden) {

@@ -1376,6 +1376,131 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"LoggedActivityType": {
+				"type": "string",
+				"enum": [
+					"walk",
+					"run",
+					"bike",
+					"swim",
+					"hike",
+					"strength",
+					"yoga",
+					"racket_sport",
+					"golf",
+					"other"
+				]
+			},
+			"LoggedActivityEffort": {
+				"type": "string",
+				"enum": [
+					"easy",
+					"moderate",
+					"hard"
+				]
+			},
+			"LoggedActivity": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"userId": {
+						"type": "number",
+						"format": "double"
+					},
+					"date": {
+						"type": "string"
+					},
+					"activityType": {
+						"$ref": "#/components/schemas/LoggedActivityType"
+					},
+					"customType": {
+						"type": "string",
+						"nullable": true
+					},
+					"durationMinutes": {
+						"type": "number",
+						"format": "double"
+					},
+					"effort": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/LoggedActivityEffort"
+							}
+						],
+						"nullable": true
+					},
+					"notes": {
+						"type": "string",
+						"nullable": true
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"date",
+					"activityType",
+					"customType",
+					"durationMinutes",
+					"effort",
+					"notes",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateActivityResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"activity": {
+						"$ref": "#/components/schemas/LoggedActivity"
+					}
+				},
+				"required": [
+					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ListActivitiesResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"activities": {
+						"items": {
+							"$ref": "#/components/schemas/LoggedActivity"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"success",
+					"activities"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"ExerciseLog": {
 				"properties": {
 					"id": {
@@ -2212,19 +2337,19 @@
 			"Gender": {
 				"type": "string",
 				"enum": [
+					"other",
 					"male",
-					"female",
-					"other"
+					"female"
 				]
 			},
 			"FitnessGoal": {
 				"type": "string",
 				"enum": [
+					"strength",
 					"general_fitness",
 					"fat_loss",
 					"endurance",
 					"muscle_gain",
-					"strength",
 					"mobility_flexibility",
 					"balance",
 					"recovery"
@@ -2270,12 +2395,12 @@
 			"AvailableEquipment": {
 				"type": "string",
 				"enum": [
+					"bike",
 					"bodyweight",
 					"barbells",
 					"bench",
 					"incline_decline_bench",
 					"pull_up_bar",
-					"bike",
 					"medicine_balls",
 					"plyo_box",
 					"rings",
@@ -2296,6 +2421,7 @@
 				"type": "string",
 				"enum": [
 					"strength",
+					"yoga",
 					"balance",
 					"hiit",
 					"cardio",
@@ -2303,7 +2429,6 @@
 					"crossfit",
 					"functional",
 					"pilates",
-					"yoga",
 					"mobility",
 					"walking_movement"
 				]
@@ -2323,8 +2448,8 @@
 			"IntensityLevel": {
 				"type": "string",
 				"enum": [
-					"low",
 					"moderate",
+					"low",
 					"high"
 				]
 			},
@@ -6923,6 +7048,140 @@
 						}
 					}
 				}
+			}
+		},
+		"/activities": {
+			"post": {
+				"operationId": "CreateActivity",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateActivityResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Log an activity. The user is taken from the session, never the body.\n\n`today` is the caller's LOCAL date, sent by the client, because the server\ncannot know what day it is where the user is standing.",
+				"tags": [
+					"Activities"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {}
+						}
+					}
+				}
+			},
+			"get": {
+				"operationId": "ListActivities",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ListActivitiesResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "The caller's activities, optionally within a date window. The calendar asks\nfor a month; the dashboard asks for one day.",
+				"tags": [
+					"Activities"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/activities/{activityId}": {
+			"delete": {
+				"operationId": "DeleteActivity",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Not Found",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Remove one. Scoped to the caller inside the service, so an id belonging to\nsomeone else is a 404 rather than a deletion.",
+				"tags": [
+					"Activities"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "activityId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
 			}
 		},
 		"/logs/exercise": {

@@ -49,6 +49,17 @@ export const users = pgTable(
     // never started it) and a user can legitimately be eligible for both. One
     // shared column would silently suppress the second.
     activationNudgeSentAt: timestamp("activation_nudge_sent_at"),
+    // featureTourSentAt — the "features you may have missed" email went out.
+    // Its own column for the same reason activationNudgeSentAt is separate from
+    // onboardingNudgeSentAt: it targets a different audience entirely (people
+    // who HAVE trained, rather than people who never started), and a shared
+    // column would silently suppress whichever send came second.
+    featureTourSentAt: timestamp("feature_tour_sent_at"),
+    // comebackSentAt — the "your plan ran out, want to try again?" email went
+    // out. Its own column again: this targets people who never started AND whose
+    // plan has since expired, which is a different set from both nudges and from
+    // the feature tour.
+    comebackSentAt: timestamp("comeback_sent_at"),
     // emailOptedOutAt — this person clicked unsubscribe. Checked before every
     // non-transactional send. Set by an unauthenticated link, so it is
     // deliberately the ONLY thing that link can write.

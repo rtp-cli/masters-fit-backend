@@ -19,3 +19,4 @@ export * from "@/models/account-deletion-log.schema";
 export * from "@/models/training-location.schema";
 export * from "@/models/signup-notification.schema";
 export * from "@/models/analytics-event.schema";
+export * from "@/models/logged-activity.schema";
