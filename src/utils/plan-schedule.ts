@@ -1,3 +1,4 @@
+import { FitnessLevels } from "@/constants/profile";
 import { getDateForWeekday, addDays } from "./date.utils";
 
 /**
@@ -47,6 +48,99 @@ export function effectiveAvailableDays(
   return availableDays && availableDays.length > 0
     ? availableDays
     : [...DEFAULT_AVAILABLE_DAYS];
+}
+
+/**
+ * [LR-085] Pick `maxDays` training weekdays out of the user's available days,
+ * spread as far apart as possible — for the "getting moving" plan shape, which
+ * trains fewer days than someone says they're free.
+ *
+ * Why not reuse buildCalendarAlignedSchedule's `maxDaysPerWeek`: that cap keeps
+ * the EARLIEST days in each week, so capping a seven-day user at three gives
+ * Monday, Tuesday, Wednesday and then four days off — three days in a row for
+ * someone who hasn't exercised in years. Spreading gives Mon/Wed/Fri.
+ *
+ * Choice, by brute force over the (at most 35) subsets:
+ *   1. maximise the smallest gap between training days, counting the wrap from
+ *      Sunday back to Monday — no back-to-back days if it can be avoided;
+ *   2. prefer a set that includes `preferWeekday` (today) — a first plan with a
+ *      session today is the one most likely to get started (LR-071);
+ *   3. then the earliest days, Monday-first, so the result is deterministic.
+ *
+ * Returns the input unchanged when there's nothing to cut. Output is ordered
+ * Monday-first; callers rotate from their own start date anyway.
+ */
+export function spreadTrainingDays(
+  availableDays: string[],
+  maxDays: number,
+  preferWeekday?: string
+): string[] {
+  const MONDAY_FIRST = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ];
+  const days = [...new Set(availableDays.map((d) => d.trim().toLowerCase()))]
+    .filter((d) => MONDAY_FIRST.includes(d))
+    .sort((a, b) => MONDAY_FIRST.indexOf(a) - MONDAY_FIRST.indexOf(b));
+  if (maxDays <= 0 || days.length <= maxDays) return days;
+
+  const idx = days.map((d) => MONDAY_FIRST.indexOf(d));
+  const prefer = preferWeekday ? MONDAY_FIRST.indexOf(preferWeekday.toLowerCase()) : -1;
+
+  let best: number[] | null = null;
+  let bestKey: number[] | null = null;
+  const pick = (start: number, chosen: number[]) => {
+    if (chosen.length === maxDays) {
+      const gaps = chosen.map((d, i) =>
+        i < chosen.length - 1 ? chosen[i + 1] - d : chosen[0] + 7 - d
+      );
+      // Higher is better for each component; lexicographic index compare last.
+      const key = [Math.min(...gaps), chosen.includes(prefer) ? 1 : 0];
+      const better =
+        !bestKey ||
+        key[0] > bestKey[0] ||
+        (key[0] === bestKey[0] && key[1] > bestKey[1]);
+      if (better) {
+        best = [...chosen];
+        bestKey = key;
+      }
+      return;
+    }
+    for (let i = start; i < idx.length; i++) pick(i + 1, [...chosen, idx[i]]);
+  };
+  pick(0, []);
+  // Subsets are generated in lexicographic order and only strictly better ones
+  // replace the incumbent, so ties already resolve to the earliest days.
+  return (best as number[] | null ?? idx.slice(0, maxDays)).map((i) => MONDAY_FIRST[i]);
+}
+
+/**
+ * [LR-085] Training days per calendar week for a "getting moving" (beginner)
+ * user, however many days they said they're free. Env-tunable; defaults to 3.
+ */
+export function beginnerDaysPerWeek(): number {
+  return Math.max(1, Number(process.env.BEGINNER_DAYS_PER_WEEK) || 3);
+}
+
+/**
+ * [LR-085] The weekdays a plan should actually train on. For a "getting moving"
+ * user it's a spread subset of their available days (see spreadTrainingDays);
+ * for everyone else it's all of them. Single source of truth for the agent AND
+ * the eval harness, so the harness's day-scoped checks line up with the plan.
+ */
+export function trainingDaysFor(
+  fitnessLevel: string | null | undefined,
+  availableDays: string[] | null | undefined,
+  startDate: string
+): string[] {
+  const available = effectiveAvailableDays(availableDays);
+  if (fitnessLevel !== FitnessLevels.BEGINNER) return available;
+  return spreadTrainingDays(available, beginnerDaysPerWeek(), weekdayNameOf(startDate));
 }
 
 const MONTHS_SHORT = [
@@ -132,6 +226,11 @@ export function buildPlanDaySchedule(
 function weekdayIndexOf(date: string): number {
   const [year, month, day] = date.split("-").map(Number);
   return new Date(year, month - 1, day).getDay();
+}
+
+/** Lowercase weekday name ("monday") for a YYYY-MM-DD string (tz-safe). */
+export function weekdayNameOf(date: string): string {
+  return DAYS_OF_WEEK[weekdayIndexOf(date)];
 }
 
 /**

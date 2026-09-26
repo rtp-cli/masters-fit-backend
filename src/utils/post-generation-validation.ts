@@ -7,7 +7,10 @@ import {
 } from "./percent-scheme-loads";
 import { validateEquipmentAndFilter } from "@/utils/equipment-validation";
 import { validateLimitationsAndFilter } from "@/utils/limitation-validation";
-import { validateFitnessLevelAndFilter } from "@/utils/fitness-level-validation";
+import {
+  capWorkingMovements,
+  validateFitnessLevelAndFilter,
+} from "@/utils/fitness-level-validation";
 import {
   capExerciseRepetition,
   ExerciseRepetitionFinding,
@@ -202,6 +205,14 @@ export function applyPostGenerationValidation(
       )
     : [];
 
+  // [LR-085] Getting-moving sessions keep at most 4 working movements. Placed
+  // right before the duration fit on purpose: that step only adds sets/rounds,
+  // so a trimmed day is filled back out with the same few movements.
+  const movementCapped = capWorkingMovements(
+    bodyweightEnforced.workoutPlan,
+    profile
+  );
+
   // [Duration] Runs LAST — reconciles any block whose declared minutes
   // understate its own prescribed work, then pads a short day or trims a long
   // one. No-op when the target is unknown or all days are in range.
@@ -214,12 +225,12 @@ export function applyPostGenerationValidation(
   } =
     target > 0
       ? fitDaysToTargetDuration(
-          bodyweightEnforced.workoutPlan,
+          movementCapped.workoutPlan,
           target,
           DURATION_TOLERANCE_MINUTES
         )
       : {
-          workoutPlan: bodyweightEnforced.workoutPlan,
+          workoutPlan: movementCapped.workoutPlan,
           findings: [] as DurationPadFinding[],
           reconcileFindings: [] as DurationReconcileFinding[],
           trimFindings: [] as DurationTrimFinding[],

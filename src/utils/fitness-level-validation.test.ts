@@ -1,5 +1,6 @@
 import { describe, it, expect } from "@jest/globals";
 import {
+  capWorkingMovements,
   describeFitnessLevelProgramming,
   filterExercisesByFitnessLevel,
   fitnessLevelPromptSection,
@@ -204,5 +205,109 @@ describe("BEGINNER_EXCLUDED_MOVEMENTS catalog realities [LR-073]", () => {
       "Bike Steady State",
       "Brisk Walk",
     ]);
+  });
+});
+
+describe("getting-moving plan shape in the prompt [LR-085]", () => {
+  it("tells the model the listed days are all the training, the rest is rest", () => {
+    const text = describeFitnessLevelProgramming("beginner")!;
+    expect(text).toMatch(/schedule lists every training day/i);
+    expect(text).toMatch(/Never add a session/i);
+  });
+
+  it("caps working movements at 4, excluding warm-up and cool-down", () => {
+    expect(describeFitnessLevelProgramming("beginner")).toMatch(
+      /At most 4 working movements per session/
+    );
+  });
+
+  it("asks for two walk-led sessions when they chose Walking & Movement", () => {
+    const text = describeFitnessLevelProgramming("beginner", ["walking_movement", "strength"])!;
+    expect(text).toMatch(/at least 2 of each week's sessions walk-led/);
+    expect(text).not.toMatch(/at least one walk-led session/);
+  });
+
+  it("still asks for one walk a week when walking isn't their style", () => {
+    const text = describeFitnessLevelProgramming("beginner", ["strength"])!;
+    expect(text).toMatch(/at least one walk-led session each week/);
+  });
+
+  it("adds nothing for other levels", () => {
+    expect(describeFitnessLevelProgramming("intermediate", ["walking_movement"])).toBeNull();
+    expect(fitnessLevelPromptSection("advanced", ["walking_movement"])).toBe("");
+  });
+});
+
+describe("capWorkingMovements [LR-085]", () => {
+  const ex = (...names: string[]) => names.map((exerciseName) => ({ exerciseName }));
+  const day = (blocks: any[]) => [{ day: 1, blocks }];
+
+  it("trims a beginner's session to its first 4 working movements", () => {
+    const plan = day([
+      { blockType: "warmup", exercises: ex("Arm Circles", "March", "Cat Camel") },
+      { blockType: "traditional", exercises: ex("A", "B", "C") },
+      { blockType: "circuit", exercises: ex("D", "E", "F", "G") },
+      { blockType: "cooldown", exercises: ex("Stretch 1", "Stretch 2") },
+    ]);
+    const { workoutPlan, findings } = capWorkingMovements(plan, beginner);
+    const [warm, main, circuit, cool] = workoutPlan[0].blocks;
+    expect(warm.exercises).toHaveLength(3);
+    expect(main.exercises.map((e: any) => e.exerciseName)).toEqual(["A", "B", "C"]);
+    expect(circuit.exercises.map((e: any) => e.exerciseName)).toEqual(["D"]);
+    expect(cool.exercises).toHaveLength(2);
+    expect(findings).toEqual([{ day: 1, kept: 4, dropped: ["E", "F", "G"] }]);
+  });
+
+  it("keeps a movement that repeats (a ladder is not a new movement)", () => {
+    const plan = day([
+      { blockType: "traditional", exercises: ex("Squat", "Squat", "Squat", "Row", "Press", "Walk") },
+    ]);
+    const kept = capWorkingMovements(plan, beginner).workoutPlan[0].blocks[0].exercises;
+    expect(kept.map((e: any) => e.exerciseName)).toEqual([
+      "Squat",
+      "Squat",
+      "Squat",
+      "Row",
+      "Press",
+      "Walk",
+    ]);
+  });
+
+  it("removes a working block left empty, but never a warm-up or cool-down", () => {
+    const plan = day([
+      { blockType: "traditional", exercises: ex("A", "B", "C", "D") },
+      { blockType: "circuit", exercises: ex("E", "F") },
+      { blockType: "cooldown", exercises: [] },
+    ]);
+    const blocks = capWorkingMovements(plan, beginner).workoutPlan[0].blocks;
+    expect(blocks.map((b: any) => b.blockType)).toEqual(["traditional", "cooldown"]);
+  });
+
+  it("leaves every other level alone", () => {
+    const plan = day([{ blockType: "traditional", exercises: ex("A", "B", "C", "D", "E", "F") }]);
+    expect(capWorkingMovements(plan, advanced).findings).toEqual([]);
+    expect(capWorkingMovements(plan, intermediate).workoutPlan).toBe(plan);
+  });
+
+  it("keeps a walker's walk even when it's listed after four other movements", () => {
+    const walker = { fitnessLevel: "beginner", preferredStyles: ["walking_movement"] } as any;
+    const plan = day([
+      { blockType: "traditional", exercises: ex("Wall Push-Up", "Chair Sit-to-Stand", "Bird Dog", "Glute Bridge") },
+      { blockType: "traditional", exercises: ex("Brisk Walk") },
+    ]);
+    const { workoutPlan, findings } = capWorkingMovements(plan, walker);
+    const names = workoutPlan[0].blocks.flatMap((b: any) => b.exercises.map((e: any) => e.exerciseName));
+    expect(names).toContain("Brisk Walk");
+    expect(names).toHaveLength(4);
+    expect(findings[0].dropped).toEqual(["Glute Bridge"]);
+  });
+
+  it("doesn't count 'in place' marching as a walk to protect", () => {
+    const walker = { fitnessLevel: "beginner", preferredStyles: ["walking_movement"] } as any;
+    const plan = day([
+      { blockType: "traditional", exercises: ex("A", "B", "C", "D", "Walking in Place") },
+    ]);
+    const { findings } = capWorkingMovements(plan, walker);
+    expect(findings[0].dropped).toEqual(["Walking in Place"]);
   });
 });

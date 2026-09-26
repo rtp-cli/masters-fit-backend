@@ -588,7 +588,7 @@ const buildProfileContext = (profile: Profile): string => {
 - Intensity Level: ${profile.intensityLevel}
 - Medical Notes: ${profile.medicalNotes || "None"}
 
-${fitnessLevelPromptSection(profile.fitnessLevel)}**Training Preferences:**
+${fitnessLevelPromptSection(profile.fitnessLevel, profile.preferredStyles as string[] | null)}**Training Preferences:**
 - Preferred Styles: ${profile.preferredStyles?.join(", ") || "General fitness"}
 - Available Days: ${effectiveAvailableDays(profile.availableDays).join(", ")}
 - Workout Duration: ${profile.workoutDuration} minutes per session

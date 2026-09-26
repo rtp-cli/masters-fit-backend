@@ -70,6 +70,11 @@ export type ComplianceCheck =
   /** No exercise appears more than twice within a single day. */
   | { id: string; label: string; type: "noRepeatOverTwice" }
   /**
+   * [LR-085] Every day has at most `max` distinct WORKING movements — warm-up
+   * and cool-down blocks don't count. The getting-moving shape caps this at 4.
+   */
+  | { id: string; label: string; type: "maxWorkingMovements"; max: number }
+  /**
    * At least one exercise anywhere matches one of `names` — "include X" asks.
    * `exact` compares the whole normalized name (so "push-up" does not accept
    * "Decline Push-Up"); otherwise substring.
@@ -286,6 +291,33 @@ function runCheck(
           offenders.length === 0
             ? `all ${perDay.length} days within ±${check.toleranceMinutes} of ${check.targetMinutes}m`
             : `off-target: ${offenders.map((o) => `d${o.day}=${o.total}m`).join(", ")} (target ${check.targetMinutes})`,
+      };
+    }
+
+    case "maxWorkingMovements": {
+      const days = workout.workoutPlan || [];
+      if (days.length === 0) return { ...base, score: 0, passed: false, detail: "no days" };
+      const WARMUP_COOLDOWN = new Set(["warmup", "cooldown"]);
+      const perDay = days.map((d) => {
+        const names = new Set<string>();
+        for (const block of d.blocks || []) {
+          if (WARMUP_COOLDOWN.has(norm(block.blockType))) continue;
+          for (const ex of block.exercises || []) {
+            const n = norm(ex.exerciseName);
+            if (n) names.add(n);
+          }
+        }
+        return { day: d.day, count: names.size };
+      });
+      const over = perDay.filter((d) => d.count > check.max);
+      return {
+        ...base,
+        score: (perDay.length - over.length) / perDay.length,
+        passed: over.length === 0,
+        detail:
+          over.length === 0
+            ? `all ${perDay.length} days have ≤${check.max} working movements`
+            : `over ${check.max}: ${over.map((o) => `d${o.day}=${o.count}`).join(", ")}`,
       };
     }
 

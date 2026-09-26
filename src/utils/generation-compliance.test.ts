@@ -168,3 +168,51 @@ describe("noRepeatOverTwice is ramp-aware", () => {
     expect(results[0].passed).toBe(false);
   });
 });
+
+describe("maxWorkingMovements [LR-085]", () => {
+  const check: ComplianceCheck = {
+    id: "m",
+    label: "≤4 working movements",
+    type: "maxWorkingMovements",
+    max: 4,
+  };
+  const ex = (...names: string[]) => names.map((exerciseName) => ({ exerciseName }));
+
+  it("ignores warm-up and cool-down blocks", () => {
+    const w = workout([
+      {
+        day: 1,
+        blocks: [
+          { blockType: "warmup", exercises: ex("Arm Circles", "Cat Camel", "March") },
+          { blockType: "traditional", exercises: ex("Brisk Walk") },
+          { blockType: "cooldown", exercises: ex("Calf Stretch", "Child's Pose") },
+        ],
+      },
+    ]);
+    const { results } = scoreWorkout(w, new Map(), [check]);
+    expect(results[0].passed).toBe(true);
+  });
+
+  it("counts distinct movements, so extra sets of the same one don't count twice", () => {
+    const w = workout([
+      {
+        day: 1,
+        blocks: [
+          { blockType: "traditional", exercises: ex("Wall Push-Up", "Wall Push-Up", "Chair Sit-to-Stand") },
+        ],
+      },
+    ]);
+    expect(scoreWorkout(w, new Map(), [check]).results[0].passed).toBe(true);
+  });
+
+  it("flags a day with more than 4 working movements and scores by day", () => {
+    const w = workout([
+      { day: 1, blocks: [{ blockType: "traditional", exercises: ex("A", "B", "C", "D", "E") }] },
+      { day: 2, blocks: [{ blockType: "circuit", exercises: ex("A", "B") }] },
+    ]);
+    const r = scoreWorkout(w, new Map(), [check]).results[0];
+    expect(r.passed).toBe(false);
+    expect(r.score).toBe(0.5);
+    expect(r.detail).toContain("d1=5");
+  });
+});
