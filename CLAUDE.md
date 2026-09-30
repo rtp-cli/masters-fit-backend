@@ -135,6 +135,19 @@ to the matching route file. The `add-api-endpoint` skill walks through both halv
    anything that resolves to a credential; if you need to confirm which database you're
    pointed at, print the **host** only.
 
+## Local scripts that touch prod or send email
+
+- Before running any send, comp, or backfill script, run `git fetch && git status` and confirm
+  the checkout is on **up-to-date `main`** — not a stale checkout or an unmerged branch.
+- Merge the PR first, then send. **Never send user-facing email from an unmerged branch.**
+- Follow the dry-run → confirm → apply → read-back pattern the `comp-user` skill uses.
+
+## Eval gate
+
+- If the eval gate fails at ~0% or shows implausible drift, suspect a **stale eval Neon
+  branch** first (e.g. after a prod schema change) and ask the user to reset it from its
+  parent before changing any code.
+
 ---
 
 ## Where to get unstuck
