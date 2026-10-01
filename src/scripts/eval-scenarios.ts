@@ -407,6 +407,10 @@ export const SCENARIOS: EvalScenario[] = [
         PreferredDays.FRIDAY,
       ],
     }),
+    // Monday start: an aligned window is then exactly one Mon-Sun week, so the
+    // expected count is the same with CALENDAR_ALIGNED_SERIES on or off and
+    // doesn't depend on the weekday the eval runs.
+    startDate: "2026-09-14", // Monday
     customFeedback:
       "I can only get to the gym on Mondays, Wednesdays, and Fridays this week — just those three days please.",
     buildChecks: (_s, p) => [duration(p.workoutDuration || 45)],
@@ -417,6 +421,10 @@ export const SCENARIOS: EvalScenario[] = [
     category: "scheduling",
     description: "Partial week: user asks for a specific day COUNT (3)",
     profile: baseProfile({}),
+    // Monday start: an aligned window is then exactly one Mon-Sun week, so the
+    // expected count is the same with CALENDAR_ALIGNED_SERIES on or off and
+    // doesn't depend on the weekday the eval runs.
+    startDate: "2026-09-14", // Monday
     customFeedback: "I only have time for 3 workouts this week, not the usual amount.",
     buildChecks: (_s, p) => [duration(p.workoutDuration || 45)],
     expectSchedule: { dayCount: 3 },
@@ -434,6 +442,10 @@ export const SCENARIOS: EvalScenario[] = [
         PreferredDays.FRIDAY,
       ],
     }),
+    // Monday start: an aligned window is then exactly one Mon-Sun week, so the
+    // expected count is the same with CALENDAR_ALIGNED_SERIES on or off and
+    // doesn't depend on the weekday the eval runs.
+    startDate: "2026-09-14", // Monday
     customFeedback: "This week I can only train on the weekend — Saturday and Sunday only.",
     buildChecks: (_s, p) => [duration(p.workoutDuration || 45)],
     expectSchedule: { dayCount: 2, weekdays: ["saturday", "sunday"] },
@@ -508,6 +520,35 @@ export const SCENARIOS: EvalScenario[] = [
     buildChecks: (_schedule, p) => [duration(p.workoutDuration || 45)],
     expectSchedule: { dayCount: 5, firstWeekday: "wednesday" },
     checkMuscleBalance: true,
+  },
+
+  {
+    id: "aligned-thursday-named-days",
+    category: "scheduling",
+    description:
+      "Calendar-aligned Thursday start + \"Mon/Wed/Fri\": the window reaches next week, so 4 slots (Fri, Mon, Wed, Fri) from a 3-day split",
+    profile: baseProfile({
+      availableDays: [
+        PreferredDays.MONDAY,
+        PreferredDays.TUESDAY,
+        PreferredDays.WEDNESDAY,
+        PreferredDays.THURSDAY,
+        PreferredDays.FRIDAY,
+      ],
+    }),
+    // 2026-10-01: this failed every model ("Week planning returned 3 days,
+    // expected 4") — the planner returns one entry per named day and every
+    // retry resent the same prompt. Fixed by repeating the split (fillScheduleSlots).
+    startDate: "2026-09-10", // Thursday
+    requiresCalendarAlignment: true,
+    customFeedback:
+      "I can only get to the gym on Mondays, Wednesdays, and Fridays — just those days please.",
+    buildChecks: (_s, p) => [duration(p.workoutDuration || 45)],
+    expectSchedule: {
+      dayCount: 4,
+      weekdays: ["monday", "wednesday", "friday"],
+      firstWeekday: "friday",
+    },
   },
 
   // ---- Named programs / prescribed movements (user-3 + user-41 pattern) ----

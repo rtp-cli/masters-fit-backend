@@ -72,6 +72,7 @@ import {
 import {
   buildPlanDaySchedule,
   buildCalendarAlignedSchedule,
+  fillScheduleSlots,
   PlanDaySlot,
   mentionsWeekday,
   mentionsScheduleChange,
@@ -1210,6 +1211,27 @@ ${exerciseContext}`;
       expectedDayCount = CALENDAR_ALIGNED_SERIES
         ? schedule.length
         : effective.dayCount;
+      // A schedule request the user made can yield more aligned slots than
+      // the planner returned (it returns one entry per requested day; the
+      // window may reach into next week). Every retry sends the same prompt and
+      // gets the same count, so fill the slots from the planner's split rather
+      // than failing the generation.
+      if (
+        CALENDAR_ALIGNED_SERIES &&
+        effective.overridden &&
+        weekPlan?.days?.length &&
+        weekPlan.days.length < expectedDayCount
+      ) {
+        logger.info("Filled aligned schedule slots by repeating the planner's split", {
+          userId,
+          operation: "generateWeeklyWorkout",
+          metadata: {
+            returnedDayCount: weekPlan.days.length,
+            slotCount: expectedDayCount,
+          },
+        });
+        weekPlan.days = fillScheduleSlots(weekPlan.days, expectedDayCount);
+      }
       // [GQ-04] Assemble the "couldn't apply X because Y" list surfaced in-app:
       // the planner's own semantic conflicts, plus a deterministic entry when the
       // user asked for MORE workout days than their available days allow (the pure
