@@ -18,6 +18,7 @@ import {
 import { ApiResponse } from "@/types/common/responses";
 import { aiProviderService } from "@/services/ai-provider.service";
 import { profileService } from "@/services/profile.service";
+import { resolveEffectiveModel } from "@/constants/ai-providers";
 import { logger } from "@/utils/logger";
 
 @Route("ai-providers")
@@ -108,9 +109,10 @@ export class AIProviderController extends Controller {
         throw new Error("User profile not found");
       }
 
-      // Profile guaranteed to have these values after migration
+      // Report the model generation actually uses: a retired model stays
+      // stored on the profile but runs as the provider default.
       const provider = profile.aiProvider!;
-      const model = profile.aiModel!;
+      const { model } = resolveEffectiveModel(provider, profile.aiModel);
 
       return {
         success: true,

@@ -276,6 +276,24 @@ export function getModelConfig(
   return providerConfig?.models.find((model) => model.id === modelId);
 }
 
+// The model a profile actually generates with: its stored model if that's
+// still in the catalog, else the provider's default. A retired model (removed
+// from the catalog) stays stored on profiles, so anything that reports or uses
+// the model must go through this, not read profile.aiModel directly.
+export function resolveEffectiveModel(
+  provider: AIProvider,
+  storedModel: string | null | undefined
+): { model: string; isFallback: boolean } {
+  const model = storedModel || DEFAULT_AI_MODEL;
+  if (getModelConfig(provider, model)) {
+    return { model, isFallback: false };
+  }
+  return {
+    model: AI_PROVIDERS[provider]?.defaultModel || DEFAULT_AI_MODEL,
+    isFallback: true,
+  };
+}
+
 export function isValidProviderModelPair(
   provider: AIProvider,
   modelId: string
