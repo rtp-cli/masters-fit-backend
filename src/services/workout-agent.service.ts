@@ -136,7 +136,7 @@ const SONNET_PLANNING_ON_OVERRIDE =
 const CALENDAR_ALIGNED_SERIES =
   process.env.CALENDAR_ALIGNED_SERIES === "true";
 const FANOUT_PLANNING_OVERRIDE_MODEL =
-  process.env.FANOUT_PLANNING_OVERRIDE_MODEL || "claude-sonnet-4-6";
+  process.env.FANOUT_PLANNING_OVERRIDE_MODEL || "claude-sonnet-5";
 
 // Size of the exercise menu shown to the LLM — same count as the old
 // LIMIT 200, but now a deterministic stratified selection.
