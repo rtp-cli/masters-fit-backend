@@ -49,14 +49,9 @@ export const ANTHROPIC_MODELS: ModelConfig[] = [
     costTier: "low",
     description: "Fastest model with near-frontier intelligence",
   },
-  {
-    id: "claude-sonnet-4-5-20250929",
-    name: "claude-sonnet-4-5-20250929",
-    displayName: "Claude Sonnet 4.5",
-    maxTokens: 30000,
-    costTier: "high",
-    description: "Smartest model for complex agents and coding",
-  },
+  // Sonnet 4.5 removed: Anthropic retires it 2026-11-24 (degraded from
+  // 2026-10-30). Profiles still storing its id fall back to the provider
+  // default via createUserWorkoutAgent's stale-model check.
 ];
 
 // OpenAI Models
