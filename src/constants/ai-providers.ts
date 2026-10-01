@@ -40,8 +40,9 @@ export const ANTHROPIC_MODELS: ModelConfig[] = [
     maxTokens: 30000,
     costTier: "medium",
     description: "Smartest Sonnet; cheaper per token than Sonnet 4.6",
-    // Low effort to match the latency tuning on Sonnet 4.6; Sonnet 5 at low is
-    // roughly Sonnet 4.6 at medium. Re-tune via the eval before raising.
+    // Low effort to match the latency tuning on Sonnet 4.6. A/B 2026-10-01
+    // (planning, 23 scenarios): 85% vs 4.6's 83%, planning p50 6.6s vs 10.2s.
+    // Re-tune via the eval before raising.
     effort: "low",
     rejectsSampling: true,
   },
@@ -211,7 +212,7 @@ export const AI_PROVIDERS: Record<AIProvider, ProviderConfig> = {
     name: "anthropic",
     displayName: "Anthropic",
     models: ANTHROPIC_MODELS,
-    defaultModel: "claude-sonnet-4-6",
+    defaultModel: "claude-sonnet-5",
     envKeyName: "ANTHROPIC_API_KEY",
   },
   [AIProvider.OPENAI]: {
