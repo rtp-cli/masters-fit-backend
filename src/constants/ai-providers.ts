@@ -16,7 +16,10 @@ export interface ModelConfig {
   description: string;
   // Anthropic effort parameter (output_config.effort). Only set on models
   // that support it — sending it to unsupported models returns a 400.
-  effort?: "low" | "medium" | "high";
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  // Models that reject non-default sampling params (temperature/top_p/top_k)
+  // with a 400 — Sonnet 5 and newer. The LLM factory omits temperature for them.
+  rejectsSampling?: boolean;
 }
 
 export interface ProviderConfig {
@@ -30,6 +33,18 @@ export interface ProviderConfig {
 
 // Anthropic Models
 export const ANTHROPIC_MODELS: ModelConfig[] = [
+  {
+    id: "claude-sonnet-5",
+    name: "claude-sonnet-5",
+    displayName: "Claude Sonnet 5",
+    maxTokens: 30000,
+    costTier: "medium",
+    description: "Smartest Sonnet; cheaper per token than Sonnet 4.6",
+    // Low effort to match the latency tuning on Sonnet 4.6; Sonnet 5 at low is
+    // roughly Sonnet 4.6 at medium. Re-tune via the eval before raising.
+    effort: "low",
+    rejectsSampling: true,
+  },
   {
     id: "claude-sonnet-4-6",
     name: "claude-sonnet-4-6",

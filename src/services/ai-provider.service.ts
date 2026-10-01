@@ -132,7 +132,9 @@ export class AIProviderService {
           model: model,
           anthropicApiKey: apiKey,
           ...commonConfig,
-          temperature: 0.1,
+          // Sonnet 5+ 400s on a non-default temperature; omitting it leaves
+          // temperature/top_k/top_p out of the request entirely.
+          ...(modelConfig.rejectsSampling ? {} : { temperature: 0.1 }),
           maxTokens: modelConfig.maxTokens,
           // Prompt caching is GA — no beta header needed. cache_control
           // markers on messages are honored automatically.
