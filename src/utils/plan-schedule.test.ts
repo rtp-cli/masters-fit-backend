@@ -8,6 +8,7 @@ import {
   mentionsEquipmentFreeDay,
   resolveEffectiveSchedule,
   scheduleClampConflict,
+  fillScheduleSlots,
 } from "@/utils/plan-schedule";
 import { getDateForWeekday, addDays } from "@/utils/date.utils";
 
@@ -496,5 +497,48 @@ describe("spansMultipleCalendarWeeks", () => {
         { dayNumber: 1, weekday: "monday", date: "2026-09-07" },
       ])
     ).toBe(false);
+  });
+});
+
+describe("fillScheduleSlots", () => {
+  const split = [{ name: "A" }, { name: "B" }, { name: "C" }];
+
+  it("repeats the split in order to cover every slot", () => {
+    expect(fillScheduleSlots(split, 4).map((d) => d.name)).toEqual([
+      "A",
+      "B",
+      "C",
+      "A",
+    ]);
+  });
+
+  it("copies repeated days so later renumbering can't alias them", () => {
+    const filled = fillScheduleSlots(split, 4);
+    expect(filled[3]).not.toBe(filled[0]);
+  });
+
+  it("leaves a plan that already covers the slots untouched", () => {
+    expect(fillScheduleSlots(split, 3)).toBe(split);
+    expect(fillScheduleSlots(split, 2)).toBe(split);
+  });
+
+  it("never invents days from an empty plan", () => {
+    expect(fillScheduleSlots([], 4)).toEqual([]);
+  });
+
+  // The eval failure (2026-10-01): a Thursday start with "Mon/Wed/Fri" aligns to
+  // Fri, Mon, Wed, Fri — four slots — while the planner returns three days.
+  it("covers the Thursday-start Mon/Wed/Fri window", () => {
+    const schedule = buildCalendarAlignedSchedule(
+      ["monday", "wednesday", "friday"],
+      "2026-10-01"
+    );
+    expect(schedule.map((s) => s.weekday)).toEqual([
+      "friday",
+      "monday",
+      "wednesday",
+      "friday",
+    ]);
+    expect(fillScheduleSlots(split, schedule.length)).toHaveLength(4);
   });
 });

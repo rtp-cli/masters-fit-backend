@@ -296,6 +296,24 @@ export function buildCalendarAlignedSchedule(
 }
 
 /**
+ * Repeat a planner's split across a schedule that has more slots than days.
+ *
+ * The planner is told to return one entry per requested day ("Mon/Wed/Fri",
+ * "only 3 days"), but a calendar-aligned window can span into next week, so
+ * the recomputed schedule may hold more slots than that (Thu start + Mon/Wed/Fri
+ * = Fri, Mon, Wed, Fri). Re-asking can't fix it — the planner gets the same
+ * prompt and returns the same count — so cycle the split in order instead:
+ * slot i gets day i mod n. Returns `days` unchanged when it already covers
+ * `slotCount` or is empty.
+ */
+export function fillScheduleSlots<T>(days: T[], slotCount: number): T[] {
+  if (days.length === 0 || days.length >= slotCount) return days;
+  return Array.from({ length: slotCount }, (_, i) => ({
+    ...days[i % days.length],
+  }));
+}
+
+/**
  * True when a schedule crosses a Mon-Sun calendar-week boundary — used to
  * frame the planning prompt as "rest of this week + next week" instead of
  * "this week".
