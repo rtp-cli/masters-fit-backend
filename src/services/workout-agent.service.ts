@@ -98,6 +98,7 @@ import {
   validateDailyGenerationResponse,
   validateWeeklyGenerationResponse,
 } from "@/utils/generation-response-validation";
+import { resolveFanoutModels } from "@/utils/model-canary";
 
 // Hard per-call ceilings for the fan-out LLM calls. Without these a stalled
 // provider connection (one that never sends an RST) hangs the await forever,
@@ -108,13 +109,11 @@ import {
 const PLANNING_CALL_TIMEOUT_MS = 60_000;
 const DAY_CALL_TIMEOUT_MS = 75_000;
 
-// Models pinned for the Anthropic fan-out path (see the planning/day call
-// sites below for why Haiku is the default). Overridable via env so an eval
-// harness can sweep models without editing code.
-const FANOUT_PLANNING_MODEL =
-  process.env.FANOUT_PLANNING_MODEL || "claude-haiku-4-5-20251001";
-const FANOUT_DAY_MODEL =
-  process.env.FANOUT_DAY_MODEL || "claude-haiku-4-5-20251001";
+// Models for the Anthropic fan-out path (see the planning/day call sites below
+// for why Haiku is the default) are resolved per user by resolveFanoutModels:
+// FANOUT_PLANNING_MODEL / FANOUT_DAY_MODEL override them globally (the eval
+// harness sweeps models this way), and MODEL_CANARY_USER_IDS +
+// FANOUT_CANARY_MODEL run a new model for an allowlist first.
 
 // [GQ-15] Optional quality lever: use a stronger (Sonnet) model for the PLANNING
 // call ONLY on override requests (a live customFeedback is present), where the
@@ -883,11 +882,27 @@ Please generate the workout now, addressing this feedback while following all sy
     const useValidSonnetPlanning =
       useSonnetPlanning &&
       !!getModelConfig(AIProvider.ANTHROPIC, FANOUT_PLANNING_OVERRIDE_MODEL);
+    // Incumbent Haiku, or the canary model for allowlisted users.
+    const fanoutModels = resolveFanoutModels(userId);
+    if (fanoutModels.misconfiguredCanaryModel) {
+      logger.warn(
+        "User is on MODEL_CANARY_USER_IDS but FANOUT_CANARY_MODEL is not a registered Anthropic model — running the incumbent",
+        {
+          userId,
+          model: fanoutModels.misconfiguredCanaryModel,
+          operation: "generateWeeklyWorkout",
+        }
+      );
+    }
     const effectivePlanningModel =
       this.currentProvider === AIProvider.ANTHROPIC
         ? useValidSonnetPlanning
           ? FANOUT_PLANNING_OVERRIDE_MODEL
-          : FANOUT_PLANNING_MODEL
+          : fanoutModels.planningModel
+        : this.currentModel;
+    const effectiveDayModel =
+      this.currentProvider === AIProvider.ANTHROPIC
+        ? fanoutModels.dayModel
         : this.currentModel;
 
     // [GQ-01] Compute the day-number -> {weekday, date} schedule up front so the
@@ -1054,7 +1069,9 @@ ${exerciseContext}`;
       // [GQ-15] Surface which model the planning call actually used, so the
       // Sonnet-on-override path is visible in logs alongside the eval metrics.
       planningModel: effectivePlanningModel,
+      dayModel: effectiveDayModel,
       usedSonnetPlanning: useValidSonnetPlanning,
+      modelCanary: fanoutModels.isCanary,
       operation: "generateWeeklyWorkout",
     });
     // Wraps the planning call's timeout/usage plumbing. Takes the LLM as a
@@ -1448,7 +1465,7 @@ ${exerciseContext}`;
     const MAX_CONCURRENT_DAYS = 5;
     const daySemaphore = new Semaphore(MAX_CONCURRENT_DAYS);
     const dayLlmBase = this.currentProvider === AIProvider.ANTHROPIC
-      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, FANOUT_DAY_MODEL)
+      ? aiProviderService.createLLMInstance(AIProvider.ANTHROPIC, effectiveDayModel)
       : this.llm;
     const dayLlm = dayLlmBase.withStructuredOutput(WORKOUT_DAY_SCHEMA as any, {
       name: "workout_day",
@@ -1852,10 +1869,7 @@ ${exerciseContext}`;
       // on flagged override generations, Haiku otherwise — so before/after
       // eval runs can be sliced by planning_model.
       planningModel: effectivePlanningModel,
-      dayModel:
-        this.currentProvider === AIProvider.ANTHROPIC
-          ? FANOUT_DAY_MODEL
-          : this.currentModel,
+      dayModel: effectiveDayModel,
       llmDurationMs: totalDurationMs,
       inputTokens: usageTotals.inputTokens,
       outputTokens: usageTotals.outputTokens,
