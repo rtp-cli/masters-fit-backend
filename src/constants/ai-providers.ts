@@ -58,6 +58,18 @@ export const ANTHROPIC_MODELS: ModelConfig[] = [
     effort: "low",
   },
   {
+    id: "claude-haiku-5-5",
+    name: "claude-haiku-5-5",
+    displayName: "Claude Haiku 5.5",
+    maxTokens: 30000,
+    costTier: "low",
+    description: "Cheapest, fastest Haiku; ~90% cheaper per token than Haiku 4.5",
+    // Haiku 5.5 rejects any temperature other than 1. Effort left at the API
+    // default (medium); our structured-output calls force the tool, which skips
+    // thinking, so effort mostly shapes output length. Tune via the eval.
+    rejectsSampling: true,
+  },
+  {
     id: "claude-haiku-4-5-20251001",
     name: "claude-haiku-4-5-20251001",
     displayName: "Claude Haiku 4.5",
