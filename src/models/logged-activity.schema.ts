@@ -5,6 +5,7 @@ import {
   integer,
   timestamp,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -63,6 +64,21 @@ export type LoggedActivityEffort = (typeof LOGGED_ACTIVITY_EFFORTS)[number];
 /** Guards against a fat-fingered duration becoming a 40-hour walk. */
 export const MAX_ACTIVITY_DURATION_MINUTES = 600;
 
+/**
+ * Where a row came from. `manual` is the Log-an-activity sheet; the other two
+ * are workouts read off the user's watch via Apple Health / Health Connect.
+ */
+export const LOGGED_ACTIVITY_SOURCES = [
+  "manual",
+  "apple_health",
+  "health_connect",
+] as const;
+
+export type LoggedActivitySource = (typeof LOGGED_ACTIVITY_SOURCES)[number];
+
+/** One import call's ceiling — the client sends a few days of workouts. */
+export const MAX_IMPORT_BATCH = 50;
+
 export const loggedActivities = pgTable(
   "logged_activities",
   {
@@ -83,6 +99,26 @@ export const loggedActivities = pgTable(
     durationMinutes: integer("duration_minutes").notNull(),
     effort: text("effort").$type<LoggedActivityEffort>(),
     notes: text("notes"),
+    source: text("source")
+      .$type<LoggedActivitySource>()
+      .notNull()
+      .default("manual"),
+    /**
+     * The health store's own id for the workout (HealthKit UUID / Health
+     * Connect record id). Unique per user, so a re-sync is a no-op. Null for
+     * manual rows — Postgres treats nulls as distinct, so the unique index
+     * needs no partial predicate.
+     */
+    externalId: text("external_id"),
+    /** When the watch workout started. Imports only; manual rows have a date. */
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    distanceMeters: integer("distance_meters"),
+    /**
+     * Set instead of deleting when the user removes an IMPORTED row. The row
+     * stays as a tombstone so the next sync sees the external id and does not
+     * bring the walk back. Every read filters on this being null.
+     */
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -97,6 +133,10 @@ export const loggedActivities = pgTable(
     userDateIdx: index("idx_logged_activities_user_date").on(
       table.userId,
       table.date
+    ),
+    userExternalIdx: uniqueIndex("uq_logged_activities_user_external").on(
+      table.userId,
+      table.externalId
     ),
   })
 );
@@ -119,6 +159,13 @@ export const insertLoggedActivitySchema = createInsertSchema(loggedActivities, {
   id: true,
   createdAt: true,
   updatedAt: true,
+  // Import-only fields. The manual sheet must not be able to forge a
+  // health-sourced row or a tombstone, so they never enter the create path.
+  source: true,
+  externalId: true,
+  startedAt: true,
+  distanceMeters: true,
+  dismissedAt: true,
 });
 
 /**
@@ -139,6 +186,52 @@ export const createLoggedActivitySchema = insertLoggedActivitySchema
     }
   });
 
+/**
+ * One watch workout the client read from Apple Health / Health Connect and
+ * already mapped onto our vocabulary. The client owns the type mapping (it is
+ * the side that knows the HealthKit / Health Connect enums) and the type
+ * exclusions; the server owns dedupe against what it already stores and
+ * against the user's own MastersFit sessions.
+ */
+export const importedActivitySchema = z
+  .object({
+    externalId: z.string().trim().min(1).max(200),
+    source: z.enum(["apple_health", "health_connect"]),
+    activityType: z.enum(LOGGED_ACTIVITY_TYPES),
+    customType: z.string().trim().min(1).max(60).nullable().optional(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+    startedAt: z.string().datetime({ offset: true }),
+    endedAt: z.string().datetime({ offset: true }),
+    durationMinutes: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_ACTIVITY_DURATION_MINUTES),
+    distanceMeters: z.number().int().min(0).max(1_000_000).nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.activityType === "other" && !value.customType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["customType"],
+        message: "customType is required when activityType is 'other'",
+      });
+    }
+    if (Date.parse(value.endedAt) < Date.parse(value.startedAt)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endedAt"],
+        message: "endedAt must not be before startedAt",
+      });
+    }
+  });
+
+export const importActivitiesSchema = z.object({
+  activities: z.array(importedActivitySchema).max(MAX_IMPORT_BATCH),
+});
+
+export type ImportedActivityInput = z.infer<typeof importedActivitySchema>;
+
 // Types - Explicit interface for TSOA compatibility
 export interface LoggedActivity {
   id: number;
@@ -149,6 +242,11 @@ export interface LoggedActivity {
   durationMinutes: number;
   effort: LoggedActivityEffort | null;
   notes: string | null;
+  source: LoggedActivitySource;
+  externalId: string | null;
+  startedAt: Date | null;
+  distanceMeters: number | null;
+  dismissedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -1,6 +1,9 @@
 import { describe, it, expect } from "@jest/globals";
 import {
   createLoggedActivitySchema,
+  importActivitiesSchema,
+  importedActivitySchema,
+  MAX_IMPORT_BATCH,
   LOGGED_ACTIVITY_TYPES,
   MAX_ACTIVITY_DURATION_MINUTES,
 } from "@/models/logged-activity.schema";
@@ -94,5 +97,76 @@ describe("createLoggedActivitySchema [LR-077]", () => {
     expect(() =>
       createLoggedActivitySchema.parse({ ...valid, notes: "x".repeat(501) })
     ).toThrow();
+  });
+});
+
+describe("createLoggedActivitySchema — import-only fields", () => {
+  it("strips source / externalId / dismissedAt from a manual log", () => {
+    // The manual sheet must not be able to forge a watch-sourced row or a
+    // tombstone that would block a real import.
+    const parsed = createLoggedActivitySchema.parse({
+      ...valid,
+      source: "apple_health",
+      externalId: "abc",
+      dismissedAt: new Date().toISOString(),
+    }) as Record<string, unknown>;
+    expect(parsed.source).toBeUndefined();
+    expect(parsed.externalId).toBeUndefined();
+    expect(parsed.dismissedAt).toBeUndefined();
+  });
+});
+
+describe("importedActivitySchema", () => {
+  const imported = {
+    externalId: "6F1C-UUID",
+    source: "apple_health" as const,
+    activityType: "walk" as const,
+    date: "2026-10-08",
+    startedAt: "2026-10-08T12:00:00.000Z",
+    endedAt: "2026-10-08T12:45:00.000Z",
+    durationMinutes: 45,
+  };
+
+  it("accepts a mapped watch workout", () => {
+    expect(importedActivitySchema.parse(imported).externalId).toBe("6F1C-UUID");
+  });
+
+  it("accepts offset timestamps from the device", () => {
+    expect(() =>
+      importedActivitySchema.parse({
+        ...imported,
+        startedAt: "2026-10-08T07:00:00.000-05:00",
+        endedAt: "2026-10-08T07:45:00.000-05:00",
+      })
+    ).not.toThrow();
+  });
+
+  it("rejects source 'manual' — imports are never manual", () => {
+    expect(() =>
+      importedActivitySchema.parse({ ...imported, source: "manual" })
+    ).toThrow();
+  });
+
+  it("rejects an end before the start", () => {
+    expect(() =>
+      importedActivitySchema.parse({
+        ...imported,
+        endedAt: "2026-10-08T11:00:00.000Z",
+      })
+    ).toThrow();
+  });
+
+  it("requires a label for 'other'", () => {
+    expect(() =>
+      importedActivitySchema.parse({ ...imported, activityType: "other" })
+    ).toThrow();
+  });
+
+  it("caps the batch size", () => {
+    const many = Array.from({ length: MAX_IMPORT_BATCH + 1 }, (_, i) => ({
+      ...imported,
+      externalId: `id-${i}`,
+    }));
+    expect(() => importActivitiesSchema.parse({ activities: many })).toThrow();
   });
 });
