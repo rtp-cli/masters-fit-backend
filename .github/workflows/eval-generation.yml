@@ -114,6 +114,10 @@ on:
         description: "Runs per scenario; the median is scored. Use 3 to capture a new reference."
         required: false
         default: "1"
+      fanout_model:
+        description: "Fan-out model to test instead of the default (e.g. claude-haiku-5-5); blank = default"
+        required: false
+        default: ""
 
 # One eval at a time per PR (or per branch for the cron), so concurrent runs
 # don't race on the same LLM rate limits and produce noisy scores. A new push
@@ -135,6 +139,12 @@ jobs:
       # Prod parity: the planning call escalates to Sonnet for override
       # requests in production, and the reference was captured that way.
       SONNET_PLANNING_ON_OVERRIDE: "true"
+      # Candidate-model probe: run the fan-out (planning + day calls) on this
+      # model instead of the default. Blank (every non-dispatch run) leaves the
+      # code default in place. Planning still escalates to Sonnet on override
+      # scenarios, as in prod.
+      FANOUT_PLANNING_MODEL: ${{ github.event.inputs.fanout_model }}
+      FANOUT_DAY_MODEL: ${{ github.event.inputs.fanout_model }}
       # The eval attributes its generations to this users row: the harness
       # passes it to generateWeeklyWorkout, and llm_generation_logs.user_id has
       # a foreign key to users. It must EXIST in whatever database
