@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Read-only query runner against the production Neon DB.
+# Read-only query runner against the production DB (Render Postgres, Oregon).
 # Read-only is enforced at the CONNECTION level (default_transaction_read_only=on),
 # so Postgres itself refuses any write. Do NOT add a --write mode to this script.
 # Usage:  db-prod-read.sh -tAc 'select id, email from users limit 5;'
@@ -13,12 +13,14 @@ RAW="$(security find-generic-password -a "$USER" -s "$SERVICE" -w 2>/dev/null ||
 
 [[ -n "$RAW" ]] || {
   echo "no prod URL in the Keychain (service=$SERVICE)." >&2
-  echo "Copy the Neon connection string, then run: scripts/db-prod-set-url.sh" >&2
+  echo "Copy the EXTERNAL Database URL from Render (masters-fit-db), then run: scripts/db-prod-set-url.sh" >&2
   exit 1; }
 
-# Neon's connection POOLER rejects the `options` startup parameter outright
-# ("unsupported startup parameter in options"), so force the UNPOOLED host by
-# dropping the "-pooler" suffix. Neon documents this as the required workaround.
+# Only matters for Neon-style URLs (prod moved to Render Postgres 2026-10-09,
+# whose host has no "-pooler", so this is a harmless no-op there). Kept so the
+# rollback Neon URL still works: Neon's connection POOLER rejects the `options`
+# startup parameter outright ("unsupported startup parameter in options"), so
+# force the UNPOOLED host by dropping the "-pooler" suffix.
 # This matters for safety, not just connectivity: because an unsupported
 # parameter makes the connection FAIL rather than be ignored, this scheme is
 # fail-closed -- it can never silently connect without the read-only pin.

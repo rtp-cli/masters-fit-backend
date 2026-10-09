@@ -1,9 +1,9 @@
 ---
 name: reset-workout-prod
-description: Use to replay/test workout logging on PRODUCTION (Neon) by rewinding ONE plan day back to not-started — deletes that day's logs and un-completes it so you can log it again on the live database. Triggers "/reset-workout-prod", "reset today's workout on prod", "reset the prod QA workout", "reset production workout so I can test logging". Writes to the LIVE db — confirm the account + date first. Defaults to the QA account rtp+qa@mastersfit.ai and today in the account's profile timezone, but --email resets any account - use rtp+demo@mastersfit.ai for the demo user Dave Walker, whose prod plan is usually the live one (the prod QA plan is stale). For local use reset-workout-local; for a full account rebuild use reseed-dave-prod.
+description: Use to replay/test workout logging on PRODUCTION (Render Postgres) by rewinding ONE plan day back to not-started — deletes that day's logs and un-completes it so you can log it again on the live database. Triggers "/reset-workout-prod", "reset today's workout on prod", "reset the prod QA workout", "reset production workout so I can test logging". Writes to the LIVE db — confirm the account + date first. Defaults to the QA account rtp+qa@mastersfit.ai and today in the account's profile timezone, but --email resets any account - use rtp+demo@mastersfit.ai for the demo user Dave Walker, whose prod plan is usually the live one (the prod QA plan is stale). For local use reset-workout-local; for a full account rebuild use reseed-dave-prod.
 ---
 
-# Reset Workout Day — PRODUCTION (Neon)
+# Reset Workout Day — PRODUCTION (Render Postgres)
 
 Same surgical reset as **reset-workout-local**, but against the **live production database**. It
 rewinds one plan day back to not-started: deletes that day's set / exercise / block / day logs,
@@ -52,8 +52,8 @@ scripts/with-prod-url.sh npm run reset-workout-day -- \
   --email rtp+qa@mastersfit.ai --remote
 ```
 
-Expect a `local=false` line + a `⚠️ --remote` warning naming the Neon host, the resolved target
-day, `✓` lines, and `daysCompleted -> N`. If it prints **"No plan day found … on <date>"**, the
+Expect a `local=false` line + a `⚠️ --remote` warning naming the Render host
+(`*.oregon-postgres.render.com`), the resolved target day, `✓` lines, and `daysCompleted -> N`. If it prints **"No plan day found … on <date>"**, the
 active plan doesn't cover that date — generate a workout for that day first, then reset.
 
 ### Pick the right account
@@ -75,8 +75,8 @@ scripts/db-prod-read.sh -c "
 ```
 
 (`plan_days.date` is a **text** column, hence `to_char` rather than a `::date` cast. Using the
-profile timezone — not `current_date`, which is UTC on Neon and drifts from the script's notion
-of "today" after ~7pm Central.)
+profile timezone — not `current_date`, which is UTC on the prod server and drifts from the
+script's notion of "today" after ~7pm Central.)
 
 ### Resetting Dave (the demo user) instead
 

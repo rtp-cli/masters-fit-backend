@@ -23,7 +23,8 @@ guests — anyone who should use the real app for free without a store purchase.
 2. **Always `--dry-run` first** and show the user the resolved `id` + current subscription row per
    email. A row that already shows `accessOverride: 'COMPLIMENTARY'` is a no-op — say so instead
    of re-applying silently.
-3. **On prod, name the Neon host back to the user** from the dry-run output before applying.
+3. **On prod, name the prod host back to the user** (`*.oregon-postgres.render.com`) from the
+   dry-run output before applying.
 4. **The account must have opened the app at least once.** The subscription row is created lazily
    on first load; with no row the `UPDATE` matches nothing. The script detects this and prints
    `⚠️  No user_subscriptions row` — that is *not* success. Ask them to launch the app, re-run.
@@ -86,7 +87,7 @@ then `would set access_override = COMPLIMENTARY`. Get sign-off.
 ```bash
 scripts/with-prod-url.sh npm run comp-user -- a@example.com b@example.com
 ```
-Expect `APPLYING`, the Neon host, and per user
+Expect `APPLYING`, the Render host, and per user
 `✅ applied: [ { userId: <n>, accessOverride: 'COMPLIMENTARY' } ]`.
 
 ### 3. Verify — read the rows back

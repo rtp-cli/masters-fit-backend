@@ -1,6 +1,6 @@
 ---
 name: reseed-dave-local
-description: Use when reseeding/refreshing the MastersFit demo user "Dave Walker" (rtp+demo@mastersfit.ai) on the LOCAL database — rebuild the demo account's workout history so the dashboard, streak, and active workout are anchored to today (for marketing screenshots from the simulator or local dev). "reseed Dave locally", "refresh the demo user", "demo data is stale". For production/Neon use reseed-dave-prod instead.
+description: Use when reseeding/refreshing the MastersFit demo user "Dave Walker" (rtp+demo@mastersfit.ai) on the LOCAL database — rebuild the demo account's workout history so the dashboard, streak, and active workout are anchored to today (for marketing screenshots from the simulator or local dev). "reseed Dave locally", "refresh the demo user", "demo data is stale". For production use reseed-dave-prod instead.
 ---
 
 # Reseed Dave Walker — LOCAL

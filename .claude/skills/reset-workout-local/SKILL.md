@@ -89,6 +89,6 @@ doesn't extend to today) — generate a workout for that day first, then reset.
 
 ## Related
 
-- **reset-workout-prod** — the same reset against production (Neon).
+- **reset-workout-prod** — the same reset against production (Render Postgres).
 - **reset-user-trial** — un-block generation (trial/subscription) on an account.
 - **reseed-dave-local** — full rebuild of the marketing demo user, locally.

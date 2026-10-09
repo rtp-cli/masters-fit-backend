@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run a command with DATABASE_URL set to the production Neon URL from the Keychain.
+# Run a command with DATABASE_URL set to the production (Render Postgres) URL from
+# the Keychain.
 #
 #   scripts/with-prod-url.sh npm run reset-workout-day -- --email x@y.com --remote --dry-run
 #
@@ -22,7 +23,7 @@ URL="$(security find-generic-password -a "$USER" -s "$SERVICE" -w 2>/dev/null ||
 
 [[ -n "$URL" ]] || {
   echo "no prod URL in the Keychain (service=$SERVICE)." >&2
-  echo "Copy the Neon connection string, then run: scripts/db-prod-set-url.sh" >&2
+  echo "Copy the EXTERNAL Database URL from Render (masters-fit-db), then run: scripts/db-prod-set-url.sh" >&2
   exit 1; }
 
 # Name the target host (never the credential) so the operator can see, and the

@@ -12,7 +12,7 @@ read-only impact preview in `src/scripts/preflight-user-fk.ts`.
 
 > ⛔ **This is irreversible.** Unlike `reset-workout-*` (recoverable by re-logging) or
 > `reseed-dave-*` (recreates the user), a delete is **gone** — there is no undo, and on prod
-> the row is gone from the live Neon database. Treat every prod run as a one-way door.
+> the row is gone from the live Render Postgres database. Treat every prod run as a one-way door.
 
 ## Non-negotiable guardrails
 
@@ -28,7 +28,8 @@ read-only impact preview in `src/scripts/preflight-user-fk.ts`.
      stop and confirm it's genuinely disposable before going near it.
 3. **Always run the two read-only steps first** (preflight, then `--dry-run`) and **show the
    user the exact ids + workout counts** that would be deleted. Only apply after they confirm.
-4. **On prod, name the Neon host back to the user** from the dry-run output before applying.
+4. **On prod, name the prod host back to the user** (`*.oregon-postgres.render.com`) from the
+   dry-run output before applying.
 5. Deleting a currently-active user is fine data-wise, but their app session will 401 on the
    next request — expected.
 
@@ -76,10 +77,10 @@ scripts/with-prod-url.sh npm run delete-user -- test-a@example.com --dry-run
 ```bash
 # local
 npm run delete-user -- test-a@example.com
-# prod  (irreversible — you have the user's explicit go and named the Neon host)
+# prod  (irreversible — you have the user's explicit go and named the Render host)
 scripts/with-prod-url.sh npm run delete-user -- test-a@example.com
 ```
-Expect `APPLYING`, the Neon host, and a `✓ deleted id=<n> and all associated data` per account.
+Expect `APPLYING`, the Render host, and a `✓ deleted id=<n> and all associated data` per account.
 
 ### 4. Verify — prove it's gone
 Re-run the preflight; a deleted account reports `target users (0/1)` + `NOT FOUND`.
