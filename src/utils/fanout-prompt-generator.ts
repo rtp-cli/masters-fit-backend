@@ -421,7 +421,8 @@ const BLOCK_SCHEMA = {
     blockType: { type: "string", enum: BLOCK_TYPES },
     blockName: {
       type: "string",
-      description: "Name of this block, e.g. 'AMRAP WOD', 'Strength Circuit'",
+      description:
+        "Name of this block by format/focus, e.g. 'AMRAP WOD', 'Upper Body Circuit', 'Conditioning Finisher'. Do NOT name a specific exercise or piece of equipment (e.g. not 'Ski Erg Circuit') — exercises can be substituted downstream, and the name must stay true to whatever the block actually contains.",
     },
     primaryMuscleGroups: {
       type: "array",
@@ -473,7 +474,7 @@ const BLOCK_SCHEMA = {
     instructions: {
       type: "string",
       description:
-        "Block coaching instructions: format, pacing, execution. Max 3 sentences. Describe the block generically — do NOT name specific exercises or restate rep/weight numbers (they're listed per exercise and may be adjusted downstream, which would leave this text stale).",
+        "Block coaching instructions: format, pacing, execution. Max 3 sentences. Describe the block generically — do NOT name specific exercises or equipment, or restate rep/weight numbers (they're listed per exercise and may be adjusted downstream, which would leave this text stale).",
     },
     order: {
       type: "number",
