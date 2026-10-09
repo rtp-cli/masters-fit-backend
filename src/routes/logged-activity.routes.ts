@@ -58,6 +58,16 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
+// Import workouts read off the user's watch. Idempotent; called on app open.
+router.post("/import", requireAuth, async (req, res) => {
+  try {
+    const response = await controller.importActivities(req, req.body);
+    res.json(response);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 // Remove one (the mis-tap escape hatch — there is no edit in v1).
 router.delete("/:activityId", requireAuth, async (req, res) => {
   try {

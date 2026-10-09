@@ -7,7 +7,7 @@ import {
   exerciseSetLogs, planDayLogs, workoutLogs, blockLogs, shareLinks, aiOperations,
   backgroundJobs, trialUsage, userSubscriptions, profiles, prompts,
   impersonationAudit, appFeedback, planDayFeedback, accountDeletionLog,
-  trainingLocations, exercises,
+  trainingLocations, exercises, loggedActivities,
 } from "@/models";
 import type { UpdateUser, User } from "@/models";
 import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
@@ -60,6 +60,9 @@ export async function purgeUserData(tx: any, userId: number, meta: PurgeMeta): P
   await tx.delete(shareLinks).where(eq(shareLinks.userId, userId));
   await tx.delete(aiOperations).where(eq(aiOperations.userId, userId));
   await tx.delete(backgroundJobs).where(eq(backgroundJobs.userId, userId));
+  // Logged + watch-imported activities (incl. dismissed tombstones). The FK is
+  // NO ACTION, so leaving these behind made the users delete below fail.
+  await tx.delete(loggedActivities).where(eq(loggedActivities.userId, userId));
 
   if (workoutIds.length) {
     const days = await tx.select({ id: planDays.id }).from(planDays).where(inArray(planDays.workoutId, workoutIds));

@@ -16,9 +16,13 @@ import {
 
 import {
   createLoggedActivitySchema,
+  importActivitiesSchema,
   type LoggedActivity,
 } from "@/models/logged-activity.schema";
-import { loggedActivityService } from "@/services/logged-activity.service";
+import {
+  loggedActivityService,
+  type ImportActivitiesResult,
+} from "@/services/logged-activity.service";
 import { ApiResponse } from "@/types/common/responses";
 
 interface ListActivitiesResponse extends ApiResponse {
@@ -27,6 +31,21 @@ interface ListActivitiesResponse extends ApiResponse {
 
 interface CreateActivityResponse extends ApiResponse {
   activity?: LoggedActivity;
+}
+
+interface ImportActivitiesResponse extends ApiResponse {
+  result: ImportActivitiesResult;
+}
+
+/** Shared by create and import: the caller's LOCAL date, else the server's. */
+function resolveLocalToday(today: unknown): string {
+  return typeof today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(today)
+    ? today
+    : // No usable client date: fall back to the server's. A user one
+      // timezone ahead could then be told their evening walk is "in the
+      // future", so the client always sends it — this is the floor, not
+      // the expected path.
+      new Date().toISOString().slice(0, 10);
 }
 
 /**
@@ -58,14 +77,7 @@ export class LoggedActivityController extends Controller {
     const { today, ...activity } = requestBody ?? {};
     const validated = createLoggedActivitySchema.parse(activity);
 
-    const localToday =
-      typeof today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(today)
-        ? today
-        : // No usable client date: fall back to the server's. A user one
-          // timezone ahead could then be told their evening walk is "in the
-          // future", so the client always sends it — this is the floor, not
-          // the expected path.
-          new Date().toISOString().slice(0, 10);
+    const localToday = resolveLocalToday(today);
 
     const created = await loggedActivityService.createActivity(
       userId,
@@ -75,6 +87,29 @@ export class LoggedActivityController extends Controller {
 
     this.setStatus(201);
     return { success: true, activity: created };
+  }
+
+  /**
+   * Import workouts read off the user's watch (Apple Health / Health Connect).
+   * Idempotent — the app calls it on every open with the last few days.
+   */
+  @Post("/import")
+  @Response<ApiResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async importActivities(
+    @Request() request: any,
+    @Body() requestBody: any
+  ): Promise<ImportActivitiesResponse> {
+    const userId: number = request.userId;
+    const { today, ...body } = requestBody ?? {};
+    const { activities } = importActivitiesSchema.parse(body);
+
+    const result = await loggedActivityService.importActivities(
+      userId,
+      activities,
+      resolveLocalToday(today)
+    );
+    return { success: true, result };
   }
 
   /**
