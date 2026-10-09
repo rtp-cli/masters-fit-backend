@@ -97,14 +97,24 @@ all its data**. Two rules:
 
 > These commands target whatever `DATABASE_URL` points to (the `.env` default is your **local**
 > DB). To deploy the same change to **production**, use the `deploy-db` command, which runs the
-> review-then-apply flow against Neon.
+> review-then-apply flow against production (Render Postgres).
 
 ### Rollback reality (production)
 
 Push-based sync has **no down-migration**. If a prod push drops/renames/retypes something, the
-only recovery is a Neon branch or point-in-time restore — which is account-level and loses writes
-made after the incident. Before any destructive prod push, take a Neon branch snapshot first as a
-tested rollback target, and get explicit sign-off. Additive-only pushes don't need this.
+only recovery is a Render point-in-time restore (3 days on Hobby, 7 on Pro) — which restores into
+a **new** instance and loses writes made after the incident — or a manual logical backup from the
+Render dashboard (kept 7 days). There is no Neon-style branching. Before any destructive prod
+push, take a safety dump first as a rollback target, and get explicit sign-off:
+
+```bash
+scripts/with-prod-url.sh sh -c \
+  '/opt/homebrew/opt/postgresql@17/bin/pg_dump "$DATABASE_URL" -Fc -f <file>'
+```
+
+(Use the `postgresql@17` binaries: prod is PostgreSQL 17 and the default local `pg_dump` is v16,
+which refuses to dump a newer server. The single quotes matter: `$DATABASE_URL` must expand in
+the wrapper's child, not in your shell, where it is unset or points at local.) Additive-only pushes don't need this.
 
 ## Step 4 — Keep the types in sync
 

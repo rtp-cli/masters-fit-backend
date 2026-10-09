@@ -1,6 +1,6 @@
 ---
 name: prod-catalog-fix
-description: Use to correct fields on ONE shared-catalog exercise by id on PRODUCTION (Neon) — a wrong difficulty, missing equipment, a muscle group the overload check should see, a typo'd name, bad instructions/description, or a wrong tag. Triggers "/prod-catalog-fix", "fix exercise 1131's difficulty", "exercise X should list dumbbells", "that exercise is tagged wrong", "rename exercise N". Writes to the LIVE catalog, which every user's workouts read from — preview, confirm, apply, read back. Reversible (prints the rollback command). For a wrong demo VIDEO use fix-exercise-link (npm run fix-exercise-link); for a user's own custom exercise, this tool refuses by design.
+description: Use to correct fields on ONE shared-catalog exercise by id on PRODUCTION (Render Postgres) — a wrong difficulty, missing equipment, a muscle group the overload check should see, a typo'd name, bad instructions/description, or a wrong tag. Triggers "/prod-catalog-fix", "fix exercise 1131's difficulty", "exercise X should list dumbbells", "that exercise is tagged wrong", "rename exercise N". Writes to the LIVE catalog, which every user's workouts read from — preview, confirm, apply, read back. Reversible (prints the rollback command). For a wrong demo VIDEO use fix-exercise-link (npm run fix-exercise-link); for a user's own custom exercise, this tool refuses by design.
 ---
 
 # Prod Catalog Fix — correct one exercise row
@@ -45,10 +45,10 @@ shows the video title), `id`, `owner_user_id`, `created_at`, and `updated_at` (s
    user can see nothing was dropped.
 3. **Always preview first, and get an explicit yes via AskUserQuestion before `--apply`.** The
    script previews unless `--apply` is passed, and that preview is the dry-run. Put the
-   before/after lines and the Neon host into the question. A yes to one preview covers that exact
+   before/after lines and the Render host into the question. A yes to one preview covers that exact
    command only: if anything changes, preview again.
-4. **Name the Neon host back to the user** (from the `with-prod-url: DATABASE_URL -> <host>`
-   line). Never print anything that resolves to the credential.
+4. **Name the Render host back to the user** (`*.oregon-postgres.render.com`, from the
+   `with-prod-url: DATABASE_URL -> <host>` line). Never print anything that resolves to the credential.
 5. **Renames have a tail.** Plans reference exercises by id, so history follows the rename. But
    generation creates exercises BY NAME (`createExerciseIfNotExists`), so if the model keeps
    emitting the old name, a fresh duplicate row can reappear under it. Say this when renaming, and

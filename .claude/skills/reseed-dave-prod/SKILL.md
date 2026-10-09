@@ -1,26 +1,32 @@
 ---
 name: reseed-dave-prod
-description: Use ONLY when intentionally reseeding the MastersFit demo user "Dave Walker" (rtp+demo@mastersfit.ai) on PRODUCTION (Neon) — rebuild the live demo account's workout history anchored to today, e.g. for a live demo or an app-store review login. Destructive on prod (deletes + recreates the demo user). "reseed Dave on prod", "refresh the production demo user". For local use reseed-dave-local instead.
+description: Use ONLY when intentionally reseeding the MastersFit demo user "Dave Walker" (rtp+demo@mastersfit.ai) on PRODUCTION (Render Postgres) — rebuild the live demo account's workout history anchored to today, e.g. for a live demo or an app-store review login. Destructive on prod (deletes + recreates the demo user). "reseed Dave on prod", "refresh the production demo user". For local use reseed-dave-local instead.
 ---
 
-# Reseed Dave Walker — PRODUCTION (Neon)
+# Reseed Dave Walker — PRODUCTION (Render Postgres)
 
-Rebuilds the **live** demo account (`rtp+demo@mastersfit.ai`, "Dave Walker") on the Neon
-production database via `src/scripts/seed-demo-user.ts --remote`. The script only ever touches
-the demo user — but it runs against the real database, so treat this like a prod DB operation
-and **do it deliberately**. For local, use **reseed-dave-local**.
+Rebuilds the **live** demo account (`rtp+demo@mastersfit.ai`, "Dave Walker") on the Render
+Postgres production database via `src/scripts/seed-demo-user.ts --remote`. The script only ever
+touches the demo user — but it runs against the real database, so treat this like a prod DB
+operation and **do it deliberately**. For local, use **reseed-dave-local**.
 
 > ⚠️ This **deletes the prod demo user and all his data, then recreates him with a new id.** Any
 > device logged into that account (a reviewer, a live demo) must re-authenticate afterward.
+>
+> The new id also drops Dave out of the model canary: Render's `MODEL_CANARY_USER_IDS` env var
+> (currently `3,41,103,158`; Dave is `158`) lists him by id. After a prod reseed, tell the user
+> his new id so they can swap it into that env var in the Render dashboard, or he silently stops
+> getting canary models.
 
 ## Guardrails (do not skip)
 
 - **Never handle the connection string.** Prefix the command with `scripts/with-prod-url.sh`,
   which injects `DATABASE_URL` from the macOS Keychain into the child process only. Do not fetch
   it from the Render dashboard or `.env`, and never let it reach a command line or the screen.
-- **Confirm you're hitting Neon, not local.** The script prints `local=false` and a
+- **Confirm you're hitting prod, not local.** The script prints `local=false` and a
   `⚠️ --remote: seeding NON-LOCAL database "<host>"` warning, and the host must look like
-  `*.neon.tech`. **If you don't see that warning, stop** — you may be about to wipe the wrong DB.
+  `*.oregon-postgres.render.com`. **If you don't see that warning and host, stop** — you may be
+  about to wipe the wrong DB.
 - **Exercise-library prerequisite.** The seed references hardcoded exercise IDs verified against
   the **local** exercises table. Production must have those same IDs present, or the reseed will
   fail (FK errors) or attach the wrong exercises. If unsure, verify the prod `exercises` table

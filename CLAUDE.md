@@ -109,9 +109,12 @@ to the matching route file. The `add-api-endpoint` skill walks through both halv
    ```
    It pins `default_transaction_read_only=true` on the connection, so **Postgres itself**
    refuses `INSERT`/`UPDATE`/`DELETE`/DDL, and it never echoes the connection string into
-   your scrollback. It forces Neon's **unpooled** host on purpose — the pooler rejects that
-   startup parameter, and because an unsupported parameter fails the connection outright,
-   the script can never silently connect without the read-only pin.
+   your scrollback. Prod is **Render Postgres** (`masters-fit-db`, Oregon, PostgreSQL 17);
+   the Keychain holds its **external** URL (the backend service itself uses Render's internal
+   one). The script's `-pooler.` host rewrite is a leftover for the old Neon URL and is a
+   no-op on Render — Neon's pooler rejected the read-only startup parameter, and because an
+   unsupported parameter fails the connection outright, the script can never silently
+   connect without the read-only pin.
 
    Writing to prod is a separate, deliberate act: use the purpose-built scripts
    (`comp-user`, `reset-workout-prod`, `delete-user`, …) or their skills, which confirm
@@ -144,9 +147,11 @@ to the matching route file. The `add-api-endpoint` skill walks through both halv
 
 ## Eval gate
 
-- If the eval gate fails at ~0% or shows implausible drift, suspect a **stale eval Neon
-  branch** first (e.g. after a prod schema change) and ask the user to reset it from its
-  parent before changing any code.
+- If the eval gate fails at ~0% or shows implausible drift, suspect a **stale eval DB**
+  first (e.g. after a prod schema change) before changing any code. The eval still runs
+  against an old Neon branch (`EVAL_DATABASE_URL`), but prod moved to Render Postgres on
+  2026-10-09, so that branch is **no longer refreshed from prod** — "reset it from its
+  parent" no longer brings it current; a refresh now means restoring a prod dump into it.
 
 ---
 
