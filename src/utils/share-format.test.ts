@@ -5,6 +5,7 @@ import {
   blockScore,
   groupConsecutiveRuns,
   isPlausibleDuration,
+  repairTimedSet,
   summarizePrescription,
   summarizePrescriptionRun,
   summarizeSets,
@@ -106,7 +107,33 @@ describe("summarizePrescription", () => {
   });
 });
 
+describe("repairTimedSet", () => {
+  it("swaps the app's phantom '10 reps' on a timed prescription for the logged time", () => {
+    const fixed = repairTimedSet({ ...set(10, null), round: 1 }, 900);
+    expect(fixed).toMatchObject({ reps: null, durationSeconds: 900 });
+    expect(summarizeSets([fixed], 1).summary).toBe("1 x 15m");
+  });
+
+  it("leaves a set that already carries a time or distance alone", () => {
+    const timed = { ...set(0, null, { durationSeconds: 600 }), round: 1 };
+    expect(repairTimedSet(timed, 900)).toBe(timed);
+    const dist = { ...set(1, null, { distanceM: 2000 }), round: 1 };
+    expect(repairTimedSet(dist, 900)).toBe(dist);
+  });
+
+  it("keeps the set as logged when there is no exercise-level time to recover", () => {
+    const s = { ...set(10, null), round: 1 };
+    expect(repairTimedSet(s, null)).toBe(s);
+    expect(repairTimedSet(s, 0)).toBe(s);
+  });
+});
+
 describe("blockLabel", () => {
+  it("names cardio and superset blocks instead of calling them Strength", () => {
+    expect(blockLabel("cardio", null, 15, null, null)).toBe("Cardio · 15 min");
+    expect(blockLabel("superset", null, 12, null, null)).toBe("Superset · 12 min");
+  });
+
   it("names the protocol and its shape", () => {
     expect(blockLabel("traditional", null, 15, null, null)).toBe("Strength · 15 min");
     expect(blockLabel("circuit", 3, 14, null, null)).toBe("Circuit · 3 rounds · 14 min");

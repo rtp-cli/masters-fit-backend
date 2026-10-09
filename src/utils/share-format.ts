@@ -19,6 +19,8 @@ export const BLOCK_TYPE_LABELS: Record<string, string> = {
   for_time: "For time",
   tabata: "Tabata",
   flow: "Flow",
+  superset: "Superset",
+  cardio: "Cardio",
 };
 
 /** 45 -> "45", 42.5 -> "42.5". Trailing ".00" from the numeric column is noise. */
@@ -109,6 +111,27 @@ export function summarizeSets(
         : `${sets.length} x ${repPart}${loadPart}`,
     note,
   };
+}
+
+/**
+ * Recover the real time on a set logged against a TIMED prescription.
+ *
+ * The app's workout screen prefilled every set without a rep target as
+ * "10 reps", and that race overwrote the timed set the tracker had just
+ * built — so a 15-minute bike logged as reps=10 with no duration. 81 of 120
+ * prod set logs on timed prescriptions look like that (since Oct 2025). The
+ * exercise-level log still holds the true time (`duration_completed`), so use
+ * it and drop the fabricated rep count. A set that already carries a duration
+ * is left alone.
+ */
+export function repairTimedSet(
+  set: ShareSnapshotSet,
+  durationCompleted: number | null
+): ShareSnapshotSet {
+  if (set.durationSeconds || set.distanceM || !durationCompleted || durationCompleted <= 0) {
+    return set;
+  }
+  return { ...set, reps: null, durationSeconds: durationCompleted };
 }
 
 /** The prescription line for a `planned` share, which has nothing logged yet. */

@@ -31,6 +31,7 @@ import {
   blockScore,
   groupConsecutiveRuns,
   isPlausibleDuration,
+  repairTimedSet,
   SCORED_BLOCK_TYPES,
   summarizePrescription,
   summarizePrescriptionRun,
@@ -217,7 +218,8 @@ export class ShareService extends BaseService {
   private async loadLogs(
     planDayId: number,
     planDayExerciseIds: number[],
-    workoutBlockIds: number[]
+    workoutBlockIds: number[],
+    timedPdeIds: Set<number>
   ): Promise<{
     setsByPde: Map<number, ShareSnapshotSet[]>;
     loggedPde: Set<number>;
@@ -249,6 +251,7 @@ export class ShareService extends BaseService {
             id: exerciseLogs.id,
             planDayExerciseId: exerciseLogs.planDayExerciseId,
             roundNumber: exerciseLogs.roundNumber,
+            durationCompleted: exerciseLogs.durationCompleted,
           })
           .from(exerciseLogs)
           .where(inArray(exerciseLogs.planDayExerciseId, planDayExerciseIds)),
@@ -260,6 +263,7 @@ export class ShareService extends BaseService {
       const logIds = logs.map((l) => l.id);
       const roundByLog = new Map(logs.map((l) => [l.id, l.roundNumber]));
       const pdeByLog = new Map(logs.map((l) => [l.id, l.planDayExerciseId]));
+      const durationByLog = new Map(logs.map((l) => [l.id, l.durationCompleted ?? null]));
 
       const rows = await this.selectWithRetry(
         () =>
@@ -288,14 +292,19 @@ export class ShareService extends BaseService {
 
       for (const r of decorated) {
         const list = setsByPde.get(r.pde) ?? [];
-        list.push({
+        const logged: ShareSnapshotSet = {
           reps: r.reps ?? null,
           // decimal comes back as a string from pg; keep it a number.
           weight: r.weight == null ? null : Number(r.weight),
           durationSeconds: r.durationSeconds ?? null,
           distanceM: r.distanceM ?? null,
           round: r.round,
-        });
+        };
+        list.push(
+          timedPdeIds.has(r.pde)
+            ? repairTimedSet(logged, durationByLog.get(r.exerciseLogId) ?? null)
+            : logged
+        );
         setsByPde.set(r.pde, list);
       }
     }
@@ -387,7 +396,9 @@ export class ShareService extends BaseService {
       ? await this.loadLogs(
           pd.id,
           flat.map((e) => e.id),
-          rowBlocks.map((b) => b.id)
+          rowBlocks.map((b) => b.id),
+          // Prescribed by time with no rep target — a bike, a row, a plank.
+          new Set(flat.filter((e) => (e.duration ?? 0) > 0 && !e.reps).map((e) => e.id))
         )
       : null;
 
