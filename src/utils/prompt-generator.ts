@@ -652,7 +652,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
       "blocks": [
         {
           "blockType": "traditional" | "superset" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
-          "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow')",
+          "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow' — format/focus only; never name a specific exercise or piece of equipment)",
           "primaryMuscleGroups": ["string[] — the muscle groups THIS block targets; blocks on one day may differ, e.g. a strength block on ['chest'] then a full-body metcon on ['full_body']"],
           "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
           "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
@@ -1030,7 +1030,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
       "blocks": [
         {
           "blockType": "traditional" | "superset" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
-          "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow')",
+          "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow' — format/focus only; never name a specific exercise or piece of equipment)",
           "primaryMuscleGroups": ["string[] — the muscle groups THIS block targets; blocks on one day may differ, e.g. a strength block on ['chest'] then a full-body metcon on ['full_body']"],
           "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
           "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
@@ -1373,7 +1373,7 @@ Your response MUST be a **valid JSON object** with **exactly** the following str
   "blocks": [
     {
       "blockType": "traditional" | "superset" | "amrap" | "emom" | "for_time" | "circuit" | "flow" | "tabata" | "warmup" | "cooldown",
-      "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow')",
+      "blockName": "string (name of this workout block, e.g., 'AMRAP WOD', 'Strength Circuit', 'Sun Salutation Flow' — format/focus only; never name a specific exercise or piece of equipment)",
       "primaryMuscleGroups": ["string[] — the muscle groups THIS block targets; blocks on one day may differ, e.g. a strength block on ['chest'] then a full-body metcon on ['full_body']"],
       "blockDurationMinutes": number (REQUIRED: calculated total duration of this block in minutes),
       "timeCapMinutes": number (total time for this block type, only relevant for time-based formats like AMRAP, EMOM),
