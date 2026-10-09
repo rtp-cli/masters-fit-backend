@@ -79,6 +79,7 @@ export const AvailableEquipment = {
   SQUAT_RACK: "squat_rack",
   DIP_BAR: "dip_bar",
   ROWING_MACHINE: "rowing_machine",
+  SKI_ERG: "ski_erg",
   SLAM_BALLS: "slam_balls",
   CABLE_MACHINE: "cable_machine",
   JUMP_ROPE: "jump_rope",
