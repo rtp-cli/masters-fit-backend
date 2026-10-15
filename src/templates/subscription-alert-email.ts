@@ -156,7 +156,7 @@ ${detailRow("User ID", String(userId))}
           <tr>
             <td class="px" style="padding:20px 56px 0 56px;">
               <p style="margin:0; font-family:${FONT}; font-size:14px; line-height:1.6; color:#757575;">
-                Hit reply to write to ${safeName} directly &mdash; this email is addressed from them.
+                Only you received this. Replying will email ${safeName} (${safeEmail}) directly.
               </p>
               <p style="margin:28px 0 40px 0; font-family:${FONT}; font-size:14px; line-height:1.6; color:#757575;">
                 Sent automatically by the MastersFit backend from a RevenueCat webhook.
@@ -201,7 +201,7 @@ WHO
 ${sectionTitle.toUpperCase()}
 ${detailRows.map((r) => `  ${`${r.label}:`.padEnd(14)}${r.value}`).join("\n")}
 
-Hit reply to write to ${name} directly — this email is addressed from them.
+Only you received this. Replying will email ${name} (${email}) directly.
 
 Sent automatically by the MastersFit backend from a RevenueCat webhook.
 Internal notification · not sent to the user`;
