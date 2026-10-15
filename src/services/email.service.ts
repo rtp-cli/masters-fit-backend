@@ -473,9 +473,10 @@ export class EmailService {
   }
 
   /**
-   * "Welcome to MastersFit+" — a note from Rich to a customer who just started
-   * a paid subscription. Same sender, Reply-To and owner Bcc as the comp note:
-   * it's signed by a person and invites a reply.
+   * "Welcome to MastersFit+" — to a customer who just started a paid
+   * subscription. Type 2 (welcome / relationship): From the BRAND, signed by
+   * Rich as founder, with Reply-To pointed at Rich's real inbox because the
+   * email invites a reply. Owner Bcc like every lifecycle email.
    *
    * TRANSACTIONAL (it confirms a change they just made to their own account),
    * so no List-Unsubscribe headers and no `email_opted_out_at` check.
@@ -491,7 +492,7 @@ export class EmailService {
     const { html, text } = subscriberWelcomeTemplate(templateProps);
 
     const response = await resend.emails.send({
-      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      from: `MastersFit <${FROM_EMAIL}>`,
       to,
       bcc: lifecycleBcc(to),
       subject,

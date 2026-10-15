@@ -7,12 +7,11 @@ import { isSuppressedSignupEmail } from "@/constants/signup-notifications";
 import {
   REVENUE_CAT_EVENT_TYPES,
   REVENUE_CAT_PERIOD_TYPES,
-  REVENUE_CAT_STORES,
   type RevenueCatWebhookEvent,
 } from "@/types/subscription/requests";
 import {
   SUBSCRIBER_WELCOME_SUBJECT,
-  type SubscriberWelcomeStore,
+  subscriberWelcomeOpenAppUrl,
   type SubscriberWelcomeTemplateProps,
 } from "@/templates/subscriber-welcome-email";
 
@@ -36,8 +35,8 @@ export type SubscriberWelcomeOutcome =
   | "failed";
 
 /**
- * Customer-facing welcome note from Rich, sent when someone starts a paid
- * subscription.
+ * Customer-facing welcome email (type 2: from MastersFit, signed by Rich as
+ * founder, Reply-To Rich), sent when someone starts a paid subscription.
  *
  * Sits beside the owner alert (subscription-alert.service) and is fired from
  * the same point in the webhook, with the same idempotency argument: the
@@ -130,20 +129,8 @@ export function buildSubscriberWelcome(
     subject: SUBSCRIBER_WELCOME_SUBJECT,
     name: user.name ?? "",
     isTrial: event.period_type === REVENUE_CAT_PERIOD_TYPES.TRIAL,
-    store: welcomeStore(event.store),
+    openAppUrl: subscriberWelcomeOpenAppUrl(),
   };
-}
-
-function welcomeStore(store: RevenueCatWebhookEvent["store"]): SubscriberWelcomeStore {
-  switch (store) {
-    case REVENUE_CAT_STORES.APP_STORE:
-    case REVENUE_CAT_STORES.MAC_APP_STORE:
-      return "app_store";
-    case REVENUE_CAT_STORES.PLAY_STORE:
-      return "play_store";
-    default:
-      return "unknown";
-  }
 }
 
 export const subscriberWelcomeService = new SubscriberWelcomeService();

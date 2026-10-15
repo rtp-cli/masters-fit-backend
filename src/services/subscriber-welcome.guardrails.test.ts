@@ -27,7 +27,6 @@ import {
 } from "@/templates/subscriber-welcome-email";
 import {
   REVENUE_CAT_PERIOD_TYPES,
-  REVENUE_CAT_STORES,
   type RevenueCatWebhookEvent,
 } from "@/types/subscription/requests";
 
@@ -99,7 +98,7 @@ describe("dispatchSubscriberWelcome guardrails", () => {
       subject: "Welcome to MastersFit+",
       name: "Jane Doe",
       isTrial: false,
-      store: "app_store",
+      openAppUrl: "https://www.mastersfit.ai/continue",
     });
   });
 
@@ -216,36 +215,67 @@ describe("dispatchSubscriberWelcome guardrails", () => {
 });
 
 describe("welcome content", () => {
-  it("picks the store from the event", () => {
-    expect(buildSubscriberWelcome(purchase({ store: REVENUE_CAT_STORES.APP_STORE }), user()).store).toBe("app_store");
-    expect(buildSubscriberWelcome(purchase({ store: REVENUE_CAT_STORES.MAC_APP_STORE }), user()).store).toBe("app_store");
-    expect(buildSubscriberWelcome(purchase({ store: REVENUE_CAT_STORES.PLAY_STORE }), user()).store).toBe("play_store");
-    expect(buildSubscriberWelcome(purchase({ store: REVENUE_CAT_STORES.STRIPE }), user()).store).toBe("unknown");
-    expect(buildSubscriberWelcome(purchase({ store: undefined }), user()).store).toBe("unknown");
+  const OPEN = "https://www.mastersfit.ai/continue";
+  const render = (over: Partial<{ name: string; isTrial: boolean }> = {}) =>
+    subscriberWelcomeTemplate({ name: "Jane Doe", isTrial: false, openAppUrl: OPEN, ...over });
+
+  afterEach(() => {
+    delete process.env.SUBSCRIBER_WELCOME_OPEN_URL;
   });
 
-  it("tells an App Store customer to manage it through Apple", () => {
-    const { html, text } = subscriberWelcomeTemplate({ name: "Jane Doe", isTrial: false, store: "app_store" });
-    expect(text).toContain("that's handled by Apple");
-    expect(text).toContain("open Settings, tap your name, then Subscriptions");
-    expect(text).not.toContain("Google Play");
-    expect(html).toContain("that's handled by Apple");
+  it("renders Rich's approved copy, in order", () => {
+    const { text } = render();
+    const expected = [
+      "Hi Jane,",
+      "Thanks for subscribing to MastersFit+. We're glad to be part of your training.",
+      "MastersFit is built to help you stay strong, active, and consistent after 40 - with training that fits your goals, experience, and life.",
+      "Your subscription gives you more flexibility and insight along the way:",
+      "- Training that adapts: Generate new plans and adjust your workouts as your schedule, equipment, or goals change.",
+      "- Progress you can see: Track strength trends, training volume, and personal records.",
+      "- Connected workout tracking: Sync your workouts with Apple Health or Health Connect.",
+      "Your next step: Open MastersFit, review your current plan, and choose your next workout. Keep your profile up to date so your training reflects where you are today.",
+      `Open MastersFit: ${OPEN}`,
+      "If you have questions, run into an issue, or have feedback, just reply to this email. We'd like to hear from you.",
+      "Thanks for choosing MastersFit.",
+      "- Rich\nFounder, MastersFit",
+    ];
+    let at = -1;
+    for (const line of expected) {
+      const next = text.indexOf(line);
+      expect(next).toBeGreaterThan(at);
+      at = next;
+    }
   });
 
-  it("tells a Google Play customer to manage it through Google Play", () => {
-    const { text } = subscriberWelcomeTemplate({ name: "Jane Doe", isTrial: false, store: "play_store" });
-    expect(text).toContain("that's handled by Google Play");
-    expect(text).toContain("Payments & subscriptions");
-    expect(text).not.toContain("handled by Apple");
+  it("puts the one button directly below the next-step paragraph", () => {
+    const { html } = render();
+    expect(html.match(/<a href="[^"]*"[^>]*>Open MastersFit<\/a>/g)).toHaveLength(1);
+    const step = html.indexOf("Your next step:");
+    const button = html.indexOf(">Open MastersFit</a>");
+    const reply = html.indexOf("If you have questions");
+    expect(step).toBeGreaterThan(-1);
+    expect(button).toBeGreaterThan(step);
+    expect(reply).toBeGreaterThan(button);
+    expect(html).toContain(`href="${OPEN}"`);
   });
 
-  it("stays generic when the store is unknown", () => {
-    const { text } = subscriberWelcomeTemplate({ name: "Jane Doe", isTrial: false, store: "unknown" });
-    expect(text).toContain("handled by the store you subscribed through");
+  it("bolds the benefit leads and the next-step lead", () => {
+    const { html } = render();
+    for (const lead of ["Training that adapts:", "Progress you can see:", "Connected workout tracking:", "Your next step:"]) {
+      expect(html).toMatch(new RegExp(`<strong[^>]*>${lead}</strong>`));
+    }
+  });
+
+  it("signs as Rich, founder, with no unsubscribe or postal address", () => {
+    const { html, text } = render();
+    expect(html).toContain("&mdash; Rich<br />Founder, MastersFit");
+    expect(html).not.toMatch(/unsubscribe/i);
+    expect(text).not.toMatch(/unsubscribe/i);
+    expect(text).not.toContain("1606 NW 106th Ter");
   });
 
   it("thanks a paying customer for subscribing", () => {
-    const { text } = subscriberWelcomeTemplate({ name: "Jane Doe", isTrial: false, store: "app_store" });
+    const { text } = render();
     expect(text).toContain("Thanks for subscribing to MastersFit+.");
     expect(text).not.toMatch(/trial/i);
   });
@@ -255,37 +285,39 @@ describe("welcome content", () => {
     expect(welcome.isTrial).toBe(true);
 
     const { text } = subscriberWelcomeTemplate(welcome);
-    expect(text).toContain("Thanks for starting your MastersFit+ free trial. Nothing has been charged yet.");
+    expect(text).toContain(
+      "Thanks for starting your MastersFit+ free trial. Nothing has been charged yet. We're glad to be part of your training."
+    );
     expect(text).not.toContain("Thanks for subscribing");
   });
 
-  it("greets by first name, signs as Rich, and invites a reply", () => {
-    const { html, text } = subscriberWelcomeTemplate({ name: "Jane Doe", isTrial: false, store: "app_store" });
-    expect(text.startsWith("Hi Jane,")).toBe(true);
-    expect(text).toContain("Just reply to this email if anything feels off or you want something changed. It comes straight to me.");
-    expect(text.trimEnd().endsWith("- Rich")).toBe(true);
-    expect(html).toContain("&mdash; Rich");
-  });
-
   it("falls back to a generic greeting when there's no name", () => {
-    const { text } = subscriberWelcomeTemplate({ name: "  ", isTrial: false, store: "app_store" });
+    const { text } = render({ name: "  " });
     expect(text.startsWith("Hi there,")).toBe(true);
   });
 
   it("escapes the customer's name in the HTML", () => {
-    const { html } = subscriberWelcomeTemplate({ name: "<b>Jane", isTrial: false, store: "app_store" });
+    const { html } = render({ name: "<b>Jane" });
     expect(html).not.toContain("<b>Jane");
     expect(html).toContain("&lt;b&gt;Jane");
   });
 
-  it("lists exactly the paywall's benefits, and no prices or unbuilt features", () => {
-    const { text } = subscriberWelcomeTemplate({ name: "Jane Doe", isTrial: false, store: "app_store" });
-    expect(text).toContain("- Flexible plan adjustments - reshape any week or day as your training needs change");
-    expect(text).toContain("- New training plans whenever your goals, schedule, or equipment change");
-    expect(text).toContain("- Progress analytics - strength trends, training volume, and personal records");
-    expect(text).toContain("- Auto-sync your workouts to Apple Health and Health Connect");
+  it("has no prices or unbuilt features", () => {
+    const { text } = render();
     expect(text).not.toMatch(/\$\d/);
     expect(text).not.toMatch(/why it swapped/i);
+  });
+
+  it("links the button over https by default, overridable by env", () => {
+    expect(buildSubscriberWelcome(purchase(), user()).openAppUrl).toBe(OPEN);
+    process.env.SUBSCRIBER_WELCOME_OPEN_URL = "https://www.mastersfit.ai/open/";
+    expect(buildSubscriberWelcome(purchase(), user()).openAppUrl).toBe("https://www.mastersfit.ai/open");
+  });
+
+  it("refuses a custom-scheme button link (Gmail blocks them)", () => {
+    expect(() =>
+      subscriberWelcomeTemplate({ name: "Jane", isTrial: false, openAppUrl: "masters-fit://dashboard" })
+    ).toThrow(/http/);
   });
 
   it("uses the welcome subject", () => {
