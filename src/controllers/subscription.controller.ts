@@ -30,6 +30,7 @@ import {
 import { logger } from "@/utils/logger";
 import { userService } from "@/services/user.service";
 import { notificationService } from "@/services/notification.service";
+import { subscriptionAlertService } from "@/services/subscription-alert.service";
 
 /**
  * RevenueCat webhook authorization secret. Read at CALL TIME (not captured in
@@ -274,7 +275,7 @@ export class SubscriptionController extends Controller {
       }
 
       // Process the event
-      await this.processWebhookEvent(event);
+      const userId = await this.processWebhookEvent(event);
 
       // Mark event as processed for idempotency
       await subscriptionService.markWebhookEventProcessed(
@@ -282,6 +283,18 @@ export class SubscriptionController extends Controller {
         eventType,
         JSON.stringify(payload)
       );
+
+      // Owner alert for new subscribers and cancellations. Fired only AFTER
+      // the mark above succeeds, which is what makes it send at most once per
+      // event: webhook_events.event_id is UNIQUE, so of two concurrent
+      // deliveries only one gets past that insert, and any later retry stops
+      // at the already-processed check. (Firing it inside the handlers would
+      // double-send whenever the mark failed and RevenueCat retried.)
+      // Fire-and-forget: it self-contains its errors and must never block or
+      // fail the webhook response.
+      if (userId != null) {
+        void subscriptionAlertService.dispatchSubscriptionAlert(event, userId);
+      }
 
       logger.info("RevenueCat webhook processed successfully", {
         operation: "handleRevenueCatWebhook",
@@ -313,14 +326,14 @@ export class SubscriptionController extends Controller {
    */
   private async processWebhookEvent(
     event: RevenueCatWebhookEvent
-  ): Promise<void> {
+  ): Promise<number | null> {
     const eventType = event.type;
     const appUserId = event.app_user_id;
 
     // For TRANSFER events, handle differently since they involve multiple users
     if (eventType === REVENUE_CAT_EVENT_TYPES.TRANSFER) {
       await this.handleTransfer(event);
-      return;
+      return null;
     }
 
     // For SUBSCRIBER_ALIAS, just log - no action needed
@@ -330,7 +343,7 @@ export class SubscriptionController extends Controller {
         appUserId,
         aliases: event.aliases,
       });
-      return;
+      return null;
     }
 
     // Find user by RevenueCat customer ID or user ID
@@ -385,6 +398,8 @@ export class SubscriptionController extends Controller {
           }
         );
     }
+
+    return userId;
   }
 
   /**
