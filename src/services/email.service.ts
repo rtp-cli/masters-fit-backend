@@ -30,6 +30,10 @@ import {
   compGrantedTemplate,
   COMP_GRANTED_SUBJECT,
 } from "@/templates/comp-granted-email";
+import {
+  subscriptionAlertTemplate,
+  type SubscriptionAlertTemplateProps,
+} from "@/templates/subscription-alert-email";
 import { signupNotifyRecipients } from "@/constants/signup-notifications";
 import {
   onboardingContinueUrl,
@@ -610,6 +614,49 @@ export class EmailService {
       metadata: {
         newCount: params.newCount,
         totalCount: params.totalCount,
+        recipients: to,
+        messageId: response.data?.id,
+      },
+    });
+  }
+
+  /**
+   * Internal alert: a customer started a subscription (or a free trial) or
+   * cancelled one. Same recipients as the signup alerts — one owner inbox for
+   * every internal notification. Reply-To is the customer so a thank-you or a
+   * "what made you cancel?" note is one tap.
+   *
+   * Throws on send failure; the dispatcher logs it and swallows it so the
+   * RevenueCat webhook is never affected.
+   */
+  async sendSubscriptionAlertEmail(
+    params: SubscriptionAlertTemplateProps & { subject: string },
+  ): Promise<void> {
+    const to = signupNotifyRecipients();
+    if (to.length === 0) {
+      throw new Error("No signup notification recipients configured");
+    }
+
+    const { html, text } = subscriptionAlertTemplate(params);
+
+    const response = await resend.emails.send({
+      from: `MastersFit Subscriptions <${FROM_EMAIL}>`,
+      to,
+      replyTo: params.email || REPLY_TO_EMAIL,
+      subject: params.subject,
+      html,
+      text,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Subscription alert email sent", {
+      operation: "sendSubscriptionAlertEmail",
+      metadata: {
+        kind: params.kind,
+        userId: params.userId,
         recipients: to,
         messageId: response.data?.id,
       },
