@@ -31,6 +31,7 @@ import { logger } from "@/utils/logger";
 import { userService } from "@/services/user.service";
 import { notificationService } from "@/services/notification.service";
 import { subscriptionAlertService } from "@/services/subscription-alert.service";
+import { subscriberWelcomeService } from "@/services/subscriber-welcome.service";
 
 /**
  * RevenueCat webhook authorization secret. Read at CALL TIME (not captured in
@@ -292,8 +293,12 @@ export class SubscriptionController extends Controller {
       // double-send whenever the mark failed and RevenueCat retried.)
       // Fire-and-forget: it self-contains its errors and must never block or
       // fail the webhook response.
+      //
+      // The customer's welcome note rides the same point for the same reason:
+      // at most one per event, and never able to block or fail the webhook.
       if (userId != null) {
         void subscriptionAlertService.dispatchSubscriptionAlert(event, userId);
+        void subscriberWelcomeService.dispatchSubscriberWelcome(event, userId);
       }
 
       logger.info("RevenueCat webhook processed successfully", {

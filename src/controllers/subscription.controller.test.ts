@@ -4,6 +4,7 @@ import { subscriptionService } from "@/services/subscription.service";
 import { userService } from "@/services/user.service";
 import { notificationService } from "@/services/notification.service";
 import { subscriptionAlertService } from "@/services/subscription-alert.service";
+import { subscriberWelcomeService } from "@/services/subscriber-welcome.service";
 import { RevenueCatWebhookPayload } from "@/types/subscription/requests";
 
 jest.mock("@/services/subscription.service", () => ({
@@ -56,6 +57,14 @@ jest.mock("@/services/ai-operation.service", () => ({
 jest.mock("@/services/subscription-alert.service", () => ({
   subscriptionAlertService: {
     dispatchSubscriptionAlert: jest.fn(async () => "sent"),
+  },
+}));
+
+// Same for the customer welcome note; its guardrails are covered in
+// subscriber-welcome.guardrails.test.ts.
+jest.mock("@/services/subscriber-welcome.service", () => ({
+  subscriberWelcomeService: {
+    dispatchSubscriberWelcome: jest.fn(async () => "sent"),
   },
 }));
 
@@ -769,5 +778,123 @@ describe("SubscriptionController.handleRevenueCatWebhook — owner subscription 
     );
 
     expect(mockedAlert.dispatchSubscriptionAlert).not.toHaveBeenCalled();
+  });
+});
+
+describe("SubscriptionController.handleRevenueCatWebhook — customer welcome email", () => {
+  const controller = new SubscriptionController();
+  const mockedWelcome = jest.mocked(subscriberWelcomeService);
+
+  const purchasePayload = (id: string): RevenueCatWebhookPayload => ({
+    api_version: "1.0",
+    event: {
+      id,
+      type: "INITIAL_PURCHASE",
+      app_user_id: "19",
+      product_id: "masters_fit_monthly",
+      period_type: "NORMAL",
+      environment: "PRODUCTION",
+      store: "APP_STORE",
+    } as RevenueCatWebhookPayload["event"],
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedSubscriptionService.isWebhookEventProcessed.mockResolvedValue(false);
+    mockedSubscriptionService.markWebhookEventProcessed.mockResolvedValue(undefined);
+    mockedSubscriptionService.getUserSubscription.mockResolvedValue({} as any);
+    mockedUserService.getUser.mockResolvedValue({ id: 19 } as any);
+    mockedWelcome.dispatchSubscriberWelcome.mockReset();
+    mockedWelcome.dispatchSubscriberWelcome.mockResolvedValue("sent");
+  });
+
+  it("dispatches with the event and resolved user id, AFTER the event is marked processed", async () => {
+    const order: string[] = [];
+    mockedSubscriptionService.markWebhookEventProcessed.mockImplementation(async () => {
+      order.push("mark");
+    });
+    mockedWelcome.dispatchSubscriberWelcome.mockImplementation(async () => {
+      order.push("welcome");
+      return "sent";
+    });
+
+    const payload = purchasePayload("evt_welcome_order");
+    const result = await controller.handleRevenueCatWebhook({} as any, payload, "test-secret");
+
+    expect(result.success).toBe(true);
+    expect(order).toEqual(["mark", "welcome"]);
+    expect(mockedWelcome.dispatchSubscriberWelcome).toHaveBeenCalledTimes(1);
+    expect(mockedWelcome.dispatchSubscriberWelcome).toHaveBeenCalledWith(payload.event, 19);
+  });
+
+  it("does not dispatch for a retried event that was already processed", async () => {
+    mockedSubscriptionService.isWebhookEventProcessed.mockResolvedValue(true);
+
+    await controller.handleRevenueCatWebhook(
+      {} as any,
+      purchasePayload("evt_welcome_retry"),
+      "test-secret"
+    );
+
+    expect(mockedWelcome.dispatchSubscriberWelcome).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when marking the event fails (the retry will send it instead)", async () => {
+    mockedSubscriptionService.markWebhookEventProcessed.mockRejectedValue(
+      new Error('duplicate key value violates unique constraint "webhook_events_event_id_unique"')
+    );
+
+    const result = await controller.handleRevenueCatWebhook(
+      {} as any,
+      purchasePayload("evt_welcome_mark_fails"),
+      "test-secret"
+    );
+
+    expect(result.success).toBe(false);
+    expect(mockedWelcome.dispatchSubscriberWelcome).not.toHaveBeenCalled();
+  });
+
+  it("returns success without waiting on the welcome email", async () => {
+    // A dispatch that never settles must not hold the webhook response.
+    mockedWelcome.dispatchSubscriberWelcome.mockReturnValue(new Promise(() => {}));
+
+    const result = await controller.handleRevenueCatWebhook(
+      {} as any,
+      purchasePayload("evt_welcome_hang"),
+      "test-secret"
+    );
+
+    expect(result).toEqual({ success: true, message: "Webhook processed successfully" });
+  });
+
+  it("returns success when the welcome email fails", async () => {
+    mockedWelcome.dispatchSubscriberWelcome.mockResolvedValue("failed");
+
+    const result = await controller.handleRevenueCatWebhook(
+      {} as any,
+      purchasePayload("evt_welcome_fails"),
+      "test-secret"
+    );
+
+    expect(result.success).toBe(true);
+  });
+
+  it("does not dispatch for TRANSFER events (no single resolved user)", async () => {
+    await controller.handleRevenueCatWebhook(
+      {} as any,
+      {
+        api_version: "1.0",
+        event: {
+          id: "evt_welcome_transfer",
+          type: "TRANSFER",
+          app_user_id: "19",
+          transferred_from: [],
+          transferred_to: ["19"],
+        } as any,
+      },
+      "test-secret"
+    );
+
+    expect(mockedWelcome.dispatchSubscriberWelcome).not.toHaveBeenCalled();
   });
 });

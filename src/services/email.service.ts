@@ -31,6 +31,10 @@ import {
   COMP_GRANTED_SUBJECT,
 } from "@/templates/comp-granted-email";
 import {
+  subscriberWelcomeTemplate,
+  type SubscriberWelcomeTemplateProps,
+} from "@/templates/subscriber-welcome-email";
+import {
   subscriptionAlertTemplate,
   type SubscriptionAlertTemplateProps,
 } from "@/templates/subscription-alert-email";
@@ -466,6 +470,46 @@ export class EmailService {
       operation: "sendCompGrantedEmail",
       metadata: { recipient: to, messageId: response.data?.id },
     });
+  }
+
+  /**
+   * "Welcome to MastersFit+" — a note from Rich to a customer who just started
+   * a paid subscription. Same sender, Reply-To and owner Bcc as the comp note:
+   * it's signed by a person and invites a reply.
+   *
+   * TRANSACTIONAL (it confirms a change they just made to their own account),
+   * so no List-Unsubscribe headers and no `email_opted_out_at` check.
+   *
+   * Returns the Resend message id. THROWS on failure; the webhook dispatcher
+   * logs it and swallows it so RevenueCat is never affected.
+   */
+  async sendSubscriberWelcomeEmail(
+    params: SubscriberWelcomeTemplateProps & { to: string; subject: string },
+  ): Promise<string | undefined> {
+    const { to, subject, ...templateProps } = params;
+
+    const { html, text } = subscriberWelcomeTemplate(templateProps);
+
+    const response = await resend.emails.send({
+      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      to,
+      bcc: lifecycleBcc(to),
+      subject,
+      html,
+      text,
+      replyTo: NUDGE_REPLY_TO,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Subscriber welcome email sent", {
+      operation: "sendSubscriberWelcomeEmail",
+      metadata: { recipient: to, messageId: response.data?.id },
+    });
+
+    return response.data?.id;
   }
 
   /**
