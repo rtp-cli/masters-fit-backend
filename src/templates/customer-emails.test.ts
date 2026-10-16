@@ -5,6 +5,8 @@ import { featureTourTemplate } from "@/templates/feature-tour-email";
 import { subscriberWelcomeTemplate } from "@/templates/subscriber-welcome-email";
 import { onboardingNudgeTemplate } from "@/templates/onboarding-nudge-email";
 import { activationNudgeTemplate } from "@/templates/activation-nudge-email";
+import { otpEmailSubject, otpEmailTemplate } from "@/templates/otp-email";
+import { renewalReminderTemplate } from "@/templates/renewal-reminder-email";
 
 /**
  * Per-email checks for the template refresh (handoff SPEC §2-§5). The shared
@@ -102,5 +104,42 @@ describe("type 3 · product & marketing", () => {
     expect(planOnly.text).toContain("Your Foundations session is built");
     const nothing = activationNudgeTemplate({ name: "Jordan", planName: "", firstSessionName: null, startUrl: "https://www.mastersfit.ai/open", ...footer });
     expect(nothing.text).toContain("Your plan is built and waiting in the app.");
+  });
+});
+
+describe("type 4 · account & billing", () => {
+  it("verification code: heading, code box, no body links, unsigned, ignore line before the legal row", () => {
+    const { html, text } = otpEmailTemplate({ otp: "482915", name: "Jordan Sample" });
+    expect(otpEmailSubject("482915")).toBe("Your MastersFit code is 482915");
+    expect(html).toContain(">Verify your email</h1>");
+    expect(html).toContain("Hi Jordan,");
+    expect(html).not.toContain("Sample");
+    expect(html).toMatch(/font-size:38px; font-weight:700; letter-spacing:0.24em;[^>]*>482915</);
+    // The only links are the footer's Privacy / Terms.
+    expect(html.match(/<a /g)?.length).toBe(2);
+    expect(html).not.toMatch(/Train well|The MastersFit team|Manrope|©|&copy;/);
+    expect(text.indexOf("If you didn't request this")).toBeLessThan(text.indexOf("MastersFit LLC"));
+  });
+
+  it("renewal reminder: heading, renews-on box with the REAL billing period, inline bold manage link", () => {
+    const render = (planLabel: string, price: string | null) =>
+      renewalReminderTemplate({ name: "Jordan", planLabel, price, renewalDate: "November 12, 2026", manageUrl: "https://www.mastersfit.ai/manage-subscription" });
+
+    const annual = render("annual", "$89.99");
+    expect(annual.html).toContain(">Your MastersFit+ renews soon</h1>");
+    expect(annual.html).toContain(">$89.99 · annual plan</div>");
+    expect(annual.text).toContain("will automatically continue for another year");
+
+    const monthly = render("monthly", "$12.99");
+    expect(monthly.html).toContain(">$12.99 · monthly plan</div>");
+    expect(monthly.html).not.toMatch(/annual/);
+
+    for (const { html, text } of [annual, monthly]) {
+      expect(html).toContain('<a href="https://www.mastersfit.ai/manage-subscription" target="_blank" style="color:#0A0A0A; text-decoration:underline; font-weight:700;">manage or cancel anytime</a>');
+      expect(html).toContain("You’re receiving this because you have an active MastersFit+ subscription.");
+      expect(html).not.toMatch(/Train well|The MastersFit team|©|&copy;/);
+      expect(text).toContain("manage or cancel anytime (https://www.mastersfit.ai/manage-subscription)");
+    }
+    expect(render("", null).html).toContain(">MastersFit+</div>");
   });
 });

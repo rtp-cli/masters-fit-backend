@@ -49,4 +49,4 @@ export const RENEWAL_REMINDER_FALLBACK_DAYS = 7;
 // OS, not in-app). Overridable via env for staging/preview.
 export const MANAGE_SUBSCRIPTION_URL =
   process.env.MANAGE_SUBSCRIPTION_URL ||
-  "https://mastersfit.ai/manage-subscription";
+  "https://www.mastersfit.ai/manage-subscription";

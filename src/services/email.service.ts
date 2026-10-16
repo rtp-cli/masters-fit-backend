@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { otpEmailTemplate } from "@/templates/otp-email";
+import { otpEmailTemplate, otpEmailSubject } from "@/templates/otp-email";
 import { renewalReminderTemplate } from "@/templates/renewal-reminder-email";
 import {
   newUserNotificationTemplate,
@@ -126,7 +126,7 @@ export class EmailService {
       const response = await resend.emails.send({
         from: `MastersFit <${FROM_EMAIL}>`,
         to,
-        subject: `Your MastersFit code is ${otp}.`,
+        subject: otpEmailSubject(otp),
         html,
         text,
         replyTo: REPLY_TO_EMAIL,
