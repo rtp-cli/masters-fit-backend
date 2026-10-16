@@ -578,16 +578,23 @@ export class PromptsService extends BaseService {
     // Generate a thread ID if not provided to enable conversation memory for all users
     const workoutThreadId = threadId || `workout_daily_${userId}_${Date.now()}`;
 
-    // Recent post-workout feedback rides along as generation input
-    const enrichedReason = await timePhase(userId, "feedbackDigestMs", () =>
-      this.withRecentFeedback(userId, regenerationReason)
-    );
-
     // Resolve referenced days from the RAW reason — the feedback digest
-    // appended above can mention weekdays of its own.
+    // appended below can mention weekdays of its own.
     const refs = planContext
       ? findReferencedPlanDays(regenerationReason, planContext)
       : { days: [], unresolved: [] };
+
+    // Recent post-workout feedback rides along as generation input — except
+    // when the request is a faithful copy of another plan day. With the digest
+    // present the model narrates adjustments it never made ("volume trimmed per
+    // 'ran out of time' feedback") even when told not to; removing the input is
+    // the reliable fix.
+    const isReproduction = refs.days.length > 0 && refs.unresolved.length === 0;
+    const enrichedReason = isReproduction
+      ? regenerationReason
+      : await timePhase(userId, "feedbackDigestMs", () =>
+          this.withRecentFeedback(userId, regenerationReason)
+        );
     const promptPlanContext: DailyPromptPlanContext | undefined = planContext
       ? {
           summary: formatPlanContext(planContext, refs),
@@ -602,6 +609,7 @@ export class PromptsService extends BaseService {
         metadata: {
           referencedDates: refs.days.map((d) => d.date),
           unresolved: refs.unresolved,
+          feedbackDigestSkipped: isReproduction,
           pinnedNames: promptPlanContext?.referencedExerciseNames.length ?? 0,
         },
       });
