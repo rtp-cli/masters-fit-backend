@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { otpEmailTemplate } from "@/templates/otp-email";
+import { otpEmailTemplate, otpEmailSubject } from "@/templates/otp-email";
 import { renewalReminderTemplate } from "@/templates/renewal-reminder-email";
 import {
   newUserNotificationTemplate,
@@ -31,30 +31,58 @@ import {
   COMP_GRANTED_SUBJECT,
 } from "@/templates/comp-granted-email";
 import {
+  subscriberWelcomeTemplate,
+  type SubscriberWelcomeTemplateProps,
+} from "@/templates/subscriber-welcome-email";
+import {
   subscriptionAlertTemplate,
   type SubscriptionAlertTemplateProps,
 } from "@/templates/subscription-alert-email";
 import { signupNotifyRecipients } from "@/constants/signup-notifications";
+import { onboardingContinueUrl } from "@/constants/onboarding-nudge";
 import {
-  onboardingContinueUrl,
-  publicApiUrl,
-} from "@/constants/onboarding-nudge";
-import { signUnsubscribeToken } from "@/utils/email-token";
+  listUnsubscribeHeaders,
+  unsubscribeUrlFor,
+} from "@/constants/email-links";
 import { logger } from "@/utils/logger";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = process.env.FROM_EMAIL || "system@alif.care";
-const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "noreply@alif.care";
+// The brand sender for types 2-4 and the internal alerts. Must sit on the
+// Resend-verified domain (updates.mastersfit.ai). The fallback keeps mail
+// flowing if the env var is ever lost, but that is a misconfiguration, so
+// startup reports it (checkEmailSenderConfig, called from index.ts).
+const DEFAULT_FROM_EMAIL = "hello@updates.mastersfit.ai";
+const FROM_EMAIL = process.env.FROM_EMAIL?.trim() || DEFAULT_FROM_EMAIL;
+// Every customer email invites a reply, so Reply-To is always a mailbox a
+// person reads.
+const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "rtp@mastersfit.ai";
 
-// The onboarding nudge is signed by a person, so it sends as one. The address
-// must still live on the Resend-verified domain (updates.mastersfit.ai) or the
-// send is rejected — hence rtp@ THERE, with Reply-To pointing at the real
-// mailbox that a human actually reads.
+// The personal notes (type 1: comp, comeback, feature tour) are signed by a
+// person, so they send as one. The address must still live on the
+// Resend-verified domain (updates.mastersfit.ai) or the send is rejected —
+// hence rtp@ THERE, with Reply-To pointing at the real mailbox that a human
+// actually reads.
 const NUDGE_FROM_NAME = process.env.NUDGE_FROM_NAME || "Rich Pusateri";
 const NUDGE_FROM_EMAIL =
   process.env.NUDGE_FROM_EMAIL || "rtp@updates.mastersfit.ai";
 const NUDGE_REPLY_TO = process.env.NUDGE_REPLY_TO || "rtp@mastersfit.ai";
+
+/**
+ * Report a missing FROM_EMAIL once, at server startup. Deliberately does NOT
+ * throw: a crash at boot would take the whole API down over an email setting,
+ * and the default above is a valid, verified address. logger.error reaches
+ * Sentry, so the misconfiguration is still loud.
+ */
+export function checkEmailSenderConfig(): void {
+  if (!process.env.FROM_EMAIL?.trim()) {
+    logger.error(
+      `FROM_EMAIL is not set; customer email will send from the default ${DEFAULT_FROM_EMAIL}`,
+      undefined,
+      { operation: "checkEmailSenderConfig" },
+    );
+  }
+}
 
 // Early-phase owner visibility: Rich gets a Bcc on every LIFECYCLE email — the
 // ones that reach a real customer because of where they are in their
@@ -119,7 +147,7 @@ export class EmailService {
       const response = await resend.emails.send({
         from: `MastersFit <${FROM_EMAIL}>`,
         to,
-        subject: `Your MastersFit code is ${otp}.`,
+        subject: otpEmailSubject(otp),
         html,
         text,
         replyTo: REPLY_TO_EMAIL,
@@ -190,19 +218,14 @@ export class EmailService {
   }
 
   /**
-   * The onboarding nudge — the one email in this service that goes to a
-   * customer for a reason they didn't ask for.
+   * The onboarding nudge — product & marketing (type 3).
    *
-   * Two departures from every other send here, both intentional:
+   * From the brand ("MastersFit"), with Reply-To pointed at Rich's real inbox:
+   * the email closes with a note from Rich inviting a reply, and that reply is
+   * the only thing the email is actually trying to buy.
    *
-   *   From is a PERSON, not the brand. It still has to sit on the Resend
-   *   verified domain (updates.mastersfit.ai), so this is rtp@ on that domain
-   *   with Reply-To pointed at the real rtp@mastersfit.ai inbox. Sending a
-   *   "just hit reply" email from noreply@ would undercut the only thing the
-   *   email is actually trying to buy.
-   *
-   *   The unsubscribe link is built here rather than passed in, so no caller
-   *   can construct this email without one.
+   * The unsubscribe link is built here rather than passed in, so no caller
+   * can construct this email without one.
    */
   async sendOnboardingNudgeEmail(params: {
     to: string;
@@ -212,9 +235,7 @@ export class EmailService {
   }): Promise<void> {
     const { to, name, userId, postalAddress } = params;
 
-    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
-      signUnsubscribeToken(userId),
-    )}`;
+    const unsubscribeUrl = unsubscribeUrlFor(userId);
 
     const { html, text } = onboardingNudgeTemplate({
       name,
@@ -224,20 +245,14 @@ export class EmailService {
     });
 
     const response = await resend.emails.send({
-      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      from: `MastersFit <${FROM_EMAIL}>`,
       to,
       bcc: lifecycleBcc(to),
       subject: ONBOARDING_NUDGE_SUBJECT,
       html,
       text,
-      replyTo: NUDGE_REPLY_TO,
-      // One-click unsubscribe. Gmail and Yahoo require this header on bulk
-      // mail; without it they are entitled to treat the send as spam no matter
-      // how good the footer link is.
-      headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      replyTo: REPLY_TO_EMAIL,
+      headers: listUnsubscribeHeaders(unsubscribeUrl),
     });
 
     if (response.error) {
@@ -269,9 +284,7 @@ export class EmailService {
     const { to, name, userId, planName, firstSessionName, postalAddress } =
       params;
 
-    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
-      signUnsubscribeToken(userId),
-    )}`;
+    const unsubscribeUrl = unsubscribeUrlFor(userId);
 
     const { html, text } = activationNudgeTemplate({
       name,
@@ -283,20 +296,14 @@ export class EmailService {
     });
 
     const response = await resend.emails.send({
-      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      from: `MastersFit <${FROM_EMAIL}>`,
       to,
       bcc: lifecycleBcc(to),
       subject: ACTIVATION_NUDGE_SUBJECT,
       html,
       text,
-      replyTo: NUDGE_REPLY_TO,
-      // One-click unsubscribe. Gmail and Yahoo require this header on bulk
-      // mail; without it they are entitled to treat the send as spam no matter
-      // how good the footer link is.
-      headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      replyTo: REPLY_TO_EMAIL,
+      headers: listUnsubscribeHeaders(unsubscribeUrl),
     });
 
     if (response.error) {
@@ -330,9 +337,7 @@ export class EmailService {
   }): Promise<void> {
     const { to, name, userId, postalAddress } = params;
 
-    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
-      signUnsubscribeToken(userId),
-    )}`;
+    const unsubscribeUrl = unsubscribeUrlFor(userId);
 
     const { html, text } = featureTourTemplate({
       name,
@@ -348,13 +353,7 @@ export class EmailService {
       html,
       text,
       replyTo: NUDGE_REPLY_TO,
-      // One-click unsubscribe. Gmail and Yahoo require this header on bulk
-      // mail; without it they are entitled to treat the send as spam no matter
-      // how good the footer link is.
-      headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      headers: listUnsubscribeHeaders(unsubscribeUrl),
     });
 
     if (response.error) {
@@ -377,24 +376,26 @@ export class EmailService {
    *
    * Takes daysSinceSignup so the template can pick a timeframe that is true for
    * this recipient — the cohort spans 8 days to 289, and one wrong "a few weeks
-   * back" is what makes a personal note read as a mailshot.
+   * back" is what makes a personal note read as a mailshot. Takes isComped so
+   * only a comped reader is told their complimentary access is still active.
    */
   async sendComebackEmail(params: {
     to: string;
     name: string;
     userId: number;
     daysSinceSignup: number;
+    isComped: boolean;
     postalAddress: string;
   }): Promise<void> {
-    const { to, name, userId, daysSinceSignup, postalAddress } = params;
+    const { to, name, userId, daysSinceSignup, isComped, postalAddress } =
+      params;
 
-    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
-      signUnsubscribeToken(userId),
-    )}`;
+    const unsubscribeUrl = unsubscribeUrlFor(userId);
 
     const { html, text } = comebackTemplate({
       name,
       daysSinceSignup,
+      isComped,
       unsubscribeUrl,
       postalAddress,
     });
@@ -407,10 +408,7 @@ export class EmailService {
       html,
       text,
       replyTo: NUDGE_REPLY_TO,
-      headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      headers: listUnsubscribeHeaders(unsubscribeUrl),
     });
 
     if (response.error) {
@@ -466,6 +464,47 @@ export class EmailService {
       operation: "sendCompGrantedEmail",
       metadata: { recipient: to, messageId: response.data?.id },
     });
+  }
+
+  /**
+   * "Welcome to MastersFit+" — to a customer who just started a paid
+   * subscription. Type 2 (welcome / relationship): From the BRAND, signed by
+   * Rich as founder, with Reply-To pointed at Rich's real inbox because the
+   * email invites a reply. Owner Bcc like every lifecycle email.
+   *
+   * TRANSACTIONAL (it confirms a change they just made to their own account),
+   * so no List-Unsubscribe headers and no `email_opted_out_at` check.
+   *
+   * Returns the Resend message id. THROWS on failure; the webhook dispatcher
+   * logs it and swallows it so RevenueCat is never affected.
+   */
+  async sendSubscriberWelcomeEmail(
+    params: SubscriberWelcomeTemplateProps & { to: string; subject: string },
+  ): Promise<string | undefined> {
+    const { to, subject, ...templateProps } = params;
+
+    const { html, text } = subscriberWelcomeTemplate(templateProps);
+
+    const response = await resend.emails.send({
+      from: `MastersFit <${FROM_EMAIL}>`,
+      to,
+      bcc: lifecycleBcc(to),
+      subject,
+      html,
+      text,
+      replyTo: NUDGE_REPLY_TO,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Subscriber welcome email sent", {
+      operation: "sendSubscriberWelcomeEmail",
+      metadata: { recipient: to, messageId: response.data?.id },
+    });
+
+    return response.data?.id;
   }
 
   /**
