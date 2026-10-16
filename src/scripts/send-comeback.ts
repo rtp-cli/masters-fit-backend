@@ -2,7 +2,7 @@
  * Send the comeback email ("Still want to give MastersFit a try?") to named
  * recipients.
  *
- *   Preview:  npm run send-comeback -- --preview you@example.com [--days 19]
+ *   Preview:  npm run send-comeback -- --preview you@example.com [--days 19] [--comped]
  *   Dry run:  npm run send-comeback -- a@example.com b@example.com
  *   Send:     npm run send-comeback -- a@example.com b@example.com --send
  *
@@ -25,12 +25,15 @@ import "dotenv/config";
 
 import { eq, and, isNull } from "drizzle-orm";
 
+import { AccessTier } from "@/constants/access-policy";
+
 import { db, pool } from "@/config/database";
 import {
   companyPostalAddress,
   isSuppressedNudgeEmail,
 } from "@/constants/activation-nudge";
 import { users } from "@/models/user.schema";
+import { userSubscriptions } from "@/models/subscription.schema";
 import { emailService } from "@/services/email.service";
 
 import { assertCheckoutIsCurrent } from "./lib/checkout-freshness";
@@ -89,8 +92,11 @@ async function handle(
       createdAt: users.createdAt,
       optedOutAt: users.emailOptedOutAt,
       sentAt: users.comebackSentAt,
+      accessOverride: userSubscriptions.accessOverride,
+      accessOverrideExpiresAt: userSubscriptions.accessOverrideExpiresAt,
     })
     .from(users)
+    .leftJoin(userSubscriptions, eq(userSubscriptions.userId, users.id))
     .where(eq(users.email, normalized))
     .limit(1);
 
@@ -111,8 +117,16 @@ async function handle(
     return "already-sent";
   }
 
+  // Only a reader with a live comp may be told "your complimentary access is
+  // still active"; everyone else gets the plain "open the app" line.
+  const isComped =
+    u.accessOverride === AccessTier.COMPLIMENTARY &&
+    (!u.accessOverrideExpiresAt || u.accessOverrideExpiresAt > new Date());
+
   if (!send) {
-    console.log(`  ${normalized}: would send (user ${u.id}, "${u.name}")`);
+    console.log(
+      `  ${normalized}: would send (user ${u.id}, "${u.name}", ${isComped ? "comped" : "not comped"})`,
+    );
     return "would-send";
   }
 
@@ -142,6 +156,7 @@ async function handle(
       name: u.name,
       userId: u.id,
       daysSinceSignup,
+      isComped,
       postalAddress,
     });
     console.log(`  ${normalized}: SENT (user ${u.id})`);
@@ -195,6 +210,8 @@ async function main() {
       name: arg("name") ?? "Chris",
       // Overridable so every branch of signupPhrase() can be previewed.
       daysSinceSignup: Number(arg("days") ?? 19),
+      // --comped previews the comped variant of the third paragraph.
+      isComped: flag("comped"),
       userId: INERT_USER_ID,
       postalAddress,
     });

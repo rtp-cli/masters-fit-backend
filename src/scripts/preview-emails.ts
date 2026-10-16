@@ -203,6 +203,7 @@ function build(): PreviewEmail[] {
     ...comebackTemplate({
       name: NAME,
       daysSinceSignup: 30,
+      isComped: true,
       unsubscribeUrl: UNSUB,
       postalAddress: SAMPLE_ADDRESS,
     }),

@@ -229,7 +229,7 @@ function greetingHtml(firstName: string | null, suffix = ","): string {
 
 function greetingText(firstName: string | null, suffix = ","): string {
   if (firstName === null) return "";
-  return `Hi ${firstName.trim() || "there"}${toPlain(suffix)}\n\n`;
+  return `Hi ${firstName.trim() || "there"}${toPlain(suffix).trimEnd()}\n\n`;
 }
 
 /**

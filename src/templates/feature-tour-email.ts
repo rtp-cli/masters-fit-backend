@@ -1,4 +1,9 @@
-import { escapeHtml } from "@/templates/email-shared";
+import {
+  firstNameOf,
+  personalLayout,
+  type EmailBlock,
+  type RenderedEmail,
+} from "@/templates/email-layouts";
 
 interface FeatureTourTemplateProps {
   /** User's display name; a first name is derived for the greeting. */
@@ -15,7 +20,7 @@ interface FeatureTourItem {
   head: string;
   /** The tap path, quoted from the shipped UI. The payload of the whole email. */
   path: string;
-  /** Why you'd care. Set muted, so the path above wins the eye on a skim. */
+  /** Why you'd care. */
   body: string;
 }
 
@@ -29,8 +34,8 @@ interface FeatureTourItem {
  * Both halves are now rendered from this object.
  *
  * Write normal prose with real punctuation — curly apostrophes, em dashes, and
- * → arrows. The HTML half escapes it; the text half transliterates to ASCII.
- * There is no markup to get right.
+ * → arrows. The layout escapes it for HTML and transliterates it to ASCII for
+ * the text half. There is no markup to get right.
  */
 export const FEATURE_TOUR_COPY = {
   /**
@@ -115,21 +120,6 @@ export const FEATURE_TOUR_COPY = {
 } as const;
 
 /**
- * Typographic copy → ASCII, for the text/plain half.
- *
- * The clients most likely to render text/plain are the ones least likely to
- * have good glyph coverage, and every existing template in this directory
- * already spells these as ASCII. Applied at render time so the copy block above
- * can stay readable prose.
- */
-const toPlain = (s: string): string =>
-  s
-    .replace(/→/g, "->")
-    .replace(/—/g, "-")
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"');
-
-/**
  * The feature tour — to the handful of people who have actually trained with
  * the app.
  *
@@ -138,148 +128,47 @@ const toPlain = (s: string): string =>
  * nudge next door, and they already got it. Mixing the two audiences produces
  * an email that is wrong for both.
  *
- * Same undesigned note styling as the activation nudge and the comp email, and
- * for the same reason: at a handful of recipients who all know Rich by name, a
- * plain message from a person outperforms a designed one. The moment this grows
- * a logo lockup and a hero image it becomes a newsletter, and newsletters get
- * archived unread.
+ * Type 1, personal layout — deliberately NOT branded: at a handful of
+ * recipients who all know Rich by name, a plain message from a person
+ * outperforms a designed one. The moment this grows a logo lockup and a hero
+ * image it becomes a newsletter, and newsletters get archived unread.
  *
- * Each item renders as three lines, with the tap path carrying the weight: the
- * whole premise of the email is "you didn't know where this was", so the path
- * is the payload and the explanation under it is muted to let the path win.
+ * Each tip renders as a bold title, then the tap path on its own muted line
+ * directly under it (SPEC §2), then the explanation — the whole premise of the
+ * email is "you didn't know where this was", so the path has to be findable.
  *
- * COMMERCIAL, not transactional: unsubscribe footer, postal address, and the
- * caller must consult `email_opted_out_at` before reaching here.
+ * COMMERCIAL, not transactional: the personal variant of the unsubscribe +
+ * postal address footer, and the caller must consult `email_opted_out_at`
+ * before reaching here.
  */
 export const featureTourTemplate = ({
   name,
   unsubscribeUrl,
   postalAddress,
-}: FeatureTourTemplateProps) => {
+}: FeatureTourTemplateProps): RenderedEmail => {
   const c = FEATURE_TOUR_COPY;
-  const firstName = name?.trim().split(/\s+/)[0] || "";
-  const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi there,";
-  const textGreeting = firstName ? `Hi ${firstName},` : "Hi there,";
+  const blocks: EmailBlock[] = [
+    { kind: "paragraph", text: c.intro },
+    { kind: "paragraph", text: c.lead },
+    ...c.items.map(
+      (item): EmailBlock => ({
+        kind: "tip",
+        title: item.head,
+        path: item.path,
+        body: item.body,
+      })
+    ),
+    ...c.close.map((text): EmailBlock => ({ kind: "paragraph", text })),
+  ];
 
-  const P =
-    "margin:0 0 16px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#1A1A1A;";
-  // The three lines of an item are one unit: tight leading between them, a
-  // full gap after. Heading and path stay full-contrast; the explanation is
-  // muted so the path is what the eye lands on when this is skimmed.
-  const ITEM_HEAD =
-    "margin:0 0 2px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.5; color:#1A1A1A;";
-  const ITEM_PATH =
-    "margin:0 0 2px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.5; color:#1A1A1A;";
-  const ITEM_BODY =
-    "margin:0 0 22px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.6; color:#5A5A5A;";
-
-  const unsubHref = escapeHtml(unsubscribeUrl);
-  // Escape FIRST, then turn newlines into breaks — the other order would escape
-  // the <br> tags.
-  const address = escapeHtml(postalAddress).replace(/\r?\n/g, "<br />");
-
-  const itemsHtml = c.items
-    .map(
-      (item) => `        <p style="${ITEM_HEAD}"><strong>${escapeHtml(item.head)}</strong></p>
-        <p style="${ITEM_PATH}">${escapeHtml(item.path)}</p>
-        <p style="${ITEM_BODY}">
-          ${escapeHtml(item.body)}
-        </p>`
-    )
-    .join("\n\n");
-
-  const closeHtml = c.close
-    .map(
-      (para) => `        <p style="${P}">
-          ${escapeHtml(para)}
-        </p>`
-    )
-    .join("\n\n");
-
-  const html = `<!DOCTYPE html>
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta http-equiv="X-UA-Compatible" content="IE=edge" />
-<meta name="color-scheme" content="light dark" />
-<meta name="supported-color-schemes" content="light dark" />
-<meta name="format-detection" content="telephone=no,date=no,address=no,email=no,url=no" />
-<title>${escapeHtml(c.subject)}</title>
-<style>
-  body { margin:0; padding:0; width:100% !important; -webkit-text-size-adjust:100%; }
-  a { color:#1A6B4A; }
-  a[x-apple-data-detectors] {
-    color: inherit !important; text-decoration: none !important; font-size: inherit !important;
-    font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important;
-  }
-  @media (max-width: 620px) { .wrap { padding:24px 20px !important; } }
-</style>
-</head>
-<body style="margin:0; padding:0; background-color:#FFFFFF;">
-
-  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#FFFFFF; opacity:0;">
-    ${escapeHtml(c.preheader)}
-  </div>
-
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;">
-    <tr>
-      <td align="left" class="wrap" style="padding:40px 32px; max-width:560px;">
-
-        <p style="${P}">${greeting}</p>
-
-        <p style="${P}">
-          ${escapeHtml(c.intro)}
-        </p>
-
-        <p style="${P}">${escapeHtml(c.lead)}</p>
-
-${itemsHtml}
-
-${closeHtml}
-
-        <p style="margin:0 0 32px 0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; line-height:1.6; color:#1A1A1A;">
-          ${escapeHtml(c.signoff)}
-        </p>
-
-        <hr style="border:0; border-top:1px solid #E5E5E5; margin:0 0 16px 0;" />
-
-        <p style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:12px; line-height:1.5; color:#767676;">
-          <a href="${unsubHref}" style="color:#767676; text-decoration:underline;">Unsubscribe from these emails</a><br />
-          ${address}
-        </p>
-
-      </td>
-    </tr>
-  </table>
-
-</body>
-</html>`;
-
-  const itemsText = c.items
-    .map((item) => `${toPlain(item.head)}\n${toPlain(item.path)}\n${toPlain(item.body)}`)
-    .join("\n\n");
-
-  const closeText = c.close.map(toPlain).join("\n\n");
-
-  const text = `${textGreeting}
-
-${toPlain(c.intro)}
-
-${toPlain(c.lead)}
-
-${itemsText}
-
-${closeText}
-
-${toPlain(c.signoff)}
-
----
-Unsubscribe from these emails: ${unsubscribeUrl}
-${postalAddress}
-`;
-
-  return { html, text };
+  return personalLayout({
+    title: c.subject,
+    preheader: c.preheader,
+    firstName: firstNameOf(name),
+    blocks,
+    signoff: c.signoff,
+    footer: { unsubscribeUrl, postalAddress },
+  });
 };
 
 /** Re-exported so callers don't reach into the copy block for the subject. */

@@ -383,16 +383,19 @@ export class EmailService {
    *
    * Takes daysSinceSignup so the template can pick a timeframe that is true for
    * this recipient — the cohort spans 8 days to 289, and one wrong "a few weeks
-   * back" is what makes a personal note read as a mailshot.
+   * back" is what makes a personal note read as a mailshot. Takes isComped so
+   * only a comped reader is told their complimentary access is still active.
    */
   async sendComebackEmail(params: {
     to: string;
     name: string;
     userId: number;
     daysSinceSignup: number;
+    isComped: boolean;
     postalAddress: string;
   }): Promise<void> {
-    const { to, name, userId, daysSinceSignup, postalAddress } = params;
+    const { to, name, userId, daysSinceSignup, isComped, postalAddress } =
+      params;
 
     const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
       signUnsubscribeToken(userId),
@@ -401,6 +404,7 @@ export class EmailService {
     const { html, text } = comebackTemplate({
       name,
       daysSinceSignup,
+      isComped,
       unsubscribeUrl,
       postalAddress,
     });
