@@ -5,18 +5,16 @@
  *   npm run preview-emails -- --out /tmp/x
  *
  * Pure rendering: fictional sample data ("Jordan Sample"), no database, no
- * network, no Resend, no env secrets. Writes one HTML file per email plus an
- * index.html that shows them all in ~600px iframes, grouped by email TYPE,
- * with a toggle to view them at phone width (375px).
- *
- * "current"  = the template exactly as it ships today.
- * "proposed" = the same content on the new shared layouts (email-layouts.ts).
+ * network, no Resend, no env secrets. Writes one HTML + one .txt file per
+ * email plus an index.html that shows them all in ~600px iframes, grouped by
+ * email TYPE, with a toggle to view them at phone width (375px) and each
+ * email's plain-text part underneath.
  */
 import fs from "fs";
 import os from "os";
 import path from "path";
 
-import { otpEmailTemplate } from "@/templates/otp-email";
+import { otpEmailSubject, otpEmailTemplate } from "@/templates/otp-email";
 import { renewalReminderTemplate } from "@/templates/renewal-reminder-email";
 import {
   onboardingNudgeTemplate,
@@ -32,13 +30,11 @@ import { featureTourTemplate, FEATURE_TOUR_SUBJECT } from "@/templates/feature-t
 import {
   subscriberWelcomeTemplate,
   SUBSCRIBER_WELCOME_SUBJECT,
-  subscriberWelcomeOpenAppUrl,
 } from "@/templates/subscriber-welcome-email";
 import {
   sampleAnnouncementTemplate,
   SAMPLE_ANNOUNCEMENT_SUBJECT,
 } from "@/templates/sample-announcement-email";
-import { accountLayout, nudgeLayout } from "@/templates/email-layouts";
 import { escapeHtml } from "@/templates/email-shared";
 
 /**
@@ -51,16 +47,18 @@ const NAME = "Jordan Sample";
 const EMAIL = "jordan.sample@example.com";
 const OTP = "482915";
 /** Shape of the real link; the token is a placeholder (signing needs a secret). */
-const UNSUB =
-  "https://masters-fit-backend.onrender.com/api/email-preferences/unsubscribe?token=SAMPLE-TOKEN";
+const UNSUB = "https://www.mastersfit.ai/unsubscribe?token=SAMPLE-TOKEN";
 const CONTINUE = "https://www.mastersfit.ai/continue";
+const OPEN = "https://www.mastersfit.ai/open";
+const MANAGE = "https://www.mastersfit.ai/manage-subscription";
+const RENEWS = "November 12, 2026";
 
-type Status = "current" | "proposed";
+const FROM_RICH = "Rich Pusateri <rtp@updates.mastersfit.ai> · Reply-To rtp@mastersfit.ai";
+const FROM_BRAND = "MastersFit <hello@updates.mastersfit.ai> · Reply-To rtp@mastersfit.ai";
 
 interface PreviewEmail {
   id: string;
   type: 1 | 2 | 3 | 4;
-  status: Status;
   label: string;
   from: string;
   subject: string;
@@ -73,239 +71,175 @@ interface PreviewEmail {
 
 const TYPE_NAMES: Record<PreviewEmail["type"], string> = {
   1: "Type 1 · Personal (from Rich)",
-  2: "Type 2 · Welcome / relationship",
+  2: "Type 2 · Welcome",
   3: "Type 3 · Product & marketing",
   4: "Type 4 · Account & billing",
 };
 
 const TYPE_RULES: Record<PreviewEmail["type"], string> = {
-  1: "From “Rich Pusateri”, plain note, signed Rich, no unsubscribe.",
-  2: "From “MastersFit”, lightly branded, signed “— Rich / Founder, MastersFit”, no unsubscribe.",
-  3: "From “MastersFit”, signed MastersFit (optional note from Rich), unsubscribe link + postal address in the footer.",
-  4: "From “MastersFit”, minimal branding, unsigned, no unsubscribe.",
+  1: "From “Rich Pusateri”, plain note, no logo or buttons, text signature. Comeback and Feature tour are commercial: unsubscribe + “MastersFit LLC · address”.",
+  2: "From “MastersFit”, logo header, outlined button, signed “— Rich / Founder, MastersFit”, transactional footer.",
+  3: "From “MastersFit”, logo header, outlined button, “A note from Rich” (else signed “— MastersFit”), unsubscribe + postal address footer.",
+  4: "From “MastersFit”, logo header, unsigned, transactional footer.",
 };
 
-const ENV_ADDRESS_NOTE =
-  "Live sends take the postal address from the COMPANY_POSTAL_ADDRESS env var; this preview shows the website address instead.";
+const ADDRESS_NOTE = `Postal address is a FAKE sample; live sends print COMPANY_POSTAL_ADDRESS.`;
 
 function build(): PreviewEmail[] {
   const out: PreviewEmail[] = [];
-
-  // ---- Type 4: account & billing ----------------------------------------
-  out.push({
-    id: "otp-current",
-    type: 4,
-    status: "current",
-    label: "Verification code (OTP)",
-    from: "MastersFit",
-    subject: `Your MastersFit code is ${OTP}.`,
-    unsubscribe: false,
-    postal: false,
-    notes: "Grey page + rounded card + Manrope web font. Signed “The MastersFit team”.",
-    ...otpEmailTemplate({ otp: OTP, name: NAME }),
-  });
-
-  out.push({
-    id: "otp-proposed",
-    type: 4,
-    status: "proposed",
-    label: "Verification code (OTP) on the account layout",
-    from: "MastersFit",
-    subject: `Your MastersFit code is ${OTP}`,
-    unsubscribe: false,
-    postal: false,
-    notes: "Same words as today, unsigned, on the shared type 4 layout. Not wired up — preview only.",
-    ...accountLayout({
-      title: "Verify your email",
-      preheader: `Your MastersFit verification code is ${OTP}. It expires in 10 minutes.`,
-      heading: "Verify your email",
-      firstName: "Jordan",
-      blocks: [
-        { kind: "paragraph", text: "Enter this code to verify your email." },
-        { kind: "code", label: "Your verification code", value: OTP },
-        {
-          kind: "fineprint",
-          text: "This code expires in 10 minutes. Don’t share it with anyone — MastersFit will never ask you for it.",
-        },
-      ],
-      footerNote: "If you didn’t request this, you can safely ignore this email.",
-    }),
-  });
-
-  out.push({
-    id: "renewal-reminder-current",
-    type: 4,
-    status: "current",
-    label: "Renewal reminder",
-    from: "MastersFit",
-    subject: "Your MastersFit+ renews on November 12, 2026",
-    unsubscribe: false,
-    postal: false,
-    notes: "Same card design as the OTP. Signed “The MastersFit team”.",
-    ...renewalReminderTemplate({
-      name: NAME,
-      planLabel: "annual",
-      price: "$89.99",
-      renewalDate: "November 12, 2026",
-      manageUrl: "https://www.mastersfit.ai/manage-subscription",
-    }),
-  });
+  const footer = { unsubscribeUrl: UNSUB, postalAddress: SAMPLE_ADDRESS };
 
   // ---- Type 2: welcome ---------------------------------------------------
-  const welcomeUrl = subscriberWelcomeOpenAppUrl();
   out.push({
-    id: "subscriber-welcome-paid",
+    id: "04-welcome-paid",
     type: 2,
-    status: "proposed",
     label: "Subscriber welcome — paid",
-    from: "MastersFit (Reply-To rtp@mastersfit.ai)",
+    from: FROM_BRAND,
     subject: SUBSCRIBER_WELCOME_SUBJECT,
     unsubscribe: false,
     postal: false,
-    notes: `Rich's approved copy. Button → ${welcomeUrl}. Not live yet (this PR).`,
-    ...subscriberWelcomeTemplate({ name: NAME, isTrial: false, openAppUrl: welcomeUrl }),
+    notes: `Button → ${OPEN}.`,
+    ...subscriberWelcomeTemplate({ name: NAME, isTrial: false, openAppUrl: OPEN }),
   });
   out.push({
-    id: "subscriber-welcome-trial",
+    id: "05-welcome-trial",
     type: 2,
-    status: "proposed",
     label: "Subscriber welcome — free trial",
-    from: "MastersFit (Reply-To rtp@mastersfit.ai)",
+    from: FROM_BRAND,
     subject: SUBSCRIBER_WELCOME_SUBJECT,
     unsubscribe: false,
     postal: false,
-    notes: "Only the opening line differs.",
-    ...subscriberWelcomeTemplate({ name: NAME, isTrial: true, openAppUrl: welcomeUrl }),
-  });
-
-  // ---- Type 1: personal --------------------------------------------------
-  out.push({
-    id: "comp-granted-current",
-    type: 1,
-    status: "current",
-    label: "Comp granted",
-    from: "Rich Pusateri",
-    subject: COMP_GRANTED_SUBJECT,
-    unsubscribe: false,
-    postal: false,
-    ...compGrantedTemplate({ name: NAME }),
-  });
-  out.push({
-    id: "comeback-current",
-    type: 1,
-    status: "current",
-    label: "Comeback",
-    from: "Rich Pusateri",
-    subject: COMEBACK_SUBJECT,
-    unsubscribe: true,
-    postal: true,
-    notes: `Classed personal, but it is commercial mail, so it carries an unsubscribe + address. ${ENV_ADDRESS_NOTE}`,
-    ...comebackTemplate({
-      name: NAME,
-      daysSinceSignup: 30,
-      isComped: true,
-      unsubscribeUrl: UNSUB,
-      postalAddress: SAMPLE_ADDRESS,
-    }),
-  });
-  out.push({
-    id: "feature-tour-current",
-    type: 1,
-    status: "current",
-    label: "Feature tour",
-    from: "Rich Pusateri",
-    subject: FEATURE_TOUR_SUBJECT,
-    unsubscribe: true,
-    postal: true,
-    notes: `Classed personal, but it is commercial mail, so it carries an unsubscribe + address. ${ENV_ADDRESS_NOTE}`,
-    ...featureTourTemplate({
-      name: NAME,
-      unsubscribeUrl: UNSUB,
-      postalAddress: SAMPLE_ADDRESS,
-    }),
+    notes: "Only the opening line differs. The handoff's trial box is deliberately not built (trials aren't offered).",
+    ...subscriberWelcomeTemplate({ name: NAME, isTrial: true, openAppUrl: OPEN }),
   });
 
   // ---- Type 3: product & marketing --------------------------------------
   out.push({
-    id: "onboarding-nudge-current",
+    id: "06-onboarding-nudge",
     type: 3,
-    status: "current",
     label: "Onboarding nudge",
-    from: "Rich Pusateri",
+    from: FROM_BRAND,
     subject: ONBOARDING_NUDGE_SUBJECT,
     unsubscribe: true,
     postal: true,
-    notes: `Today: from Rich and signed Rich, green button. ${ENV_ADDRESS_NOTE}`,
-    ...onboardingNudgeTemplate({
-      name: NAME,
-      continueUrl: CONTINUE,
-      unsubscribeUrl: UNSUB,
-      postalAddress: SAMPLE_ADDRESS,
-    }),
+    notes: `Button → ${CONTINUE}. ${ADDRESS_NOTE}`,
+    ...onboardingNudgeTemplate({ name: NAME, continueUrl: CONTINUE, ...footer }),
   });
   out.push({
-    id: "activation-nudge-current",
+    id: "07-activation-nudge",
     type: 3,
-    status: "current",
     label: "Activation nudge",
-    from: "Rich Pusateri",
+    from: FROM_BRAND,
     subject: ACTIVATION_NUDGE_SUBJECT,
     unsubscribe: true,
     postal: true,
-    notes: `Today: from Rich and signed Rich, green button. ${ENV_ADDRESS_NOTE}`,
+    notes: `Button → ${OPEN}. ${ADDRESS_NOTE}`,
     ...activationNudgeTemplate({
       name: NAME,
       planName: "Full-Body Strength Foundations",
       firstSessionName: "Full-Body Strength",
-      startUrl: CONTINUE,
-      unsubscribeUrl: UNSUB,
-      postalAddress: SAMPLE_ADDRESS,
+      startUrl: OPEN,
+      ...footer,
     }),
   });
   out.push({
-    id: "nudge-layout-sample",
+    id: "08-announcement",
     type: 3,
-    status: "proposed",
-    label: "Nudge layout — sample (activation copy)",
-    from: "MastersFit (Reply-To rtp@mastersfit.ai)",
-    subject: ACTIVATION_NUDGE_SUBJECT,
-    unsubscribe: true,
-    postal: true,
-    notes: "The activation nudge's message lightly reworded for the brand voice, to show the layout. Not a copy proposal.",
-    ...nudgeLayout({
-      title: ACTIVATION_NUDGE_SUBJECT,
-      preheader: "Your plan is built — the first session takes one tap to start.",
-      firstName: "Jordan",
-      paragraphs: [
-        "Your Full-Body Strength session is built and waiting in the app. You haven't started it yet.",
-        "There's nothing to set up and nothing to decide. Open the app, tap Start, and it walks you through one exercise at a time. You can stop partway and it keeps what you did.",
-      ],
-      button: { label: "Start your first workout", href: CONTINUE },
-      note: {
-        text: "If the plan isn't right — too long, too hard, wrong equipment — just reply and tell me. I'd rather fix it than have you not use it.",
-      },
-      unsubscribeUrl: UNSUB,
-      postalAddress: SAMPLE_ADDRESS,
-    }),
-  });
-  out.push({
-    id: "announcement-sample",
-    type: 3,
-    status: "proposed",
-    label: "Announcement layout — sample (placeholder copy)",
-    from: "MastersFit (Reply-To rtp@mastersfit.ai)",
+    label: "Announcement layout (template only, placeholder copy)",
+    from: FROM_BRAND,
     subject: SAMPLE_ANNOUNCEMENT_SUBJECT,
     unsubscribe: true,
     postal: true,
-    notes: "Placeholder text throughout. Images are the website's share image, standing in for real screenshots.",
-    ...sampleAnnouncementTemplate({ name: NAME, unsubscribeUrl: UNSUB, postalAddress: SAMPLE_ADDRESS, openAppUrl: CONTINUE }),
+    notes: `No live send. Images are the website's share image standing in for real ones. ${ADDRESS_NOTE}`,
+    ...sampleAnnouncementTemplate({ name: NAME, openAppUrl: OPEN, ...footer }),
+  });
+
+  // ---- Type 4: account & billing ----------------------------------------
+  out.push({
+    id: "09-verification-code",
+    type: 4,
+    label: "Verification code",
+    from: FROM_BRAND,
+    subject: otpEmailSubject(OTP),
+    unsubscribe: false,
+    postal: false,
+    notes: "No links in the body.",
+    ...otpEmailTemplate({ otp: OTP, name: NAME }),
+  });
+  out.push({
+    id: "10-renewal-reminder-annual",
+    type: 4,
+    label: "Renewal reminder — annual",
+    from: FROM_BRAND,
+    subject: `Your MastersFit+ renews on ${RENEWS}`,
+    unsubscribe: false,
+    postal: false,
+    notes: `Link → ${MANAGE}.`,
+    ...renewalReminderTemplate({ name: NAME, planLabel: "annual", price: "$89.99", renewalDate: RENEWS, manageUrl: MANAGE }),
+  });
+  out.push({
+    id: "10-renewal-reminder-monthly",
+    type: 4,
+    label: "Renewal reminder — monthly",
+    from: FROM_BRAND,
+    subject: `Your MastersFit+ renews on ${RENEWS}`,
+    unsubscribe: false,
+    postal: false,
+    notes: "Same email; the period line comes from the subscription's billing period.",
+    ...renewalReminderTemplate({ name: NAME, planLabel: "monthly", price: "$12.99", renewalDate: RENEWS, manageUrl: MANAGE }),
+  });
+
+  // ---- Type 1: personal --------------------------------------------------
+  out.push({
+    id: "01-comp-granted",
+    type: 1,
+    label: "Comp granted",
+    from: FROM_RICH,
+    subject: COMP_GRANTED_SUBJECT,
+    unsubscribe: false,
+    postal: false,
+    notes: "Transactional: no unsubscribe.",
+    ...compGrantedTemplate({ name: NAME }),
+  });
+  out.push({
+    id: "02-comeback-comped",
+    type: 1,
+    label: "Comeback — comped",
+    from: FROM_RICH,
+    subject: COMEBACK_SUBJECT,
+    unsubscribe: true,
+    postal: true,
+    notes: ADDRESS_NOTE,
+    ...comebackTemplate({ name: NAME, daysSinceSignup: 30, isComped: true, ...footer }),
+  });
+  out.push({
+    id: "02-comeback-not-comped",
+    type: 1,
+    label: "Comeback — everyone else",
+    from: FROM_RICH,
+    subject: COMEBACK_SUBJECT,
+    unsubscribe: true,
+    postal: true,
+    notes: `Third paragraph and preheader drop the complimentary-access line. ${ADDRESS_NOTE}`,
+    ...comebackTemplate({ name: NAME, daysSinceSignup: 30, isComped: false, ...footer }),
+  });
+  out.push({
+    id: "03-feature-tour",
+    type: 1,
+    label: "Feature tour",
+    from: FROM_RICH,
+    subject: FEATURE_TOUR_SUBJECT,
+    unsubscribe: true,
+    postal: true,
+    notes: ADDRESS_NOTE,
+    ...featureTourTemplate({ name: NAME, ...footer }),
   });
 
   return out;
 }
 
 function indexHtml(emails: PreviewEmail[], generatedAt: string): string {
-  const groups = ([2, 3, 4, 1] as const).map((type) => {
+  const groups = ([1, 2, 3, 4] as const).map((type) => {
     const items = emails.filter((e) => e.type === type);
     const cards = items
       .map((e) => {
@@ -314,7 +248,6 @@ function indexHtml(emails: PreviewEmail[], generatedAt: string): string {
         return `<article class="card">
   <header class="card__head">
     <div class="card__title">
-      <span class="status status--${e.status}">${e.status}</span>
       <h3>${escapeHtml(e.label)}</h3>
     </div>
     <dl class="meta">
@@ -348,7 +281,7 @@ function indexHtml(emails: PreviewEmail[], generatedAt: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>MastersFit email preview</title>
 <style>
-  :root { --bg:#F3F3F1; --card:#FFFFFF; --ink:#141414; --muted:#666; --line:#E2E2DE; --accent:#1A6B4A; --warn:#8A5A00; }
+  :root { --bg:#F3F3F1; --card:#FFFFFF; --ink:#141414; --muted:#666; --line:#E2E2DE; --accent:#0A0A0A; --warn:#8A5A00; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; }
   .top { position:sticky; top:0; z-index:5; background:rgba(243,243,241,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--line); padding:14px 24px; display:flex; flex-wrap:wrap; gap:12px 24px; align-items:center; justify-content:space-between; }
@@ -364,9 +297,6 @@ function indexHtml(emails: PreviewEmail[], generatedAt: string): string {
   .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; width:calc(var(--w) + 34px); max-width:100%; }
   .card__title { display:flex; gap:10px; align-items:center; }
   .card h3 { margin:0; font-size:16px; }
-  .status { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:3px 8px; border-radius:6px; }
-  .status--current { background:#ECECEA; color:#444; }
-  .status--proposed { background:#E3F1EA; color:var(--accent); }
   .meta { margin:10px 0 8px; display:grid; gap:2px; font-size:13px; }
   .meta div { display:flex; gap:8px; }
   .meta dt { color:var(--muted); width:56px; flex:none; }
@@ -435,7 +365,7 @@ function main() {
 
   console.log(`Wrote ${emails.length} emails to ${outDir}`);
   for (const e of emails) {
-    console.log(`  [type ${e.type}] ${e.status.padEnd(8)} ${e.id}`);
+    console.log(`  [type ${e.type}] ${e.id}`);
   }
   console.log(`\nOpen: ${path.join(outDir, "index.html")}`);
 }
