@@ -8,6 +8,7 @@ import {
 } from "@langchain/core/messages";
 import { Profile } from "@/models";
 import {
+  findExercisesByExactName,
   findRequestedExercises,
   selectCanonicalBasics,
   pinExercises,
@@ -99,6 +100,7 @@ import {
   validateWeeklyGenerationResponse,
 } from "@/utils/generation-response-validation";
 import { resolveFanoutModels } from "@/utils/model-canary";
+import type { DailyPromptPlanContext } from "@/utils/plan-context";
 
 // Hard per-call ceilings for the fan-out LLM calls. Without these a stalled
 // provider connection (one that never sends an RST) hangs the await forever,
@@ -254,7 +256,12 @@ export class WorkoutAgentService {
 
   private async getFilteredExercises(
     profile: Profile,
-    requestText?: string | null
+    requestText?: string | null,
+    // Exact catalog names to pin ahead of request-named ones — the exercises
+    // of a plan day the user asked to repeat ("Wednesday's workout"). Those
+    // names appear nowhere in the request text, so token matching can't find
+    // them, and the stratified menu may well have left them out.
+    pinNames?: string[]
   ): Promise<ExerciseMetadata[]> {
     // [GQ-16] The shared catalog is cached WITHOUT a userId (the cache key is
     // environment:equipment:limitations:styles), so per-user exercise
@@ -269,7 +276,10 @@ export class WorkoutAgentService {
     // menu. Both draw ONLY from `pool` — already equipment- and
     // limitation-filtered — so a pin can never reintroduce a banned movement.
     // Exclusions run last so a user-excluded exercise is never pinned either.
-    const requested = findRequestedExercises(requestText, pool);
+    const requested = [
+      ...findExercisesByExactName(pinNames, pool),
+      ...findRequestedExercises(requestText, pool),
+    ];
     const canonical = selectCanonicalBasics(pool, profile.preferredStyles as string[] | null);
     const pinnedMenu = pinExercises(menu, { requested, canonical }, GENERATION_CATALOG_SIZE);
     if (requested.length > 0 || canonical.length > 0) {
@@ -408,7 +418,8 @@ export class WorkoutAgentService {
     context: "weekly" | "daily" = "daily",
     regenerationReason?: string,
     dayNumber?: number,
-    isRestDay: boolean = false
+    isRestDay: boolean = false,
+    planContext?: DailyPromptPlanContext
   ): Promise<SystemMessage> {
     // Use the comprehensive prompts from prompt-generator.ts
     let systemContent: string;
@@ -419,7 +430,7 @@ export class WorkoutAgentService {
         profile,
         [], // exerciseNames - will be replaced with filtered exercise context
         dayNumber,
-        null, // previousWorkout - not needed for LangChain
+        planContext?.summary ?? null,
         regenerationReason || "Generate daily workout",
         isRestDay
       );
@@ -433,8 +444,13 @@ export class WorkoutAgentService {
     }
 
     // Pre-load filtered exercises based on user constraints. The regeneration
-    // reason IS the user's request on this path — movements it names get pinned.
-    const availableExercises = await this.getFilteredExercises(profile, regenerationReason);
+    // reason IS the user's request on this path — movements it names get pinned,
+    // as do the exercises of any plan day it refers to.
+    const availableExercises = await this.getFilteredExercises(
+      profile,
+      regenerationReason,
+      planContext?.referencedExerciseNames
+    );
     const exerciseContext = this.formatExerciseContext(availableExercises);
 
     // [LR-013 transparency] When the limitation filter has removed movement
@@ -561,7 +577,10 @@ Please generate the workout now, addressing this feedback while following all sy
     regenerationReason: string,
     dayNumber?: number,
     isRestDay: boolean = false,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    // Daily path only: the current plan's other days, so a request that names
+    // one ("Wednesday's workout") can be honored. See utils/plan-context.ts.
+    planContext?: DailyPromptPlanContext
   ): Promise<WorkoutGenerationResult> {
     try {
       // Create and store AbortController for this generation
@@ -598,7 +617,8 @@ Please generate the workout now, addressing this feedback while following all sy
           dayNumber ? "daily" : "weekly",
           regenerationReason,
           dayNumber,
-          isRestDay
+          isRestDay,
+          planContext
         )
       );
       const userMessage = this.buildUserMessage(

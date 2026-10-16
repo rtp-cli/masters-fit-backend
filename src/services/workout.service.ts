@@ -44,6 +44,7 @@ import {
 import { buildPlanDaySchedule, PlanDaySlot } from "@/utils/plan-schedule";
 import { resolveInsertPosition } from "@/utils/plan-day-position.utils";
 import { markPhaseElapsed } from "@/utils/phase-timing";
+import { buildPlanContext, PlanContext } from "@/utils/plan-context";
 import { workoutLogs } from "../models/logs.schema";
 import { logger } from "@/utils/logger";
 import {
@@ -1525,19 +1526,36 @@ export class WorkoutService extends BaseService {
       // Use regeneration styles if provided, otherwise fall back to user's preferred styles
       const stylesToUse = regenerationStyles || profile?.preferredStyles;
 
-      // Format the previous workout for the AI prompt
-      const previousWorkout = {
-        day: (existingPlanDay as any).dayNumber || 1,
-        exercises: (allExistingExercises || []).map((ex) => ({
-          exerciseName: ex.exercise.name,
-          sets: ex.sets || 0,
-          reps: ex.reps || 0,
-          weight: ex.weight || 0,
-          duration: ex.duration || 0,
-          restTime: ex.restTime || 0,
-          notes: ex.notes || "",
-        })),
-      };
+      // The plan's days around this one (this day included), so a request
+      // like "replace today with Wednesday's workout" can be honored — the
+      // prompt previously saw only today and had to invent "Wednesday".
+      // Context only: a failed fetch degrades to the old behavior.
+      let planContext: PlanContext | null = null;
+      try {
+        const planDayRows = await this.db.query.planDays.findMany({
+          where: eq(planDays.workoutId, existingPlanDay.workoutId),
+          orderBy: [asc(planDays.date)],
+          with: {
+            blocks: {
+              orderBy: [asc(workoutBlocks.order)],
+              with: {
+                exercises: {
+                  orderBy: [asc(planDayExercises.order)],
+                  with: { exercise: true },
+                },
+              },
+            },
+          },
+        });
+        planContext = buildPlanContext(existingPlanDay, planDayRows);
+      } catch (contextError) {
+        logger.warn("Failed to load plan context for daily regeneration", {
+          userId,
+          planDayId,
+          operation: "regenerateDailyWorkout",
+          metadata: { error: (contextError as Error).message },
+        });
+      }
 
       logger.info("Starting AI generation for daily regeneration", {
         userId,
@@ -1546,7 +1564,8 @@ export class WorkoutService extends BaseService {
         metadata: {
           dayNumber: (existingPlanDay as any).dayNumber || 1,
           regenerationReason,
-          previousExerciseCount: previousWorkout.exercises.length,
+          previousExerciseCount: allExistingExercises.length,
+          planContextDays: planContext?.days.length ?? 0,
           aiCallStartTime: new Date().toISOString(),
         },
       });
@@ -1579,7 +1598,7 @@ export class WorkoutService extends BaseService {
       const result = await promptsService.generateDailyRegenerationPrompt(
         userId,
         dayNumber,
-        previousWorkout,
+        planContext,
         regenerationReason,
         isRestDayContext,
         threadId,

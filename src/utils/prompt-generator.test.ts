@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { buildClaudePrompt } from "@/utils/prompt-generator";
+import { buildClaudePrompt, buildClaudeDailyPrompt } from "@/utils/prompt-generator";
 import { Profile } from "@/models";
 
 // Matches a real DB row with every optional column unset (null, not
@@ -72,5 +72,32 @@ describe("buildClaudePrompt [LR-053]", () => {
     expect(prompt).toContain("45 minutes per session");
     expect(prompt).toContain("Environment: home_gym");
     expect(prompt).toContain("ALL 3 days");
+  });
+});
+
+describe("buildClaudeDailyPrompt plan context", () => {
+  const SUMMARY =
+    "THIS DAY (the day being adjusted): Fri 2026-10-16.\n\n- Wed 2026-10-14 · Upper Body Push · MISSED\n  Press [traditional]: Barbell Bench Press 4x8";
+
+  it("carries the plan summary and the reproduce-the-referenced-day rules", () => {
+    const prompt = buildClaudeDailyPrompt(minimalProfile, [], 5, SUMMARY, "Give me Wednesday's workout");
+    expect(prompt).toContain("THE USER'S CURRENT PLAN");
+    expect(prompt).toContain("- Wed 2026-10-14 · Upper Body Push · MISSED");
+    expect(prompt).toContain("REPRODUCE that day's workout");
+    expect(prompt).toContain("most recent Wednesday BEFORE this day");
+    expect(prompt).toContain('Say so plainly in the "description"');
+    // a reproduction keeps the source prescriptions and claims no phantom edits
+    expect(prompt).toContain("do NOT apply recent-feedback or intensity adjustments");
+    expect(prompt).toContain("unless it actually was");
+    expect(prompt).toContain("do NOT label any other day as the one requested");
+    // placed before the create-from-scratch methodology it overrides
+    expect(prompt.indexOf("THE USER'S CURRENT PLAN")).toBeLessThan(
+      prompt.indexOf("FRESH START METHODOLOGY")
+    );
+  });
+
+  it("omits the section when no plan summary is available", () => {
+    const prompt = buildClaudeDailyPrompt(minimalProfile, [], 1, null, "make it harder");
+    expect(prompt).not.toContain("THE USER'S CURRENT PLAN");
   });
 });

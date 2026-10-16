@@ -1,6 +1,7 @@
 import { describe, it, expect } from "@jest/globals";
 import type { ExerciseMetadata } from "@/services/exercise.service";
 import {
+  findExercisesByExactName,
   findRequestedExercises,
   selectCanonicalBasics,
   pinExercises,
@@ -215,5 +216,25 @@ describe("formatGenerationMenu", () => {
     expect(canon).toBeGreaterThan(req);
     expect(full).toBeGreaterThan(canon);
     expect(out.indexOf("Strict Pull-Up")).toBeLessThan(out.indexOf("Butterfly Fold"));
+  });
+});
+
+describe("findExercisesByExactName", () => {
+  it("returns pool rows for exact (case-insensitive) names, in the given order", () => {
+    const names = findExercisesByExactName(["push-up", "Strict Pull-Up"], POOL).map((e) => e.name);
+    expect(names).toEqual(["Push-Up", "Strict Pull-Up"]);
+  });
+
+  it("never fuzzy-matches a sibling variant, and skips names missing from the pool", () => {
+    // "Pull-Up" is not a pool row; token matching would have found Strict/Band-Assisted
+    expect(findExercisesByExactName(["Pull-Up", "Hill Walk Repeats"], POOL)).toEqual([]);
+    expect(findExercisesByExactName(undefined, POOL)).toEqual([]);
+  });
+
+  it("feeds pinExercises as requested pins ahead of the menu", () => {
+    const pins = findExercisesByExactName(["Butterfly Fold"], POOL);
+    const out = pinExercises(POOL.slice(0, 5), { requested: pins, canonical: [] }, 5);
+    expect(out[0]).toMatchObject({ name: "Butterfly Fold", pinned: "requested" });
+    expect(out).toHaveLength(5);
   });
 });

@@ -1092,13 +1092,32 @@ export const buildClaudeDailyPrompt = (
   profile: Profile,
   exerciseNames: string[],
   dayNumber: number,
-  previousWorkout: any,
+  // Rendered summary of the current plan's days (utils/plan-context.ts), or
+  // null when unavailable. Without it the model cannot honor "give me
+  // Wednesday's workout" — it has never seen Wednesday.
+  planSummary: string | null,
   regenerationReason: string,
   isRestDay: boolean = false
 ) => {
   const workoutDuration = profile.workoutDuration || 30;
   const includeWarmup = profile.includeWarmup ?? true;
   const includeCooldown = profile.includeCooldown ?? true;
+
+  const planContextSection = planSummary
+    ? `
+## THE USER'S CURRENT PLAN — FOR REQUESTS THAT REFERENCE ANOTHER DAY
+
+${planSummary}
+
+**WHEN THE REQUEST REFERS TO ANOTHER DAY OF THIS PLAN** — by weekday ("Wednesday's workout", "this past Wednesday"), relative day ("yesterday's", "tomorrow's"), date, or status ("the one I missed", "the workout I couldn't do") — this OVERRIDES the "create from scratch" instructions below:
+1. Identify the day from the dates and weekday labels above. Resolve weekdays relative to THIS DAY's date, not any other: "this past Wednesday" / "last Wednesday" = the most recent Wednesday BEFORE this day; "yesterday" = the day before this day.
+2. REPRODUCE that day's workout as faithfully as the available exercise list allows: the same workout name, the same blocks in the same order with the same block types, rounds and time caps, and the same exercises with the same sets, reps, durations, distances and weights — never add a weight the source day does not list. Do NOT redesign, rebalance or "improve" it. Keep the source prescriptions exactly: do NOT apply recent-feedback or intensity adjustments unless the request itself asks for a change, and do NOT claim in the description that anything was trimmed, scaled or adjusted unless it actually was.
+3. If one of its exercises is not in the available exercise list, use the closest available equivalent and name each substitution in the "description".
+4. If the plan summary says a mentioned day has NO workout, or the referenced day cannot otherwise be identified in the plan above (no matching day, a rest day, or ambiguous), do NOT substitute a neighboring or similar day and do NOT label any other day as the one requested. Say so plainly in the "description" (e.g. "I couldn't find a Wednesday workout in your current plan, so this is a fresh session built around your request.") and then build a fresh workout. NEVER claim to have reproduced a day you could not find.
+5. Merely mentioning a day for other reasons (e.g. "I have a long run Saturday, keep legs light") is NOT a request to copy it — use the plan only as context then.
+If the request does not refer to another day, treat this plan as background context only.
+`
+    : "";
 
   const prompt = `
 # WORKOUT REGENERATION - USER FEEDBACK PRIORITY
@@ -1114,6 +1133,7 @@ export const buildClaudeDailyPrompt = (
 - **THINK OF THIS** as designing a workout for a new client with specific requests
 
 **YOUR PRIMARY TASK:** Generate a COMPLETELY NEW workout from scratch that addresses this feedback. Use the regeneration reason as your primary guide, which can override ANY profile setting (style, duration, equipment, etc.) if needed to satisfy the user's request.
+${planContextSection}
 
 🚨🚨🚨 **${includeWarmup ? "WARMUP GUIDELINES - USER FEEDBACK PRIORITY" : "USER HAS DISABLED WARMUPS"}** 🚨🚨🚨
 ${

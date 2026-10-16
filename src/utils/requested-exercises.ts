@@ -195,6 +195,27 @@ export function findRequestedExercises(
 }
 
 /**
+ * Catalog rows matching `names` EXACTLY (case/whitespace-insensitive), in
+ * `names` order. For names that already ARE catalog names — e.g. the
+ * exercises of a plan day the user asked to repeat — where token matching
+ * could swap in a sibling variant. Returns rows from `pool` only, so a name
+ * the equipment/limitation filters removed simply isn't pinned.
+ */
+export function findExercisesByExactName(
+  names: string[] | null | undefined,
+  pool: ExerciseMetadata[]
+): ExerciseMetadata[] {
+  if (!names?.length || pool.length === 0) return [];
+  const poolByExactLower = new Map(pool.map((ex) => [ex.name.trim().toLowerCase(), ex]));
+  const out: ExerciseMetadata[] = [];
+  for (const name of names) {
+    const row = poolByExactLower.get(name.trim().toLowerCase());
+    if (row && !out.includes(row)) out.push(row);
+  }
+  return out;
+}
+
+/**
  * The staple rows present in `pool` for this user's styles: WALKING_BASICS for
  * Walking & Movement users, CANONICAL_BASICS for lifting/conditioning users (or
  * users with no styles set). Yoga-, pilates- or mobility-only users get none —

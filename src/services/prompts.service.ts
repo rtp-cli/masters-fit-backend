@@ -16,6 +16,13 @@ import {
 } from "@/constants/ai-providers";
 import { PlanDaySlot } from "@/utils/plan-schedule";
 import { timePhase } from "@/utils/phase-timing";
+import {
+  DailyPromptPlanContext,
+  PlanContext,
+  findReferencedPlanDays,
+  formatPlanContext,
+  referencedExerciseNames,
+} from "@/utils/plan-context";
 // Result type that includes token usage
 export interface PromptGenerationResult {
   response: any;
@@ -522,7 +529,10 @@ export class PromptsService extends BaseService {
   public async generateDailyRegenerationPrompt(
     userId: number,
     dayNumber: number,
-    _previousWorkout: any, // Unused in LangChain implementation but kept for API compatibility
+    // The current plan around the day being adjusted (null when unavailable).
+    // Lets the prompt honor "replace today with Wednesday's workout" — see
+    // utils/plan-context.ts.
+    planContext: PlanContext | null,
     regenerationReason: string,
     isRestDay: boolean = false,
     threadId?: string,
@@ -568,10 +578,42 @@ export class PromptsService extends BaseService {
     // Generate a thread ID if not provided to enable conversation memory for all users
     const workoutThreadId = threadId || `workout_daily_${userId}_${Date.now()}`;
 
-    // Recent post-workout feedback rides along as generation input
-    const enrichedReason = await timePhase(userId, "feedbackDigestMs", () =>
-      this.withRecentFeedback(userId, regenerationReason)
-    );
+    // Resolve referenced days from the RAW reason — the feedback digest
+    // appended below can mention weekdays of its own.
+    const refs = planContext
+      ? findReferencedPlanDays(regenerationReason, planContext)
+      : { days: [], unresolved: [] };
+
+    // Recent post-workout feedback rides along as generation input — except
+    // when the request is a faithful copy of another plan day. With the digest
+    // present the model narrates adjustments it never made ("volume trimmed per
+    // 'ran out of time' feedback") even when told not to; removing the input is
+    // the reliable fix.
+    const isReproduction = refs.days.length > 0 && refs.unresolved.length === 0;
+    const enrichedReason = isReproduction
+      ? regenerationReason
+      : await timePhase(userId, "feedbackDigestMs", () =>
+          this.withRecentFeedback(userId, regenerationReason)
+        );
+    const promptPlanContext: DailyPromptPlanContext | undefined = planContext
+      ? {
+          summary: formatPlanContext(planContext, refs),
+          referencedExerciseNames: referencedExerciseNames(refs.days),
+        }
+      : undefined;
+    if (refs.days.length > 0 || refs.unresolved.length > 0) {
+      logger.info("Adjust request references another plan day", {
+        userId,
+        dayNumber,
+        operation: "generateDailyRegenerationPrompt",
+        metadata: {
+          referencedDates: refs.days.map((d) => d.date),
+          unresolved: refs.unresolved,
+          feedbackDigestSkipped: isReproduction,
+          pinnedNames: promptPlanContext?.referencedExerciseNames.length ?? 0,
+        },
+      });
+    }
 
     try {
       const result = await workoutAgent.regenerateWorkout(
@@ -582,7 +624,8 @@ export class PromptsService extends BaseService {
         enrichedReason,
         dayNumber,
         isRestDay,
-        signal // Pass abort signal through
+        signal, // Pass abort signal through
+        promptPlanContext
       );
 
       const createdPrompt = await this.createPrompt({
