@@ -222,7 +222,7 @@ export function formatPlanContext(
 ): string {
   const lines: string[] = [
     `THIS DAY (the day being adjusted): ${labelDate(ctx.targetDate)}.`,
-    `Status: done = completed; MISSED = earlier date, never completed; upcoming = later date. Prescriptions: sets x reps, s = seconds, min = minutes, m = meters, @ = weight.`,
+    `Status: done = completed; MISSED = earlier date, never completed; upcoming = later date. Prescriptions: sets x reps, s = seconds, min = minutes, m = meters, @ = weight; no @ = no weight prescribed (leave it unweighted).`,
   ];
   if (refs.days.length > 0) {
     lines.push(
