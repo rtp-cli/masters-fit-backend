@@ -39,16 +39,21 @@ import {
   type SubscriptionAlertTemplateProps,
 } from "@/templates/subscription-alert-email";
 import { signupNotifyRecipients } from "@/constants/signup-notifications";
+import { onboardingContinueUrl } from "@/constants/onboarding-nudge";
 import {
-  onboardingContinueUrl,
-  publicApiUrl,
-} from "@/constants/onboarding-nudge";
-import { signUnsubscribeToken } from "@/utils/email-token";
+  listUnsubscribeHeaders,
+  unsubscribeUrlFor,
+} from "@/constants/email-links";
 import { logger } from "@/utils/logger";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = process.env.FROM_EMAIL || "system@alif.care";
+// The brand sender for types 2-4 and the internal alerts. Must sit on the
+// Resend-verified domain (updates.mastersfit.ai). The fallback keeps mail
+// flowing if the env var is ever lost, but that is a misconfiguration, so
+// startup reports it (checkEmailSenderConfig, called from index.ts).
+const DEFAULT_FROM_EMAIL = "hello@updates.mastersfit.ai";
+const FROM_EMAIL = process.env.FROM_EMAIL?.trim() || DEFAULT_FROM_EMAIL;
 // Every customer email invites a reply, so Reply-To is always a mailbox a
 // person reads.
 const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "rtp@mastersfit.ai";
@@ -62,6 +67,22 @@ const NUDGE_FROM_NAME = process.env.NUDGE_FROM_NAME || "Rich Pusateri";
 const NUDGE_FROM_EMAIL =
   process.env.NUDGE_FROM_EMAIL || "rtp@updates.mastersfit.ai";
 const NUDGE_REPLY_TO = process.env.NUDGE_REPLY_TO || "rtp@mastersfit.ai";
+
+/**
+ * Report a missing FROM_EMAIL once, at server startup. Deliberately does NOT
+ * throw: a crash at boot would take the whole API down over an email setting,
+ * and the default above is a valid, verified address. logger.error reaches
+ * Sentry, so the misconfiguration is still loud.
+ */
+export function checkEmailSenderConfig(): void {
+  if (!process.env.FROM_EMAIL?.trim()) {
+    logger.error(
+      `FROM_EMAIL is not set; customer email will send from the default ${DEFAULT_FROM_EMAIL}`,
+      undefined,
+      { operation: "checkEmailSenderConfig" },
+    );
+  }
+}
 
 // Early-phase owner visibility: Rich gets a Bcc on every LIFECYCLE email — the
 // ones that reach a real customer because of where they are in their
@@ -214,9 +235,7 @@ export class EmailService {
   }): Promise<void> {
     const { to, name, userId, postalAddress } = params;
 
-    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
-      signUnsubscribeToken(userId),
-    )}`;
+    const unsubscribeUrl = unsubscribeUrlFor(userId);
 
     const { html, text } = onboardingNudgeTemplate({
       name,
@@ -233,13 +252,7 @@ export class EmailService {
       html,
       text,
       replyTo: REPLY_TO_EMAIL,
-      // One-click unsubscribe. Gmail and Yahoo require this header on bulk
-      // mail; without it they are entitled to treat the send as spam no matter
-      // how good the footer link is.
-      headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      headers: listUnsubscribeHeaders(unsubscribeUrl),
     });
 
     if (response.error) {
@@ -271,9 +284,7 @@ export class EmailService {
     const { to, name, userId, planName, firstSessionName, postalAddress } =
       params;
 
-    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
-      signUnsubscribeToken(userId),
-    )}`;
+    const unsubscribeUrl = unsubscribeUrlFor(userId);
 
     const { html, text } = activationNudgeTemplate({
       name,
@@ -292,13 +303,7 @@ export class EmailService {
       html,
       text,
       replyTo: REPLY_TO_EMAIL,
-      // One-click unsubscribe. Gmail and Yahoo require this header on bulk
-      // mail; without it they are entitled to treat the send as spam no matter
-      // how good the footer link is.
-      headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      headers: listUnsubscribeHeaders(unsubscribeUrl),
     });
 
     if (response.error) {
@@ -332,9 +337,7 @@ export class EmailService {
   }): Promise<void> {
     const { to, name, userId, postalAddress } = params;
 
-    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
-      signUnsubscribeToken(userId),
-    )}`;
+    const unsubscribeUrl = unsubscribeUrlFor(userId);
 
     const { html, text } = featureTourTemplate({
       name,
@@ -350,13 +353,7 @@ export class EmailService {
       html,
       text,
       replyTo: NUDGE_REPLY_TO,
-      // One-click unsubscribe. Gmail and Yahoo require this header on bulk
-      // mail; without it they are entitled to treat the send as spam no matter
-      // how good the footer link is.
-      headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      headers: listUnsubscribeHeaders(unsubscribeUrl),
     });
 
     if (response.error) {
@@ -393,9 +390,7 @@ export class EmailService {
     const { to, name, userId, daysSinceSignup, isComped, postalAddress } =
       params;
 
-    const unsubscribeUrl = `${publicApiUrl()}/api/email-preferences/unsubscribe?token=${encodeURIComponent(
-      signUnsubscribeToken(userId),
-    )}`;
+    const unsubscribeUrl = unsubscribeUrlFor(userId);
 
     const { html, text } = comebackTemplate({
       name,
@@ -413,10 +408,7 @@ export class EmailService {
       html,
       text,
       replyTo: NUDGE_REPLY_TO,
-      headers: {
-        "List-Unsubscribe": `<${unsubscribeUrl}>`,
-        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      },
+      headers: listUnsubscribeHeaders(unsubscribeUrl),
     });
 
     if (response.error) {

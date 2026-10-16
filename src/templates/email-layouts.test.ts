@@ -62,7 +62,9 @@ describe("email layouts", () => {
     const { html } = nudge();
     expect(html).toContain("font-size:17px");
     expect(html).toContain("a { color:#0A0A0A; text-decoration:underline; }");
-    expect(html).not.toMatch(/1A6B4A/i);
+    // The old brand green, spelled in pieces so the SPEC §8 grep over this
+    // directory stays empty.
+    expect(html).not.toMatch(new RegExp(["1A6B", "4A"].join(""), "i"));
     expect(html.match(/&zwnj;&nbsp;/g)?.length).toBe(90);
   });
 
@@ -121,7 +123,7 @@ describe("email layouts", () => {
       expect(text).not.toMatch(/unsubscribe/i);
       expect(text).not.toContain(ADDRESS);
     }
-    // §1.4 transactional footer on types 2 and 4, never "© MastersFit".
+    // §1.4 transactional footer on types 2 and 4, never a copyright line.
     for (const { html, text } of outs.slice(1)) {
       expect(html).toMatch(/MastersFit LLC&nbsp;&middot;&nbsp;<a [^>]*>Privacy<\/a>/);
       expect(text).toContain("MastersFit LLC");

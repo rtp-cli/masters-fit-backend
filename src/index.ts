@@ -3,6 +3,7 @@ import "./instrument";
 
 import app from "./app";
 import { logger } from "./utils/logger";
+import { checkEmailSenderConfig } from "./services/email.service";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
@@ -199,6 +200,9 @@ server.listen(port, "0.0.0.0", async () => {
     },
   });
   
+  // Loud (Sentry) but non-fatal if the email sender env var is missing.
+  checkEmailSenderConfig();
+
   // Initialize background services
   await initializeServices();
 });
