@@ -4,10 +4,8 @@
  * Extracted when the two signup-notification templates would otherwise have
  * carried private copies: an escaping fix or a logo/font change applied to one
  * and missed in the other is exactly the drift this file exists to prevent.
- * The older customer templates (otp, renewal) still carry their own copies —
- * migrating them is safe but deliberately out of scope here.
  *
- * Customer-facing emails are moving onto the shared per-type layouts in
+ * Customer-facing emails are built on the shared per-type layouts in
  * email-layouts.ts, which build on these constants.
  */
 
@@ -24,21 +22,42 @@ export const MONO =
   "'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace";
 
 /**
- * MastersFit's business mailing address, for the footer of every product &
- * marketing email (CAN-SPAM requires a valid physical postal address on
- * commercial mail).
+ * The square logo tile at the top of every BRANDED customer email (types 2-4).
  *
- * Source: the public website, which prints it in three places — the privacy
- * policy and terms "Contact Us" sections and the site footer
- * (website/privacy.html, terms.html, index.html). If the business moves,
- * change it there AND here.
+ * One opaque white 104x104 PNG (shown at 52x52) holding the dark outline mark,
+ * so the mark can never sit on a dark-mode background and vanish. Hosted on
+ * the website (repo mastersfit-website-next, assets/email/), at its FINAL URL —
+ * no redirects, for the same image-proxy reason as LOGO_URL above.
  *
- * NOTE: the older nudges (onboarding, activation, comeback, feature tour) do
- * NOT read this — they take COMPANY_POSTAL_ADDRESS from the environment. They
- * move onto this constant when they migrate to the shared layouts.
+ * CACHING: the website serves /assets/* with `Cache-Control: immutable` for a
+ * year. If the tile ever changes, publish it under a NEW file name (e.g.
+ * logo-tile-v2@2x.png) and point this at it; overwriting the old file leaves
+ * stale copies in mail-client image caches for up to a year.
  */
-export const MASTERSFIT_POSTAL_ADDRESS =
-  "MastersFit LLC\n1606 NW 106th Ter\nKansas City, MO 64155-1656";
+export const LOGO_TILE_URL =
+  process.env.EMAIL_LOGO_TILE_URL ||
+  "https://www.mastersfit.ai/assets/email/logo-tile@2x.png";
+
+/** The legal entity named in every customer email footer. */
+export const COMPANY_LEGAL_NAME = "MastersFit LLC";
+
+/**
+ * The STREET part of the business address for the commercial-email footer
+ * (CAN-SPAM requires a valid physical postal address on commercial mail).
+ *
+ * The value comes ONLY from the COMPANY_POSTAL_ADDRESS env var, read by the
+ * callers (constants/*-nudge.ts `companyPostalAddress()`); nothing here
+ * hard-codes an address. The footer prints "MastersFit LLC" itself, so the env
+ * var should hold the street address alone. A value that already starts with
+ * the company name is tolerated — the name is stripped so it isn't printed
+ * twice.
+ */
+export function streetAddress(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^mastersfit,?\s+llc\s*[,\n\r]*\s*/i, "")
+    .trim();
+}
 
 /**
  * Escape a value for interpolation into email HTML. Names and email addresses

@@ -39,7 +39,13 @@ import {
   SAMPLE_ANNOUNCEMENT_SUBJECT,
 } from "@/templates/sample-announcement-email";
 import { accountLayout, nudgeLayout } from "@/templates/email-layouts";
-import { MASTERSFIT_POSTAL_ADDRESS, escapeHtml } from "@/templates/email-shared";
+import { escapeHtml } from "@/templates/email-shared";
+
+/**
+ * An obviously FAKE address. Live sends read COMPANY_POSTAL_ADDRESS from the
+ * environment; the preview must never look like it settled the real value.
+ */
+const SAMPLE_ADDRESS = "123 Sample Street, Anytown, ST 00000";
 
 const NAME = "Jordan Sample";
 const EMAIL = "jordan.sample@example.com";
@@ -198,7 +204,7 @@ function build(): PreviewEmail[] {
       name: NAME,
       daysSinceSignup: 30,
       unsubscribeUrl: UNSUB,
-      postalAddress: MASTERSFIT_POSTAL_ADDRESS,
+      postalAddress: SAMPLE_ADDRESS,
     }),
   });
   out.push({
@@ -214,7 +220,7 @@ function build(): PreviewEmail[] {
     ...featureTourTemplate({
       name: NAME,
       unsubscribeUrl: UNSUB,
-      postalAddress: MASTERSFIT_POSTAL_ADDRESS,
+      postalAddress: SAMPLE_ADDRESS,
     }),
   });
 
@@ -233,7 +239,7 @@ function build(): PreviewEmail[] {
       name: NAME,
       continueUrl: CONTINUE,
       unsubscribeUrl: UNSUB,
-      postalAddress: MASTERSFIT_POSTAL_ADDRESS,
+      postalAddress: SAMPLE_ADDRESS,
     }),
   });
   out.push({
@@ -252,7 +258,7 @@ function build(): PreviewEmail[] {
       firstSessionName: "Full-Body Strength",
       startUrl: CONTINUE,
       unsubscribeUrl: UNSUB,
-      postalAddress: MASTERSFIT_POSTAL_ADDRESS,
+      postalAddress: SAMPLE_ADDRESS,
     }),
   });
   out.push({
@@ -278,6 +284,7 @@ function build(): PreviewEmail[] {
         text: "If the plan isn't right — too long, too hard, wrong equipment — just reply and tell me. I'd rather fix it than have you not use it.",
       },
       unsubscribeUrl: UNSUB,
+      postalAddress: SAMPLE_ADDRESS,
     }),
   });
   out.push({
@@ -290,7 +297,7 @@ function build(): PreviewEmail[] {
     unsubscribe: true,
     postal: true,
     notes: "Placeholder text throughout. Images are the website's share image, standing in for real screenshots.",
-    ...sampleAnnouncementTemplate({ name: NAME, unsubscribeUrl: UNSUB, openAppUrl: CONTINUE }),
+    ...sampleAnnouncementTemplate({ name: NAME, unsubscribeUrl: UNSUB, postalAddress: SAMPLE_ADDRESS, openAppUrl: CONTINUE }),
   });
 
   return out;

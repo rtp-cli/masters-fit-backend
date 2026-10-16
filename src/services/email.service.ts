@@ -49,7 +49,9 @@ import { logger } from "@/utils/logger";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "system@alif.care";
-const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "noreply@alif.care";
+// Every customer email invites a reply, so Reply-To is always a mailbox a
+// person reads.
+const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "rtp@mastersfit.ai";
 
 // The onboarding nudge is signed by a person, so it sends as one. The address
 // must still live on the Resend-verified domain (updates.mastersfit.ai) or the

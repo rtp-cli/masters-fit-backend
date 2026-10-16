@@ -22,6 +22,7 @@ const SAMPLE_IMAGE = "https://www.mastersfit.ai/assets/og.png";
 export function sampleAnnouncementTemplate(params: {
   name: string;
   unsubscribeUrl: string;
+  postalAddress: string;
   openAppUrl: string;
 }): RenderedEmail {
   return announcementLayout({
@@ -52,5 +53,6 @@ export function sampleAnnouncementTemplate(params: {
       text: "Optional short note from Rich goes here. A sentence or two in his own voice, inviting a reply.",
     },
     unsubscribeUrl: params.unsubscribeUrl,
+    postalAddress: params.postalAddress,
   });
 }

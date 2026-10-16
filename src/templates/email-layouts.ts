@@ -1,23 +1,28 @@
 import {
-  LOGO_URL,
-  MASTERSFIT_POSTAL_ADDRESS,
+  COMPANY_LEGAL_NAME,
+  LOGO_TILE_URL,
   escapeHtml,
+  streetAddress,
 } from "@/templates/email-shared";
 
 /**
  * Shared layouts for every CUSTOMER-facing email, one per email TYPE.
  *
- *   1. personalLayout      — a plain note from Rich. No logo, no unsubscribe.
- *   2. welcomeLayout       — relationship mail from MastersFit, lightly
- *                            branded, signed "— Rich / Founder, MastersFit".
+ *   1. personalLayout      — a plain note from Rich. No logo, no buttons, a
+ *                            small text signature. Optional unsubscribe +
+ *                            address footer for the personal notes that are
+ *                            commercial mail (comeback, feature tour).
+ *   2. welcomeLayout       — relationship mail from MastersFit: logo header,
+ *                            outlined button, signed "— Rich / Founder,
+ *                            MastersFit", transactional footer.
  *   3. nudgeLayout         — product & marketing: one short message, one
  *      announcementLayout    button / a headline + feature sections. Both
- *                            REQUIRE an unsubscribe URL and carry the postal
- *                            address (CAN-SPAM).
- *   4. accountLayout       — account & billing (codes, renewals). Minimal
- *                            branding, unsigned, no unsubscribe.
+ *                            REQUIRE an unsubscribe URL and a postal address
+ *                            (CAN-SPAM).
+ *   4. accountLayout       — account & billing (codes, renewals). Logo header,
+ *                            unsigned, transactional footer.
  *
- * (Type 5, the internal owner alerts, is deliberately not here.)
+ * (The internal owner alerts are deliberately not here.)
  *
  * A template supplies CONTENT ONLY — a list of blocks plus the type's fields.
  * The layout owns everything that should look the same across emails of a
@@ -26,26 +31,32 @@ import {
  *
  * Every string a template passes in is treated as PLAIN TEXT and escaped
  * here; there is no way to inject raw HTML except the explicit `strong` lead
- * on a paragraph/bullet, which is escaped too. Links and image sources must be
- * http(s) (or mailto: for links) — anything else throws at render time, so a
- * stray `javascript:` or a custom app scheme (which Gmail blocks) can't ship.
+ * on a paragraph/bullet and the inline `link` on a paragraph, both escaped
+ * too. Links and image sources must be http(s) (or mailto: for links) —
+ * anything else throws at render time, so a stray `javascript:` or a custom
+ * app scheme (which Gmail blocks) can't ship.
  *
- * The HTML is the conservative subset the existing templates already proved in
- * Gmail and Apple Mail: tables for layout, every style inline, a hidden
- * preheader, `format-detection` + the `x-apple-data-detectors` reset so the
- * footer address isn't turned into a blue Maps link, and a bulletproof
- * table-cell button.
+ * The HTML is the conservative subset proven in Gmail and Apple Mail: tables
+ * for layout, every style inline, a hidden preheader padded so body text can't
+ * leak into the inbox preview, `format-detection` + the `x-apple-data-detectors`
+ * reset so the footer address isn't turned into a blue Maps link, and a
+ * bulletproof table-cell button.
  */
 
 // ---------------------------------------------------------------------------
 // Content model
 // ---------------------------------------------------------------------------
 
-/** A body paragraph. `lead` renders bold in front of the text ("Your next step:"). */
+/**
+ * A body paragraph. `lead` renders bold in front of the text ("Your next
+ * step:"). `link` turns the first occurrence of `link.text` inside `text` into
+ * an inline link (bold when `bold`); the plain-text half prints the URL after it.
+ */
 export interface ParagraphBlock {
   kind: "paragraph";
   text: string;
   lead?: string;
+  link?: { text: string; href: string; bold?: boolean };
 }
 
 /** A bulleted list. Each item may have a bold `lead`. */
@@ -70,10 +81,29 @@ export interface CodeBlock {
   value: string;
 }
 
-/** Small muted paragraph (expiry notes, "if you didn't request this"). */
+/** A grey box with a small label, one big value and an optional line under it. */
+export interface DetailBlock {
+  kind: "detail";
+  label: string;
+  value: string;
+  sub?: string;
+}
+
+/** Small muted paragraph (expiry notes). */
 export interface FinePrintBlock {
   kind: "fineprint";
   text: string;
+}
+
+/**
+ * One tip in a personal note: a bold title, the tap path on its own muted
+ * line directly under it, then the explanation.
+ */
+export interface TipBlock {
+  kind: "tip";
+  title: string;
+  path: string;
+  body: string;
 }
 
 export type EmailBlock =
@@ -81,7 +111,9 @@ export type EmailBlock =
   | BulletsBlock
   | ButtonBlock
   | CodeBlock
-  | FinePrintBlock;
+  | DetailBlock
+  | FinePrintBlock
+  | TipBlock;
 
 export interface RenderedEmail {
   html: string;
@@ -95,7 +127,8 @@ interface CommonLayoutProps {
   preheader: string;
   /**
    * First name for the greeting ("Hi Jordan,"). Empty/blank renders
-   * "Hi there,". Pass null to omit the greeting entirely.
+   * "Hi there,". Pass null to omit the greeting entirely. Escaped here — pass
+   * the raw value.
    */
   firstName: string | null;
   blocks: EmailBlock[];
@@ -106,6 +139,14 @@ export interface RichNote {
   text: string;
 }
 
+/** The commercial-mail footer inputs. Both required, both checked. */
+export interface MarketingFooter {
+  /** Fully-built, signed unsubscribe link. */
+  unsubscribeUrl: string;
+  /** The COMPANY_POSTAL_ADDRESS env value (street address). */
+  postalAddress: string;
+}
+
 // ---------------------------------------------------------------------------
 // Design tokens (one place)
 // ---------------------------------------------------------------------------
@@ -113,7 +154,7 @@ export interface RichNote {
 /**
  * System fonts, deliberately — no web font. Gmail strips <link> fonts, so a
  * Manrope-first stack renders differently per client; the system stack looks
- * the same everywhere and is what the personal notes already use.
+ * the same everywhere.
  */
 const FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -121,23 +162,26 @@ const FONT =
 const COLOR = {
   page: "#FFFFFF",
   text: "#1A1A1A",
+  ink: "#0A0A0A",
   muted: "#5A5A5A",
   footer: "#767676",
   rule: "#E5E5E5",
-  /** Brand ink — the website's --brand-primary (near-black). */
-  button: "#0A0A0A",
-  buttonText: "#FFFFFF",
-  link: "#1A6B4A",
-  codeBg: "#F6F6F6",
-  noteBg: "#F6F6F6",
+  /** Body links: near-black and underlined. No brand green anywhere. */
+  link: "#0A0A0A",
+  box: "#F6F6F6",
 };
 
-const BODY = `font-family:${FONT}; font-size:16px; line-height:1.6; color:${COLOR.text};`;
+const BODY = `font-family:${FONT}; font-size:17px; line-height:1.6; color:${COLOR.text};`;
 const P = `margin:0 0 16px 0; ${BODY}`;
 const SMALL = `font-family:${FONT}; font-size:13px; line-height:1.6; color:${COLOR.footer};`;
+const LINK = `color:${COLOR.link}; text-decoration:underline;`;
+const FOOTER_LINK = `color:${COLOR.footer}; text-decoration:underline;`;
+const LABEL = `font-family:${FONT}; font-size:12px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:${COLOR.muted};`;
 
 /** Content column width. 600 is the safe maximum for every client. */
 const WIDTH = 600;
+
+const SITE_URL = "https://www.mastersfit.ai";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -177,24 +221,31 @@ export function firstNameOf(name: string | null | undefined): string {
   return name?.trim().split(/\s+/)[0] || "";
 }
 
-function greetingHtml(firstName: string | null): string {
+function greetingHtml(firstName: string | null, suffix = ","): string {
   if (firstName === null) return "";
   const who = firstName.trim() ? escapeHtml(firstName.trim()) : "there";
-  return `<p style="${P}">Hi ${who},</p>`;
+  return `<p style="${P}">Hi ${who}${escapeHtml(suffix)}</p>`;
 }
 
-function greetingText(firstName: string | null): string {
+function greetingText(firstName: string | null, suffix = ","): string {
   if (firstName === null) return "";
-  return `Hi ${firstName.trim() || "there"},\n\n`;
+  return `Hi ${firstName.trim() || "there"}${toPlain(suffix)}\n\n`;
 }
 
+/**
+ * The one button style for every email: outlined, never filled. White fill,
+ * 1.5px near-black border, near-black text. 15px text + 14px padding + border
+ * is ~49px tall, over the 44px touch minimum. `border-collapse:separate` so
+ * the cell's border-radius isn't flattened by the global collapse rule;
+ * `nowrap` so a label never breaks onto two lines inside the outline.
+ */
 function buttonHtml(label: string, href: string): string {
   // No `align` attribute: an aligned table FLOATS in most clients and lets the
   // next paragraph wrap up beside the button.
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0;">
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0; border-collapse:separate;">
   <tr>
-    <td align="center" bgcolor="${COLOR.button}" style="background-color:${COLOR.button}; border-radius:10px;">
-      <a href="${safeHref(href)}" target="_blank" style="display:inline-block; padding:14px 28px; font-family:${FONT}; font-size:16px; font-weight:600; line-height:1.2; color:${COLOR.buttonText}; text-decoration:none; border-radius:10px;">${escapeHtml(label)}</a>
+    <td align="center" bgcolor="${COLOR.page}" style="background-color:${COLOR.page}; border:1.5px solid ${COLOR.ink}; border-radius:10px;">
+      <a href="${safeHref(href)}" target="_blank" style="display:inline-block; padding:14px 24px; font-family:${FONT}; font-size:15px; font-weight:600; line-height:1.2; color:${COLOR.ink}; text-decoration:none; border-radius:10px; white-space:nowrap;">${escapeHtml(label)}</a>
     </td>
   </tr>
 </table>`;
@@ -204,10 +255,41 @@ function leadHtml(lead: string | undefined): string {
   return lead ? `<strong style="color:${COLOR.text};">${escapeHtml(lead)}</strong> ` : "";
 }
 
+function splitOnLink(block: ParagraphBlock): [string, string, string] | null {
+  if (!block.link) return null;
+  const i = block.text.indexOf(block.link.text);
+  if (i < 0) {
+    throw new Error(`Paragraph link text not found in paragraph: ${block.link.text}`);
+  }
+  return [
+    block.text.slice(0, i),
+    block.link.text,
+    block.text.slice(i + block.link.text.length),
+  ];
+}
+
+function paragraphInnerHtml(block: ParagraphBlock): string {
+  const parts = splitOnLink(block);
+  if (!parts || !block.link) return `${leadHtml(block.lead)}${escapeHtml(block.text)}`;
+  const [before, linkText, after] = parts;
+  const weight = block.link.bold ? " font-weight:700;" : "";
+  return `${leadHtml(block.lead)}${escapeHtml(before)}<a href="${safeHref(block.link.href)}" target="_blank" style="${LINK}${weight}">${escapeHtml(linkText)}</a>${escapeHtml(after)}`;
+}
+
+function boxTable(inner: string, align: "left" | "center" = "left", padding = "16px 20px"): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0; background-color:${COLOR.box}; border-radius:12px; border-collapse:separate;">
+  <tr>
+    <td align="${align}" bgcolor="${COLOR.box}" style="padding:${padding}; background-color:${COLOR.box}; border-radius:12px;">
+${inner}
+    </td>
+  </tr>
+</table>`;
+}
+
 function blockHtml(block: EmailBlock): string {
   switch (block.kind) {
     case "paragraph":
-      return `<p style="${P}">${leadHtml(block.lead)}${escapeHtml(block.text)}</p>`;
+      return `<p style="${P}">${paragraphInnerHtml(block)}</p>`;
     case "bullets": {
       const intro = block.intro
         ? `<p style="margin:0 0 8px 0; ${BODY}">${escapeHtml(block.intro)}</p>`
@@ -223,24 +305,41 @@ function blockHtml(block: EmailBlock): string {
     case "button":
       return buttonHtml(block.label, block.href);
     case "code":
-      return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0; background-color:${COLOR.codeBg}; border-radius:12px;">
-  <tr>
-    <td align="center" style="padding:22px 16px;">
-      <div style="font-family:${FONT}; font-size:12px; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:${COLOR.footer};">${escapeHtml(block.label)}</div>
-      <div style="margin-top:10px; font-family:${FONT}; font-size:36px; font-weight:700; letter-spacing:0.24em; padding-left:0.24em; line-height:1; color:${COLOR.text}; font-variant-numeric:tabular-nums;">${escapeHtml(block.value)}</div>
-    </td>
-  </tr>
-</table>`;
+      return boxTable(
+        `      <div style="${LABEL} letter-spacing:0.12em;">${escapeHtml(block.label)}</div>
+      <div style="margin-top:10px; font-family:${FONT}; font-size:38px; font-weight:700; letter-spacing:0.24em; padding-left:0.24em; line-height:1; color:${COLOR.ink}; font-variant-numeric:tabular-nums;">${escapeHtml(block.value)}</div>`,
+        "center",
+        "24px 16px"
+      );
+    case "detail":
+      return boxTable(
+        `      <div style="${LABEL}">${escapeHtml(block.label)}</div>
+      <div style="margin-top:6px; font-family:${FONT}; font-size:19px; font-weight:700; line-height:1.3; color:${COLOR.ink};">${escapeHtml(block.value)}</div>${
+          block.sub
+            ? `\n      <div style="margin-top:4px; font-family:${FONT}; font-size:15px; line-height:1.5; color:${COLOR.muted};">${escapeHtml(block.sub)}</div>`
+            : ""
+        }`,
+        "left",
+        "18px 20px"
+      );
     case "fineprint":
-      return `<p style="margin:0 0 16px 0; font-family:${FONT}; font-size:14px; line-height:1.6; color:${COLOR.muted};">${escapeHtml(block.text)}</p>`;
+      return `<p style="margin:0 0 16px 0; font-family:${FONT}; font-size:15px; line-height:1.6; color:${COLOR.muted};">${escapeHtml(block.text)}</p>`;
+    case "tip":
+      return `<p style="margin:8px 0 4px 0; font-family:${FONT}; font-size:17px; line-height:1.4; font-weight:700; color:${COLOR.text};">${escapeHtml(block.title)}</p>
+<p style="margin:0 0 6px 0; font-family:${FONT}; font-size:15px; line-height:1.5; color:${COLOR.muted};">${escapeHtml(block.path)}</p>
+<p style="${P}">${escapeHtml(block.body)}</p>`;
   }
 }
 
 function blockText(block: EmailBlock): string {
   const lead = (l?: string) => (l ? `${toPlain(l)} ` : "");
   switch (block.kind) {
-    case "paragraph":
-      return `${lead(block.lead)}${toPlain(block.text)}`;
+    case "paragraph": {
+      const parts = splitOnLink(block);
+      if (!parts || !block.link) return `${lead(block.lead)}${toPlain(block.text)}`;
+      const [before, linkText, after] = parts;
+      return `${lead(block.lead)}${toPlain(before)}${toPlain(linkText)} (${block.link.href.trim()})${toPlain(after)}`;
+    }
     case "bullets": {
       const items = block.items
         .map((i) => `- ${lead(i.lead)}${toPlain(i.text)}`)
@@ -251,25 +350,43 @@ function blockText(block: EmailBlock): string {
       return `${toPlain(block.label)}: ${block.href.trim()}`;
     case "code":
       return `${toPlain(block.label)}: ${block.value}`;
+    case "detail":
+      return `${toPlain(block.label)}: ${toPlain(block.value)}${block.sub ? ` (${toPlain(block.sub)})` : ""}`;
     case "fineprint":
       return toPlain(block.text);
+    case "tip":
+      return `${toPlain(block.title)}\n${toPlain(block.path)}\n${toPlain(block.body)}`;
   }
 }
 
-/** The small logo + wordmark that tops every branded layout. */
+/**
+ * The branded header for types 2-4: a 52x52 white logo tile (an opaque PNG,
+ * so the mark survives dark mode) and the live-text wordmark. With images
+ * blocked, the alt text and the wordmark both still read "MastersFit".
+ */
 function logoHeaderHtml(): string {
   return `<tr>
   <td style="padding:0 0 28px 0;">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
       <tr>
-        <td style="padding-right:8px; vertical-align:middle;">
-          <img src="${safeSrc(LOGO_URL)}" width="24" height="22" alt="" style="display:block; width:24px; height:auto; border:0;" />
+        <td width="52" style="width:52px; vertical-align:middle;">
+          <img src="${safeSrc(LOGO_TILE_URL)}" width="52" height="52" alt="MastersFit" style="display:block; width:52px; height:52px; border:0; border-radius:10px; font-family:${FONT}; font-size:13px; color:${COLOR.ink};" />
         </td>
-        <td style="vertical-align:middle; font-family:${FONT}; font-size:16px; font-weight:600; letter-spacing:-0.01em; color:#0A0A0A;">MastersFit</td>
+        <td style="padding-left:12px; vertical-align:middle; font-family:${FONT}; font-size:22px; line-height:1.2; font-weight:700; letter-spacing:-0.01em; color:${COLOR.ink};">MastersFit</td>
       </tr>
     </table>
   </td>
 </tr>`;
+}
+
+function requireAddress(raw: string | undefined | null): string {
+  const street = raw ? streetAddress(raw) : "";
+  if (!street) {
+    throw new Error(
+      "Commercial emails require a postal address (COMPANY_POSTAL_ADDRESS)"
+    );
+  }
+  return street;
 }
 
 function addressHtml(address: string): string {
@@ -278,13 +395,20 @@ function addressHtml(address: string): string {
   return escapeHtml(address).replace(/\r?\n/g, "<br />");
 }
 
-/** The legal links line shared by the branded footers. */
+/** The legal links shared by the branded footers. */
 function legalLinksHtml(): string {
-  return `<a href="https://www.mastersfit.ai/privacy" style="color:${COLOR.footer}; text-decoration:underline;">Privacy</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;<a href="https://www.mastersfit.ai/terms" style="color:${COLOR.footer}; text-decoration:underline;">Terms</a>`;
+  return `<a href="${SITE_URL}/privacy" style="${FOOTER_LINK}">Privacy</a>&nbsp;&middot;&nbsp;<a href="${SITE_URL}/terms" style="${FOOTER_LINK}">Terms</a>`;
 }
 
-const LEGAL_LINKS_TEXT =
-  "Privacy: https://www.mastersfit.ai/privacy | Terms: https://www.mastersfit.ai/terms";
+const LEGAL_LINKS_TEXT = `Privacy: ${SITE_URL}/privacy | Terms: ${SITE_URL}/terms`;
+
+/**
+ * The hidden preheader, followed by ~90 zero-width-non-joiner + nbsp pairs so
+ * the inbox preview stops after it instead of pulling in the greeting.
+ */
+function preheaderHtml(preheader: string): string {
+  return `<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:${COLOR.page}; opacity:0;">${escapeHtml(preheader)}${"&zwnj;&nbsp;".repeat(90)}</div>`;
+}
 
 /**
  * The document shell: head, hidden preheader, white page, a centered column
@@ -305,7 +429,7 @@ function shell(opts: { title: string; preheader: string; rows: string }): string
   body { margin:0; padding:0; width:100% !important; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
   table { border-collapse:collapse; }
   img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic; }
-  a { color:${COLOR.link}; }
+  a { color:${COLOR.link}; text-decoration:underline; }
   a[x-apple-data-detectors] {
     color: inherit !important; text-decoration: none !important; font-size: inherit !important;
     font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important;
@@ -317,7 +441,7 @@ function shell(opts: { title: string; preheader: string; rows: string }): string
 </style>
 </head>
 <body style="margin:0; padding:0; background-color:${COLOR.page};">
-<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:${COLOR.page}; opacity:0;">${escapeHtml(opts.preheader)}</div>
+${preheaderHtml(opts.preheader)}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${COLOR.page};">
   <tr>
     <td align="center" style="padding:0;">
@@ -341,15 +465,15 @@ ${opts.rows}
 
 const row = (inner: string) => `<tr><td style="padding:0;">\n${inner}\n</td></tr>`;
 
-function bodyRows(firstName: string | null, blocks: EmailBlock[]): string {
-  return [greetingHtml(firstName), ...blocks.map(blockHtml)]
+function bodyRows(firstName: string | null, blocks: EmailBlock[], greetingSuffix?: string): string {
+  return [greetingHtml(firstName, greetingSuffix), ...blocks.map(blockHtml)]
     .filter(Boolean)
     .map(row)
     .join("\n");
 }
 
-function bodyText(firstName: string | null, blocks: EmailBlock[]): string {
-  return `${greetingText(firstName)}${blocks.map(blockText).join("\n\n")}`;
+function bodyText(firstName: string | null, blocks: EmailBlock[], greetingSuffix?: string): string {
+  return `${greetingText(firstName, greetingSuffix)}${blocks.map(blockText).join("\n\n")}`;
 }
 
 function ruleRow(): string {
@@ -357,37 +481,59 @@ function ruleRow(): string {
 }
 
 function richNoteHtml(note: RichNote): string {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px 0; background-color:${COLOR.noteBg}; border-radius:12px;">
-  <tr>
-    <td style="padding:18px 20px;">
-      <p style="margin:0 0 6px 0; font-family:${FONT}; font-size:12px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:${COLOR.footer};">A note from Rich</p>
-      <p style="margin:0 0 8px 0; ${BODY}">${escapeHtml(note.text)}</p>
-      <p style="margin:0; ${BODY}">&mdash; Rich, Founder</p>
-    </td>
-  </tr>
-</table>`;
+  return boxTable(
+    `      <p style="margin:0 0 8px 0; ${LABEL}">A note from Rich</p>
+      <p style="margin:0 0 10px 0; ${BODY}">${escapeHtml(note.text)}</p>
+      <p style="margin:0; ${BODY}">&mdash; Rich, Founder</p>`,
+    "left",
+    "18px 20px"
+  );
 }
 
 function richNoteText(note: RichNote): string {
   return `A note from Rich:\n${toPlain(note.text)}\n- Rich, Founder`;
 }
 
-/** Type 3 footer: why you got it, unsubscribe, postal address. */
-function marketingFooterRows(unsubscribeUrl: string): string {
+/** §1.4 — the transactional footer row for types 2 and 4. */
+function transactionalFooterHtml(): string {
+  return `<p style="margin:0; ${SMALL}">${COMPANY_LEGAL_NAME}&nbsp;&middot;&nbsp;${legalLinksHtml()}</p>`;
+}
+
+const TRANSACTIONAL_FOOTER_TEXT = `${COMPANY_LEGAL_NAME}\n${LEGAL_LINKS_TEXT}`;
+
+/** §1.3 — type 3 footer: why you got it, unsubscribe, company + address, legal. */
+function marketingFooterRows(footer: MarketingFooter): string {
+  const street = requireAddress(footer.postalAddress);
   return [
     ruleRow(),
-    row(`<p style="margin:0 0 10px 0; ${SMALL}">You're receiving this because you have a MastersFit account. <a href="${safeHref(unsubscribeUrl)}" style="color:${COLOR.footer}; text-decoration:underline;">Unsubscribe from these emails</a>.</p>
-<p style="margin:0 0 10px 0; ${SMALL}">${addressHtml(MASTERSFIT_POSTAL_ADDRESS)}</p>
+    row(`<p style="margin:0 0 12px 0; ${SMALL}">You're receiving this because you have a MastersFit account. <a href="${safeHref(footer.unsubscribeUrl)}" style="${FOOTER_LINK}">Unsubscribe from these emails</a>.</p>
+<p style="margin:0 0 12px 0; ${SMALL}">${COMPANY_LEGAL_NAME}<br />${addressHtml(street)}</p>
 <p style="margin:0; ${SMALL}">${legalLinksHtml()}</p>`),
   ].join("\n");
 }
 
-function marketingFooterText(unsubscribeUrl: string): string {
+function marketingFooterText(footer: MarketingFooter): string {
   return `---
 You're receiving this because you have a MastersFit account.
-Unsubscribe from these emails: ${unsubscribeUrl.trim()}
-${MASTERSFIT_POSTAL_ADDRESS}
+Unsubscribe from these emails: ${footer.unsubscribeUrl.trim()}
+${COMPANY_LEGAL_NAME}
+${requireAddress(footer.postalAddress)}
 ${LEGAL_LINKS_TEXT}`;
+}
+
+/** §1.3, personal variant: just the unsubscribe link, then company · address. */
+function personalFooterRows(footer: MarketingFooter): string {
+  const street = requireAddress(footer.postalAddress);
+  return [
+    ruleRow(),
+    row(`<p style="margin:0; ${SMALL}"><a href="${safeHref(footer.unsubscribeUrl)}" style="${FOOTER_LINK}">Unsubscribe from these emails</a><br />${COMPANY_LEGAL_NAME}&nbsp;&middot;&nbsp;${addressHtml(street)}</p>`),
+  ].join("\n");
+}
+
+function personalFooterText(footer: MarketingFooter): string {
+  return `---
+Unsubscribe from these emails: ${footer.unsubscribeUrl.trim()}
+${COMPANY_LEGAL_NAME} · ${requireAddress(footer.postalAddress)}`;
 }
 
 function requireUnsubscribe(url: string | undefined | null): string {
@@ -397,6 +543,13 @@ function requireUnsubscribe(url: string | undefined | null): string {
   return url;
 }
 
+function requireFooter(footer: MarketingFooter): MarketingFooter {
+  return {
+    unsubscribeUrl: requireUnsubscribe(footer.unsubscribeUrl),
+    postalAddress: requireAddress(footer.postalAddress),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Type 1 — Personal (from Rich)
 // ---------------------------------------------------------------------------
@@ -404,26 +557,52 @@ function requireUnsubscribe(url: string | undefined | null): string {
 export interface PersonalLayoutProps extends CommonLayoutProps {
   /** Sign-off line. Defaults to "— Rich". */
   signoff?: string;
+  /** What follows the name in the greeting. Defaults to ",". */
+  greetingSuffix?: string;
+  /**
+   * Set ONLY for a personal note that is commercial mail (comeback, feature
+   * tour): adds the unsubscribe link and "MastersFit LLC · address".
+   * Transactional notes (the comp note) leave it unset.
+   */
+  footer?: MarketingFooter;
 }
 
+/** Rich's text signature, under every personal note's sign-off (§2). */
+function signatureHtml(): string {
+  const S = `font-family:${FONT}; font-size:14px; line-height:1.5; color:${COLOR.muted};`;
+  return `<p style="margin:20px 0 0 0; ${S}">Rich Pusateri&nbsp;&middot;&nbsp;Founder, MastersFit&nbsp;&middot;&nbsp;<a href="${SITE_URL}" target="_blank" style="color:${COLOR.muted}; text-decoration:underline;">mastersfit.ai</a></p>`;
+}
+
+const SIGNATURE_TEXT = `Rich Pusateri · Founder, MastersFit · ${SITE_URL}`;
+
 /**
- * A plain note from Rich. NO logo, NO footer, NO unsubscribe: it should read
- * like an email a person typed. Sent From "Rich Pusateri".
- *
- * Use it only for mail that is genuinely transactional or one-to-one (e.g. the
- * comp note). A note that PROMOTES the app to a list is commercial mail and
- * legally needs an unsubscribe + postal address — that's the nudge layout.
+ * A plain note from Rich. NO logo, NO buttons (links are inline text): it
+ * should read like an email a person typed. Sent From "Rich Pusateri".
  */
 export function personalLayout(props: PersonalLayoutProps): RenderedEmail {
   const signoff = props.signoff ?? "— Rich";
+  const footer = props.footer ? requireFooter(props.footer) : null;
   const rows = [
-    bodyRows(props.firstName, props.blocks),
-    row(`<p style="margin:8px 0 0 0; ${BODY}">${escapeHtml(signoff)}</p>`),
-  ].join("\n");
+    bodyRows(props.firstName, props.blocks, props.greetingSuffix),
+    row(`<p style="margin:8px 0 0 0; ${BODY}">${escapeHtml(signoff)}</p>\n${signatureHtml()}`),
+    footer ? row(`<div style="height:24px; line-height:24px; font-size:1px;">&nbsp;</div>`) : "",
+    footer ? personalFooterRows(footer) : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const text = [
+    bodyText(props.firstName, props.blocks, props.greetingSuffix),
+    toPlain(signoff),
+    SIGNATURE_TEXT,
+    footer ? personalFooterText(footer) : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   return {
     html: shell({ title: props.title, preheader: props.preheader, rows }),
-    text: `${bodyText(props.firstName, props.blocks)}\n\n${toPlain(signoff)}\n`,
+    text: `${text}\n`,
   };
 }
 
@@ -434,10 +613,9 @@ export function personalLayout(props: PersonalLayoutProps): RenderedEmail {
 export type WelcomeLayoutProps = CommonLayoutProps;
 
 /**
- * Lightly branded relationship mail: small logo, the body, Rich's founder
- * signature, and a quiet footer (legal links only — no unsubscribe, no postal
- * address; it confirms something the customer just did). Sent From
- * "MastersFit" with Reply-To Rich.
+ * Relationship mail: logo header, the body, Rich's founder signature, and the
+ * transactional footer (no unsubscribe, no postal address; it confirms
+ * something the customer just did). Sent From "MastersFit", Reply-To Rich.
  */
 export function welcomeLayout(props: WelcomeLayoutProps): RenderedEmail {
   const rows = [
@@ -445,7 +623,7 @@ export function welcomeLayout(props: WelcomeLayoutProps): RenderedEmail {
     bodyRows(props.firstName, props.blocks),
     row(`<p style="margin:8px 0 32px 0; ${BODY}">&mdash; Rich<br />Founder, MastersFit</p>`),
     ruleRow(),
-    row(`<p style="margin:0; ${SMALL}">MastersFit LLC&nbsp;&nbsp;&middot;&nbsp;&nbsp;${legalLinksHtml()}</p>`),
+    row(transactionalFooterHtml()),
   ].join("\n");
 
   return {
@@ -456,8 +634,7 @@ export function welcomeLayout(props: WelcomeLayoutProps): RenderedEmail {
 Founder, MastersFit
 
 ---
-MastersFit LLC
-${LEGAL_LINKS_TEXT}
+${TRANSACTIONAL_FOOTER_TEXT}
 `,
   };
 }
@@ -466,25 +643,32 @@ ${LEGAL_LINKS_TEXT}
 // Type 3 — Product & marketing (from MastersFit, unsubscribe + address)
 // ---------------------------------------------------------------------------
 
-export interface NudgeLayoutProps extends Omit<CommonLayoutProps, "blocks"> {
+export interface NudgeLayoutProps
+  extends Omit<CommonLayoutProps, "blocks">,
+    MarketingFooter {
   /** The short message. Paragraphs only — keep it to two or three. */
   paragraphs: string[];
   /** The ONE button, placed after the message. */
   button: { label: string; href: string };
   /** Optional short note from Rich under the button. */
   note?: RichNote;
-  /** REQUIRED: fully-built, signed unsubscribe link. */
-  unsubscribeUrl: string;
 }
 
 /**
- * One short message, one button. Signed "MastersFit", with an optional note
- * from Rich. Footer carries the unsubscribe link and postal address — the
- * caller must ALSO send List-Unsubscribe headers and honour
- * `email_opted_out_at`.
+ * The sign-off rule (§4): an email carrying "A note from Rich" is already
+ * signed by Rich, so "— MastersFit" appears only when the note is left out.
+ */
+function brandSignoffRow(note: RichNote | undefined): string {
+  return note ? "" : row(`<p style="margin:0 0 32px 0; ${BODY}">&mdash; MastersFit</p>`);
+}
+
+/**
+ * One short message, one button, an optional note from Rich. Footer carries
+ * the unsubscribe link and postal address — the caller must ALSO send
+ * List-Unsubscribe headers and honour `email_opted_out_at`.
  */
 export function nudgeLayout(props: NudgeLayoutProps): RenderedEmail {
-  const unsubscribeUrl = requireUnsubscribe(props.unsubscribeUrl);
+  const footer = requireFooter(props);
   const blocks: EmailBlock[] = [
     ...props.paragraphs.map((text): EmailBlock => ({ kind: "paragraph", text })),
     { kind: "button", ...props.button },
@@ -494,17 +678,16 @@ export function nudgeLayout(props: NudgeLayoutProps): RenderedEmail {
     logoHeaderHtml(),
     bodyRows(props.firstName, blocks),
     props.note ? row(richNoteHtml(props.note)) : "",
-    row(`<p style="margin:0 0 32px 0; ${BODY}">&mdash; MastersFit</p>`),
-    marketingFooterRows(unsubscribeUrl),
+    brandSignoffRow(props.note),
+    marketingFooterRows(footer),
   ]
     .filter(Boolean)
     .join("\n");
 
   const text = [
     bodyText(props.firstName, blocks),
-    props.note ? richNoteText(props.note) : "",
-    "- MastersFit",
-    marketingFooterText(unsubscribeUrl),
+    props.note ? richNoteText(props.note) : "- MastersFit",
+    marketingFooterText(footer),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -529,21 +712,22 @@ export interface AnnouncementSection {
   image?: EmailImage;
 }
 
-export interface AnnouncementLayoutProps extends Omit<CommonLayoutProps, "blocks" | "firstName"> {
+export interface AnnouncementLayoutProps
+  extends Omit<CommonLayoutProps, "blocks" | "firstName">,
+    MarketingFooter {
   /** Big headline at the top ("Three new things in MastersFit"). */
   headline: string;
-  /** Pass null to omit the greeting; announcements often skip it. */
+  /** Pass null to omit the greeting. */
   firstName: string | null;
-  /** Optional short intro paragraph under the headline. */
-  intro?: string;
+  /** Hero image, 1072x560 at 2x (536x280 shown). Optional. */
   hero?: EmailImage;
+  /** Optional short intro paragraph under the greeting. */
+  intro?: string;
   /** The feature sections, in order. Keep each body to two or three sentences. */
   sections: AnnouncementSection[];
   /** The ONE primary button, after the last section. */
   button: { label: string; href: string };
   note?: RichNote;
-  /** REQUIRED: fully-built, signed unsubscribe link. */
-  unsubscribeUrl: string;
 }
 
 /** Column width inside the 32px side padding. */
@@ -555,29 +739,29 @@ function imageHtml(img: EmailImage, marginBottom: number): string {
 }
 
 /**
- * Headline, optional hero image, several short feature sections (title, body,
- * optional image), ONE primary button at the end, optional note from Rich,
- * signed MastersFit, with the unsubscribe + postal footer.
+ * Header → headline → optional hero → greeting → intro → feature sections
+ * (optional screenshot, title, paragraph) → ONE button → optional note from
+ * Rich → footer (§4, 08 Announcement).
  */
 export function announcementLayout(props: AnnouncementLayoutProps): RenderedEmail {
-  const unsubscribeUrl = requireUnsubscribe(props.unsubscribeUrl);
+  const footer = requireFooter(props);
 
   const sectionRows = props.sections.map((s) =>
-    row(`${s.image ? imageHtml(s.image, 14) : ""}<p style="margin:0 0 6px 0; font-family:${FONT}; font-size:18px; line-height:1.35; font-weight:700; color:${COLOR.text};">${escapeHtml(s.title)}</p>
+    row(`${s.image ? imageHtml(s.image, 16) : ""}<p style="margin:0 0 6px 0; font-family:${FONT}; font-size:19px; line-height:1.35; font-weight:700; color:${COLOR.text};">${escapeHtml(s.title)}</p>
 <p style="margin:0 0 28px 0; ${BODY}">${escapeHtml(s.body)}</p>`)
   );
 
   const rows = [
     logoHeaderHtml(),
-    row(`<h1 style="margin:0 0 16px 0; font-family:${FONT}; font-size:26px; line-height:1.25; font-weight:700; letter-spacing:-0.02em; color:#0A0A0A;">${escapeHtml(props.headline)}</h1>`),
-    props.hero ? row(imageHtml(props.hero, 24)) : "",
+    row(`<h1 style="margin:0 0 20px 0; font-family:${FONT}; font-size:28px; line-height:1.25; font-weight:700; letter-spacing:-0.02em; color:${COLOR.ink};">${escapeHtml(props.headline)}</h1>`),
+    props.hero ? row(imageHtml(props.hero, 28)) : "",
     greetingHtml(props.firstName) ? row(greetingHtml(props.firstName)) : "",
     props.intro ? row(`<p style="margin:0 0 28px 0; ${BODY}">${escapeHtml(props.intro)}</p>`) : "",
     ...sectionRows,
     row(buttonHtml(props.button.label, props.button.href)),
     props.note ? row(richNoteHtml(props.note)) : "",
-    row(`<p style="margin:0 0 32px 0; ${BODY}">&mdash; MastersFit</p>`),
-    marketingFooterRows(unsubscribeUrl),
+    brandSignoffRow(props.note),
+    marketingFooterRows(footer),
   ]
     .filter(Boolean)
     .join("\n");
@@ -588,15 +772,11 @@ export function announcementLayout(props: AnnouncementLayoutProps): RenderedEmai
     props.intro ? toPlain(props.intro) : "",
     ...props.sections.map((s) => `${toPlain(s.title)}\n${toPlain(s.body)}`),
     `${toPlain(props.button.label)}: ${props.button.href.trim()}`,
-    props.note ? richNoteText(props.note) : "",
-    "- MastersFit",
-    marketingFooterText(unsubscribeUrl),
+    props.note ? richNoteText(props.note) : "- MastersFit",
+    marketingFooterText(footer),
   ]
     .filter(Boolean)
     .join("\n\n");
-
-  // Validate the button href even though the text half doesn't escape it.
-  safeHref(props.button.href);
 
   return {
     html: shell({ title: props.title, preheader: props.preheader, rows }),
@@ -605,30 +785,30 @@ export function announcementLayout(props: AnnouncementLayoutProps): RenderedEmai
 }
 
 // ---------------------------------------------------------------------------
-// Type 4 — Account & billing (minimal, unsigned)
+// Type 4 — Account & billing (unsigned)
 // ---------------------------------------------------------------------------
 
 export interface AccountLayoutProps extends CommonLayoutProps {
-  /** Optional short heading above the greeting ("Verify your email"). */
+  /** Optional heading above the greeting ("Verify your email"). */
   heading?: string;
-  /** Why they got it, e.g. "You're receiving this because you have an active MastersFit+ subscription." */
+  /** A line above the legal row, e.g. why they got it or "If you didn't request this…". */
   footerNote?: string;
 }
 
 /**
- * Account & billing mail — codes, renewal notices. Small logo, the facts,
- * no signature, no unsubscribe (it's transactional), legal links in the
- * footer. Sent From "MastersFit".
+ * Account & billing mail — codes, renewal notices. Logo header, the facts,
+ * NO signature, no unsubscribe (it's transactional), the transactional footer.
+ * Sent From "MastersFit", Reply-To Rich.
  */
 export function accountLayout(props: AccountLayoutProps): RenderedEmail {
   const rows = [
     logoHeaderHtml(),
     props.heading
-      ? row(`<h1 style="margin:0 0 16px 0; font-family:${FONT}; font-size:22px; line-height:1.3; font-weight:700; letter-spacing:-0.01em; color:#0A0A0A;">${escapeHtml(props.heading)}</h1>`)
+      ? row(`<h1 style="margin:0 0 16px 0; font-family:${FONT}; font-size:24px; line-height:1.3; font-weight:700; letter-spacing:-0.01em; color:${COLOR.ink};">${escapeHtml(props.heading)}</h1>`)
       : "",
     bodyRows(props.firstName, props.blocks),
     ruleRow(),
-    row(`${props.footerNote ? `<p style="margin:0 0 10px 0; ${SMALL}">${escapeHtml(props.footerNote)}</p>` : ""}<p style="margin:0; ${SMALL}">MastersFit LLC&nbsp;&nbsp;&middot;&nbsp;&nbsp;${legalLinksHtml()}</p>`),
+    row(`${props.footerNote ? `<p style="margin:0 0 12px 0; ${SMALL}">${escapeHtml(props.footerNote)}</p>\n` : ""}${transactionalFooterHtml()}`),
   ]
     .filter(Boolean)
     .join("\n");
@@ -636,7 +816,7 @@ export function accountLayout(props: AccountLayoutProps): RenderedEmail {
   const text = [
     props.heading ? toPlain(props.heading) : "",
     bodyText(props.firstName, props.blocks),
-    `---${props.footerNote ? `\n${toPlain(props.footerNote)}` : ""}\nMastersFit LLC\n${LEGAL_LINKS_TEXT}`,
+    `---${props.footerNote ? `\n${toPlain(props.footerNote)}` : ""}\n${TRANSACTIONAL_FOOTER_TEXT}`,
   ]
     .filter(Boolean)
     .join("\n\n");
