@@ -24,7 +24,8 @@ export const MONO =
 /**
  * The square logo tile at the top of every BRANDED customer email (types 2-4).
  *
- * One opaque white 104x104 PNG (shown at 52x52) holding the dark outline mark,
+ * One opaque white 104x104 PNG (shown at 52x52, no border: invisible on the
+ * white email in light mode) holding the dark outline mark,
  * so the mark can never sit on a dark-mode background and vanish. Hosted on
  * the website (repo mastersfit-website-next, assets/email/), at its FINAL URL —
  * no redirects, for the same image-proxy reason as LOGO_URL above.
@@ -36,7 +37,7 @@ export const MONO =
  */
 export const LOGO_TILE_URL =
   process.env.EMAIL_LOGO_TILE_URL ||
-  "https://www.mastersfit.ai/assets/email/logo-tile@2x.png";
+  "https://www.mastersfit.ai/assets/email/logo-tile-v2@2x.png";
 
 /** The legal entity named in every customer email footer. */
 export const COMPANY_LEGAL_NAME = "MastersFit LLC";

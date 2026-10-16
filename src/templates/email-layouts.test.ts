@@ -74,7 +74,7 @@ describe("email layouts", () => {
       welcomeLayout({ ...base, blocks: [] }),
       accountLayout({ ...base, blocks: [] }),
     ]) {
-      expect(html).toContain('src="https://www.mastersfit.ai/assets/email/logo-tile@2x.png" width="52" height="52" alt="MastersFit"');
+      expect(html).toContain('src="https://www.mastersfit.ai/assets/email/logo-tile-v2@2x.png" width="52" height="52" alt="MastersFit"');
       expect(html).toMatch(/font-size:22px; line-height:1.2; font-weight:700;[^>]*>MastersFit</);
     }
     expect(personalLayout({ ...base, blocks: [] }).html).not.toContain("logo-tile");
