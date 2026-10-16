@@ -131,7 +131,7 @@ describe("formatPlanContext", () => {
   });
 
   it("names the resolved referenced day when given one", () => {
-    const withRef = formatPlanContext(ctx, [ctx.days[2]]);
+    const withRef = formatPlanContext(ctx, { days: [ctx.days[2]], unresolved: [] });
     expect(withRef).toContain(
       "Days the request mentions (resolved from its wording): Wed 2026-10-14 (Upper Body Push + AMRAP)."
     );
@@ -153,8 +153,15 @@ describe("buildPlanContext", () => {
   });
 });
 
-const refs = (request: string) =>
-  findReferencedPlanDays(request, ctx).map((d) => d.date);
+const resolveRefs = (request: string) => {
+  const { days, unresolved } = findReferencedPlanDays(request, ctx);
+  return { days: days.map((d) => d.date), unresolved };
+};
+const refs = (request: string) => {
+  const { days, unresolved } = resolveRefs(request);
+  expect(unresolved).toEqual([]);
+  return days;
+};
 
 describe("findReferencedPlanDays", () => {
   it("resolves the prod request to this past Wednesday", () => {
@@ -185,12 +192,70 @@ describe("findReferencedPlanDays", () => {
   });
 
   it("returns nothing for requests that don't reference another day", () => {
-    expect(refs("make it harder")).toEqual([]);
-    expect(refs("I didn't sleep well, make it easier")).toEqual([]);
-    // a rest day has nothing to reproduce
-    expect(refs("Tuesday's workout please")).toEqual([]);
+    expect(resolveRefs("make it harder")).toEqual({ days: [], unresolved: [] });
+    expect(resolveRefs("I didn't sleep well, make it easier")).toEqual({ days: [], unresolved: [] });
     // the day being adjusted is never its own reference
-    expect(refs("Friday but harder")).toEqual([]);
+    expect(resolveRefs("Friday but harder")).toEqual({ days: [], unresolved: [] });
+    expect(resolveRefs("make 2026-10-16 harder")).toEqual({ days: [], unresolved: [] });
+  });
+
+  // Local QA, plan with no Sunday: the missed-day fallback used to fire and
+  // silently hand the user Tuesday's (here: Wednesday's) workout.
+  it("never falls back to a missed day when a named weekday isn't in the plan", () => {
+    expect(resolveRefs("Replace today's workout with the Sunday workout I couldn't do.")).toEqual({
+      days: [],
+      unresolved: ["Sunday"],
+    });
+    expect(
+      resolveRefs("Replace today's workout with the workout from this past Sunday that I was unable to do.")
+    ).toEqual({ days: [], unresolved: ["Sunday"] });
+  });
+
+  it("reports an ISO date with no plan workout as unresolved, without a fallback", () => {
+    expect(resolveRefs("give me the 2026-10-11 workout I missed")).toEqual({
+      days: [],
+      unresolved: ["Sun 2026-10-11"],
+    });
+  });
+
+  it("reports a rest day or empty yesterday as unresolved", () => {
+    expect(resolveRefs("Tuesday's workout please").unresolved).toEqual(["Tuesday"]);
+    const satCtx = buildPlanContext({ id: 6, date: "2026-10-19" }, ROWS);
+    expect(findReferencedPlanDays("redo yesterday's workout", satCtx)).toEqual({
+      days: [],
+      unresolved: ["yesterday (Sun 2026-10-18)"],
+    });
+  });
+
+  it("flags 'the one I missed' as unresolved when nothing was missed", () => {
+    const allDone = buildPlanContext(
+      { id: 5, date: "2026-10-16" },
+      ROWS.map((r) => (r.id === 3 ? { ...r, isComplete: true } : r))
+    );
+    expect(findReferencedPlanDays("do the one I missed", allDone)).toEqual({
+      days: [],
+      unresolved: ["missed"],
+    });
+  });
+});
+
+describe("formatPlanContext unresolved references", () => {
+  it("states firmly that the named day has no workout and must not be substituted", () => {
+    const text = formatPlanContext(
+      ctx,
+      findReferencedPlanDays("the workout from this past Sunday that I was unable to do", ctx)
+    );
+    expect(text).toContain(
+      "The request mentions Sunday, but this plan has NO Sunday workout in range. Do NOT substitute a different day; build a fresh workout and say plainly in the description that no Sunday workout was found."
+    );
+    expect(text).not.toContain("Days the request mentions (resolved");
+  });
+
+  it("words the nothing-missed case readably", () => {
+    const text = formatPlanContext(ctx, { days: [], unresolved: ["missed"] });
+    expect(text).toContain(
+      "The request mentions a missed workout, but this plan has NO missed workout in range."
+    );
   });
 });
 

@@ -585,22 +585,23 @@ export class PromptsService extends BaseService {
 
     // Resolve referenced days from the RAW reason — the feedback digest
     // appended above can mention weekdays of its own.
-    const referencedDays = planContext
+    const refs = planContext
       ? findReferencedPlanDays(regenerationReason, planContext)
-      : [];
+      : { days: [], unresolved: [] };
     const promptPlanContext: DailyPromptPlanContext | undefined = planContext
       ? {
-          summary: formatPlanContext(planContext, referencedDays),
-          referencedExerciseNames: referencedExerciseNames(referencedDays),
+          summary: formatPlanContext(planContext, refs),
+          referencedExerciseNames: referencedExerciseNames(refs.days),
         }
       : undefined;
-    if (referencedDays.length > 0) {
+    if (refs.days.length > 0 || refs.unresolved.length > 0) {
       logger.info("Adjust request references another plan day", {
         userId,
         dayNumber,
         operation: "generateDailyRegenerationPrompt",
         metadata: {
-          referencedDates: referencedDays.map((d) => d.date),
+          referencedDates: refs.days.map((d) => d.date),
+          unresolved: refs.unresolved,
           pinnedNames: promptPlanContext?.referencedExerciseNames.length ?? 0,
         },
       });

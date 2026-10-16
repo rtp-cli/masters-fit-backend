@@ -56,6 +56,17 @@ export interface DailyPromptPlanContext {
   referencedExerciseNames: string[];
 }
 
+/**
+ * What a request's day references resolved to. `unresolved` holds the
+ * explicit references that matched no plan day ("Sunday", "Sun 2026-10-11",
+ * "yesterday (Thu 2026-10-15)") so the prompt can say so instead of letting
+ * the model pick a neighbor.
+ */
+export interface ReferencedPlanDays {
+  days: PlanContextDay[];
+  unresolved: string[];
+}
+
 /** Loose shape of a plan_days row loaded `with: { blocks: { exercises: { exercise } } }`. */
 export interface PlanDayRowLike {
   id: number;
@@ -97,6 +108,9 @@ const WEEKDAY_FULL = [
   "friday",
   "saturday",
 ];
+
+// Unresolved-reference marker for "the one I missed" when nothing was missed.
+const MISSED_LABEL = "missed";
 
 const toUtcMs = (date: string): number => {
   const [y, m, d] = date.split("-").map(Number);
@@ -204,17 +218,25 @@ function formatBlock(block: PlanContextBlock): string {
  */
 export function formatPlanContext(
   ctx: PlanContext,
-  referenced: PlanContextDay[] = []
+  refs: ReferencedPlanDays = { days: [], unresolved: [] }
 ): string {
   const lines: string[] = [
     `THIS DAY (the day being adjusted): ${labelDate(ctx.targetDate)}.`,
     `Status: done = completed; MISSED = earlier date, never completed; upcoming = later date. Prescriptions: sets x reps, s = seconds, min = minutes, m = meters, @ = weight.`,
   ];
-  if (referenced.length > 0) {
+  if (refs.days.length > 0) {
     lines.push(
-      `Days the request mentions (resolved from its wording): ${referenced
+      `Days the request mentions (resolved from its wording): ${refs.days
         .map((d) => `${labelDate(d.date)} (${d.name || "unnamed"})`)
         .join(", ")}.`
+    );
+  }
+  // Stated firmly: given only "no Sunday here", the model copied Saturday and
+  // called it "the missed Sunday" (local QA run).
+  for (const label of refs.unresolved) {
+    const what = label === MISSED_LABEL ? "missed" : label;
+    lines.push(
+      `The request mentions ${label === MISSED_LABEL ? "a missed workout" : label}, but this plan has NO ${what} workout in range. Do NOT substitute a different day; build a fresh workout and say plainly in the description that no ${what} workout was found.`
     );
   }
   lines.push("");
@@ -244,49 +266,76 @@ const ISO_DATE_RE = /\b(\d{4}-\d{2}-\d{2})\b/g;
  * Which OTHER plan day(s) the request refers to, resolved against the target
  * day's date. Recognizes ISO dates, weekday names ("this past Wednesday" =
  * the most recent one before the target; "next Wednesday" = the first after
- * it), "yesterday"/"tomorrow", and — only when none of those appear — a
- * missed/skipped/couldn't-do phrase, which picks the most recent MISSED day.
- * Rest days are never returned: there is nothing to reproduce.
+ * it), "yesterday"/"tomorrow", and — only when none of those appear, resolved
+ * or not — a missed/skipped/couldn't-do phrase, which picks the most recent
+ * MISSED day. Rest days never resolve (nothing to reproduce); explicit
+ * references with no matching workout come back in `unresolved`.
  */
 export function findReferencedPlanDays(
   request: string | null | undefined,
   ctx: PlanContext
-): PlanContextDay[] {
+): ReferencedPlanDays {
   const text = request?.toLowerCase() ?? "";
-  if (!text.trim()) return [];
+  const days: PlanContextDay[] = [];
+  const unresolved: string[] = [];
+  if (!text.trim()) return { days, unresolved };
   const candidates = ctx.days.filter((d) => !isTarget(ctx, d) && hasExercises(d));
-  if (candidates.length === 0) return [];
 
-  const found: PlanContextDay[] = [];
-  const add = (day: PlanContextDay | undefined) => {
-    if (day && !found.includes(day)) found.push(day);
+  // Every explicit day reference either resolves to a plan day or is recorded
+  // as unresolved — never silently dropped. An unresolved "Sunday" must NOT
+  // fall through to the missed-day fallback (prod-QA: "the Sunday workout I
+  // couldn't do" on a plan with no Sunday silently became Tuesday).
+  let explicitReference = false;
+  const resolve = (day: PlanContextDay | undefined, label: string) => {
+    explicitReference = true;
+    if (!day) {
+      if (!unresolved.includes(label)) unresolved.push(label);
+    } else if (!days.includes(day)) {
+      days.push(day);
+    }
   };
   const onDate = (date: string) => candidates.find((d) => d.date === date);
   const offsetDate = (offset: number) =>
     new Date(toUtcMs(ctx.targetDate) + offset * DAY_MS).toISOString().slice(0, 10);
+  const relative = (offset: number, word: string) => {
+    const date = offsetDate(offset);
+    resolve(onDate(date), `${word} (${labelDate(date)})`);
+  };
 
-  for (const match of text.matchAll(ISO_DATE_RE)) add(onDate(match[1]));
+  for (const match of text.matchAll(ISO_DATE_RE)) {
+    // The day being adjusted is not a reference to another day.
+    if (match[1] !== ctx.targetDate) resolve(onDate(match[1]), labelDate(match[1]));
+  }
 
-  if (/\bday before yesterday\b/.test(text)) add(onDate(offsetDate(-2)));
-  else if (/\byesterday\b/.test(text)) add(onDate(offsetDate(-1)));
-  if (/\btomorrow\b/.test(text)) add(onDate(offsetDate(1)));
+  if (/\bday before yesterday\b/.test(text)) relative(-2, "the day before yesterday");
+  else if (/\byesterday\b/.test(text)) relative(-1, "yesterday");
+  if (/\btomorrow\b/.test(text)) relative(1, "tomorrow");
 
   const forward = FORWARD_RE.test(text);
   WEEKDAY_FULL.forEach((weekday, index) => {
     if (!new RegExp(`\\b${weekday}(?:'?s)?\\b`).test(text)) return;
     const sameWeekday = candidates.filter((d) => weekdayIndex(d.date) === index);
+    // Naming the adjusted day's own weekday ("Friday but harder", adjusted on
+    // a Friday) is about this day, unless the plan has another such day.
+    if (sameWeekday.length === 0 && weekdayIndex(ctx.targetDate) === index) return;
     const past = sameWeekday.filter((d) => d.date < ctx.targetDate);
     const future = sameWeekday.filter((d) => d.date > ctx.targetDate);
-    add(forward ? future[0] ?? past[past.length - 1] : past[past.length - 1] ?? future[0]);
+    resolve(
+      forward ? future[0] ?? past[past.length - 1] : past[past.length - 1] ?? future[0],
+      weekday[0].toUpperCase() + weekday.slice(1)
+    );
   });
 
-  if (found.length === 0 && MISSED_RE.test(text)) {
+  // Status-only references ("the one I missed") — only when the request named
+  // no specific day at all.
+  if (!explicitReference && MISSED_RE.test(text)) {
     const missed = candidates.filter(
       (d) => !d.isComplete && d.date < ctx.targetDate
     );
-    add(missed[missed.length - 1]);
+    if (missed.length > 0) days.push(missed[missed.length - 1]);
+    else unresolved.push(MISSED_LABEL);
   }
-  return found;
+  return { days, unresolved };
 }
 
 /** Exercise names of the referenced days, deduped, in plan order. */

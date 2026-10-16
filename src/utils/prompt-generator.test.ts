@@ -85,7 +85,11 @@ describe("buildClaudeDailyPrompt plan context", () => {
     expect(prompt).toContain("- Wed 2026-10-14 · Upper Body Push · MISSED");
     expect(prompt).toContain("REPRODUCE that day's workout");
     expect(prompt).toContain("most recent Wednesday BEFORE this day");
-    expect(prompt).toContain('say so plainly in the "description"');
+    expect(prompt).toContain('Say so plainly in the "description"');
+    // a reproduction keeps the source prescriptions and claims no phantom edits
+    expect(prompt).toContain("do NOT apply recent-feedback or intensity adjustments");
+    expect(prompt).toContain("unless it actually was");
+    expect(prompt).toContain("do NOT label any other day as the one requested");
     // placed before the create-from-scratch methodology it overrides
     expect(prompt.indexOf("THE USER'S CURRENT PLAN")).toBeLessThan(
       prompt.indexOf("FRESH START METHODOLOGY")
