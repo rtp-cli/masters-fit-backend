@@ -16,6 +16,13 @@ import {
 } from "@/constants/ai-providers";
 import { PlanDaySlot } from "@/utils/plan-schedule";
 import { timePhase } from "@/utils/phase-timing";
+import {
+  DailyPromptPlanContext,
+  PlanContext,
+  findReferencedPlanDays,
+  formatPlanContext,
+  referencedExerciseNames,
+} from "@/utils/plan-context";
 // Result type that includes token usage
 export interface PromptGenerationResult {
   response: any;
@@ -522,7 +529,10 @@ export class PromptsService extends BaseService {
   public async generateDailyRegenerationPrompt(
     userId: number,
     dayNumber: number,
-    _previousWorkout: any, // Unused in LangChain implementation but kept for API compatibility
+    // The current plan around the day being adjusted (null when unavailable).
+    // Lets the prompt honor "replace today with Wednesday's workout" — see
+    // utils/plan-context.ts.
+    planContext: PlanContext | null,
     regenerationReason: string,
     isRestDay: boolean = false,
     threadId?: string,
@@ -573,6 +583,29 @@ export class PromptsService extends BaseService {
       this.withRecentFeedback(userId, regenerationReason)
     );
 
+    // Resolve referenced days from the RAW reason — the feedback digest
+    // appended above can mention weekdays of its own.
+    const referencedDays = planContext
+      ? findReferencedPlanDays(regenerationReason, planContext)
+      : [];
+    const promptPlanContext: DailyPromptPlanContext | undefined = planContext
+      ? {
+          summary: formatPlanContext(planContext, referencedDays),
+          referencedExerciseNames: referencedExerciseNames(referencedDays),
+        }
+      : undefined;
+    if (referencedDays.length > 0) {
+      logger.info("Adjust request references another plan day", {
+        userId,
+        dayNumber,
+        operation: "generateDailyRegenerationPrompt",
+        metadata: {
+          referencedDates: referencedDays.map((d) => d.date),
+          pinnedNames: promptPlanContext?.referencedExerciseNames.length ?? 0,
+        },
+      });
+    }
+
     try {
       const result = await workoutAgent.regenerateWorkout(
         userId,
@@ -582,7 +615,8 @@ export class PromptsService extends BaseService {
         enrichedReason,
         dayNumber,
         isRestDay,
-        signal // Pass abort signal through
+        signal, // Pass abort signal through
+        promptPlanContext
       );
 
       const createdPrompt = await this.createPrompt({
