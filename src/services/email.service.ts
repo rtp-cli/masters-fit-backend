@@ -53,10 +53,11 @@ const FROM_EMAIL = process.env.FROM_EMAIL || "system@alif.care";
 // person reads.
 const REPLY_TO_EMAIL = process.env.REPLY_TO_EMAIL || "rtp@mastersfit.ai";
 
-// The onboarding nudge is signed by a person, so it sends as one. The address
-// must still live on the Resend-verified domain (updates.mastersfit.ai) or the
-// send is rejected — hence rtp@ THERE, with Reply-To pointing at the real
-// mailbox that a human actually reads.
+// The personal notes (type 1: comp, comeback, feature tour) are signed by a
+// person, so they send as one. The address must still live on the
+// Resend-verified domain (updates.mastersfit.ai) or the send is rejected —
+// hence rtp@ THERE, with Reply-To pointing at the real mailbox that a human
+// actually reads.
 const NUDGE_FROM_NAME = process.env.NUDGE_FROM_NAME || "Rich Pusateri";
 const NUDGE_FROM_EMAIL =
   process.env.NUDGE_FROM_EMAIL || "rtp@updates.mastersfit.ai";
@@ -196,19 +197,14 @@ export class EmailService {
   }
 
   /**
-   * The onboarding nudge — the one email in this service that goes to a
-   * customer for a reason they didn't ask for.
+   * The onboarding nudge — product & marketing (type 3).
    *
-   * Two departures from every other send here, both intentional:
+   * From the brand ("MastersFit"), with Reply-To pointed at Rich's real inbox:
+   * the email closes with a note from Rich inviting a reply, and that reply is
+   * the only thing the email is actually trying to buy.
    *
-   *   From is a PERSON, not the brand. It still has to sit on the Resend
-   *   verified domain (updates.mastersfit.ai), so this is rtp@ on that domain
-   *   with Reply-To pointed at the real rtp@mastersfit.ai inbox. Sending a
-   *   "just hit reply" email from noreply@ would undercut the only thing the
-   *   email is actually trying to buy.
-   *
-   *   The unsubscribe link is built here rather than passed in, so no caller
-   *   can construct this email without one.
+   * The unsubscribe link is built here rather than passed in, so no caller
+   * can construct this email without one.
    */
   async sendOnboardingNudgeEmail(params: {
     to: string;
@@ -230,13 +226,13 @@ export class EmailService {
     });
 
     const response = await resend.emails.send({
-      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      from: `MastersFit <${FROM_EMAIL}>`,
       to,
       bcc: lifecycleBcc(to),
       subject: ONBOARDING_NUDGE_SUBJECT,
       html,
       text,
-      replyTo: NUDGE_REPLY_TO,
+      replyTo: REPLY_TO_EMAIL,
       // One-click unsubscribe. Gmail and Yahoo require this header on bulk
       // mail; without it they are entitled to treat the send as spam no matter
       // how good the footer link is.
@@ -289,13 +285,13 @@ export class EmailService {
     });
 
     const response = await resend.emails.send({
-      from: `${NUDGE_FROM_NAME} <${NUDGE_FROM_EMAIL}>`,
+      from: `MastersFit <${FROM_EMAIL}>`,
       to,
       bcc: lifecycleBcc(to),
       subject: ACTIVATION_NUDGE_SUBJECT,
       html,
       text,
-      replyTo: NUDGE_REPLY_TO,
+      replyTo: REPLY_TO_EMAIL,
       // One-click unsubscribe. Gmail and Yahoo require this header on bulk
       // mail; without it they are entitled to treat the send as spam no matter
       // how good the footer link is.

@@ -6,8 +6,8 @@ import {
 
 /**
  * SAMPLE ONLY — a placeholder announcement that exercises every slot of the
- * announcement layout (headline, hero, intro, three feature sections with and
- * without images, one button, a note from Rich). Used by the preview gallery
+ * announcement layout (headline, hero, greeting, intro, a feature section with
+ * and one without an image, one button, a note from Rich). Used by the preview gallery
  * (`npm run preview-emails`) and one-off sample sends to Rich.
  *
  * There is deliberately NO send command for this. A real announcement gets
@@ -36,21 +36,17 @@ export function sampleAnnouncementTemplate(params: {
     sections: [
       {
         title: "Feature name goes here",
-        body: "Feature description goes here. Two or three short sentences: what it does, where to find it in the app, and why you'd use it.",
+        body: "Two or three short sentences: what it does, where to find it in the app, and why you'd use it.",
         image: { src: SAMPLE_IMAGE, alt: "Feature screenshot goes here" },
       },
       {
         title: "Second feature name goes here",
-        body: "Second feature description goes here. This section has no image, to show how a text-only section looks.",
-      },
-      {
-        title: "Third feature name goes here",
-        body: "Third feature description goes here. Keep each section short enough to read at a glance on a phone.",
+        body: "Text-only section, to show how one looks without an image.",
       },
     ],
     button: { label: "Open MastersFit", href: params.openAppUrl },
     note: {
-      text: "Optional short note from Rich goes here. A sentence or two in his own voice, inviting a reply.",
+      text: "Optional. A sentence or two in your own voice, inviting a reply. When it's left out, sign \"— MastersFit\".",
     },
     unsubscribeUrl: params.unsubscribeUrl,
     postalAddress: params.postalAddress,

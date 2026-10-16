@@ -141,8 +141,8 @@ describe("activation nudge config", () => {
 
   describe("start url", () => {
     // Never a masters-fit:// scheme — mail clients strip custom schemes.
-    it("defaults to the web continue page and strips a trailing slash", () => {
-      expect(activationStartUrl()).toBe("https://www.mastersfit.ai/continue");
+    it("defaults to the web /open page and strips a trailing slash", () => {
+      expect(activationStartUrl()).toBe("https://www.mastersfit.ai/open");
       process.env.ACTIVATION_START_URL = "https://example.com/go/";
       expect(activationStartUrl()).toBe("https://example.com/go");
     });

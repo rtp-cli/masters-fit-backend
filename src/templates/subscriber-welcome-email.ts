@@ -21,16 +21,15 @@ export const SUBSCRIBER_WELCOME_SUBJECT = "Welcome to MastersFit+";
 /**
  * Where the "Open MastersFit" button points by default.
  *
- * The website's /continue page: over https (Gmail strips custom schemes like
- * masters-fit://), it hops into the app via the scheme and falls back to the
- * App Store / Google Play buttons. The app has no universal links / associated
- * domains, so there is no https URL that opens it directly. An onboarded user
- * who lands on the app's onboarding route is redirected to the dashboard.
+ * The website's /open page: over https (Gmail strips custom schemes like
+ * masters-fit://), it hops into the app's root via the scheme and falls back
+ * to the App Store / Google Play by device, then the home page. The app has no
+ * universal links / associated domains, so there is no https URL that opens it
+ * directly.
  */
 export function subscriberWelcomeOpenAppUrl(): string {
   return (
-    process.env.SUBSCRIBER_WELCOME_OPEN_URL ||
-    "https://www.mastersfit.ai/continue"
+    process.env.SUBSCRIBER_WELCOME_OPEN_URL || "https://www.mastersfit.ai/open"
   ).replace(/\/$/, "");
 }
 
@@ -46,7 +45,7 @@ export const MASTERSFIT_PLUS_BENEFITS = [
   },
   {
     lead: "Progress you can see:",
-    text: "Track strength trends, training volume, and personal records.",
+    text: "Track your consistency, strength trends, training volume, and personal records.",
   },
   {
     lead: "Connected workout tracking:",
@@ -54,7 +53,14 @@ export const MASTERSFIT_PLUS_BENEFITS = [
   },
 ] as const;
 
-/** The opening line. The only sentence that differs for a free trial. */
+/**
+ * The opening line. The only sentence that differs for a free trial.
+ *
+ * The handoff's "YOUR TRIAL" box (end date, renewal price, store) is
+ * deliberately NOT built: MastersFit doesn't offer trials today and the
+ * webhook doesn't carry the store's localized renewal price, so this one line
+ * is the whole trial variant.
+ */
 export function openingLine(isTrial: boolean): string {
   return isTrial
     ? "Thanks for starting your MastersFit+ free trial. Nothing has been charged yet."

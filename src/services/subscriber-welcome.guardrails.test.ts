@@ -98,7 +98,7 @@ describe("dispatchSubscriberWelcome guardrails", () => {
       subject: "Welcome to MastersFit+",
       name: "Jane Doe",
       isTrial: false,
-      openAppUrl: "https://www.mastersfit.ai/continue",
+      openAppUrl: "https://www.mastersfit.ai/open",
     });
   });
 
@@ -215,7 +215,7 @@ describe("dispatchSubscriberWelcome guardrails", () => {
 });
 
 describe("welcome content", () => {
-  const OPEN = "https://www.mastersfit.ai/continue";
+  const OPEN = "https://www.mastersfit.ai/open";
   const render = (over: Partial<{ name: string; isTrial: boolean }> = {}) =>
     subscriberWelcomeTemplate({ name: "Jane Doe", isTrial: false, openAppUrl: OPEN, ...over });
 
@@ -231,7 +231,7 @@ describe("welcome content", () => {
       "MastersFit is built to help you stay strong, active, and consistent after 40 - with training that fits your goals, experience, and life.",
       "Your subscription gives you more flexibility and insight along the way:",
       "- Training that adapts: Generate new plans and adjust your workouts as your schedule, equipment, or goals change.",
-      "- Progress you can see: Track strength trends, training volume, and personal records.",
+      "- Progress you can see: Track your consistency, strength trends, training volume, and personal records.",
       "- Connected workout tracking: Sync your workouts with Apple Health or Health Connect.",
       "Your next step: Open MastersFit, review your current plan, and choose your next workout. Keep your profile up to date so your training reflects where you are today.",
       `Open MastersFit: ${OPEN}`,
@@ -310,8 +310,8 @@ describe("welcome content", () => {
 
   it("links the button over https by default, overridable by env", () => {
     expect(buildSubscriberWelcome(purchase(), user()).openAppUrl).toBe(OPEN);
-    process.env.SUBSCRIBER_WELCOME_OPEN_URL = "https://www.mastersfit.ai/open/";
-    expect(buildSubscriberWelcome(purchase(), user()).openAppUrl).toBe("https://www.mastersfit.ai/open");
+    process.env.SUBSCRIBER_WELCOME_OPEN_URL = "https://www.mastersfit.ai/elsewhere/";
+    expect(buildSubscriberWelcome(purchase(), user()).openAppUrl).toBe("https://www.mastersfit.ai/elsewhere");
   });
 
   it("refuses a custom-scheme button link (Gmail blocks them)", () => {

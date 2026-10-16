@@ -66,12 +66,13 @@ export function companyPostalAddress(): string | null {
  *
  * NOT a `masters-fit://` deep link — the app registers the custom scheme but
  * has no associated domains, and mail clients (Gmail especially) strip or
- * refuse to linkify custom schemes. This points at a web page that attempts the
- * deep link and falls back to the store.
+ * refuse to linkify custom schemes. This points at the website's /open page,
+ * which opens the app's root (not onboarding — this person is set up) and
+ * falls back to the store for their device.
  */
 export function activationStartUrl(): string {
   return (
-    process.env.ACTIVATION_START_URL || "https://www.mastersfit.ai/continue"
+    process.env.ACTIVATION_START_URL || "https://www.mastersfit.ai/open"
   ).replace(/\/$/, "");
 }
 
