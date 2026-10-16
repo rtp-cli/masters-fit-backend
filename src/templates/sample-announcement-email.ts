@@ -6,8 +6,10 @@ import {
 
 /**
  * SAMPLE ONLY — a placeholder announcement that exercises every slot of the
- * announcement layout (headline, hero, greeting, intro, a feature section with
- * and one without an image, one button, a note from Rich). Used by the preview gallery
+ * announcement layout's text slots (headline, greeting, intro, feature sections,
+ * one button, a note from Rich). It has no images on purpose: the layout's
+ * optional `hero` and per-section `image` take real app screenshots, which a
+ * real announcement supplies. Used by the preview gallery
  * (`npm run preview-emails`) and one-off sample sends to Rich.
  *
  * There is deliberately NO send command for this. A real announcement gets
@@ -15,9 +17,6 @@ import {
  * guardrails (opt-out check, suppression, List-Unsubscribe headers).
  */
 export const SAMPLE_ANNOUNCEMENT_SUBJECT = "Announcement headline goes here";
-
-/** Existing, already-hosted website images, so the sample renders real pictures. */
-const SAMPLE_IMAGE = "https://www.mastersfit.ai/assets/og.png";
 
 export function sampleAnnouncementTemplate(params: {
   name: string;
@@ -30,18 +29,16 @@ export function sampleAnnouncementTemplate(params: {
     preheader: "Preview text goes here — one line that sums up the announcement.",
     headline: "Announcement headline goes here",
     firstName: firstNameOf(params.name),
-    hero: { src: SAMPLE_IMAGE, alt: "Hero image goes here" },
     intro:
       "Intro paragraph goes here. One or two sentences on what's new and why it matters to the reader.",
     sections: [
       {
         title: "Feature name goes here",
         body: "Two or three short sentences: what it does, where to find it in the app, and why you'd use it.",
-        image: { src: SAMPLE_IMAGE, alt: "Feature screenshot goes here" },
       },
       {
         title: "Second feature name goes here",
-        body: "Text-only section, to show how one looks without an image.",
+        body: "Each feature gets a short title and a sentence or two. A real announcement can add a screenshot above any section.",
       },
     ],
     button: { label: "Open MastersFit", href: params.openAppUrl },
