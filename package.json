@@ -26,6 +26,7 @@
     "send-onboarding-nudge": "tsx src/scripts/send-onboarding-nudge.ts",
     "send-feature-tour": "tsx src/scripts/send-feature-tour.ts",
     "send-comeback": "tsx src/scripts/send-comeback.ts",
+    "send-usage-report": "tsx src/scripts/send-usage-report.ts",
     "preview-emails": "tsx src/scripts/preview-emails.ts",
     "comp-user": "tsx src/scripts/grant-comp-single.ts",
     "delete-user": "tsx src/scripts/delete-users.ts",
