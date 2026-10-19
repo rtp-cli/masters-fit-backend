@@ -42,6 +42,12 @@ import {
   closeActivationNudgeQueue,
 } from "./queues/activation-nudge.queue";
 import { processActivationNudge } from "./jobs/activation-nudge.job";
+import {
+  usageReportQueue,
+  scheduleUsageReportJob,
+  closeUsageReportQueue,
+} from "./queues/usage-report.queue";
+import { processUsageReportJob } from "./jobs/usage-report.job";
 
 const port = parseInt(process.env.PORT || "5000", 10);
 
@@ -151,6 +157,12 @@ async function initializeServices() {
     activationNudgeQueue.process('activation-nudge', 1, processActivationNudge);
     await scheduleActivationNudgeJob();
 
+    // Weekly usage report: internal mail to the owner, Monday 08:00 Central.
+    // A no-op unless SIGNUP_NOTIFY_ENABLED is set (USAGE_REPORT_ENABLED=false
+    // turns it off on its own).
+    usageReportQueue.process('usage-report', 1, processUsageReportJob);
+    await scheduleUsageReportJob();
+
   } catch (error) {
     logger.error('Failed to initialize services', error as Error);
     process.exit(1);
@@ -170,6 +182,7 @@ async function gracefulShutdown() {
     await closeStalledSignupDigestQueue();
     await closeOnboardingNudgeQueue();
     await closeActivationNudgeQueue();
+    await closeUsageReportQueue();
 
     // Close Redis
     await closeRedis();

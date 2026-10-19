@@ -38,6 +38,11 @@ import {
   subscriptionAlertTemplate,
   type SubscriptionAlertTemplateProps,
 } from "@/templates/subscription-alert-email";
+import {
+  usageReportTemplate,
+  usageReportSubject,
+} from "@/templates/usage-report-email";
+import type { UsageReport } from "@/services/usage-report.service";
 import { signupNotifyRecipients } from "@/constants/signup-notifications";
 import { onboardingContinueUrl } from "@/constants/onboarding-nudge";
 import {
@@ -653,6 +658,47 @@ export class EmailService {
       metadata: {
         newCount: params.newCount,
         totalCount: params.totalCount,
+        recipients: to,
+        messageId: response.data?.id,
+      },
+    });
+  }
+
+  /**
+   * Internal weekly usage report. Same owner inbox as the signup alerts unless
+   * `to` overrides it (test sends from the manual script).
+   *
+   * Throws on send failure so the job reports it; nothing is claimed, so a
+   * manual re-run is always safe.
+   */
+  async sendUsageReportEmail(
+    report: UsageReport,
+    to: string[] = signupNotifyRecipients(),
+  ): Promise<void> {
+    if (to.length === 0) {
+      throw new Error("No usage report recipients configured");
+    }
+
+    const { html, text } = usageReportTemplate(report);
+
+    const response = await resend.emails.send({
+      from: `MastersFit Reports <${FROM_EMAIL}>`,
+      to,
+      replyTo: REPLY_TO_EMAIL,
+      subject: usageReportSubject(report),
+      html,
+      text,
+    });
+
+    if (response.error) {
+      throw new Error(`Resend error: ${response.error.message}`);
+    }
+
+    logger.info("Usage report email sent", {
+      operation: "sendUsageReportEmail",
+      metadata: {
+        weekStart: report.weekStart.toISOString(),
+        active: report.thisWeek.active,
         recipients: to,
         messageId: response.data?.id,
       },
