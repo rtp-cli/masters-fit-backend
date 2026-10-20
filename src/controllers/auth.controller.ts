@@ -349,50 +349,13 @@ export class AuthController extends Controller {
   public async generateAuthCode(
     @Body() requestBody: EmailAuthRequest
   ): Promise<ApiResponse> {
-    const validatedData = emailAuthSchema.parse(requestBody);
-    const { email } = validatedData;
-    const user = await userService.getUserByEmail(email);
-    if (!user) {
-      return {
-        success: false,
-        error: "User not found",
-      };
-    }
-
-    try {
-      const authCode = await authService.generateAuthCode(email);
-      await emailService.sendOtpEmail(email, authCode, user.name);
-
-      if (process.env.NODE_ENV !== "production") {
-        logger.info("Auth code generated", {
-          operation: "generateAuthCode",
-          metadata: {
-            email,
-            authCode:
-              process.env.NODE_ENV === "development" ? authCode : "[REDACTED]",
-          },
-        });
-      }
-    } catch (error) {
-      // §4.6 — surface the failure so the client can prompt a retry (frame 1h)
-      // instead of the user waiting on a code that never sends.
-      logger.error(
-        "Failed to send OTP email during generation",
-        error as Error,
-        {
-          operation: "generateAuthCode",
-          metadata: { email },
-        }
-      );
-      return {
-        success: false,
-        error: "We couldn't send your code. Check your connection and try again.",
-      };
-    }
-
-    return {
-      success: true,
-    };
+    // This is the verify screen's "Resend" button. It used to answer "User not
+    // found" for an address with no account — but a brand-new signup is exactly
+    // that until /verify + the name screen create the account, so Resend could
+    // never work for them. Resend must behave exactly like the first send:
+    // same code for new and returning addresses, same response (no enumeration,
+    // §4.7), same test-account handling. Abuse is capped by otpSendRateLimit.
+    return this.login(requestBody);
   }
 
   /**

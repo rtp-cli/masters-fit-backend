@@ -340,3 +340,87 @@ describe("AuthController.login — unknown emails must still get a code", () => 
     expect(result.success).toBe(false);
   });
 });
+
+/**
+ * The verify screen's "Resend" button calls /generate-auth-code. It used to
+ * answer "User not found" for an address with no account — which is every
+ * brand-new signup until verify + the name screen create the user — so Resend
+ * could never work for them. It must now behave exactly like /login.
+ */
+describe("AuthController.generateAuthCode — Resend works for new signups", () => {
+  const controller = new AuthController();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockedAuthService.generateAuthCode.mockResolvedValue("4821" as any);
+    mockedEmailService.sendOtpEmail.mockResolvedValue(undefined as any);
+  });
+
+  it("mints and mails a code for an address with no account", async () => {
+    mockedUserService.getUserByEmail.mockResolvedValue(null as any);
+
+    const result = await controller.generateAuthCode({
+      email: "brand-new@example.com",
+    } as any);
+
+    expect(result.success).toBe(true);
+    expect(mockedAuthService.generateAuthCode).toHaveBeenCalledWith(
+      "brand-new@example.com"
+    );
+    expect(mockedEmailService.sendOtpEmail).toHaveBeenCalledWith(
+      "brand-new@example.com",
+      "4821",
+      "brand-new"
+    );
+  });
+
+  it("mints and mails a code for an existing account, greeting them by name", async () => {
+    mockedUserService.getUserByEmail.mockResolvedValue({
+      id: 7,
+      email: "returning@example.com",
+      name: "Dana",
+    } as any);
+
+    const result = await controller.generateAuthCode({
+      email: "returning@example.com",
+    } as any);
+
+    expect(result.success).toBe(true);
+    expect(mockedEmailService.sendOtpEmail).toHaveBeenCalledWith(
+      "returning@example.com",
+      "4821",
+      "Dana"
+    );
+  });
+
+  it("responds identically for known and unknown addresses (no enumeration, §4.7)", async () => {
+    mockedUserService.getUserByEmail.mockResolvedValue(null as any);
+    const unknown = await controller.generateAuthCode({
+      email: "nobody@example.com",
+    } as any);
+
+    mockedUserService.getUserByEmail.mockResolvedValue({
+      id: 7,
+      email: "somebody@example.com",
+      name: "Dana",
+    } as any);
+    const known = await controller.generateAuthCode({
+      email: "somebody@example.com",
+    } as any);
+
+    expect(unknown).toEqual(known);
+  });
+
+  it("reports failure when the mail send throws (§4.6)", async () => {
+    mockedUserService.getUserByEmail.mockResolvedValue(null as any);
+    mockedEmailService.sendOtpEmail.mockRejectedValue(
+      new Error("resend is down") as any
+    );
+
+    const result = await controller.generateAuthCode({
+      email: "brand-new@example.com",
+    } as any);
+
+    expect(result.success).toBe(false);
+  });
+});
