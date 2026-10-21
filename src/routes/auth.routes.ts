@@ -87,6 +87,7 @@ router.post("/verify", async (req, res) => {
         needsOnboarding: response.needsOnboarding,
         user: response.user,
         email: response.email,
+        phone: response.phone,
       });
     } else {
       res.status(401).json(response);
@@ -96,6 +97,67 @@ router.post("/verify", async (req, res) => {
       res.status(400).json({ success: false, error: "Invalid request data" });
     } else if (error instanceof Error) {
       res.status(400).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// ---- SMS sign-in (Twilio Verify, +1 numbers only) ----
+// Same shape as /login + /verify, with one deliberate difference: a failed
+// phone verify answers 200 { success: false, errorCode }, not 401. A 401 from
+// an /auth route trips the app's token-refresh-and-retry logic, which /verify
+// has to be special-cased out of; a 200 needs no special case.
+
+router.post("/phone/start", otpSendRateLimit, async (req, res) => {
+  try {
+    res.json(await controller.startPhoneLogin(req.body));
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+router.post("/phone/verify", async (req, res) => {
+  try {
+    res.json(await controller.verifyPhoneLogin(req.body));
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// ---- Add a phone or email to the signed-in account (Settings) ----
+// Body: { phone } or { email } to start; plus { code } to verify.
+
+router.post("/contact/start", otpSendRateLimit, async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const userId = (req as any).userId;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+      return;
+    }
+    res.json(await controller.startAddContact(userId, req.body));
+  } catch (error) {
+    if (error instanceof Error && (error.message === "Invalid or expired token" || error.message === "Unauthorized")) {
+      res.status(401).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+router.post("/contact/verify", async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const userId = (req as any).userId;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+      return;
+    }
+    res.json(await controller.verifyAddContact(userId, req.body));
+  } catch (error) {
+    if (error instanceof Error && (error.message === "Invalid or expired token" || error.message === "Unauthorized")) {
+      res.status(401).json({ success: false, error: error.message });
     } else {
       res.status(500).json({ success: false, error: "Internal server error" });
     }

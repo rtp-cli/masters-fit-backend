@@ -92,7 +92,7 @@ async function grant(
     email: u.email,
   });
 
-  if (!notify) {
+  if (!notify || !u.email) {
     console.log(`  (no email sent)\n`);
     return;
   }

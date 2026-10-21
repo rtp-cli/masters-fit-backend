@@ -346,9 +346,12 @@ export class SubscriptionService extends BaseService {
       );
 
     return rows
+      // A phone-only account (null email) has no inbox for the reminder.
+      // Dropped HERE, not at send time: the job releases its claim when a send
+      // fails, so a null address would otherwise be retried and fail daily.
       .filter(
-        (r): r is typeof r & { subscriptionEndDate: Date } =>
-          r.subscriptionEndDate != null
+        (r): r is typeof r & { subscriptionEndDate: Date; email: string } =>
+          r.subscriptionEndDate != null && r.email != null
       )
       .filter((r) => {
         const period = r.billingPeriod as BillingPeriod | null;

@@ -8,6 +8,7 @@ import { userSubscriptions } from "@/models/subscription.schema";
 import { getCurrentUTCDate } from "@/utils/date.utils";
 import { emailService } from "@/services/email.service";
 import { logger } from "@/utils/logger";
+import { formatUsPhone } from "@/utils/phone.utils";
 import {
   isSignupNotifyEnabled,
   isSuppressedSignupEmail,
@@ -153,6 +154,7 @@ export class SignupNotificationService extends BaseService {
         userId: users.id,
         name: users.name,
         email: users.email,
+        phone: users.phone,
         createdAt: users.createdAt,
         subscriptionStatus: userSubscriptions.status,
         age: profiles.age,
@@ -177,8 +179,10 @@ export class SignupNotificationService extends BaseService {
 
     return {
       userId: row.userId,
-      name: row.name,
-      email: row.email,
+      // A phone-only signup still alerts the owner. `email` stays an address
+      // (it is the alert's Reply-To), so the number rides along in the name.
+      name: row.phone && !row.email ? `${row.name} (${formatUsPhone(row.phone)})` : row.name,
+      email: row.email ?? "",
       createdAt: row.createdAt,
       completedAt: getCurrentUTCDate(),
       subscriptionStatus: row.subscriptionStatus ?? null,
@@ -251,7 +255,11 @@ export class SignupNotificationService extends BaseService {
     ]);
 
     const stalled: StalledSignup[] = rows
-      .filter((r) => !isSuppressedSignupEmail(r.email))
+      // Phone-only signups are left OFF this worklist for now: its only action
+      // is a mailto link, and they have no address. The guard narrows email.
+      .filter(
+        (r): r is typeof r & { email: string } => !isSuppressedSignupEmail(r.email)
+      )
       .filter((r): r is typeof r & { createdAt: Date } => r.createdAt != null)
       .map((r) => ({
         userId: r.userId,
@@ -404,7 +412,7 @@ export class SignupNotificationService extends BaseService {
     const oldest = new Date(now.getTime() - ALERT_SWEEP_WINDOW_HOURS * MS_PER_HOUR);
 
     const rows = await this.db
-      .select({ userId: users.id, email: users.email })
+      .select({ userId: users.id, email: users.email, phone: users.phone })
       .from(users)
       .where(
         and(
@@ -416,7 +424,8 @@ export class SignupNotificationService extends BaseService {
       );
 
     return rows
-      .filter((r) => !isSuppressedSignupEmail(r.email))
+      // Phone-only signups (no email) are real people, not suppressed.
+      .filter((r) => (r.email ? !isSuppressedSignupEmail(r.email) : r.phone != null))
       .map((r) => r.userId);
   }
 
@@ -442,7 +451,9 @@ export class SignupNotificationService extends BaseService {
 
       const snapshot = await this.getNewUserSnapshot(userId);
       if (!snapshot) return "skipped";
-      if (isSuppressedSignupEmail(snapshot.email)) return "suppressed";
+      // Only an address can be on the suppression list; a phone-only signup
+      // (email "") is never an internal account.
+      if (snapshot.email && isSuppressedSignupEmail(snapshot.email)) return "suppressed";
 
       // Claim BEFORE sending: whoever wins the atomic update owns the send.
       const claimedAt = await this.claimNewUserAlert(userId);
@@ -457,7 +468,9 @@ export class SignupNotificationService extends BaseService {
           completedAt: formatClockTime(snapshot.completedAt),
           subscriptionStatus: snapshot.subscriptionStatus,
           profileRows: buildProfileRows(snapshot),
-          compCommand: `npm run comp-user -- ${snapshot.email}`,
+          compCommand: snapshot.email
+            ? `npm run comp-user -- ${snapshot.email}`
+            : `comp-user is by email; this person signed up by phone (user id ${snapshot.userId})`,
         });
         return "sent";
       } catch (sendError) {

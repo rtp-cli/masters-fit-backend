@@ -40,7 +40,8 @@ router.post("/impersonate", requireAuth, requireAdmin, async (req, res) => {
     const { token, sessionId } = await impersonationService.startImpersonation({
       adminUserId,
       targetUserId: target.id,
-      targetEmail: target.email,
+      // Looked up BY email just above, so it is never null here.
+      targetEmail: target.email ?? email.trim(),
       reason: typeof reason === "string" ? reason : undefined,
       ipAddress: (req as any).clientIP,
     });
