@@ -37,8 +37,13 @@
 						"enum": [
 							"low",
 							"medium",
-							"high"
+							"high",
+							"xhigh",
+							"max"
 						]
+					},
+					"rejectsSampling": {
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -1336,6 +1341,121 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"AvailableEquipment": {
+				"type": "string",
+				"enum": [
+					"bodyweight",
+					"barbells",
+					"bench",
+					"incline_decline_bench",
+					"pull_up_bar",
+					"bike",
+					"medicine_balls",
+					"plyo_box",
+					"rings",
+					"resistance_bands",
+					"stability_ball",
+					"dumbbells",
+					"kettlebells",
+					"squat_rack",
+					"dip_bar",
+					"rowing_machine",
+					"ski_erg",
+					"slam_balls",
+					"cable_machine",
+					"jump_rope",
+					"foam_roller"
+				]
+			},
+			"IntensityLevel": {
+				"type": "string",
+				"enum": [
+					"low",
+					"moderate",
+					"high"
+				]
+			},
+			"ExerciseRow": {
+				"properties": {
+					"id": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string",
+						"nullable": true
+					},
+					"equipment": {
+						"items": {
+							"$ref": "#/components/schemas/AvailableEquipment"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"muscleGroups": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"difficulty": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/IntensityLevel"
+							}
+						],
+						"nullable": true
+					},
+					"instructions": {
+						"type": "string"
+					},
+					"link": {
+						"type": "string",
+						"nullable": true
+					},
+					"hasDemo": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"tag": {
+						"type": "string",
+						"nullable": true
+					},
+					"ownerUserId": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"description",
+					"equipment",
+					"muscleGroups",
+					"difficulty",
+					"instructions",
+					"link",
+					"hasDemo",
+					"tag",
+					"ownerUserId",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"ExerciseResponse": {
 				"properties": {
 					"success": {
@@ -1379,9 +1499,9 @@
 			"LoggedActivityType": {
 				"type": "string",
 				"enum": [
+					"bike",
 					"walk",
 					"run",
-					"bike",
 					"swim",
 					"hike",
 					"strength",
@@ -1394,9 +1514,17 @@
 			"LoggedActivityEffort": {
 				"type": "string",
 				"enum": [
-					"easy",
 					"moderate",
+					"easy",
 					"hard"
+				]
+			},
+			"LoggedActivitySource": {
+				"type": "string",
+				"enum": [
+					"manual",
+					"apple_health",
+					"health_connect"
 				]
 			},
 			"LoggedActivity": {
@@ -1435,6 +1563,28 @@
 						"type": "string",
 						"nullable": true
 					},
+					"source": {
+						"$ref": "#/components/schemas/LoggedActivitySource"
+					},
+					"externalId": {
+						"type": "string",
+						"nullable": true
+					},
+					"startedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"distanceMeters": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"dismissedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
 					"createdAt": {
 						"type": "string",
 						"format": "date-time"
@@ -1453,6 +1603,11 @@
 					"durationMinutes",
 					"effort",
 					"notes",
+					"source",
+					"externalId",
+					"startedAt",
+					"distanceMeters",
+					"dismissedAt",
 					"createdAt",
 					"updatedAt"
 				],
@@ -1474,6 +1629,59 @@
 				},
 				"required": [
 					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ImportActivitiesResult": {
+				"properties": {
+					"imported": {
+						"items": {
+							"$ref": "#/components/schemas/LoggedActivity"
+						},
+						"type": "array"
+					},
+					"skippedExisting": {
+						"type": "number",
+						"format": "double",
+						"description": "Already stored (or deleted by the user), so not re-imported."
+					},
+					"skippedSessionOverlap": {
+						"type": "number",
+						"format": "double",
+						"description": "Overlapped a MastersFit session — the watch recording OF that session."
+					},
+					"skippedManualDuplicate": {
+						"type": "number",
+						"format": "double",
+						"description": "Same type already logged by hand that day."
+					}
+				},
+				"required": [
+					"imported",
+					"skippedExisting",
+					"skippedSessionOverlap",
+					"skippedManualDuplicate"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ImportActivitiesResponse": {
+				"properties": {
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"data": {},
+					"result": {
+						"$ref": "#/components/schemas/ImportActivitiesResult"
+					}
+				},
+				"required": [
+					"success",
+					"result"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -2392,31 +2600,6 @@
 					"bodyweight_only"
 				]
 			},
-			"AvailableEquipment": {
-				"type": "string",
-				"enum": [
-					"bike",
-					"bodyweight",
-					"barbells",
-					"bench",
-					"incline_decline_bench",
-					"pull_up_bar",
-					"medicine_balls",
-					"plyo_box",
-					"rings",
-					"resistance_bands",
-					"stability_ball",
-					"dumbbells",
-					"kettlebells",
-					"squat_rack",
-					"dip_bar",
-					"rowing_machine",
-					"slam_balls",
-					"cable_machine",
-					"jump_rope",
-					"foam_roller"
-				]
-			},
 			"PreferredStyles": {
 				"type": "string",
 				"enum": [
@@ -2443,14 +2626,6 @@
 					"friday",
 					"saturday",
 					"sunday"
-				]
-			},
-			"IntensityLevel": {
-				"type": "string",
-				"enum": [
-					"moderate",
-					"low",
-					"high"
 				]
 			},
 			"Profile": {
@@ -6745,6 +6920,73 @@
 				}
 			}
 		},
+		"/exercises/custom": {
+			"post": {
+				"operationId": "CreateCustomExercise",
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"exercise": {
+											"$ref": "#/components/schemas/ExerciseRow"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"exercise",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Create one of the caller's own exercises — the \"not in the library? add\nyour own\" path from edit-search. Returns the raw row, the same shape the\nfiltered search returns, so the client can select it like a search hit.\nIdempotent per user by name.",
+				"tags": [
+					"Exercises"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"name": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"name"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/exercises/{id}": {
 			"get": {
 				"operationId": "GetExercise",
@@ -7135,6 +7377,51 @@
 						}
 					}
 				]
+			}
+		},
+		"/activities/import": {
+			"post": {
+				"operationId": "ImportActivities",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ImportActivitiesResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Import workouts read off the user's watch (Apple Health / Health Connect).\nIdempotent — the app calls it on every open with the last few days.",
+				"tags": [
+					"Activities"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {}
+						}
+					}
+				}
 			}
 		},
 		"/activities/{activityId}": {
@@ -11794,6 +12081,112 @@
 								],
 								"type": "object",
 								"description": "New date for the repeated workout"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workouts/{userId}/days/{planDayId}/move": {
+			"post": {
+				"operationId": "MovePlanDay",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"swappedPlanDayIds": {
+											"items": {
+												"type": "number",
+												"format": "double"
+											},
+											"type": "array"
+										},
+										"toDate": {
+											"type": "string"
+										},
+										"fromDate": {
+											"type": "string"
+										},
+										"planDayId": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"swappedPlanDayIds",
+										"toDate",
+										"fromDate",
+										"planDayId",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad Request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/WorkoutResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Move a planned workout to another day of the plan, swapping with whatever\nis scheduled there (rest days just receive it). No AI, no allowance.",
+				"tags": [
+					"Workouts"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "path",
+						"name": "planDayId",
+						"required": true,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"timezone": {
+										"type": "string"
+									},
+									"targetDate": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"targetDate"
+								],
+								"type": "object"
 							}
 						}
 					}

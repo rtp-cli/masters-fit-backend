@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { randomUUID } from "crypto";
 import { WorkoutController } from "@/controllers/workout.controller";
 import { workoutService } from "@/services/workout.service";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import {
   requireAuth,
   requireCapabilityWhen,
@@ -432,6 +432,31 @@ router.post(
         Number(req.params.userId),
         Number(req.params.planDayId),
         req.body
+      );
+      res.json(response);
+    } catch (error) {
+      handleError(error, res);
+    }
+  }
+);
+
+// Move a planned workout to another day (swaps with what's there). Not an AI
+// operation — no reservation, no allowance.
+const movePlanDayBodySchema = z.object({
+  targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  timezone: z.string().max(64).optional(),
+});
+router.post(
+  "/:userId/days/:planDayId/move",
+  requireAuth,
+  requireSelf("userId"),
+  requireOwnership("planDay", "planDayId"),
+  async (req, res) => {
+    try {
+      const response = await controller.movePlanDay(
+        Number(req.params.userId),
+        Number(req.params.planDayId),
+        movePlanDayBodySchema.parse(req.body)
       );
       res.json(response);
     } catch (error) {

@@ -30,6 +30,7 @@ import {
   notificationService,
   userService,
 } from "@/services";
+import { planDayMoveService } from "@/services/plan-day-move.service";
 import { eventTrackingService } from "@/services/event-tracking.service";
 import { maxSessionsPerDate } from "@/constants/workout-sessions";
 import {
@@ -631,6 +632,33 @@ export class WorkoutController extends Controller {
       success: true,
       workout,
     };
+  }
+
+  /**
+   * Move a planned workout to another day of the plan, swapping with whatever
+   * is scheduled there (rest days just receive it). No AI, no allowance.
+   */
+  @Post("/{userId}/days/{planDayId}/move")
+  @Response<WorkoutResponse>(400, "Bad Request")
+  @SuccessResponse(200, "Success")
+  public async movePlanDay(
+    @Path() userId: number,
+    @Path() planDayId: number,
+    @Body() requestBody: { targetDate: string; timezone?: string }
+  ): Promise<{
+    success: boolean;
+    planDayId: number;
+    fromDate: string;
+    toDate: string;
+    swappedPlanDayIds: number[];
+  }> {
+    const result = await planDayMoveService.movePlanDay(
+      userId,
+      planDayId,
+      requestBody.targetDate,
+      requestBody.timezone
+    );
+    return { success: true, ...result };
   }
 
   // Test endpoint to check active workouts (for debugging)
