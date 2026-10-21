@@ -58,6 +58,7 @@ import { jobsService, JobSupersededError } from "@/services/jobs.service";
 import { JobStatus } from "@/models/jobs.schema";
 import { deriveScoringType } from "@/utils/scoring-type";
 import { normalizeProtocolConfig } from "@/utils/protocol-config";
+import { swapTextReconcileService } from "@/services/swap-text-reconcile.service";
 
 type DBWorkoutResult = {
   id: number;
@@ -907,6 +908,25 @@ export class WorkoutService extends BaseService {
 
     if (!workoutBlock) {
       throw new Error("Workout block not found");
+    }
+
+    // The day/block prose still names the old movement ("Strength — Barbell
+    // Back Squat + Metcon" after a swap to Deadlift). Bring it in step;
+    // never throws, so a prose problem can't fail the swap.
+    if (currentExercise.exerciseId !== newExerciseId) {
+      const oldExercise = await this.db.query.exercises.findFirst({
+        where: eq(exercises.id, currentExercise.exerciseId),
+        columns: { name: true },
+      });
+      if (oldExercise) {
+        await swapTextReconcileService.reconcileAfterSwap({
+          planDayId: workoutBlock.planDayId,
+          workoutBlockId: workoutBlock.id,
+          oldExerciseId: currentExercise.exerciseId,
+          oldExerciseName: oldExercise.name,
+          newExerciseName: newExercise.name,
+        });
+      }
     }
 
     // Return the updated exercise with full details
