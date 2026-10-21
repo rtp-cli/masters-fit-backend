@@ -300,9 +300,15 @@ export class NotificationService {
     }
   }
 
+  /**
+   * The morning-of reminder (workout-reminder.service). Plain, non-judgmental
+   * copy: it names today's session and gets out of the way. `sessionName` is
+   * null when the plan day has no name, which falls back to generic copy
+   * rather than printing an empty title.
+   */
   async sendDailyWorkoutReminderNotification(
     userId: number,
-    workoutName: string
+    sessionName: string | null
   ): Promise<boolean> {
     try {
       const user = await userService.getUserById(userId);
@@ -314,11 +320,10 @@ export class NotificationService {
       const message: ExpoPushMessage = {
         to: user.pushNotificationToken,
         sound: 'default',
-        title: 'Time to Work Out! 🏃‍♀️',
-        body: `Don't forget about your "${workoutName}" workout today!`,
+        title: sessionName ? `Today: ${sessionName}` : "Today's workout is ready",
+        body: 'Your session is ready when you are.',
         data: {
           type: 'workout_reminder',
-          workoutName,
           userId,
         },
         categoryId: 'workout_reminder',

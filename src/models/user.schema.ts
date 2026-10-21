@@ -64,6 +64,16 @@ export const users = pgTable(
     // non-transactional send. Set by an unauthenticated link, so it is
     // deliberately the ONLY thing that link can write.
     emailOptedOutAt: timestamp("email_opted_out_at"),
+    // Daily workout reminder PUSH. workoutRemindersEnabled is the in-app
+    // Settings switch (default on) — needed because iOS only offers an
+    // all-or-nothing switch per app, and turning that off would also silence
+    // "your plan is ready". workoutReminderSentOn is the claim marker: the
+    // user's LOCAL date (YYYY-MM-DD) the last reminder went out, set by an
+    // atomic conditional UPDATE so N instances still send one push per day.
+    workoutRemindersEnabled: boolean("workout_reminders_enabled")
+      .default(true)
+      .notNull(),
+    workoutReminderSentOn: text("workout_reminder_sent_on"),
   },
   (table) => ({
     emailIdx: index("idx_users_email").on(table.email),
@@ -129,6 +139,8 @@ export interface User {
   onboardingNudgeSentAt: Date | null;
   activationNudgeSentAt: Date | null;
   emailOptedOutAt: Date | null;
+  workoutRemindersEnabled: boolean;
+  workoutReminderSentOn: string | null;
 }
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
