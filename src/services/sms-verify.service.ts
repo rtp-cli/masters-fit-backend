@@ -106,6 +106,11 @@ export class SmsVerifyService {
       operation: "smsSendCode",
       metadata: { phone: maskPhone(phone), status, twilioCode: json?.code },
     });
+    // 401/403 are about OUR Twilio account — bad credentials, or (21608) no
+    // approved Trust Hub compliance profile yet, so only verified caller IDs
+    // can be texted. The number is fine; telling the user to "check the
+    // number" is wrong. Surface it as unavailable so they're sent to email.
+    if (status === 401 || status === 403) throw new SmsNotConfiguredError();
     throw new Error("SMS send failed");
   }
 
