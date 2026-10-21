@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { redisClient } from "@/utils/redis";
 import { logger } from "@/utils/logger";
 import { getClientIP } from "@/utils/ip.utils";
+import { maskPhone, normalizeUsPhone } from "@/utils/phone.utils";
 
 /**
  * Rate limiting for the endpoints that MAIL a one-time code (/auth/login,
@@ -32,6 +33,13 @@ type Bucket = {
 const EMAIL_BUCKETS: readonly Bucket[] = [
   { name: "email:15m", windowSec: 15 * 60, max: 3 },
   { name: "email:24h", windowSec: 24 * 60 * 60, max: 10 },
+];
+
+// Same caps as email. Twilio Verify adds its own (5 sends per number per 10
+// minutes), so this is the outer of two limits.
+const PHONE_BUCKETS: readonly Bucket[] = [
+  { name: "phone:15m", windowSec: 15 * 60, max: 3 },
+  { name: "phone:24h", windowSec: 24 * 60 * 60, max: 10 },
 ];
 
 // Deliberately looser than the per-email caps: a household, office, or carrier
@@ -162,19 +170,33 @@ export async function otpSendRateLimit(
   next: NextFunction
 ): Promise<void> {
   const rawEmail = (req.body?.email ?? "").toString().trim().toLowerCase();
+  // SMS sign-in posts { phone }. Normalized first, so "(312) 555-0123" and
+  // "+13125550123" share one counter. Every text costs money, which makes the
+  // per-number cap matter more here than the per-address one does for email.
+  const phone = normalizeUsPhone(req.body?.phone);
   const ip = getClientIP(req);
 
   // Audit trail: every code request, allowed or not. Low volume, and it's what
   // makes a burst attributable to an address + origin in the Render logs.
   logger.info("OTP code requested", {
     operation: "otpSendRateLimit",
-    metadata: { path: req.path, email: rawEmail || undefined, ip },
+    metadata: {
+      path: req.path,
+      email: rawEmail || undefined,
+      phone: phone ? maskPhone(phone) : undefined,
+      ip,
+    },
   });
 
   const checks: Array<{ key: string; bucket: Bucket }> = [];
   if (rawEmail) {
     for (const bucket of EMAIL_BUCKETS) {
       checks.push({ key: `otp-rl:${bucket.name}:${rawEmail}`, bucket });
+    }
+  }
+  if (phone) {
+    for (const bucket of PHONE_BUCKETS) {
+      checks.push({ key: `otp-rl:${bucket.name}:${phone}`, bucket });
     }
   }
   if (ip) {
@@ -228,7 +250,9 @@ export async function otpSendRateLimit(
 
   const subject = worst.bucket.name.startsWith("ip:")
     ? "from this network"
-    : "for that email";
+    : worst.bucket.name.startsWith("phone:")
+      ? "for that number"
+      : "for that email";
 
   res.status(200).json({
     success: false,

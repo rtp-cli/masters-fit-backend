@@ -62,7 +62,8 @@ export class SubscriberWelcomeService extends BaseService {
       .where(eq(users.id, userId))
       .limit(1);
 
-    return row ?? null;
+    // A phone-only account has no inbox — same outcome as "no such user".
+    return row?.email ? { ...row, email: row.email } : null;
   }
 
   /**

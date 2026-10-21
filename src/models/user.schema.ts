@@ -7,7 +7,9 @@ import {
   uuid,
   serial,
   integer,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -17,7 +19,15 @@ export const users = pgTable(
   {
     id: serial("id").primaryKey(),
     uuid: uuid("uuid").notNull().unique().defaultRandom(), // UUID for analytics - auto-generated
-    email: text("email").notNull().unique(),
+    // A user signs in with an email, a phone number, or both. Each is optional
+    // on its own (a phone-only account has no email), but a row always has at
+    // least one — enforced by users_contact_present (see
+    // src/scripts/sql/add-phone-sign-in.sql) and by the only two insert paths,
+    // email signup and phone signup.
+    email: text("email").unique(),
+    // E.164, +1 only for now ("+13125550123"). Normalized by
+    // normalizeUsPhone() before every read and write.
+    phone: text("phone").unique(),
     name: text("name").notNull(),
     emailVerified: boolean("email_verified").default(false),
     pushNotificationToken: text("push_notification_token"),
@@ -77,6 +87,11 @@ export const users = pgTable(
   },
   (table) => ({
     emailIdx: index("idx_users_email").on(table.email),
+    // Every account can be reached by at least one verified identifier.
+    contactPresent: check(
+      "users_contact_present",
+      sql`${table.email} IS NOT NULL OR ${table.phone} IS NOT NULL`
+    ),
   })
 );
 
@@ -100,10 +115,12 @@ export const refreshTokens = pgTable(
   })
 );
 
-// Schema for insert operations
-export const insertUserSchema = createInsertSchema(users).pick({
-  email: true,
-  name: true,
+// Schema for insert operations. Spelled out rather than derived from the
+// table: email is now nullable on the table (phone-only accounts), but the
+// legacy email signup path that parses this must still REQUIRE one.
+export const insertUserSchema = z.object({
+  email: z.string().email(),
+  name: z.string(),
 });
 
 // Schema for update operations
@@ -123,7 +140,8 @@ export const updateUserSchema = createInsertSchema(users).pick({
 export interface User {
   id: number;
   uuid: string; // UUID for analytics - required
-  email: string;
+  email: string | null;
+  phone: string | null;
   name: string;
   emailVerified: boolean | null;
   pushNotificationToken: string | null;
@@ -152,6 +170,20 @@ export const emailAuthSchema = z.object({
 });
 
 export type EmailAuthData = z.infer<typeof emailAuthSchema>;
+
+// Phone sign-in. The raw string is validated and normalized to E.164 by
+// normalizeUsPhone(); zod only checks it is a plausible non-empty string.
+export const phoneAuthSchema = z.object({
+  phone: z.string().min(7).max(32),
+});
+
+export const phoneVerifySchema = phoneAuthSchema.extend({
+  code: z.string().regex(/^\d{4,10}$/),
+});
+
+export const emailVerifySchema = emailAuthSchema.extend({
+  code: z.string().regex(/^\d{4,10}$/),
+});
 
 // Refresh token schemas
 export const insertRefreshTokenSchema = createInsertSchema(refreshTokens).pick({

@@ -131,7 +131,8 @@ async function handle(
 
   try {
     await emailService.sendFeatureTourEmail({
-      to: u.email,
+      // Looked up BY this address, so u.email is never null here.
+      to: u.email ?? normalized,
       name: u.name,
       userId: u.id,
       postalAddress,

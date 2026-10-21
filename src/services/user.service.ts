@@ -17,11 +17,30 @@ export function hashEmail(email: string): string {
   return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
 }
 
+/**
+ * The identifier hashed into account_deletion_log.email_hash: the email, or —
+ * for a phone-only account — the E.164 phone. The column is NOT NULL and its
+ * job is "prove this account was deleted", which a phone hash does equally
+ * well; a null email used to crash the whole purge transaction.
+ */
+export function deletionIdentifierHash(
+  email: string | null | undefined,
+  phone: string | null | undefined
+): string {
+  const identifier = email?.trim() || phone?.trim();
+  if (!identifier) {
+    throw new Error("Cannot log a deletion for an account with no email or phone");
+  }
+  return hashEmail(identifier);
+}
+
 export interface PurgeMeta {
   /** Who triggered the deletion. */
   source: "self_service" | "ops_script" | "admin";
-  /** Plaintext email — hashed for the audit log, never stored raw. */
-  email: string;
+  /** Plaintext email — hashed for the audit log, never stored raw. Null for a phone-only account. */
+  email: string | null;
+  /** Plaintext E.164 phone — hashed instead of the email when there is no email. */
+  phone?: string | null;
   uuid?: string | null;
   /** Operator/admin identifier for non-self-service deletions. */
   actor?: string | null;
@@ -114,7 +133,7 @@ export async function purgeUserData(tx: any, userId: number, meta: PurgeMeta): P
   await tx.insert(accountDeletionLog).values({
     deletedUserId: userId,
     uuid: meta.uuid ?? null,
-    emailHash: hashEmail(meta.email),
+    emailHash: deletionIdentifierHash(meta.email, meta.phone),
     source: meta.source,
     actor: meta.actor ?? null,
     rowsDeleted: counts,
@@ -153,9 +172,55 @@ export class UserService extends BaseService {
     return result[0];
   }
 
-  async createUser(data: { email: string; name: string }): Promise<User> {
+  /** `phone` must already be E.164 (normalizeUsPhone). */
+  async getUserByPhone(phone: string): Promise<User | undefined> {
+    const result = await this.db
+      .select()
+      .from(users)
+      .where(this.eq(users.phone, phone));
+    return result[0];
+  }
+
+  /**
+   * Create a user from an email signup or a phone signup. Exactly the
+   * identifier that was just verified is stored — never both at once; the
+   * other is added later from Settings, with its own verification.
+   */
+  async createUser(
+    data: { email: string; name: string } | { phone: string; name: string }
+  ): Promise<User> {
     const result = await this.db.insert(users).values(data).returning();
     return result[0];
+  }
+
+  /**
+   * Attach a VERIFIED email or phone to an existing account (the Settings "Add
+   * email" / "Add phone" flows). Returns "taken" instead of throwing when the
+   * identifier already belongs to a different account — two accounts can never
+   * share one, and the unique index would reject it anyway.
+   */
+  async attachContact(
+    userId: number,
+    contact: { email: string } | { phone: string }
+  ): Promise<{ status: "ok"; user: User } | { status: "taken" }> {
+    const existing =
+      "email" in contact
+        ? await this.getUserByEmail(contact.email)
+        : await this.getUserByPhone(contact.phone);
+    if (existing && existing.id !== userId) return { status: "taken" };
+
+    try {
+      const [user] = await this.db
+        .update(users)
+        .set(contact)
+        .where(this.eq(users.id, userId))
+        .returning();
+      return { status: "ok", user };
+    } catch (error) {
+      // Lost a race with another account claiming the same identifier.
+      if ((error as { code?: string })?.code === "23505") return { status: "taken" };
+      throw error;
+    }
   }
 
   async updateUser(id: number, data: Partial<UpdateUser>): Promise<User> {
@@ -289,6 +354,7 @@ export class UserService extends BaseService {
       await purgeUserData(tx, userId, {
         source: "self_service",
         email: user.email,
+        phone: user.phone,
         uuid,
       });
     });

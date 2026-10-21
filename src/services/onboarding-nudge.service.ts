@@ -86,7 +86,11 @@ export class OnboardingNudgeService extends BaseService {
       );
 
     return rows
-      .filter((r) => !isSuppressedNudgeEmail(r.email))
+      // A null email (phone-only account) counts as suppressed — no inbox to
+      // mail — and the guard narrows the type for everything below.
+      .filter(
+        (r): r is typeof r & { email: string } => !isSuppressedNudgeEmail(r.email)
+      )
       .filter((r): r is typeof r & { createdAt: Date } => r.createdAt != null)
       .map((r) => ({
         userId: r.userId,
@@ -125,7 +129,7 @@ export class OnboardingNudgeService extends BaseService {
       .from(users)
       .where(eq(users.id, userId));
 
-    if (!row || !row.createdAt || row.optedOutAt) return null;
+    if (!row || !row.email || !row.createdAt || row.optedOutAt) return null;
 
     return {
       userId: row.userId,

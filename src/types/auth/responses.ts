@@ -3,7 +3,11 @@ import { ApiResponse } from "@/types/common/responses";
 // Define the user response type inline to avoid circular dependencies
 export interface AuthUserResponse {
   id: number;
-  email: string;
+  // At least one of email / phone is always set. Phone-only accounts (SMS
+  // sign-in) have a null email until they add one in Settings.
+  email: string | null;
+  // E.164, e.g. "+13125550123".
+  phone: string | null;
   name: string;
   needsOnboarding: boolean | null;
   waiverAcceptedAt: Date | null;
@@ -29,8 +33,23 @@ export interface AuthVerifyResponse {
   needsWaiverUpdate?: boolean;
   user?: AuthUserResponse;
   email?: string;
+  // Set instead of `email` when a NEW user verified by SMS (onboarding token).
+  phone?: string;
   token?: string;
   refreshToken?: string;
+}
+
+/**
+ * @description Response for the Settings "Add email" / "Add phone" flows.
+ */
+export interface AuthContactResponse {
+  success: boolean;
+  error?: string;
+  // INVALID_CODE | EXPIRED_CODE | CODE_EXHAUSTED | TAKEN | INVALID_PHONE |
+  // SMS_UNAVAILABLE | RATE_LIMITED
+  errorCode?: string;
+  attemptsLeft?: number;
+  user?: AuthUserResponse;
 }
 
 /**

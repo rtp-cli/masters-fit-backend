@@ -38,9 +38,16 @@ import { userService, authService, refreshTokenService, profileService } from "@
 import { mixpanelService } from "@/services/mixpanel.service";
 import { systemConfigService } from "@/services/system-config.service";
 import { emailService } from "@/services/email.service";
-import { emailAuthSchema, InsertUser, insertUserSchema } from "@/models";
+import { emailAuthSchema, InsertUser, insertUserSchema, type User } from "@/models";
 import jwt from "jsonwebtoken";
 import { logger } from "@/utils/logger";
+import { normalizeUsPhone } from "@/utils/phone.utils";
+import {
+  type SmsCheckResult,
+  SmsNotConfiguredError,
+  smsVerifyService,
+} from "@/services/sms-verify.service";
+import type { AuthContactResponse, AuthUserResponse } from "@/types/auth/responses";
 import {
   CURRENT_WAIVER_VERSION,
   hasAcceptedCurrentWaiver,
@@ -93,6 +100,7 @@ export class AuthController extends Controller {
       user: {
         id: user.id,
         email: user.email,
+        phone: user.phone,
         name: user.name,
         needsOnboarding: user.needsOnboarding ?? false,
         waiverAcceptedAt: user.waiverAcceptedAt,
@@ -194,21 +202,28 @@ export class AuthController extends Controller {
   }
 
   /**
-   * Returns the verified email from an onboarding token on the request, or
-   * undefined. Only `{ isOnboarding: true }` tokens qualify — signup is the one
-   * route allowed to consume them (auth.middleware.ts rejects them everywhere
-   * else, §4.8). An invalid/absent/real-access token falls through to undefined.
+   * Returns the verified identifier from an onboarding token on the request —
+   * the email (email sign-in) or the E.164 phone (SMS sign-in) — or undefined.
+   * Only `{ isOnboarding: true }` tokens qualify — signup is the one route
+   * allowed to consume them (auth.middleware.ts rejects them everywhere else,
+   * §4.8). An invalid/absent/real-access token falls through to undefined.
    */
-  private emailFromOnboardingToken(request: any): string | undefined {
+  private contactFromOnboardingToken(
+    request: any
+  ): { email: string } | { phone: string } | undefined {
     const authHeader = request?.headers?.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) return undefined;
     const token = authHeader.split(" ")[1];
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
         email?: string;
+        phone?: string;
         isOnboarding?: boolean;
       };
-      return decoded.isOnboarding && decoded.email ? decoded.email : undefined;
+      if (!decoded.isOnboarding) return undefined;
+      if (decoded.email) return { email: decoded.email };
+      if (decoded.phone) return { phone: decoded.phone };
+      return undefined;
     } catch {
       return undefined;
     }
@@ -234,18 +249,21 @@ export class AuthController extends Controller {
     @Request() request: any,
     @Body() requestBody: SignUpRequest
   ): Promise<AuthSignupResponse> {
-    const onboardingEmail = this.emailFromOnboardingToken(request);
+    const onboardingContact = this.contactFromOnboardingToken(request);
 
-    // ---- Authenticated path: the onboarding token proves the email ----
-    if (onboardingEmail) {
+    // ---- Authenticated path: the onboarding token proves the email/phone ----
+    if (onboardingContact) {
       const name = (requestBody.name ?? "").trim();
       if (!name) {
         return { success: false, error: "Name is required" };
       }
 
-      let user = await userService.getUserByEmail(onboardingEmail);
+      let user =
+        "email" in onboardingContact
+          ? await userService.getUserByEmail(onboardingContact.email)
+          : await userService.getUserByPhone(onboardingContact.phone);
       if (!user) {
-        user = await userService.createUser({ email: onboardingEmail, name });
+        user = await userService.createUser({ ...onboardingContact, name });
       }
 
       const { token, refreshToken } = await this.mintUserTokens(user);
@@ -256,6 +274,7 @@ export class AuthController extends Controller {
         user: {
           id: user.id,
           email: user.email,
+          phone: user.phone,
           name: user.name,
           needsOnboarding: user.needsOnboarding ?? true,
           waiverAcceptedAt: user.waiverAcceptedAt,
@@ -331,6 +350,7 @@ export class AuthController extends Controller {
       user: {
         id: user.id,
         email: user.email,
+        phone: user.phone,
         name: user.name,
         needsOnboarding: user.needsOnboarding ?? true, // New users need onboarding
         waiverAcceptedAt: user.waiverAcceptedAt,
@@ -595,10 +615,274 @@ export class AuthController extends Controller {
     return this.issueSessionForEmail(result.authCode.email);
   }
 
+  /**
+   * Start SMS sign-in: text a code to a +1 number. Mirrors /login exactly —
+   * new and returning numbers both get a code, and the response is identical
+   * either way (no enumeration, §4.7). Abuse is capped by otpSendRateLimit on
+   * the route, which keys on the normalized phone as well as the IP.
+   */
+  public async startPhoneLogin(requestBody: {
+    phone?: unknown;
+  }): Promise<AuthLoginResponse & { errorCode?: string }> {
+    const phone = normalizeUsPhone(requestBody?.phone);
+    if (!phone) {
+      return {
+        success: false,
+        errorCode: "INVALID_PHONE",
+        error: "Enter a 10-digit US or Canadian mobile number.",
+      };
+    }
+
+    try {
+      await smsVerifyService.sendCode(phone);
+    } catch (error) {
+      if (error instanceof SmsNotConfiguredError) {
+        logger.error("SMS sign-in requested but Twilio is not configured", error, {
+          operation: "startPhoneLogin",
+        });
+        return {
+          success: false,
+          errorCode: "SMS_UNAVAILABLE",
+          error: "Text sign-in isn't available right now. Use your email instead.",
+        };
+      }
+      return {
+        success: false,
+        error: "We couldn't text your code. Check the number and try again.",
+      };
+    }
+
+    return { success: true, message: "Code sent" };
+  }
+
+  /**
+   * Finish SMS sign-in. Same success payload as /verify: an existing number
+   * gets a full session; a new number gets a 1-hour onboarding token carrying
+   * the phone, which /signup exchanges for an account (§4.8 → §5).
+   */
+  public async verifyPhoneLogin(requestBody: {
+    phone?: unknown;
+    code?: unknown;
+  }): Promise<AuthVerifyResponse> {
+    const phone = normalizeUsPhone(requestBody?.phone);
+    const code = typeof requestBody?.code === "string" ? requestBody.code.trim() : "";
+    if (!phone || !/^\d{4,10}$/.test(code)) {
+      return {
+        success: false,
+        errorCode: "INVALID_CODE",
+        error: "That code didn't match.",
+      };
+    }
+
+    let result: SmsCheckResult;
+    try {
+      result = await smsVerifyService.checkCode(phone, code);
+    } catch (error) {
+      if (error instanceof SmsNotConfiguredError) {
+        return {
+          success: false,
+          errorCode: "SMS_UNAVAILABLE",
+          error: "Text sign-in isn't available right now. Use your email instead.",
+        };
+      }
+      return {
+        success: false,
+        error: "We couldn't check your code. Try again.",
+      };
+    }
+
+    if (result !== "VALID") return this.codeFailure(result);
+    return this.issueSessionForPhone(phone);
+  }
+
+  /** The verify-failure payloads, shared by the email and SMS paths. */
+  private codeFailure(
+    status: "INVALID_CODE" | "EXPIRED_CODE" | "CODE_EXHAUSTED",
+    attemptsLeft?: number
+  ): { success: false; errorCode: string; error: string; attemptsLeft?: number } {
+    switch (status) {
+      case "EXPIRED_CODE":
+        return { success: false, errorCode: "EXPIRED_CODE", error: "That code has expired." };
+      case "CODE_EXHAUSTED":
+        return {
+          success: false,
+          errorCode: "CODE_EXHAUSTED",
+          error: "No tries left on that code. Send a new one.",
+        };
+      default:
+        return {
+          success: false,
+          errorCode: "INVALID_CODE",
+          attemptsLeft,
+          error: "That code didn't match.",
+        };
+    }
+  }
+
+  /** Phone counterpart of issueSessionForEmail. `phone` is E.164. */
+  private async issueSessionForPhone(phone: string): Promise<AuthVerifyResponse> {
+    const user = await userService.getUserByPhone(phone);
+
+    if (!user) {
+      const token = jwt.sign(
+        { phone, isOnboarding: true },
+        process.env.JWT_SECRET!,
+        { expiresIn: "1h" }
+      );
+      return { success: true, needsOnboarding: true, phone, token };
+    }
+
+    const { token, refreshToken } = await this.mintUserTokens(user);
+    return {
+      success: true,
+      user: this.toAuthUser(user),
+      needsOnboarding: user.needsOnboarding ?? false,
+      needsWaiverUpdate: !hasAcceptedCurrentWaiver(user),
+      token,
+      refreshToken,
+    };
+  }
+
+  /**
+   * Settings "Add phone" / "Add email", step 1: send a code to the new
+   * identifier. The caller is authenticated (userId from the access token);
+   * a number or address already on ANOTHER account is refused up front so
+   * nobody waits on a code they can't use.
+   */
+  public async startAddContact(
+    userId: number,
+    requestBody: { phone?: unknown; email?: unknown }
+  ): Promise<AuthContactResponse> {
+    if (requestBody?.phone !== undefined) {
+      const phone = normalizeUsPhone(requestBody.phone);
+      if (!phone) {
+        return {
+          success: false,
+          errorCode: "INVALID_PHONE",
+          error: "Enter a 10-digit US or Canadian mobile number.",
+        };
+      }
+      const owner = await userService.getUserByPhone(phone);
+      if (owner && owner.id !== userId) return this.contactTaken("phone");
+      try {
+        await smsVerifyService.sendCode(phone);
+      } catch (error) {
+        return error instanceof SmsNotConfiguredError
+          ? {
+              success: false,
+              errorCode: "SMS_UNAVAILABLE",
+              error: "Text messages aren't available right now. Try again later.",
+            }
+          : {
+              success: false,
+              error: "We couldn't text your code. Check the number and try again.",
+            };
+      }
+      return { success: true };
+    }
+
+    const parsed = emailAuthSchema.safeParse({ email: requestBody?.email });
+    if (!parsed.success) {
+      return { success: false, error: "Enter a valid email address." };
+    }
+    const { email } = parsed.data;
+    const owner = await userService.getUserByEmail(email);
+    if (owner && owner.id !== userId) return this.contactTaken("email");
+
+    try {
+      const user = await userService.getUser(userId);
+      const authCode = await authService.generateAuthCode(email);
+      await emailService.sendOtpEmail(email, authCode, user?.name ?? email.split("@")[0]);
+    } catch (error) {
+      logger.error("Failed to send add-email code", error as Error, {
+        operation: "startAddContact",
+        userId,
+      });
+      return {
+        success: false,
+        error: "We couldn't send your code. Check your connection and try again.",
+      };
+    }
+    return { success: true };
+  }
+
+  /**
+   * Settings "Add phone" / "Add email", step 2: check the code and attach the
+   * identifier to the caller's account. Returns the updated user so the app
+   * can refresh what it shows without another round trip.
+   */
+  public async verifyAddContact(
+    userId: number,
+    requestBody: { phone?: unknown; email?: unknown; code?: unknown }
+  ): Promise<AuthContactResponse> {
+    const code = typeof requestBody?.code === "string" ? requestBody.code.trim() : "";
+    if (!/^\d{4,10}$/.test(code)) return this.codeFailure("INVALID_CODE");
+
+    let contact: { email: string } | { phone: string };
+    if (requestBody?.phone !== undefined) {
+      const phone = normalizeUsPhone(requestBody.phone);
+      if (!phone) return this.codeFailure("INVALID_CODE");
+      let result: SmsCheckResult;
+      try {
+        result = await smsVerifyService.checkCode(phone, code);
+      } catch {
+        return { success: false, error: "We couldn't check your code. Try again." };
+      }
+      if (result !== "VALID") return this.codeFailure(result);
+      contact = { phone };
+    } else {
+      const parsed = emailAuthSchema.safeParse({ email: requestBody?.email });
+      if (!parsed.success) return this.codeFailure("INVALID_CODE");
+      const { email } = parsed.data;
+      const result = await authService.verifyCode(code, email);
+      if (result.status !== "VALID") {
+        return this.codeFailure(
+          result.status,
+          "attemptsLeft" in result ? result.attemptsLeft : undefined
+        );
+      }
+      await authService.invalidateAuthCode(code);
+      contact = { email };
+    }
+
+    const attached = await userService.attachContact(userId, contact);
+    if (attached.status === "taken") {
+      return this.contactTaken("email" in contact ? "email" : "phone");
+    }
+    return { success: true, user: this.toAuthUser(attached.user) };
+  }
+
+  private contactTaken(kind: "email" | "phone"): AuthContactResponse {
+    return {
+      success: false,
+      errorCode: "TAKEN",
+      error:
+        kind === "phone"
+          ? "That number is already used by another MastersFit account."
+          : "That email is already used by another MastersFit account.",
+    };
+  }
+
+  /** The user object every auth response carries. */
+  private toAuthUser(user: User): AuthUserResponse {
+    return {
+      id: user.id,
+      email: user.email,
+      phone: user.phone,
+      name: user.name,
+      needsOnboarding: user.needsOnboarding ?? false,
+      waiverAcceptedAt: user.waiverAcceptedAt,
+      waiverVersion: user.waiverVersion,
+      themeMode: user.themeMode ?? "auto",
+      colorTheme: user.colorTheme ?? "original",
+      isAdmin: isAdminUserId(user.id),
+    };
+  }
+
   /** Mint a full access + refresh token pair for a real (existing) user. */
   private async mintUserTokens(user: {
     id: number;
-    email: string;
+    email: string | null;
   }): Promise<{ token: string; refreshToken: string }> {
     const token = jwt.sign(
       { id: user.id, email: user.email },
@@ -641,6 +925,7 @@ export class AuthController extends Controller {
       user: {
         id: user.id,
         email: user.email,
+        phone: user.phone,
         name: user.name,
         needsOnboarding: user.needsOnboarding ?? false,
         waiverAcceptedAt: user.waiverAcceptedAt,

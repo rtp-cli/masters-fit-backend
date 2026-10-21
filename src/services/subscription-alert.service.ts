@@ -3,6 +3,7 @@ import { BaseService } from "@/services/base.service";
 import { users } from "@/models/user.schema";
 import { emailService } from "@/services/email.service";
 import { logger } from "@/utils/logger";
+import { formatUsPhone } from "@/utils/phone.utils";
 import {
   isSignupNotifyEnabled,
   isSuppressedSignupEmail,
@@ -73,13 +74,23 @@ export class SubscriptionAlertService extends BaseService {
         userId: users.id,
         name: users.name,
         email: users.email,
+        phone: users.phone,
         createdAt: users.createdAt,
       })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
 
-    return row ?? null;
+    if (!row) return null;
+    // A phone-only customer still gets an owner alert — it's money either
+    // way. `email` stays an address (it is the alert's Reply-To), so their
+    // number rides along in the name instead.
+    return {
+      userId: row.userId,
+      name: row.phone && !row.email ? `${row.name} (${formatUsPhone(row.phone)})` : row.name,
+      email: row.email ?? "",
+      createdAt: row.createdAt,
+    };
   }
 
   /**
@@ -112,7 +123,9 @@ export class SubscriptionAlertService extends BaseService {
 
       const user = await this.getAlertUser(userId);
       if (!user) return "skipped";
-      if (isSuppressedSignupEmail(user.email)) return "suppressed";
+      // Only an address can be on the suppression list; a phone-only
+      // customer (email "") is never an internal account.
+      if (user.email && isSuppressedSignupEmail(user.email)) return "suppressed";
 
       await emailService.sendSubscriptionAlertEmail(
         buildSubscriptionAlert(event, user)

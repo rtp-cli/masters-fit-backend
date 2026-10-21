@@ -230,7 +230,7 @@ export class EventTrackingService {
     user: {
       id: number;
       uuid: string;
-      email: string;
+      email: string | null;
       name: string;
       createdAt: Date | null;
       needsOnboarding?: boolean | null;

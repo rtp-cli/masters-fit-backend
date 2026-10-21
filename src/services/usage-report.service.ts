@@ -120,8 +120,12 @@ export class UsageReportService extends BaseService {
         const weekEnd = new Date(bounds.rows[0].week_end);
         const prevStart = new Date(bounds.rows[0].prev_start);
 
+        // coalesce: a phone-only account (SMS sign-in) has no email. Its E.164
+        // number stands in, so it is counted as the real user it is (a null
+        // here used to read as "internal" and drop them from every number) and
+        // the report has something to show beside the name.
         const allUsers = await tx.execute<UserRow>(sql`
-          select u.id, u.email, u.name, u.created_at, u.needs_onboarding, p.fitness_level
+          select u.id, coalesce(u.email, u.phone) as email, u.name, u.created_at, u.needs_onboarding, p.fitness_level
           from users u
           left join profiles p on p.user_id = u.id
           where u.created_at < ${weekEnd.toISOString()}::timestamptz
