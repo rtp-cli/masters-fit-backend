@@ -74,10 +74,28 @@ export class SubscriptionService extends BaseService {
           subscriptionEndDate: null,
         } satisfies InsertUserSubscription;
 
-        const [subscription] = await this.db
+        // Concurrent first requests (GET /subscriptions/status resolves the
+        // subscription 4x in parallel) race to create this row. The loser of
+        // the race reads the winner's row instead of hitting the unique
+        // constraint and failing the request.
+        const [inserted] = await this.db
           .insert(userSubscriptions)
           .values(trialData)
+          .onConflictDoNothing({ target: userSubscriptions.userId })
           .returning();
+
+        if (!inserted) {
+          const existing = await this.db.query.userSubscriptions.findFirst({
+            where: eq(userSubscriptions.userId, userId),
+          });
+          if (!existing) {
+            throw new Error(
+              `Subscription for user ${userId} conflicted on insert but was not found`
+            );
+          }
+          return existing;
+        }
+        const subscription = inserted;
 
         // Create trial usage record proactively for consistency
         await this.getTrialUsage(userId);
@@ -159,12 +177,22 @@ export class SubscriptionService extends BaseService {
             tokensUsed: 0,
           };
 
+          // Same first-request race as createTrialSubscription.
           const [newUsage] = await this.db
             .insert(trialUsage)
             .values(usageData)
+            .onConflictDoNothing({ target: trialUsage.userId })
             .returning();
+          if (newUsage) return newUsage;
 
-          return newUsage;
+          usage = await this.db.query.trialUsage.findFirst({
+            where: eq(trialUsage.userId, userId),
+          });
+          if (!usage) {
+            throw new Error(
+              `Trial usage for user ${userId} conflicted on insert but was not found`
+            );
+          }
         }
 
         // Note: dailyRegenerationsCount is a LIFETIME limit (5 total day-plan regenerations)
