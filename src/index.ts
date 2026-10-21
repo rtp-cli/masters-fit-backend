@@ -43,6 +43,12 @@ import {
 } from "./queues/activation-nudge.queue";
 import { processActivationNudge } from "./jobs/activation-nudge.job";
 import {
+  workoutReminderQueue,
+  scheduleWorkoutReminderJob,
+  closeWorkoutReminderQueue,
+} from "./queues/workout-reminder.queue";
+import { processWorkoutReminder } from "./jobs/workout-reminder.job";
+import {
   usageReportQueue,
   scheduleUsageReportJob,
   closeUsageReportQueue,
@@ -157,6 +163,12 @@ async function initializeServices() {
     activationNudgeQueue.process('activation-nudge', 1, processActivationNudge);
     await scheduleActivationNudgeJob();
 
+    // Workout reminder: hourly scan that PUSHES (not mails) a morning-of
+    // reminder at 8am in each user's timezone. Inert unless
+    // WORKOUT_REMINDER_ENABLED is set.
+    workoutReminderQueue.process('workout-reminder', 1, processWorkoutReminder);
+    await scheduleWorkoutReminderJob();
+
     // Weekly usage report: internal mail to the owner, Monday 08:00 Central.
     // A no-op unless SIGNUP_NOTIFY_ENABLED is set (USAGE_REPORT_ENABLED=false
     // turns it off on its own).
@@ -182,6 +194,7 @@ async function gracefulShutdown() {
     await closeStalledSignupDigestQueue();
     await closeOnboardingNudgeQueue();
     await closeActivationNudgeQueue();
+    await closeWorkoutReminderQueue();
     await closeUsageReportQueue();
 
     // Close Redis

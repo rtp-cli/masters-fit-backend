@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { expressAuthentication } from "@/middleware/auth.middleware";
 import { otpSendRateLimit } from "@/middleware/rate-limit.middleware";
 import { userService } from "@/services";
+import { workoutReminderService } from "@/services/workout-reminder.service";
 
 const router = Router();
 const controller = new AuthController();
@@ -265,6 +266,63 @@ router.put("/theme", async (req, res) => {
     await userService.updateUser(userId, updateData);
 
     res.json({ success: true });
+  } catch (error) {
+    if (error instanceof Error && (error.message === "Invalid or expired token" || error.message === "Unauthorized")) {
+      res.status(401).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+// Notification preferences (authenticated). Today just the daily workout
+// reminder push — the Settings switch. Same shape as /theme: the user id
+// comes from the token, never the body.
+router.get("/notification-preferences", async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const userId = (req as any).userId;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+      return;
+    }
+
+    const preferences = await workoutReminderService.getPreferences(userId);
+    if (!preferences) {
+      res.status(404).json({ success: false, error: "User not found" });
+      return;
+    }
+
+    res.json({ success: true, preferences });
+  } catch (error) {
+    if (error instanceof Error && (error.message === "Invalid or expired token" || error.message === "Unauthorized")) {
+      res.status(401).json({ success: false, error: error.message });
+    } else {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  }
+});
+
+router.put("/notification-preferences", async (req, res) => {
+  try {
+    await expressAuthentication(req as any, "bearerAuth");
+    const userId = (req as any).userId;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+      return;
+    }
+
+    const { workoutReminders } = req.body ?? {};
+    if (typeof workoutReminders !== "boolean") {
+      res.status(400).json({ success: false, error: "workoutReminders must be a boolean" });
+      return;
+    }
+
+    await workoutReminderService.setWorkoutReminders(userId, workoutReminders);
+
+    res.json({ success: true, preferences: { workoutReminders } });
   } catch (error) {
     if (error instanceof Error && (error.message === "Invalid or expired token" || error.message === "Unauthorized")) {
       res.status(401).json({ success: false, error: error.message });
