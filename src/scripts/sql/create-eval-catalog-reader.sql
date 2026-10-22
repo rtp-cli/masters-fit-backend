@@ -31,4 +31,8 @@ REVOKE ALL ON FUNCTION eval_catalog() FROM PUBLIC;
 CREATE ROLE eval_catalog_reader LOGIN PASSWORD :'eval_pw' CONNECTION LIMIT 3;
 ALTER ROLE eval_catalog_reader SET default_transaction_read_only = on;
 ALTER ROLE eval_catalog_reader SET statement_timeout = '60s';
+-- Prod's public schema grants PUBLIC no USAGE, so without this the role can't
+-- even resolve eval_catalog(). USAGE only allows name lookup; every table still
+-- needs its own SELECT, which this role has nowhere.
+GRANT USAGE ON SCHEMA public TO eval_catalog_reader;
 GRANT EXECUTE ON FUNCTION eval_catalog() TO eval_catalog_reader;
