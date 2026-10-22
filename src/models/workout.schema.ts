@@ -189,6 +189,15 @@ export const planDayExercises = pgTable("plan_day_exercises", {
   notes: text("notes"),
   completed: boolean("completed").default(false),
   isSkipped: boolean("is_skipped").default(false),
+  // The movement the plan originally prescribed, when the user swapped it for
+  // another (before, during, or after the workout). Kept as the FIRST
+  // prescription across repeated swaps and cleared on a swap back, so
+  // "she always swaps push press out" is readable for the generator. Null =
+  // never swapped. SET NULL so deleting an exercise never blocks on history.
+  substitutedFromExerciseId: integer("substituted_from_exercise_id").references(
+    () => exercises.id,
+    { onDelete: "set null" }
+  ),
   order: integer("order").default(1), // Order of exercises within the block
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()

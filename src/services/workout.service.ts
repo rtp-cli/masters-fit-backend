@@ -43,6 +43,7 @@ import {
 } from "@/utils/date.utils";
 import { buildPlanDaySchedule, PlanDaySlot } from "@/utils/plan-schedule";
 import { resolveInsertPosition } from "@/utils/plan-day-position.utils";
+import { nextSubstitutedFrom } from "@/utils/exercise-substitution";
 import { markPhaseElapsed } from "@/utils/phase-timing";
 import { buildPlanContext, PlanContext } from "@/utils/plan-context";
 import { workoutLogs } from "../models/logs.schema";
@@ -886,10 +887,17 @@ export class WorkoutService extends BaseService {
     // Except `notes`: that's the generator's coaching cue for the OLD movement
     // ("lower chest to near floor"), which read as instructions for whatever
     // replaced it — glaring once the replacement is a user's own "sled push".
+    // Remember what the plan first prescribed (see nextSubstitutedFrom).
+    const substitutedFromExerciseId = nextSubstitutedFrom(
+      currentExercise,
+      newExerciseId
+    );
+
     const [updatedExercise] = await this.db
       .update(planDayExercises)
       .set({
         exerciseId: newExerciseId,
+        substitutedFromExerciseId,
         notes: null,
         ...(isBodyweight ? { weight: null } : {}),
         updatedAt: new Date(),
