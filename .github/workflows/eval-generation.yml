@@ -13,15 +13,19 @@ name: Generation eval
 #
 # Setup required before it can do anything (the job no-ops with a notice until
 # both are present):
-#   ANTHROPIC_API_KEY   — the eval makes real LLM calls.
-#   EVAL_DATABASE_URL   — a database with the exercise catalog and a users row
-#                         matching the EVAL_USER_ID set below.
+#   ANTHROPIC_API_KEY          — the eval makes real LLM calls.
+#   EVAL_CATALOG_DATABASE_URL  — prod, as eval_catalog_reader: a role that can
+#                                only run eval_catalog() (the shared exercise
+#                                catalog). Created by
+#                                scripts/create-eval-catalog-reader.sh.
 #
-# IMPORTANT: do NOT point EVAL_DATABASE_URL at production. The eval persists no
-# workouts, but generation telemetry (llm_generation_logs) IS written for the
-# eval user, so a prod URL would pollute prod's LLM metrics with 20 synthetic
-# generations a week. A Neon branch off prod is the right target: same catalog,
-# isolated writes, thrown away whenever you like.
+# The database the eval runs against is a throwaway Postgres service container
+# started inside this job (2026-10-22; replaced a Neon branch that silently went
+# stale). scripts/seed-eval-db.sh builds it at the start of every run: schema
+# pushed from the code under test, today's prod catalog, one invented eval
+# user. So the catalog is never stale, no prod user data leaves prod, and the
+# generation telemetry the eval writes (llm_generation_logs) dies with the job
+# instead of polluting prod's LLM metrics.
 #
 # Cost: one run is ~20 full weekly generations (Haiku day calls, Sonnet
 # planning on the override scenarios). Use the `only` input for a cheap probe.
@@ -43,8 +47,8 @@ name: Generation eval
 # with repeat>1 SKIPS the gate entirely — that run is a measurement, not a
 # verdict, and gating it against the reference it is about to replace would
 # both fail by construction and burn extra generations on confirmation. Do it HERE
-# rather than locally — the reference must be captured against
-# EVAL_DATABASE_URL's catalog, or its scores aren't comparable with CI's. The
+# rather than locally — the reference must be captured against the same
+# seeded catalog CI uses, or its scores aren't comparable with CI's. The
 # committed reference is a single run from 2026-09-07, so each scenario's number
 # is wherever that one sample happened to land (muscle-balance-6day sits at
 # 100%, the top of its range). Confirmation absorbs most of that bias; a median
@@ -92,6 +96,7 @@ on:
       # The harness and the line it grades against.
       - "src/scripts/eval-generation.ts"
       - "src/scripts/eval-scenarios.ts"
+      - "scripts/seed-eval-db.sh"
       - "src/utils/generation-compliance.ts"
       - "src/utils/eval-gate.ts"
       - "eval-baseline/reference.json"
@@ -133,9 +138,24 @@ jobs:
     runs-on: ubuntu-latest
     if: "!contains(github.event.pull_request.labels.*.name, 'skip-eval')"
     timeout-minutes: 45
+    # The eval's database: empty at start, seeded below, gone when the job ends.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: eval
+          POSTGRES_DB: eval
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      DATABASE_URL: ${{ secrets.EVAL_DATABASE_URL }}
+      CATALOG_SOURCE_URL: ${{ secrets.EVAL_CATALOG_DATABASE_URL }}
+      DATABASE_URL: postgresql://postgres:eval@localhost:5432/eval
       # Prod parity: the planning call escalates to Sonnet for override
       # requests in production, and the reference was captured that way.
       SONNET_PLANNING_ON_OVERRIDE: "true"
@@ -145,12 +165,9 @@ jobs:
       # scenarios, as in prod.
       FANOUT_PLANNING_MODEL: ${{ github.event.inputs.fanout_model }}
       FANOUT_DAY_MODEL: ${{ github.event.inputs.fanout_model }}
-      # The eval attributes its generations to this users row: the harness
+      # The eval attributes its generations to this users row (the harness
       # passes it to generateWeeklyWorkout, and llm_generation_logs.user_id has
-      # a foreign key to users. It must EXIST in whatever database
-      # EVAL_DATABASE_URL points at, or every telemetry insert fails. The
-      # harness defaults to 1, which exists in a local dev DB but NOT in prod
-      # (lowest prod id is 3) — so a Neon branch off prod needs this set.
+      # a foreign key to users). seed-eval-db.sh invents a row with this id.
       EVAL_USER_ID: "3"
       # Inert but required by modules that read them at load time.
       JWT_SECRET: eval-only-not-a-real-credential
@@ -170,13 +187,17 @@ jobs:
         run: |
           missing=""
           [ -z "$ANTHROPIC_API_KEY" ] && missing="$missing ANTHROPIC_API_KEY"
-          [ -z "$DATABASE_URL" ] && missing="$missing EVAL_DATABASE_URL"
+          [ -z "$CATALOG_SOURCE_URL" ] && missing="$missing EVAL_CATALOG_DATABASE_URL"
           if [ -n "$missing" ]; then
             echo "::notice::Generation eval skipped — missing secret(s):$missing. See the comments in .github/workflows/eval-generation.yml."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Seed the eval database
+        if: steps.cfg.outputs.ready == 'true'
+        run: scripts/seed-eval-db.sh
 
       - name: Resolve run label
         if: steps.cfg.outputs.ready == 'true'
