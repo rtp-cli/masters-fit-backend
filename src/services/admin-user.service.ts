@@ -3,6 +3,8 @@ import { userSubscriptions } from "@/models";
 import { AccessTier } from "@/constants/access-policy";
 import { shouldSendCompEmail } from "@/constants/comp-notification";
 import { emailService } from "@/services/email.service";
+import { BACKEND_ANALYTICS_EVENT } from "@/constants/analytics-events";
+import { isInternalAccount } from "@/constants/usage-report";
 import { logger } from "@/utils/logger";
 import { BaseService } from "./base.service";
 
@@ -15,6 +17,21 @@ export interface AdminUserSummary {
   needsOnboarding: boolean | null;
   accessOverride: string | null;
   subscriptionStatus: string | null;
+  /** From the user's latest app_opened event; null = no open recorded (tracking began 2026-09-17). */
+  platform: DevicePlatform | null;
+  lastOpenedAt: Date | null;
+}
+
+export type DevicePlatform = "ios" | "android" | "web";
+export type PlatformFilter = DevicePlatform | "unknown";
+
+export interface PlatformSplit {
+  ios: number;
+  android: number;
+  web: number;
+  unknown: number;
+  /** Real users only — same internal-account rule as the weekly usage report. */
+  total: number;
 }
 
 export interface AdminUserActivity {
@@ -46,6 +63,13 @@ export interface AdminUserDetail extends AdminUserSummary {
     lastTrainedAt: Date | null;
   };
   recent: AdminUserActivity[];
+  device: {
+    platform: DevicePlatform | null;
+    appVersion: string | null;
+    lastOpenedAt: Date | null;
+    /** Every platform this user has opened the app on, e.g. ["ios", "android"]. */
+    platformsSeen: DevicePlatform[];
+  };
 }
 
 export interface SetCompResult extends Record<string, unknown> {
@@ -65,6 +89,37 @@ export class AdminUserError extends Error {
 const SEARCH_LIMIT = 25;
 
 /**
+ * The user's most recent app_opened event — the app reports platform + version
+ * on every launch. Served by idx_analytics_events_user_event
+ * (user_id, event_name, created_at). Alias: lo.
+ */
+const LAST_OPEN_JOIN = sql`
+  left join lateral (
+    select ae.properties->>'platform' as platform,
+      ae.properties->>'app_version' as app_version,
+      ae.created_at as opened_at
+    from analytics_events ae
+    where ae.user_id = u.id and ae.event_name = ${BACKEND_ANALYTICS_EVENT.APP_OPENED}
+    order by ae.created_at desc
+    limit 1
+  ) lo on true`;
+
+/**
+ * Raw db.execute rows hand timestamptz back as strings with a short offset
+ * ("2026-10-22 07:36:20.68-05"), which not every client parses. A Date
+ * serialises as ISO-8601 instead.
+ */
+function toDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function asPlatform(value: string | null | undefined): DevicePlatform | null {
+  return value === "ios" || value === "android" || value === "web" ? value : null;
+}
+
+/**
  * Read + action layer for the admin console's Users section. Reads run in a
  * read-only transaction (same posture as usage-report.service), so a bug here
  * can't write. Writes go through adminActionService.run at the route.
@@ -74,7 +129,7 @@ class AdminUserService extends BaseService {
    * Email, phone, or name — case-insensitive substring. A bare number also
    * matches the user id exactly. Empty query → most recent signups.
    */
-  async search(query: string): Promise<AdminUserSummary[]> {
+  async search(query: string, platform?: PlatformFilter): Promise<AdminUserSummary[]> {
     const q = query.trim();
     const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     const asId = /^\d+$/.test(q) ? Number(q) : -1;
@@ -91,16 +146,22 @@ class AdminUserService extends BaseService {
       needs_onboarding: boolean | null;
       access_override: string | null;
       status: string | null;
+      platform: string | null;
+      opened_at: Date | null;
     }>(sql`
       select u.id, u.name, u.email, u.phone, u.created_at, u.needs_onboarding,
-        s.access_override, s.status
+        s.access_override, s.status, lo.platform, lo.opened_at
       from users u
       left join user_subscriptions s on s.user_id = u.id
-      where ${q === ""}
+      ${LAST_OPEN_JOIN}
+      where (${q === ""}
         or u.id = ${asId}
         or u.email ilike ${like}
         or u.name ilike ${like}
-        or (${phoneLike}::text is not null and u.phone like ${phoneLike})
+        or (${phoneLike}::text is not null and u.phone like ${phoneLike}))
+        and (${platform ?? null}::text is null
+          or (${platform ?? null}::text = 'unknown' and lo.platform is null)
+          or lo.platform = ${platform ?? null}::text)
       order by u.created_at desc nulls last
       limit ${SEARCH_LIMIT}
     `);
@@ -114,6 +175,8 @@ class AdminUserService extends BaseService {
       needsOnboarding: r.needs_onboarding,
       accessOverride: r.access_override,
       subscriptionStatus: r.status,
+      platform: asPlatform(r.platform),
+      lastOpenedAt: toDate(r.opened_at),
     }));
   }
 
@@ -182,6 +245,22 @@ class AdminUserService extends BaseService {
           order by created_at desc
         `);
 
+        const opens = await tx.execute<{
+          platform: string | null;
+          app_version: string | null;
+          created_at: Date;
+        }>(sql`
+          select properties->>'platform' as platform,
+            properties->>'app_version' as app_version, created_at
+          from analytics_events
+          where user_id = ${userId} and event_name = ${BACKEND_ANALYTICS_EVENT.APP_OPENED}
+          order by created_at desc
+        `);
+        const lastOpen = opens.rows[0];
+        const platformsSeen = [
+          ...new Set(opens.rows.map((o) => asPlatform(o.platform)).filter((p): p is DevicePlatform => !!p)),
+        ];
+
         const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
         const within30 = (d: Date) => new Date(d).getTime() >= cutoff;
 
@@ -224,6 +303,14 @@ class AdminUserService extends BaseService {
           timezone: u.timezone,
           accessOverride: sub?.accessOverride ?? null,
           subscriptionStatus: sub?.status ?? null,
+          platform: asPlatform(lastOpen?.platform),
+          lastOpenedAt: toDate(lastOpen?.created_at),
+          device: {
+            platform: asPlatform(lastOpen?.platform),
+            appVersion: lastOpen?.app_version ?? null,
+            lastOpenedAt: toDate(lastOpen?.created_at),
+            platformsSeen,
+          },
           subscription: sub
             ? {
                 status: sub.status,
@@ -248,6 +335,25 @@ class AdminUserService extends BaseService {
       },
       { accessMode: "read only" }
     );
+  }
+
+  /**
+   * How many real users are on each platform, by their most recent app open.
+   * "unknown" = no app_opened recorded (tracking began 2026-09-17), not "web".
+   */
+  async platformSplit(): Promise<PlatformSplit> {
+    const result = await this.db.execute<{ email: string | null; platform: string | null }>(sql`
+      select coalesce(u.email, u.phone) as email, lo.platform
+      from users u
+      ${LAST_OPEN_JOIN}
+    `);
+    const split: PlatformSplit = { ios: 0, android: 0, web: 0, unknown: 0, total: 0 };
+    for (const row of result.rows) {
+      if (isInternalAccount(row.email)) continue;
+      split[asPlatform(row.platform) ?? "unknown"] += 1;
+      split.total += 1;
+    }
+    return split;
   }
 
   /**

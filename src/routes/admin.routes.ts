@@ -8,6 +8,7 @@ import { adminActionService } from "@/services/admin-action.service";
 import {
   adminUserService,
   AdminUserError,
+  type PlatformFilter,
 } from "@/services/admin-user.service";
 import { usageReportService } from "@/services/usage-report.service";
 import { ADMIN_ACTIONS } from "@/constants/admin-roles";
@@ -115,13 +116,25 @@ router.get("/usage", requireAuth, requireRole("analyst"), async (_req, res) => {
   }
 });
 
-// GET /api/admin/users?q=<email|phone|name|id>
+// GET /api/admin/users?q=<email|phone|name|id>&platform=<ios|android|web|unknown>
 router.get("/users", requireAuth, requireRole("analyst"), async (req, res) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.slice(0, 100) : "";
-    res.json({ success: true, data: await adminUserService.search(q) });
+    const platform = ["ios", "android", "web", "unknown"].includes(req.query.platform as string)
+      ? (req.query.platform as PlatformFilter)
+      : undefined;
+    res.json({ success: true, data: await adminUserService.search(q, platform) });
   } catch (error) {
     sendServerError(res, "admin.users.search", error);
+  }
+});
+
+// GET /api/admin/platforms — real users by the platform of their latest app open.
+router.get("/platforms", requireAuth, requireRole("analyst"), async (_req, res) => {
+  try {
+    res.json({ success: true, data: await adminUserService.platformSplit() });
+  } catch (error) {
+    sendServerError(res, "admin.platforms", error);
   }
 });
 
