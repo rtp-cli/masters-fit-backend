@@ -7,7 +7,7 @@ import {
   exerciseSetLogs, planDayLogs, workoutLogs, blockLogs, shareLinks, aiOperations,
   backgroundJobs, trialUsage, userSubscriptions, profiles, prompts,
   impersonationAudit, appFeedback, planDayFeedback, accountDeletionLog,
-  trainingLocations, exercises, loggedActivities,
+  trainingLocations, exercises, loggedActivities, analyticsEvents,
 } from "@/models";
 import type { UpdateUser, User } from "@/models";
 import { CURRENT_WAIVER_VERSION } from "@/constants/waiver";
@@ -121,6 +121,14 @@ export async function purgeUserData(tx: any, userId: number, meta: PurgeMeta): P
   await tx.delete(exercises).where(eq(exercises.ownerUserId, userId));
 
   await tx.delete(appFeedback).where(eq(appFeedback.userId, userId));
+  // analytics_events is NO ACTION like the others above, and was missing here
+  // (found 2026-10-24 when it broke seed-demo-user.ts's teardown): nullable
+  // and deliberately non-cascading (see analytics-event.schema.ts) so funnel
+  // counts don't change when an account is deleted — detach, don't delete.
+  await tx
+    .update(analyticsEvents)
+    .set({ userId: null })
+    .where(eq(analyticsEvents.userId, userId));
   await tx.delete(trialUsage).where(eq(trialUsage.userId, userId));
   await tx.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
   await tx.delete(trainingLocations).where(eq(trainingLocations.userId, userId));

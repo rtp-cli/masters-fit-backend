@@ -35,6 +35,9 @@ import { backgroundJobs } from "@/models/jobs.schema";
 import { aiOperations } from "@/models/ai-operations.schema";
 import { exercises } from "@/models/exercise.schema";
 import { shareLinks } from "@/models/share.schema";
+import { analyticsEvents } from "@/models/analytics-event.schema";
+import { loggedActivities } from "@/models/logged-activity.schema";
+import { appFeedback } from "@/models/app-feedback.schema";
 import { impersonationAudit } from "@/models/impersonation-audit.schema";
 import { trainingLocations } from "@/models/training-location.schema";
 import { planDayFeedback } from "@/models/plan-day-feedback.schema";
@@ -353,108 +356,138 @@ async function deleteDemoUser(): Promise<void> {
   const userId = existing.id;
   console.log(`Deleting existing demo user id=${userId} and all data…`);
 
-  const userWorkouts = await db
-    .select({ id: workouts.id })
-    .from(workouts)
-    .where(eq(workouts.userId, userId));
-  const workoutIds = userWorkouts.map((w) => w.id);
+  // Wrapped in a transaction so an unexpected FK (like analytics_events below,
+  // which bit prod on 2026-10-24: the final `users` delete failed and left a
+  // dangling id=158 row with no profile/workouts/subscription, since every
+  // earlier delete had already committed on its own) rolls back atomically
+  // instead of partially succeeding.
+  await db.transaction(async (tx) => {
+    const userWorkouts = await tx
+      .select({ id: workouts.id })
+      .from(workouts)
+      .where(eq(workouts.userId, userId));
+    const workoutIds = userWorkouts.map((w) => w.id);
 
-  if (workoutIds.length) {
-    const days = await db
-      .select({ id: planDays.id })
-      .from(planDays)
-      .where(inArray(planDays.workoutId, workoutIds));
-    const dayIds = days.map((d) => d.id);
+    if (workoutIds.length) {
+      const days = await tx
+        .select({ id: planDays.id })
+        .from(planDays)
+        .where(inArray(planDays.workoutId, workoutIds));
+      const dayIds = days.map((d) => d.id);
 
-    const blocks = dayIds.length
-      ? await db
-          .select({ id: workoutBlocks.id })
-          .from(workoutBlocks)
-          .where(inArray(workoutBlocks.planDayId, dayIds))
-      : [];
-    const blockIds = blocks.map((b) => b.id);
+      const blocks = dayIds.length
+        ? await tx
+            .select({ id: workoutBlocks.id })
+            .from(workoutBlocks)
+            .where(inArray(workoutBlocks.planDayId, dayIds))
+        : [];
+      const blockIds = blocks.map((b) => b.id);
 
-    const pdes = blockIds.length
-      ? await db
-          .select({ id: planDayExercises.id })
-          .from(planDayExercises)
-          .where(inArray(planDayExercises.workoutBlockId, blockIds))
-      : [];
-    const pdeIds = pdes.map((p) => p.id);
+      const pdes = blockIds.length
+        ? await tx
+            .select({ id: planDayExercises.id })
+            .from(planDayExercises)
+            .where(inArray(planDayExercises.workoutBlockId, blockIds))
+        : [];
+      const pdeIds = pdes.map((p) => p.id);
 
-    const elogs = pdeIds.length
-      ? await db
-          .select({ id: exerciseLogs.id })
-          .from(exerciseLogs)
-          .where(inArray(exerciseLogs.planDayExerciseId, pdeIds))
-      : [];
-    const elogIds = elogs.map((e) => e.id);
+      const elogs = pdeIds.length
+        ? await tx
+            .select({ id: exerciseLogs.id })
+            .from(exerciseLogs)
+            .where(inArray(exerciseLogs.planDayExerciseId, pdeIds))
+        : [];
+      const elogIds = elogs.map((e) => e.id);
 
-    if (elogIds.length)
-      await db
-        .delete(exerciseSetLogs)
-        .where(inArray(exerciseSetLogs.exerciseLogId, elogIds));
-    if (pdeIds.length)
-      await db
-        .delete(exerciseLogs)
-        .where(inArray(exerciseLogs.planDayExerciseId, pdeIds));
-    if (dayIds.length)
-      await db.delete(planDayLogs).where(inArray(planDayLogs.planDayId, dayIds));
-    await db.delete(workoutLogs).where(inArray(workoutLogs.workoutId, workoutIds));
-    if (blockIds.length)
-      await db
-        .delete(planDayExercises)
-        .where(inArray(planDayExercises.workoutBlockId, blockIds));
-    // block_logs reference workout_blocks — clear them before the blocks.
-    if (blockIds.length)
-      await db
-        .delete(blockLogs)
-        .where(inArray(blockLogs.workoutBlockId, blockIds));
-    if (dayIds.length)
-      await db
-        .delete(workoutBlocks)
-        .where(inArray(workoutBlocks.planDayId, dayIds));
-    // plan_day_feedback references plan_days (and the user), no cascade — clear
-    // before plan_days. Keyed by userId, so one delete covers the whole demo user.
-    await db
-      .delete(planDayFeedback)
-      .where(eq(planDayFeedback.userId, userId));
-    // share_links reference plan_days (and the user) — clear before plan_days.
-    await db.delete(shareLinks).where(eq(shareLinks.userId, userId));
-    await db.delete(planDays).where(inArray(planDays.workoutId, workoutIds));
-    // ai_operations references workouts and background_jobs — clear it first.
-    await db.delete(aiOperations).where(eq(aiOperations.userId, userId));
-    // background_jobs references workouts (and the user) — clear before workouts.
-    await db.delete(backgroundJobs).where(eq(backgroundJobs.userId, userId));
-    await db.delete(workouts).where(eq(workouts.userId, userId));
-  }
+      if (elogIds.length)
+        await tx
+          .delete(exerciseSetLogs)
+          .where(inArray(exerciseSetLogs.exerciseLogId, elogIds));
+      if (pdeIds.length)
+        await tx
+          .delete(exerciseLogs)
+          .where(inArray(exerciseLogs.planDayExerciseId, pdeIds));
+      if (dayIds.length)
+        await tx.delete(planDayLogs).where(inArray(planDayLogs.planDayId, dayIds));
+      await tx.delete(workoutLogs).where(inArray(workoutLogs.workoutId, workoutIds));
+      if (blockIds.length)
+        await tx
+          .delete(planDayExercises)
+          .where(inArray(planDayExercises.workoutBlockId, blockIds));
+      // block_logs reference workout_blocks — clear them before the blocks.
+      if (blockIds.length)
+        await tx
+          .delete(blockLogs)
+          .where(inArray(blockLogs.workoutBlockId, blockIds));
+      if (dayIds.length)
+        await tx
+          .delete(workoutBlocks)
+          .where(inArray(workoutBlocks.planDayId, dayIds));
+      // plan_day_feedback references plan_days (and the user), no cascade — clear
+      // before plan_days. Keyed by userId, so one delete covers the whole demo user.
+      await tx
+        .delete(planDayFeedback)
+        .where(eq(planDayFeedback.userId, userId));
+      // share_links reference plan_days (and the user) — clear before plan_days.
+      await tx.delete(shareLinks).where(eq(shareLinks.userId, userId));
+      await tx.delete(planDays).where(inArray(planDays.workoutId, workoutIds));
+      // ai_operations references workouts and background_jobs — clear it first.
+      await tx.delete(aiOperations).where(eq(aiOperations.userId, userId));
+      // background_jobs references workouts (and the user) — clear before workouts.
+      await tx.delete(backgroundJobs).where(eq(backgroundJobs.userId, userId));
+      await tx.delete(workouts).where(eq(workouts.userId, userId));
+    }
 
-  await db.delete(trialUsage).where(eq(trialUsage.userId, userId));
-  await db.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
-  await db.delete(profiles).where(eq(profiles.userId, userId));
-  await db.delete(prompts).where(eq(prompts.userId, userId));
-  // training_locations references the user (no cascade) — clear before the user.
-  // workouts.location_id is ON DELETE SET NULL, so order vs workouts doesn't matter.
-  // The table may be absent on DBs where the feature hasn't shipped yet (e.g. prod
-  // before its migration), so swallow only the "undefined table" error (42P01).
-  try {
-    await db
-      .delete(trainingLocations)
-      .where(eq(trainingLocations.userId, userId));
-  } catch (err) {
-    if ((err as { code?: string })?.code !== "42P01") throw err;
-  }
-  // impersonation_audit references the user as admin or target — clear before the user.
-  await db
-    .delete(impersonationAudit)
-    .where(
-      or(
-        eq(impersonationAudit.targetUserId, userId),
-        eq(impersonationAudit.adminUserId, userId)
-      )
-    );
-  await db.delete(users).where(eq(users.id, userId));
-  console.log("  ✓ demo user removed");
+    // logged_activities is the user's own data (LR-077 "log an activity" +
+    // Health import), notNull/no-cascade and unrelated to any workout — clear
+    // before the user, same as exercise logs. Shipped 2026-09-22/10-09, after
+    // this teardown list was last updated, which is why it was missing.
+    await tx
+      .delete(loggedActivities)
+      .where(eq(loggedActivities.userId, userId));
+    await tx.delete(trialUsage).where(eq(trialUsage.userId, userId));
+    await tx.delete(userSubscriptions).where(eq(userSubscriptions.userId, userId));
+    await tx.delete(profiles).where(eq(profiles.userId, userId));
+    await tx.delete(prompts).where(eq(prompts.userId, userId));
+    // training_locations references the user (no cascade) — clear before the user.
+    // workouts.location_id is ON DELETE SET NULL, so order vs workouts doesn't matter.
+    // The table may be absent on DBs where the feature hasn't shipped yet, so swallow
+    // only the "undefined table" error (42P01) — via a SAVEPOINT (tx.transaction),
+    // since inside a transaction a failed statement poisons the whole thing otherwise.
+    try {
+      await tx.transaction(async (tx2) => {
+        await tx2
+          .delete(trainingLocations)
+          .where(eq(trainingLocations.userId, userId));
+      });
+    } catch (err) {
+      if ((err as { code?: string })?.code !== "42P01") throw err;
+    }
+    // impersonation_audit references the user as admin or target — clear before the user.
+    await tx
+      .delete(impersonationAudit)
+      .where(
+        or(
+          eq(impersonationAudit.targetUserId, userId),
+          eq(impersonationAudit.adminUserId, userId)
+        )
+      );
+    // analytics_events is DELIBERATELY non-cascading (see analytics-event.schema.ts):
+    // an event must outlive the account that produced it, or funnel numbers silently
+    // change when someone's deleted. Detach rather than delete, before the user row.
+    await tx
+      .update(analyticsEvents)
+      .set({ userId: null })
+      .where(eq(analyticsEvents.userId, userId));
+    // app_feedback is the same pattern (see app-feedback.schema.ts): a bug report
+    // must outlive the account that filed it. Detach rather than delete.
+    await tx
+      .update(appFeedback)
+      .set({ userId: null })
+      .where(eq(appFeedback.userId, userId));
+    await tx.delete(users).where(eq(users.id, userId));
+    console.log("  ✓ demo user removed");
+  });
 }
 
 // ---------------------------------------------------------------------------
